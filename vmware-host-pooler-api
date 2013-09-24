@@ -1,0 +1,73 @@
+#!/usr/bin/ruby
+
+require 'json'
+require 'rbvmomi'
+require 'redis'
+require 'sinatra'
+require 'yaml'
+
+require File.expand_path( File.dirname( __FILE__ ), 'lib/vsphere_helper.rb' )
+vsphere_helper = VsphereHelper.new
+
+# Load the pool configuration
+pools = YAML.load_file('vmware-host-pooler.yaml')[:pools]
+
+# Load fog credentials
+fog_file = File.expand_path("~/.fog")
+fog_data = YAML.load_file(fog_file)[:default]
+
+# Connect to vSphere
+$vim = RbVmomi::VIM.connect(
+  :host     => fog_data[:vsphere_server],
+  :user     => fog_data[:vsphere_username],
+  :password => fog_data[:vsphere_password],
+  :ssl      => true,
+  :insecure => true,
+  :rev      => '5.1'
+)
+
+# Connect to Redis
+$redis = Redis.new
+
+# Sinatra!
+get '/vm/:template' do
+  content_type :json
+
+  result = {}
+  result[params[:template]] = {}
+  result[params[:template]]['hosts'] = $redis.smembers('vmware_host_pool-'+params[:template])
+
+  result.to_json
+end
+
+post '/vm/:template' do
+  content_type :json
+
+  result = {}
+  result[params[:template]] = {}
+
+  if ( ( ! params[:folder] ) or ( ! params[:pool] ))
+    result[params[:template]]['error'] = 'You must specify a destination \'folder\' and \'pool\''
+  else
+     datacenter = $vim.serviceInstance.find_datacenter
+     base = datacenter.hostFolder
+
+      # Move the VM to the specified folder and resource pool
+      relocateSpec = RbVmomi::VIM.VirtualMachineRelocateSpec(
+        :pool         => vsphere_helper.find_pool(params[:pool])
+      )
+
+      vm = $redis.srandmember('vmware_host_pool-'+params[:template])
+      $redis.srem('vmware_host_pool-'+params[:template], vm)
+
+      vm = vsphere_helper.find_vms(vm)[vm]
+      vm.RelocateVM_Task(:spec => relocateSpec).wait_for_completion
+
+      result[params[:template]]['ok'] = 'true'
+      result[params[:template]]['hostname'] = vm['name']
+  end
+
+  result.to_json
+end
+
+
