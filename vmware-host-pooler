@@ -1,0 +1,129 @@
+#!/usr/bin/ruby
+
+require 'rbvmomi'
+require 'redis'
+require 'yaml'
+
+require File.expand_path( File.dirname( __FILE__ ), './lib/vsphere_helper.rb' )
+vsphere_helper = VsphereHelper.new
+
+# Load the pool configuration
+pools = YAML.load_file('vmware-host-pooler.yaml')[:pools]
+
+# Load fog credentials
+fog_file = File.expand_path("~/.fog")
+fog_data = YAML.load_file(fog_file)[:default]
+
+# Connect to vSphere
+$vim = RbVmomi::VIM.connect(
+  :host     => fog_data[:vsphere_server],
+  :user     => fog_data[:vsphere_username],
+  :password => fog_data[:vsphere_password],
+  :ssl      => true,
+  :insecure => true,
+  :rev      => '5.1'
+)
+
+# Connect to Redis
+$redis = Redis.new
+
+
+
+loop do
+  pools.each do |pool|
+    total = 0
+
+    datacenter = $vim.serviceInstance.find_datacenter
+    base = datacenter.hostFolder
+    path = pool['pool'].split('/')
+
+    # Locate the resource pool
+    path.each do |p|
+      case base
+        when RbVmomi::VIM::Folder
+          base = base.childEntity.find { |f| f.name == p }
+        when RbVmomi::VIM::ClusterComputeResource
+          base = base.resourcePool.resourcePool.find { |f| f.name == p }
+        when RbVmomi::VIM::ResourcePool
+          base = base.resourcePool.find { |f| f.name == p }
+        else
+          abort "Unexpected object type encountered (#{base.class}) while finding resource pool"
+      end
+    end
+    base = base.resourcePool unless base.is_a?(RbVmomi::VIM::ResourcePool) and base.respond_to?(:resourcePool)
+
+    # Count the number of VMs and correlate Redis inventory
+    inventory = {}
+    base.vm.each do |vm|
+      if ! $redis.sismember('vmware_host_pool-'+pool['name'], vm['name'])
+        $redis.sadd('vmware_host_pool-'+pool['name'], vm['name'])
+      end
+      inventory[vm['name']] = 1
+      total = total + 1
+    end
+
+    $redis.smembers('vmware_host_pool-'+pool['name']).each do |vm|
+      if ! inventory[vm]
+        $redis.srem('vmware_host_pool-'+pool['name'], vm)
+      end
+    end
+
+    # Bring the pool up to the desired size
+    if total < pool['size']
+
+      # Provision VMs
+      (1..(pool['size']-total)).each { |i|
+        vm = {}
+
+        if pool['template'] =~ /\//
+          templatefolders = pool['template'].split('/')
+          vm['template'] = templatefolders.pop
+        end
+
+        if templatefolders
+          vm[vm['template']] = vsphere_helper.find_folder(templatefolders.join('/')).find(vm['template'])
+        else
+          raise "Please provide a full path to the template"
+        end
+
+        if vm['template'].length == 0
+          raise "Unable to find template '#{h['template']}'!"
+        end
+
+        # Generate a randomized hostname
+        o = [('a'..'z'),('0'..'9')].map{|r| r.to_a}.flatten
+        vm['hostname'] = o[rand(25)]+(0...14).map{o[rand(o.length)]}.join
+
+        # Put the VM in the specified folder and resource pool
+        relocateSpec = RbVmomi::VIM.VirtualMachineRelocateSpec(
+          :datastore    => vsphere_helper.find_datastore(pool['datastore']),
+          :pool         => vsphere_helper.find_pool(pool['pool']),
+          :diskMoveType => :moveChildMostDiskBacking
+        )
+
+        # Create a clone spec
+        spec = RbVmomi::VIM.VirtualMachineCloneSpec(
+          :location      => relocateSpec,
+          :powerOn       => true,
+          :template      => false
+        )
+
+        puts '[+] '+vm.inspect
+
+        # Clone the VM
+        vm[vm['template']].CloneVM_Task(
+          :folder => vsphere_helper.find_folder(pool['folder']),
+          :name => vm['hostname'],
+          :spec => spec
+        ).wait_for_completion
+
+        # Add VM to Redis inventory
+        $redis.sadd('vmware_host_pool-'+pool['name'], vm['hostname'])
+      }
+    end
+
+    # ZZZzzz...
+    sleep(5)
+  end
+end
+
