@@ -49,22 +49,22 @@ post '/vm/:template' do
   if ( ( ! params[:folder] ) or ( ! params[:pool] ))
     result[params[:template]]['error'] = 'You must specify a destination \'folder\' and \'pool\''
   else
-     datacenter = $vim.serviceInstance.find_datacenter
-     base = datacenter.hostFolder
+    vm = $redis.srandmember('vmware_host_pool-'+params[:template])
+    $redis.srem('vmware_host_pool-'+params[:template], vm)
 
-      # Move the VM to the specified folder and resource pool
-      relocateSpec = RbVmomi::VIM.VirtualMachineRelocateSpec(
-        :pool         => vsphere_helper.find_pool(params[:pool])
-      )
+    datacenter = $vim.serviceInstance.find_datacenter
+    base = datacenter.hostFolder
 
-      vm = $redis.srandmember('vmware_host_pool-'+params[:template])
-      $redis.srem('vmware_host_pool-'+params[:template], vm)
+    # Move the VM to the specified folder and resource pool
+    relocateSpec = RbVmomi::VIM.VirtualMachineRelocateSpec(
+      :pool         => vsphere_helper.find_pool(params[:pool])
+    )
 
-      vm = vsphere_helper.find_vms(vm)[vm]
-      vm.RelocateVM_Task(:spec => relocateSpec).wait_for_completion
+    vm = vsphere_helper.find_vms(vm)[vm]
+    vm.RelocateVM_Task(:spec => relocateSpec)
 
-      result[params[:template]]['ok'] = 'true'
-      result[params[:template]]['hostname'] = vm['name']
+    result[params[:template]]['ok'] = 'true'
+    result[params[:template]]['hostname'] = vm['name']
   end
 
   result.to_json

@@ -4,7 +4,7 @@ require 'rbvmomi'
 require 'redis'
 require 'yaml'
 
-require File.expand_path( File.dirname( __FILE__ ), './lib/vsphere_helper.rb' )
+require File.expand_path( File.dirname( __FILE__ ), 'lib/vsphere_helper.rb' )
 vsphere_helper = VsphereHelper.new
 
 # Load the pool configuration
@@ -27,8 +27,7 @@ $vim = RbVmomi::VIM.connect(
 # Connect to Redis
 $redis = Redis.new
 
-
-
+# Update loop
 loop do
   pools.each do |pool|
     total = 0
