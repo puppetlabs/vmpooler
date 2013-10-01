@@ -4,19 +4,19 @@ require 'rbvmomi'
 require 'redis'
 require 'yaml'
 
-$:.unshift( File.dirname( __FILE__ ) )
+$:.unshift(File.dirname(__FILE__))
 require 'lib/require_relative'
 require 'lib/vsphere_helper'
 
 vsphere_helper = VsphereHelper.new
 
-Dir.chdir( File.dirname( __FILE__ ) )
+Dir.chdir(File.dirname(__FILE__))
 
 # Load the configuration file
-config_file = File.expand_path( 'vmware-host-pooler.yaml' )
+config_file = File.expand_path('vmware-host-pooler.yaml')
 
-pools   = YAML.load_file( config_file )[:pools]
-vsphere = YAML.load_file( config_file )[:vsphere]
+pools   = YAML.load_file(config_file)[:pools]
+vsphere = YAML.load_file(config_file)[:vsphere]
 
 # Connect to vSphere
 $vim = RbVmomi::VIM.connect(
@@ -51,11 +51,15 @@ loop do
       end
 
       inventory[vm['name']] = 1
-      total = total + 1
+      total = total+1
     end
 
-    # Check pending pool
+    # Check 'pending' pool
     $redis.smembers('vmware_host_pool__pending__'+pool['name']).each do |vm|
+      if ! inventory[vm]
+        $redis.srem('vmware_host_pool__pending__'+pool['name'], vm)
+      end
+
       if (
         (vsphere_helper.find_vms(vm)[vm]) and
         (vsphere_helper.find_vms(vm)[vm].summary.guest.toolsRunningStatus == 'guestToolsRunning') and
@@ -74,7 +78,7 @@ loop do
       end
     end
 
-    # Check ready pool
+    # Check 'ready' pool
     $redis.smembers('vmware_host_pool__ready__'+pool['name']).each do |vm|
       if ! inventory[vm]
         $redis.srem('vmware_host_pool__ready__'+pool['name'], vm)
