@@ -34,25 +34,50 @@ $redis = Redis.new
 # Update loop
 loop do
   pools.each do |pool|
+    inventory = {}
     total = 0
 
     # Locate the resource pool
     datacenter = $vim.serviceInstance.find_datacenter
     base = vsphere_helper.find_pool(pool['pool'])
 
-    # Count the number of VMs and correlate Redis inventory
-    inventory = {}
+    # Make sure all VMs in resource pool are accounted-for
     base.vm.each do |vm|
-      if ! $redis.sismember('vmware_host_pool-'+pool['name'], vm['name'])
-        $redis.sadd('vmware_host_pool-'+pool['name'], vm['name'])
+      if (
+        (! $redis.sismember('vmware_host_pool__ready__'+pool['name'], vm['name'])) and
+        (! $redis.sismember('vmware_host_pool__pending__'+pool['name'], vm['name']))
+      )
+        $redis.sadd('vmware_host_pool__pending__'+pool['name'], vm['name'])
       end
+
       inventory[vm['name']] = 1
       total = total + 1
     end
 
-    $redis.smembers('vmware_host_pool-'+pool['name']).each do |vm|
+    # Check pending pool
+    $redis.smembers('vmware_host_pool__pending__'+pool['name']).each do |vm|
+      if (
+        (vsphere_helper.find_vms(vm)[vm]) and
+        (vsphere_helper.find_vms(vm)[vm].summary.guest.toolsRunningStatus == 'guestToolsRunning') and
+        (vsphere_helper.find_vms(vm)[vm].summary.guest.ipAddress != nil)
+      )
+        begin
+          Socket.getaddrinfo(vm, nil)
+        rescue
+          break
+        end
+
+        $redis.sadd('vmware_host_pool__ready__'+pool['name'], vm)
+        $redis.srem('vmware_host_pool__pending__'+pool['name'], vm)
+
+        puts '[>] '+vm+' moved to \'ready\' pool'
+      end
+    end
+
+    # Check ready pool
+    $redis.smembers('vmware_host_pool__ready__'+pool['name']).each do |vm|
       if ! inventory[vm]
-        $redis.srem('vmware_host_pool-'+pool['name'], vm)
+        $redis.srem('vmware_host_pool__ready__'+pool['name'], vm)
       end
     end
 
@@ -105,8 +130,8 @@ loop do
           :spec => spec
         ).wait_for_completion
 
-        # Add VM to Redis inventory
-        $redis.sadd('vmware_host_pool-'+pool['name'], vm['hostname'])
+        # Add VM to Redis inventory ('pending' pool)
+        $redis.sadd('vmware_host_pool__pending__'+pool['name'], vm['hostname'])
       }
     end
 
