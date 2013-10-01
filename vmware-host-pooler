@@ -83,6 +83,28 @@ loop do
       if ! inventory[vm]
         $redis.srem('vmware_host_pool__ready__'+pool['name'], vm)
       end
+
+      if (
+        (! vsphere_helper.find_vms(vm)[vm]) or
+        (vsphere_helper.find_vms(vm)[vm].summary.guest.toolsRunningStatus != 'guestToolsRunning') or
+        (vsphere_helper.find_vms(vm)[vm].summary.guest.ipAddress == nil)
+      )
+        $redis.srem('vmware_host_pool__ready__'+pool['name'], vm)
+        $redis.sadd('vmware_host_pool__failed__'+pool['name'], vm)
+
+        puts '[<] '+vm+' moved to \'failed\' pool'
+
+        break
+      end
+
+      begin
+        Socket.getaddrinfo(vm, nil)
+      rescue
+        $redis.srem('vmware_host_pool__ready__'+pool['name'], vm)
+        $redis.sadd('vmware_host_pool__failed__'+pool['name'], vm)
+
+        puts '[<] '+vm+' moved to \'failed\' pool'
+      end
     end
 
     # Bring the pool up to the desired size
@@ -125,8 +147,6 @@ loop do
           :template      => false
         )
 
-        puts '[+] '+vm.inspect
-
         # Clone the VM
         vm[vm['template']].CloneVM_Task(
           :folder => vsphere_helper.find_folder(pool['folder']),
@@ -136,6 +156,8 @@ loop do
 
         # Add VM to Redis inventory ('pending' pool)
         $redis.sadd('vmware_host_pool__pending__'+pool['name'], vm['hostname'])
+
+        puts '[+] '+vm['hostname']+' cloned from '+vm['template']
       }
     end
 
