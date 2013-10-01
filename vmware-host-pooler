@@ -36,24 +36,9 @@ loop do
   pools.each do |pool|
     total = 0
 
-    datacenter = $vim.serviceInstance.find_datacenter
-    base = datacenter.hostFolder
-    path = pool['pool'].split('/')
-
     # Locate the resource pool
-    path.each do |p|
-      case base
-        when RbVmomi::VIM::Folder
-          base = base.childEntity.find { |f| f.name == p }
-        when RbVmomi::VIM::ClusterComputeResource
-          base = base.resourcePool.resourcePool.find { |f| f.name == p }
-        when RbVmomi::VIM::ResourcePool
-          base = base.resourcePool.find { |f| f.name == p }
-        else
-          abort "Unexpected object type encountered (#{base.class}) while finding resource pool"
-      end
-    end
-    base = base.resourcePool unless base.is_a?(RbVmomi::VIM::ResourcePool) and base.respond_to?(:resourcePool)
+    datacenter = $vim.serviceInstance.find_datacenter
+    base = vsphere_helper.find_pool(pool['pool'])
 
     # Count the number of VMs and correlate Redis inventory
     inventory = {}
