@@ -5,9 +5,11 @@ require 'redis'
 require 'yaml'
 
 $:.unshift(File.dirname(__FILE__))
+require 'lib/logger'
 require 'lib/require_relative'
 require 'lib/vsphere_helper'
 
+logger = Logger.new
 vsphere_helper = VsphereHelper.new
 
 Dir.chdir(File.dirname(__FILE__))
@@ -74,7 +76,7 @@ loop do
         $redis.sadd('vmware_host_pool__ready__'+pool['name'], vm)
         $redis.srem('vmware_host_pool__pending__'+pool['name'], vm)
 
-        puts '[>] '+vm+' moved to \'ready\' pool'
+        logger.log('s', "[>] '#{vm}' moved to 'ready' queue")
       end
     end
 
@@ -92,7 +94,7 @@ loop do
         $redis.srem('vmware_host_pool__ready__'+pool['name'], vm)
         $redis.sadd('vmware_host_pool__failed__'+pool['name'], vm)
 
-        puts '[<] '+vm+' moved to \'failed\' pool'
+        logger.log('s', "[<] '#{vm}' moved to 'failed' queue")
 
         break
       end
@@ -103,7 +105,7 @@ loop do
         $redis.srem('vmware_host_pool__ready__'+pool['name'], vm)
         $redis.sadd('vmware_host_pool__failed__'+pool['name'], vm)
 
-        puts '[<] '+vm+' moved to \'failed\' pool'
+        logger.log('s', "[<] '#{vm}' moved to 'failed' queue")
       end
     end
 
@@ -148,16 +150,20 @@ loop do
         )
 
         # Clone the VM
+        logger.log('d', "[ ] '#{vm['hostname']}' is being cloned from '#{vm['template']}'")
+
+        start = Time.now
         vm[vm['template']].CloneVM_Task(
           :folder => vsphere_helper.find_folder(pool['folder']),
           :name => vm['hostname'],
           :spec => spec
         ).wait_for_completion
+        finish = '%.2f' % (Time.now-start)
 
         # Add VM to Redis inventory ('pending' pool)
         $redis.sadd('vmware_host_pool__pending__'+pool['name'], vm['hostname'])
 
-        puts '[+] '+vm['hostname']+' cloned from '+vm['template']
+        logger.log('s', "[+] '#{vm['hostname']}' cloned from '#{vm['template']}' in #{finish} seconds")
       }
     end
 
