@@ -4,21 +4,25 @@ require 'rbvmomi'
 require 'redis'
 require 'yaml'
 
-require File.expand_path( File.dirname( __FILE__ ), 'lib/vsphere_helper.rb' )
+$:.unshift( File.dirname( __FILE__ ) )
+require 'lib/require_relative'
+require 'lib/vsphere_helper'
+
 vsphere_helper = VsphereHelper.new
 
-# Load the pool configuration
-pools = YAML.load_file('vmware-host-pooler.yaml')[:pools]
+Dir.chdir( File.dirname( __FILE__ ) )
 
-# Load fog credentials
-fog_file = File.expand_path("~/.fog")
-fog_data = YAML.load_file(fog_file)[:default]
+# Load the configuration file
+config_file = File.expand_path( 'vmware-host-pooler.yaml' )
+
+pools   = YAML.load_file( config_file )[:pools]
+vsphere = YAML.load_file( config_file )[:vsphere]
 
 # Connect to vSphere
 $vim = RbVmomi::VIM.connect(
-  :host     => fog_data[:vsphere_server],
-  :user     => fog_data[:vsphere_username],
-  :password => fog_data[:vsphere_password],
+  :host     => vsphere['server'],
+  :user     => vsphere['username'],
+  :password => vsphere['password'],
   :ssl      => true,
   :insecure => true,
   :rev      => '5.1'
