@@ -9,12 +9,14 @@ class VsphereHelper
       raise "Unable to load RbVmomi, please ensure its installed"
     end
 
-    fog_file = File.expand_path("~/.fog")
-    fog_data = YAML.load_file(fog_file)[:default]
+    Dir.chdir(File.dirname(__FILE__))
 
-    @connection = RbVmomi::VIM.connect :host     => fog_data[:vsphere_server],
-                                       :user     => fog_data[:vsphere_username],
-                                       :password => fog_data[:vsphere_password],
+    config_file = File.expand_path('../vmware-host-pooler.yaml')
+    vsphere = YAML.load_file(config_file)[:vsphere]
+
+    @connection = RbVmomi::VIM.connect :host     => vsphere['server'],
+                                       :user     => vsphere['username'],
+                                       :password => vsphere['password'],
                                        :insecure => true
   end
 
