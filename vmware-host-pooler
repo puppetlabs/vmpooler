@@ -115,20 +115,24 @@ loop do
         $redis.srem('vmware_host_pool__completed__'+pool['name'], vm)
       end
 
-      start = Time.now
       host = vsphere_helper.find_vms(vm)[vm]
 
-      if host.runtime
+      if (
+        (host) and
+        (host.runtime)
+      )
+        start = Time.now
+
         if host.runtime.powerState == 'poweredOn'
           logger.log('d', "[ ] '#{vm}' is being shut down")
           host.PowerOffVM_Task.wait_for_completion
         end
+
+        host.Destroy_Task.wait_for_completion
+        finish = '%.2f' % (Time.now-start)
+
+        logger.log('s', "[-] '#{vm}' destroyed in #{finish} seconds")
       end
-
-      host.Destroy_Task.wait_for_completion
-      finish = '%.2f' % (Time.now-start)
-
-      logger.log('s', "[-] '#{vm}' destroyed in #{finish} seconds")
     end
 
     # Bring the pool up to the desired size
