@@ -79,4 +79,19 @@ post '/vm/:template' do
   result.to_json
 end
 
+delete '/vm/:hostname' do
+  content_type :json
+
+  result = {}
+
+  pools.each do |pool|
+    if $redis.sismember('vmware_host_pool__running__'+pool['name'], params[:hostname])
+      $redis.srem('vmware_host_pool__running__'+pool['name'], params[:hostname])
+      $redis.sadd('vmware_host_pool__completed__'+pool['name'], params[:hostname])
+    end
+  end
+
+  result['ok'] = 'true'
+  result.to_json
+end
 
