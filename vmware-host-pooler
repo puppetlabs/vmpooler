@@ -47,8 +47,10 @@ loop do
     # Make sure all VMs in resource pool are accounted-for
     base.vm.each do |vm|
       if (
+        (! $redis.sismember('vmware_host_pool__pending__'+pool['name'], vm['name'])) and
         (! $redis.sismember('vmware_host_pool__ready__'+pool['name'], vm['name'])) and
-        (! $redis.sismember('vmware_host_pool__pending__'+pool['name'], vm['name']))
+        (! $redis.sismember('vmware_host_pool__running__'+pool['name'], vm['name'])) and
+        (! $redis.sismember('vmware_host_pool__completed__'+pool['name'], vm['name']))
       )
         $redis.sadd('vmware_host_pool__pending__'+pool['name'], vm['name'])
       end
