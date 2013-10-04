@@ -16,9 +16,10 @@ Dir.chdir(File.dirname(__FILE__))
 
 # Load the configuration file
 config_file = File.expand_path('vmware-host-pooler.yaml')
+config = YAML.load_file(config_file)
 
-pools   = YAML.load_file(config_file)[:pools]
-vsphere = YAML.load_file(config_file)[:vsphere]
+pools   = config[:pools]
+vsphere = config[:vsphere]
 
 # Connect to vSphere
 $vim = RbVmomi::VIM.connect(
