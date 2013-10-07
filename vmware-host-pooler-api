@@ -1,7 +1,6 @@
 #!/usr/bin/ruby
 
 require 'json'
-require 'rbvmomi'
 require 'redis'
 require 'sinatra'
 require 'yaml'
@@ -9,10 +8,8 @@ require 'yaml'
 $:.unshift(File.dirname(__FILE__))
 require 'lib/logger'
 require 'lib/require_relative'
-require 'lib/vsphere_helper'
 
 logger = Logger.new
-vsphere_helper = VsphereHelper.new
 
 Dir.chdir(File.dirname(__FILE__))
 
@@ -20,22 +17,15 @@ Dir.chdir(File.dirname(__FILE__))
 config_file = File.expand_path('vmware-host-pooler.yaml')
 
 pools   = YAML.load_file(config_file)[:pools]
-vsphere = YAML.load_file(config_file)[:vsphere]
-
-# Connect to vSphere
-$vim = RbVmomi::VIM.connect(
-  :host     => vsphere['server'],
-  :user     => vsphere['username'],
-  :password => vsphere['password'],
-  :ssl      => true,
-  :insecure => true,
-  :rev      => '5.1'
-)
 
 # Connect to Redis
 $redis = Redis.new
 
 # Sinatra!
+get '/' do
+  puts ''
+end
+
 get '/vm/:template' do
   content_type :json
 
@@ -61,19 +51,8 @@ post '/vm/:template' do
 
     logger.log('s', "[<] '#{vm}' moved to 'running' queue")
 
-    datacenter = $vim.serviceInstance.find_datacenter
-    base = datacenter.hostFolder
-
-    # Move the VM to the specified folder and resource pool
-    relocateSpec = RbVmomi::VIM.VirtualMachineRelocateSpec(
-      :pool         => vsphere_helper.find_pool(params[:pool])
-    )
-
-    vm = vsphere_helper.find_vms(vm)[vm]
-    vm.RelocateVM_Task(:spec => relocateSpec)
-
     result[params[:template]]['ok'] = 'true'
-    result[params[:template]]['hostname'] = vm['name']
+    result[params[:template]]['hostname'] = vm
   end
 
   result.to_json
