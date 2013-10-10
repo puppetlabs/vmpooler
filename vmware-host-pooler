@@ -89,6 +89,7 @@ loop do
 
             logger.log('s', "[<] '#{vm}' moved to 'failed' queue")
           end
+        end
       end
     end
 
