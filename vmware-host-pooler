@@ -69,27 +69,31 @@ loop do
       if (
         (vsphere_helper.find_vms(vm)[vm]) and
         (vsphere_helper.find_vms(vm)[vm].summary.guest.toolsRunningStatus == 'guestToolsRunning') and
+        (vsphere_helper.find_vms(vm)[vm].summary.guest.hostName) and
+        (vsphere_helper.find_vms(vm)[vm].summary.guest.hostName == vm) and
         (vsphere_helper.find_vms(vm)[vm].summary.guest.ipAddress != nil)
       )
-        if (vsphere_helper.find_vms(vm)[vm].summary.guest.hostName)
-          if (vsphere_helper.find_vms(vm)[vm].summary.guest.hostName == vm)
-            begin
-              Socket.getaddrinfo(vm, nil)
-            rescue
-              next
-            end
-
-            $redis.sadd('vmware_host_pool__ready__'+pool['name'], vm)
-            $redis.srem('vmware_host_pool__pending__'+pool['name'], vm)
-
-            logger.log('s', "[>] '#{vm}' moved to 'ready' queue")
-          else
+        begin
+          Socket.getaddrinfo(vm, nil)
+        rescue
+          if (
+            (vsphere_helper.find_vms(vm)[vm].runtime) and
+            (vsphere_helper.find_vms(vm)[vm].runtime.bootTime) and
+            (((( Time.now - vsphere_helper.find_mvs(vm)[vm].runtime.bootTime ) / 60 ) / 60 ) >= 1)
+          )
             $redis.srem('vmware_host_pool__pending__'+pool['name'], vm)
             $redis.sadd('vmware_host_pool__failed__'+pool['name'], vm)
 
             logger.log('s', "[<] '#{vm}' moved to 'failed' queue")
           end
+
+          next
         end
+
+        $redis.sadd('vmware_host_pool__ready__'+pool['name'], vm)
+        $redis.srem('vmware_host_pool__pending__'+pool['name'], vm)
+
+        logger.log('s', "[>] '#{vm}' moved to 'ready' queue")
       end
     end
 
