@@ -20,22 +20,6 @@ class VsphereHelper
                                        :insecure => true
   end
 
-  def find_snapshot vm, snapname
-    search_child_snaps vm.snapshot.rootSnapshotList, snapname
-  end
-
-  def search_child_snaps tree, snapname
-    snapshot = nil
-    tree.each do |child|
-      if child.name == snapname
-        snapshot ||= child.snapshot
-      else
-        snapshot ||= search_child_snaps child.childSnapshotList, snapname
-      end
-    end
-    snapshot
-  end
-
   def find_customization name
     csm = @connection.serviceContent.customizationSpecManager
 
