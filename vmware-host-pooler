@@ -276,9 +276,6 @@ loop do
 
     # Metrics
     $redis.ltrim('vmware_host_pool_metrics__deploy_fail', 0, 100)
-
-    # ZZZzzz...
-    sleep(1)
   end
 end
 
