@@ -84,6 +84,9 @@ loop do
             $redis.srem('vmware_host_pool__pending__'+pool['name'], vm)
             $redis.sadd('vmware_host_pool__failed__'+pool['name'], vm)
 
+            # Metrics
+            $redis.lpush('vmware_host_pool_metrics__deploy_fail', '1')
+
             logger.log('s', "[<] '#{vm}' moved to 'failed' queue")
           end
 
@@ -94,6 +97,9 @@ loop do
         $redis.srem('vmware_host_pool__pending__'+pool['name'], vm)
 
         logger.log('s', "[>] '#{vm}' moved to 'ready' queue")
+
+        # Metrics
+        $redis.lpush('vmware_host_pool_metrics__deploy_fail', '0')
       end
     end
 
@@ -124,6 +130,9 @@ loop do
         $redis.sadd('vmware_host_pool__failed__'+pool['name'], vm)
 
         logger.log('s', "[<] '#{vm}' moved to 'failed' queue")
+
+        # Metrics
+        $redis.lpush('vmware_host_pool_metrics__deploy_fail', '1')
       end
     end
 
@@ -250,8 +259,15 @@ loop do
         $redis.sadd('vmware_host_pool__pending__'+pool['name'], vm['hostname'])
 
         logger.log('s', "[+] '#{vm['hostname']}' cloned from '#{vm['template']}' in #{finish} seconds")
+
+        # Metrics
+        $redis.lpush('vmware_host_pool_metrics__deploy', finish)
+        $redis.ltrim('vmware_host_pool_metrics__deploy', 0, 100)
       }
     end
+
+    # Metrics
+    $redis.ltrim('vmware_host_pool_metrics__deploy_fail', 0, 100)
 
     # ZZZzzz...
     sleep(1)
