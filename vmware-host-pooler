@@ -223,12 +223,19 @@ loop do
         end
 
         if vm['template'].length == 0
-          raise "Unable to find template '#{h['template']}'!"
+          raise "Unable to find template '#{vm['template']}'!"
         end
 
         # Generate a randomized hostname
         o = [('a'..'z'),('0'..'9')].map{|r| r.to_a}.flatten
         vm['hostname'] = o[rand(25)]+(0...14).map{o[rand(o.length)]}.join
+
+        # Annotate with creation time, origin template, etc.
+        configSpec = RbVmomi::VIM.VirtualMachineConfigSpec(
+          :annotation =>
+            'Base template: ' + vm['template'] + "\n" +
+            'Creation time: ' + Time.now.strftime("%Y-%m-%d %H:%M")
+        )
 
         # Put the VM in the specified folder and resource pool
         relocateSpec = RbVmomi::VIM.VirtualMachineRelocateSpec(
@@ -240,6 +247,7 @@ loop do
         # Create a clone spec
         spec = RbVmomi::VIM.VirtualMachineCloneSpec(
           :location      => relocateSpec,
+          :config        => configSpec,
           :powerOn       => true,
           :template      => false
         )
