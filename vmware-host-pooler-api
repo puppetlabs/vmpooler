@@ -26,6 +26,21 @@ get '/' do
   puts ''
 end
 
+get '/status' do
+  content_type :json
+
+  result = {}
+
+  pools.each do |pool|
+    result[pool['name']] = {}
+    [ 'pending', 'ready', 'completed' ].each do |queue|
+      result[pool['name']][queue] = $redis.scard("vmware_host_pool__#{queue}__#{pool['name']}")
+    end
+  end
+
+  JSON.pretty_generate(result)
+end
+
 get '/vm/:template' do
   content_type :json
 
