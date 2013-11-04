@@ -25,6 +25,7 @@ vsphere = config[:vsphere]
 $redis = Redis.new
 
 
+
 # Clone a VM
 def clone_vm template, pool, folder, datastore
   Thread.new {
