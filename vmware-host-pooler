@@ -21,16 +21,6 @@ config = YAML.load_file(config_file)
 pools   = config[:pools]
 vsphere = config[:vsphere]
 
-# Connect to vSphere
-$vim = RbVmomi::VIM.connect(
-  :host     => vsphere['server'],
-  :user     => vsphere['username'],
-  :password => vsphere['password'],
-  :ssl      => true,
-  :insecure => true,
-  :rev      => '5.1'
-)
-
 # Connect to Redis
 $redis = Redis.new
 
@@ -41,7 +31,6 @@ loop do
     total = 0
 
     # Locate the resource pool
-    datacenter = $vim.serviceInstance.find_datacenter
     base = vsphere_helper.find_pool(pool['pool'])
 
     # Make sure all VMs in resource pool are accounted-for
