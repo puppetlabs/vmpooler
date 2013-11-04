@@ -209,31 +209,33 @@ loop do
           $redis.srem('vmware_host_pool__ready__'+pool['name'], vm)
         end
 
-        if (
-          (! $vsphere_helper.find_vms(vm)[vm]) or
-          ($vsphere_helper.find_vms(vm)[vm].summary.guest.toolsRunningStatus != 'guestToolsRunning') or
-          ($vsphere_helper.find_vms(vm)[vm].summary.guest.hostName != vm) or
-          ($vsphere_helper.find_vms(vm)[vm].summary.guest.ipAddress == nil)
-        )
-          $redis.srem('vmware_host_pool__ready__'+pool['name'], vm)
-          $redis.sadd('vmware_host_pool__failed__'+pool['name'], vm)
+        Thread.new {
+          if (
+            (! $vsphere_helper.find_vms(vm)[vm]) or
+            ($vsphere_helper.find_vms(vm)[vm].summary.guest.toolsRunningStatus != 'guestToolsRunning') or
+            ($vsphere_helper.find_vms(vm)[vm].summary.guest.hostName != vm) or
+            ($vsphere_helper.find_vms(vm)[vm].summary.guest.ipAddress == nil)
+          )
+            $redis.srem('vmware_host_pool__ready__'+pool['name'], vm)
+            $redis.sadd('vmware_host_pool__failed__'+pool['name'], vm)
 
-          $logger.log('s', "[<] '#{vm}' moved to 'failed' queue")
+            $logger.log('s', "[<] '#{vm}' moved to 'failed' queue")
 
-          next
-        end
+            next
+          end
 
-        begin
-          Socket.getaddrinfo(vm, nil)
-        rescue
-          $redis.srem('vmware_host_pool__ready__'+pool['name'], vm)
-          $redis.sadd('vmware_host_pool__failed__'+pool['name'], vm)
+          begin
+            Socket.getaddrinfo(vm, nil)
+          rescue
+            $redis.srem('vmware_host_pool__ready__'+pool['name'], vm)
+            $redis.sadd('vmware_host_pool__failed__'+pool['name'], vm)
 
-          $logger.log('s', "[<] '#{vm}' moved to 'failed' queue")
+            $logger.log('s', "[<] '#{vm}' moved to 'failed' queue")
 
-          # Metrics
-          $redis.lpush('vmware_host_pool_metrics__deploy_fail', '1')
-        end
+            # Metrics
+            $redis.lpush('vmware_host_pool_metrics__deploy_fail', '1')
+          end
+        }
       end
     }
 
