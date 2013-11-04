@@ -94,6 +94,47 @@ def clone_vm template, pool, folder, datastore
   }
 end
 
+# Check the state of a VM
+def check_vm vm, pool
+  Thread.new {
+    if (
+      ($vsphere_helper.find_vms(vm)[vm]) and
+      ($vsphere_helper.find_vms(vm)[vm].summary.guest.toolsRunningStatus == 'guestToolsRunning') and
+      ($vsphere_helper.find_vms(vm)[vm].summary.guest.hostName) and
+      ($vsphere_helper.find_vms(vm)[vm].summary.guest.hostName == vm) and
+      ($vsphere_helper.find_vms(vm)[vm].summary.guest.ipAddress != nil)
+    )
+      begin
+        Socket.getaddrinfo(vm, nil)
+      rescue
+        if (
+          ($vsphere_helper.find_vms(vm)[vm].runtime) and
+          ($vsphere_helper.find_vms(vm)[vm].runtime.bootTime) and
+          (((( Time.now - $vsphere_helper.find_mvs(vm)[vm].runtime.bootTime ) / 60 ) / 60 ) >= 1)
+        )
+          $redis.srem('vmware_host_pool__pending__'+pool, vm)
+          $redis.sadd('vmware_host_pool__failed__'+pool, vm)
+
+          # Metrics
+          $redis.lpush('vmware_host_pool_metrics__deploy_fail', '1')
+
+          $logger.log('s', "[<] '#{vm}' moved to 'failed' queue")
+        end
+
+        next
+      end
+
+      $redis.sadd('vmware_host_pool__ready__'+pool, vm)
+      $redis.srem('vmware_host_pool__pending__'+pool, vm)
+
+      $logger.log('s', "[>] '#{vm}' moved to 'ready' queue")
+
+      # Metrics
+      $redis.lpush('vmware_host_pool_metrics__deploy_fail', '0')
+    end
+  }
+end
+
 # Destroy a VM
 def destroy_vm vm
   Thread.new {
@@ -152,41 +193,12 @@ loop do
           $redis.srem('vmware_host_pool__pending__'+pool['name'], vm)
         end
 
-        if (
-          ($vsphere_helper.find_vms(vm)[vm]) and
-          ($vsphere_helper.find_vms(vm)[vm].summary.guest.toolsRunningStatus == 'guestToolsRunning') and
-          ($vsphere_helper.find_vms(vm)[vm].summary.guest.hostName) and
-          ($vsphere_helper.find_vms(vm)[vm].summary.guest.hostName == vm) and
-          ($vsphere_helper.find_vms(vm)[vm].summary.guest.ipAddress != nil)
-        )
-          begin
-            Socket.getaddrinfo(vm, nil)
-          rescue
-            if (
-              ($vsphere_helper.find_vms(vm)[vm].runtime) and
-              ($vsphere_helper.find_vms(vm)[vm].runtime.bootTime) and
-              (((( Time.now - $vsphere_helper.find_mvs(vm)[vm].runtime.bootTime ) / 60 ) / 60 ) >= 1)
-            )
-              $redis.srem('vmware_host_pool__pending__'+pool['name'], vm)
-              $redis.sadd('vmware_host_pool__failed__'+pool['name'], vm)
-
-              # Metrics
-              $redis.lpush('vmware_host_pool_metrics__deploy_fail', '1')
-
-              $logger.log('s', "[<] '#{vm}' moved to 'failed' queue")
-            end
-
-            next
-          end
-
-          $redis.sadd('vmware_host_pool__ready__'+pool['name'], vm)
-          $redis.srem('vmware_host_pool__pending__'+pool['name'], vm)
-
-          $logger.log('s', "[>] '#{vm}' moved to 'ready' queue")
-
-          # Metrics
-          $redis.lpush('vmware_host_pool_metrics__deploy_fail', '0')
-        end
+        Thread.new {
+          check_vm(
+            vm,
+            pool['name']
+          )
+        }
       end
     }
 
