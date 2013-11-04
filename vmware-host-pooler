@@ -146,129 +146,145 @@ loop do
     end
 
     # Check 'pending' pool
-    $redis.smembers('vmware_host_pool__pending__'+pool['name']).each do |vm|
-      if ! inventory[vm]
-        $redis.srem('vmware_host_pool__pending__'+pool['name'], vm)
-      end
+    Thread.new {
+      $redis.smembers('vmware_host_pool__pending__'+pool['name']).each do |vm|
+        if ! inventory[vm]
+          $redis.srem('vmware_host_pool__pending__'+pool['name'], vm)
+        end
 
-      if (
-        ($vsphere_helper.find_vms(vm)[vm]) and
-        ($vsphere_helper.find_vms(vm)[vm].summary.guest.toolsRunningStatus == 'guestToolsRunning') and
-        ($vsphere_helper.find_vms(vm)[vm].summary.guest.hostName) and
-        ($vsphere_helper.find_vms(vm)[vm].summary.guest.hostName == vm) and
-        ($vsphere_helper.find_vms(vm)[vm].summary.guest.ipAddress != nil)
-      )
-        begin
-          Socket.getaddrinfo(vm, nil)
-        rescue
-          if (
-            ($vsphere_helper.find_vms(vm)[vm].runtime) and
-            ($vsphere_helper.find_vms(vm)[vm].runtime.bootTime) and
-            (((( Time.now - $vsphere_helper.find_mvs(vm)[vm].runtime.bootTime ) / 60 ) / 60 ) >= 1)
-          )
-            $redis.srem('vmware_host_pool__pending__'+pool['name'], vm)
-            $redis.sadd('vmware_host_pool__failed__'+pool['name'], vm)
+        if (
+          ($vsphere_helper.find_vms(vm)[vm]) and
+          ($vsphere_helper.find_vms(vm)[vm].summary.guest.toolsRunningStatus == 'guestToolsRunning') and
+          ($vsphere_helper.find_vms(vm)[vm].summary.guest.hostName) and
+          ($vsphere_helper.find_vms(vm)[vm].summary.guest.hostName == vm) and
+          ($vsphere_helper.find_vms(vm)[vm].summary.guest.ipAddress != nil)
+        )
+          begin
+            Socket.getaddrinfo(vm, nil)
+          rescue
+            if (
+              ($vsphere_helper.find_vms(vm)[vm].runtime) and
+              ($vsphere_helper.find_vms(vm)[vm].runtime.bootTime) and
+              (((( Time.now - $vsphere_helper.find_mvs(vm)[vm].runtime.bootTime ) / 60 ) / 60 ) >= 1)
+            )
+              $redis.srem('vmware_host_pool__pending__'+pool['name'], vm)
+              $redis.sadd('vmware_host_pool__failed__'+pool['name'], vm)
 
-            # Metrics
-            $redis.lpush('vmware_host_pool_metrics__deploy_fail', '1')
+              # Metrics
+              $redis.lpush('vmware_host_pool_metrics__deploy_fail', '1')
 
-            $logger.log('s', "[<] '#{vm}' moved to 'failed' queue")
+              $logger.log('s', "[<] '#{vm}' moved to 'failed' queue")
+            end
+
+            next
           end
 
+          $redis.sadd('vmware_host_pool__ready__'+pool['name'], vm)
+          $redis.srem('vmware_host_pool__pending__'+pool['name'], vm)
+
+          $logger.log('s', "[>] '#{vm}' moved to 'ready' queue")
+
+          # Metrics
+          $redis.lpush('vmware_host_pool_metrics__deploy_fail', '0')
+        end
+      end
+    }
+
+    # Check 'ready' pool
+    Thread.new {
+      $redis.smembers('vmware_host_pool__ready__'+pool['name']).each do |vm|
+        if ! inventory[vm]
+          $redis.srem('vmware_host_pool__ready__'+pool['name'], vm)
+        end
+
+        if (
+          (! $vsphere_helper.find_vms(vm)[vm]) or
+          ($vsphere_helper.find_vms(vm)[vm].summary.guest.toolsRunningStatus != 'guestToolsRunning') or
+          ($vsphere_helper.find_vms(vm)[vm].summary.guest.hostName != vm) or
+          ($vsphere_helper.find_vms(vm)[vm].summary.guest.ipAddress == nil)
+        )
+          $redis.srem('vmware_host_pool__ready__'+pool['name'], vm)
+          $redis.sadd('vmware_host_pool__failed__'+pool['name'], vm)
+
+          $logger.log('s', "[<] '#{vm}' moved to 'failed' queue")
+
           next
         end
 
-        $redis.sadd('vmware_host_pool__ready__'+pool['name'], vm)
-        $redis.srem('vmware_host_pool__pending__'+pool['name'], vm)
-
-        $logger.log('s', "[>] '#{vm}' moved to 'ready' queue")
-
-        # Metrics
-        $redis.lpush('vmware_host_pool_metrics__deploy_fail', '0')
-      end
-    end
-
-    # Check 'ready' pool
-    $redis.smembers('vmware_host_pool__ready__'+pool['name']).each do |vm|
-      if ! inventory[vm]
-        $redis.srem('vmware_host_pool__ready__'+pool['name'], vm)
-      end
-
-      if (
-        (! $vsphere_helper.find_vms(vm)[vm]) or
-        ($vsphere_helper.find_vms(vm)[vm].summary.guest.toolsRunningStatus != 'guestToolsRunning') or
-        ($vsphere_helper.find_vms(vm)[vm].summary.guest.hostName != vm) or
-        ($vsphere_helper.find_vms(vm)[vm].summary.guest.ipAddress == nil)
-      )
-        $redis.srem('vmware_host_pool__ready__'+pool['name'], vm)
-        $redis.sadd('vmware_host_pool__failed__'+pool['name'], vm)
-
-        $logger.log('s', "[<] '#{vm}' moved to 'failed' queue")
-
-        next
-      end
-
-      begin
-        Socket.getaddrinfo(vm, nil)
-      rescue
-        $redis.srem('vmware_host_pool__ready__'+pool['name'], vm)
-        $redis.sadd('vmware_host_pool__failed__'+pool['name'], vm)
-
-        $logger.log('s', "[<] '#{vm}' moved to 'failed' queue")
-
-        # Metrics
-        $redis.lpush('vmware_host_pool_metrics__deploy_fail', '1')
-      end
-    end
-
-    # Check 'completed' pool
-    $redis.smembers('vmware_host_pool__completed__'+pool['name']).each do |vm|
-      if ! inventory[vm]
-        $redis.srem('vmware_host_pool__completed__'+pool['name'], vm)
-      end
-
-      destroy_vm(vm)
-    end
-
-    # Check 'failed' pool
-    $redis.smembers('vmware_host_pool__failed__'+pool['name']).each do |vm|
-      if ! inventory[vm]
-        $redis.srem('vmware_host_pool__failed__'+pool['name'], vm)
-      end
-
-      if (
-        ($vsphere_helper.find_vms(vm)[vm]) and
-        ($vsphere_helper.find_vms(vm)[vm].summary.guest.toolsRunningStatus == 'guestToolsRunning') and
-        ($vsphere_helper.find_vms(vm)[vm].summary.guest.hostName == vm) and
-        ($vsphere_helper.find_vms(vm)[vm].summary.guest.ipAddress != nil)
-      )
         begin
           Socket.getaddrinfo(vm, nil)
         rescue
-          next
+          $redis.srem('vmware_host_pool__ready__'+pool['name'], vm)
+          $redis.sadd('vmware_host_pool__failed__'+pool['name'], vm)
+
+          $logger.log('s', "[<] '#{vm}' moved to 'failed' queue")
+
+          # Metrics
+          $redis.lpush('vmware_host_pool_metrics__deploy_fail', '1')
+        end
+      end
+    }
+
+    # Check 'completed' pool
+    Thread.new {
+      $redis.smembers('vmware_host_pool__completed__'+pool['name']).each do |vm|
+        if ! inventory[vm]
+          $redis.srem('vmware_host_pool__completed__'+pool['name'], vm)
         end
 
-        $redis.sadd('vmware_host_pool__ready__'+pool['name'], vm)
-        $redis.srem('vmware_host_pool__failed__'+pool['name'], vm)
-
-        $logger.log('s', "[>] '#{vm}' moved to 'ready' queue")
-      else
-        destroy_vm(vm)
+        Thread.new {
+          destroy_vm(vm)
+        }
       end
-    end
+    }
+
+    # Check 'failed' pool
+    Thread.new {
+      $redis.smembers('vmware_host_pool__failed__'+pool['name']).each do |vm|
+        if ! inventory[vm]
+          $redis.srem('vmware_host_pool__failed__'+pool['name'], vm)
+        end
+
+        if (
+          ($vsphere_helper.find_vms(vm)[vm]) and
+          ($vsphere_helper.find_vms(vm)[vm].summary.guest.toolsRunningStatus == 'guestToolsRunning') and
+          ($vsphere_helper.find_vms(vm)[vm].summary.guest.hostName == vm) and
+          ($vsphere_helper.find_vms(vm)[vm].summary.guest.ipAddress != nil)
+        )
+          begin
+            Socket.getaddrinfo(vm, nil)
+          rescue
+            next
+          end
+
+          $redis.sadd('vmware_host_pool__ready__'+pool['name'], vm)
+          $redis.srem('vmware_host_pool__failed__'+pool['name'], vm)
+
+          $logger.log('s', "[>] '#{vm}' moved to 'ready' queue")
+        else
+          Thread.new {
+            destroy_vm(vm)
+          }
+        end
+      end
+    }
 
     # Bring the pool up to the desired size
-    if total < pool['size']
-      # Provision VMs
-      (1..(pool['size']-total)).each { |i|
-        clone_vm(
-          pool['template'],
-          pool['pool'],
-          pool['folder'],
-          pool['datastore']
-        )
-      }
-    end
+    Thread.new {
+      if total < pool['size']
+        # Provision VMs
+        (1..(pool['size']-total)).each { |i|
+          Thread.new {
+            clone_vm(
+              pool['template'],
+              pool['pool'],
+              pool['folder'],
+              pool['datastore']
+            )
+          }
+        }
+      end
+    }
 
     # Metrics
     $redis.ltrim('vmware_host_pool_metrics__deploy_fail', 0, 100)
