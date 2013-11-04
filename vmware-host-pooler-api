@@ -67,10 +67,10 @@ post '/vm/:template' do
 
       logger.log('s', "[<] '#{vm}' moved to 'running' queue")
 
-      result[params[:template]]['ok'] = 'true'
+      result[params[:template]]['ok'] = true
       result[params[:template]]['hostname'] = vm
     else
-      result[params[:template]]['ok'] = 'false'
+      result[params[:template]]['ok'] = false
     end
   end
 
@@ -89,7 +89,7 @@ delete '/vm/:hostname' do
     end
   end
 
-  result['ok'] = 'true'
+  result['ok'] = true
   JSON.pretty_generate(result)
 end
 
