@@ -253,22 +253,7 @@ loop do
 
         $logger.log('s', "[>] '#{vm}' moved to 'ready' queue")
       else
-        if (
-          ($vsphere_helper.find_vms(vm)[vm]) and
-          ($vsphere_helper.find_vms(vm)[vm].runtime)
-        )
-          start = Time.now
-
-          if $vsphere_helper.find_vms(vm)[vm].runtime.powerState == 'poweredOn'
-            $logger.log('d', "[ ] '#{vm}' is being shut down")
-            $vsphere_helper.find_vms(vm)[vm].PowerOffVM_Task.wait_for_completion
-          end
-
-          $vsphere_helper.find_vms(vm)[vm].Destroy_Task.wait_for_completion
-          finish = '%.2f' % (Time.now-start)
-
-          $logger.log('s', "[-] '#{vm}' destroyed in #{finish} seconds")
-        end
+        destroy_vm(vm)
       end
     end
 
