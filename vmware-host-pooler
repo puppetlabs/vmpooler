@@ -1,0 +1,216 @@
+#!/usr/bin/ruby
+
+require 'rbvmomi'
+require 'redis'
+require 'yaml'
+
+$:.unshift(File.dirname(__FILE__))
+require 'lib/logger'
+require 'lib/require_relative'
+require 'lib/vsphere_helper'
+
+$logger = Logger.new
+$vsphere_helper = VsphereHelper.new
+
+Dir.chdir(File.dirname(__FILE__))
+
+# Load the configuration file
+config_file = File.expand_path('vmware-host-pooler.yaml')
+config = YAML.load_file(config_file)
+
+pools   = config[:pools]
+vsphere = config[:vsphere]
+
+# Connect to Redis
+$redis = Redis.new
+
+
+
+# Check the state of a VM
+def check_vm vm, pool
+  Thread.new {
+    if ($vsphere_helper.find_vms(vm)[vm]) 
+      if ($vsphere_helper.find_vms(vm)[vm].summary.guest.hostName == vm)
+
+        begin
+          Socket.getaddrinfo(vm, nil)
+        rescue
+#         $logger.log('d', "[!] [#{pool}] '#{vm}' cannot connect")
+        end
+
+        $redis.srem('vmware_host_pool__pending__'+pool, vm)
+        $redis.sadd('vmware_host_pool__ready__'+pool, vm)
+
+        $logger.log('s', "[>] [#{pool}] '#{vm}' moved to 'ready' queue")
+      else
+        $logger.log('d', "[!] [#{pool}] '#{vm}' hostname does not match guest")
+      end
+    end
+  }
+end
+
+# Clone a VM
+def clone_vm template, pool, folder, datastore
+  Thread.new {
+    vm = {}
+
+    if template =~ /\//
+      templatefolders = template.split('/')
+      vm['template'] = templatefolders.pop
+    end
+
+    if templatefolders
+      vm[vm['template']] = $vsphere_helper.find_folder(templatefolders.join('/')).find(vm['template'])
+    else
+      raise "Please provide a full path to the template"
+    end
+
+    if vm['template'].length == 0
+      raise "Unable to find template '#{vm['template']}'!"
+    end
+
+    # Generate a randomized hostname
+    o = [('a'..'z'),('0'..'9')].map{|r| r.to_a}.flatten
+    vm['hostname'] = o[rand(25)]+(0...14).map{o[rand(o.length)]}.join
+
+    # Add VM to Redis inventory ('pending' pool)
+    $redis.sadd('vmware_host_pool__pending__'+vm['template'], vm['hostname'])
+
+    # Annotate with creation time, origin template, etc.
+    configSpec = RbVmomi::VIM.VirtualMachineConfigSpec(
+      :annotation =>
+        'Base template: ' + vm['template'] + "\n" +
+        'Creation time: ' + Time.now.strftime("%Y-%m-%d %H:%M")
+    )
+
+    # Put the VM in the specified folder and resource pool
+    relocateSpec = RbVmomi::VIM.VirtualMachineRelocateSpec(
+      :datastore    => $vsphere_helper.find_datastore(datastore),
+      :pool         => $vsphere_helper.find_pool(pool),
+      :diskMoveType => :moveChildMostDiskBacking
+    )
+
+    # Create a clone spec
+    spec = RbVmomi::VIM.VirtualMachineCloneSpec(
+      :location      => relocateSpec,
+      :config        => configSpec,
+      :powerOn       => true,
+      :template      => false
+    )
+
+    # Clone the VM
+    $logger.log('d', "[ ] [#{vm['template']}] '#{vm['hostname']}' is being cloned from '#{vm['template']}'")
+
+    start = Time.now
+    vm[vm['template']].CloneVM_Task(
+      :folder => $vsphere_helper.find_folder(folder),
+      :name => vm['hostname'],
+      :spec => spec
+    ).wait_for_completion
+    finish = '%.2f' % (Time.now-start)
+
+    $logger.log('s', "[+] [#{vm['template']}] '#{vm['hostname']}' cloned from '#{vm['template']}' in #{finish} seconds")
+  }
+end
+
+# Destroy a VM
+def destroy_vm vm, pool
+  Thread.new {
+    $redis.srem('vmware_host_pool__completed__'+pool, vm)
+
+    host = $vsphere_helper.find_vms(vm)[vm]
+
+    if (
+      (host) and
+      (host.runtime)
+    )
+      start = Time.now
+
+      if host.runtime.powerState == 'poweredOn'
+        $logger.log('d', "[ ] [#{pool}] '#{vm}' is being shut down")
+        host.PowerOffVM_Task.wait_for_completion
+      end
+
+      host.Destroy_Task.wait_for_completion
+      finish = '%.2f' % (Time.now-start)
+
+      $logger.log('s', "[-] [#{pool}] '#{vm}' destroyed in #{finish} seconds")
+    end
+  }
+end
+
+
+
+pools.each do |pool|
+  puts "Starting new worker thread for pool '#{pool['name']}'"
+
+  Thread.new {
+    loop do
+      # INVENTORY
+      inventory = {}
+      base = $vsphere_helper.find_pool(pool['pool'])
+
+      base.vm.each do |vm|
+        if (
+          (! $redis.sismember('vmware_host_pool__ready__'+pool['name'], vm['name'])) and
+          (! $redis.sismember('vmware_host_pool__pending__'+pool['name'], vm['name'])) and
+          (! $redis.sismember('vmware_host_pool__completed__'+pool['name'], vm['name']))
+        )
+          $redis.sadd('vmware_host_pool__pending__'+pool['name'], vm['name'])
+        end
+
+        inventory[vm['name']] = 1
+      end 
+
+      # READY
+      $redis.smembers('vmware_host_pool__ready__'+pool['name']).each do |vm|
+        if (! inventory[vm])
+          $redis.srem('vmware_host_pool__ready__'+pool['name'], vm)
+        end
+      end
+
+      # PENDING
+      $redis.smembers('vmware_host_pool__pending__'+pool['name']).each do |vm|
+#
+# This causes a race condition where more than one VM is cloned
+#
+#        if (! inventory[vm])
+#          $redis.srem('vmware_host_pool__pending__'+pool['name'], vm)
+#        end
+
+        check_vm(vm, pool['name'])
+      end
+
+      # COMPLETED
+      $redis.smembers('vmware_host_pool__completed__'+pool['name']).each do |vm|
+        if (! inventory[vm])
+          $redis.srem('vmware_host_pool__completed__'+pool['name'], vm)
+        end
+
+        destroy_vm(vm, pool['name'])
+      end
+
+      # REPOPULATE
+      total = $redis.scard('vmware_host_pool__ready__'+pool['name']) +
+              $redis.scard('vmware_host_pool__pending__'+pool['name'])
+
+      if (total < pool['size'])
+        (1..(pool['size'] - total)).each { |i|
+          clone_vm(
+            pool['template'],
+            pool['pool'],
+            pool['folder'],
+            pool['datastore']
+          )
+        }
+      end
+
+      sleep(10) # necessary?
+    end
+  }
+end
+
+loop do
+  sleep(1)
+end
+
