@@ -75,6 +75,7 @@ def clone_vm template, pool, folder, datastore
 
     # Add VM to Redis inventory ('pending' pool)
     $redis.sadd('vmware_host_pool__pending__'+vm['template'], vm['hostname'])
+    inventory[vm] = 1
 
     # Annotate with creation time, origin template, etc.
     configSpec = RbVmomi::VIM.VirtualMachineConfigSpec(
@@ -134,6 +135,8 @@ def destroy_vm vm, pool
       host.Destroy_Task.wait_for_completion
       finish = '%.2f' % (Time.now-start)
 
+      inventory.delete(vm)
+
       $logger.log('s', "[-] [#{pool}] '#{vm}' destroyed in #{finish} seconds")
     end
   }
@@ -145,23 +148,23 @@ pools.each do |pool|
   puts "Starting new worker thread for pool '#{pool['name']}'"
 
   Thread.new {
+    # INVENTORY
+    inventory = {}
+    base = $vsphere_helper.find_pool(pool['pool'])
+
+    base.vm.each do |vm|
+      if (
+        (! $redis.sismember('vmware_host_pool__ready__'+pool['name'], vm['name'])) and
+        (! $redis.sismember('vmware_host_pool__pending__'+pool['name'], vm['name'])) and
+        (! $redis.sismember('vmware_host_pool__completed__'+pool['name'], vm['name']))
+      )
+        $redis.sadd('vmware_host_pool__pending__'+pool['name'], vm['name'])
+      end
+
+      inventory[vm['name']] = 1
+    end
+
     loop do
-      # INVENTORY
-      inventory = {}
-      base = $vsphere_helper.find_pool(pool['pool'])
-
-      base.vm.each do |vm|
-        if (
-          (! $redis.sismember('vmware_host_pool__ready__'+pool['name'], vm['name'])) and
-          (! $redis.sismember('vmware_host_pool__pending__'+pool['name'], vm['name'])) and
-          (! $redis.sismember('vmware_host_pool__completed__'+pool['name'], vm['name']))
-        )
-          $redis.sadd('vmware_host_pool__pending__'+pool['name'], vm['name'])
-        end
-
-        inventory[vm['name']] = 1
-      end 
-
       # READY
       $redis.smembers('vmware_host_pool__ready__'+pool['name']).each do |vm|
         if (! inventory[vm])
@@ -171,12 +174,9 @@ pools.each do |pool|
 
       # PENDING
       $redis.smembers('vmware_host_pool__pending__'+pool['name']).each do |vm|
-#
-# This causes a race condition where more than one VM is cloned
-#
-#        if (! inventory[vm])
-#          $redis.srem('vmware_host_pool__pending__'+pool['name'], vm)
-#        end
+        if (! inventory[vm])
+          $redis.srem('vmware_host_pool__pending__'+pool['name'], vm)
+        end
 
         check_vm(vm, pool['name'])
       end
