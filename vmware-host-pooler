@@ -161,11 +161,11 @@ end
 
 
 
-# Update loop
+# Promotion loop
+Thread.new {
 loop do
   pools.each do |pool|
     inventory = {}
-    total = 0
 
     # Locate the resource pool
     base = $vsphere_helper.find_pool(pool['pool'])
@@ -183,10 +183,8 @@ loop do
       end
 
       inventory[vm['name']] = 1
-      total = total+1
     end
 
-    # Check 'pending' pool
     Thread.new {
       $redis.smembers('vmware_host_pool__pending__'+pool['name']).each do |vm|
         if ! inventory[vm]
@@ -201,6 +199,75 @@ loop do
         }
       end
     }
+  end
+end
+}
+
+# Cleanup loop
+Thread.new {
+loop do
+  pools.each do |pool|
+    inventory = {}
+
+    # Locate the resource pool
+    base = $vsphere_helper.find_pool(pool['pool'])
+
+    # Make sure all VMs in resource pool are accounted-for
+    base.vm.each do |vm|
+      if (
+        (! $redis.sismember('vmware_host_pool__pending__'+pool['name'], vm['name'])) and
+        (! $redis.sismember('vmware_host_pool__ready__'+pool['name'], vm['name'])) and
+        (! $redis.sismember('vmware_host_pool__running__'+pool['name'], vm['name'])) and
+        (! $redis.sismember('vmware_host_pool__completed__'+pool['name'], vm['name'])) and
+        (! $redis.sismember('vmware_host_pool__failed__'+pool['name'], vm['name']))
+      )
+        $redis.sadd('vmware_host_pool__pending__'+pool['name'], vm['name'])
+      end
+
+      inventory[vm['name']] = 1
+    end
+
+    Thread.new {
+      $redis.smembers('vmware_host_pool__completed__'+pool['name']).each do |vm|
+        if ! inventory[vm]
+          $redis.srem('vmware_host_pool__completed__'+pool['name'], vm)
+        end
+
+        Thread.new {
+          destroy_vm(vm)
+        }
+      end
+    }
+
+  end
+end
+}
+
+# Update loop
+loop do
+  pools.each do |pool|
+    inventory = {}
+
+    # Locate the resource pool
+    base = $vsphere_helper.find_pool(pool['pool'])
+
+    # Make sure all VMs in resource pool are accounted-for
+    base.vm.each do |vm|
+      if (
+        (! $redis.sismember('vmware_host_pool__pending__'+pool['name'], vm['name'])) and
+        (! $redis.sismember('vmware_host_pool__ready__'+pool['name'], vm['name'])) and
+        (! $redis.sismember('vmware_host_pool__running__'+pool['name'], vm['name'])) and
+        (! $redis.sismember('vmware_host_pool__completed__'+pool['name'], vm['name'])) and
+        (! $redis.sismember('vmware_host_pool__failed__'+pool['name'], vm['name']))
+      )
+        $redis.sadd('vmware_host_pool__pending__'+pool['name'], vm['name'])
+      end
+
+      inventory[vm['name']] = 1
+    end
+
+    total = $redis.scard('vmware_host_pool__ready__'+pool['name']) +
+            $redis.scard('vmware_host_pool__pending__'+pool['name'])
 
     # Check 'ready' pool
     Thread.new {
@@ -235,19 +302,6 @@ loop do
             # Metrics
             $redis.lpush('vmware_host_pool_metrics__deploy_fail', '1')
           end
-        }
-      end
-    }
-
-    # Check 'completed' pool
-    Thread.new {
-      $redis.smembers('vmware_host_pool__completed__'+pool['name']).each do |vm|
-        if ! inventory[vm]
-          $redis.srem('vmware_host_pool__completed__'+pool['name'], vm)
-        end
-
-        Thread.new {
-          destroy_vm(vm)
         }
       end
     }
