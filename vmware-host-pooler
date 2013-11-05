@@ -164,7 +164,7 @@ end
 # Promotion loop
 Thread.new {
 loop do
-  pools.each do |pool|
+  pools.shuffle.each do |pool|
     inventory = {}
 
     # Locate the resource pool
@@ -206,7 +206,7 @@ end
 # Cleanup loop
 Thread.new {
 loop do
-  pools.each do |pool|
+  pools.shuffle.each do |pool|
     inventory = {}
 
     # Locate the resource pool
@@ -245,7 +245,7 @@ end
 
 # Update loop
 loop do
-  pools.each do |pool|
+  pools.shuffle.each do |pool|
     inventory = {}
 
     # Locate the resource pool
