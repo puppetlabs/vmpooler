@@ -136,7 +136,7 @@ def check_vm vm, pool
 end
 
 # Destroy a VM
-def destroy_vm vm
+def destroy_vm vm, pool
   Thread.new {
     host = $vsphere_helper.find_vms(vm)[vm]
 
@@ -153,6 +153,8 @@ def destroy_vm vm
 
       host.Destroy_Task.wait_for_completion
       finish = '%.2f' % (Time.now-start)
+
+      $redis.srem('vmware_host_pool__completed__'+pool, vm)
 
       $logger.log('s', "[-] '#{vm}' destroyed in #{finish} seconds")
     end
@@ -234,7 +236,10 @@ loop do
         end
 
         Thread.new {
-          destroy_vm(vm)
+          destroy_vm(
+            vm,
+            pool['name']
+          )
         }
       end
     }
@@ -331,7 +336,10 @@ loop do
           $logger.log('s', "[>] '#{vm}' moved to 'ready' queue")
         else
           Thread.new {
-            destroy_vm(vm)
+            destroy_vm(
+              vm,
+              pool['name']
+            )
           }
         end
       end
