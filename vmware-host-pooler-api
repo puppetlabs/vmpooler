@@ -33,6 +33,7 @@ get '/status' do
 
   pools.each do |pool|
     result[pool['name']] = {}
+    result[pool['name']]['size'] = pool['size']
     [ 'pending', 'ready', 'completed' ].each do |queue|
       result[pool['name']][queue] = $redis.scard("vmware_host_pool__#{queue}__#{pool['name']}")
     end
