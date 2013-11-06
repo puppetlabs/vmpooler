@@ -1,7 +1,9 @@
 #!/usr/bin/ruby
 
+require 'json'
 require 'rbvmomi'
 require 'redis'
+require 'sinatra'
 require 'yaml'
 
 $:.unshift(File.dirname(__FILE__))
@@ -146,6 +148,7 @@ end
 
 
 
+# Start worker threads for each defined pool
 pools.each do |pool|
   puts "Starting new worker thread for pool '#{pool['name']}'"
 
@@ -216,7 +219,78 @@ pools.each do |pool|
   }
 end
 
-loop do
-  sleep(1)
+
+
+# Sinatra API
+get '/' do
+  puts ''
+end
+
+get '/status' do
+  content_type :json
+
+  result = {}
+
+  pools.each do |pool|
+    result[pool['name']] = {}
+    result[pool['name']]['size'] = pool['size']
+    [ 'pending', 'ready', 'completed' ].each do |queue|
+      result[pool['name']][queue] = $redis.scard("vmware_host_pool__#{queue}__#{pool['name']}")
+    end
+  end
+
+  JSON.pretty_generate(result)
+end
+
+get '/vm/:template' do
+  content_type :json
+
+  result = {}
+  result[params[:template]] = {}
+  result[params[:template]]['hosts'] = $redis.smembers('vmware_host_pool__ready__'+params[:template])
+
+  JSON.pretty_generate(result)
+end
+
+post '/vm/:template' do
+  content_type :json
+
+  result = {}
+  result[params[:template]] = {}
+
+  if ( ( ! params[:folder] ) or ( ! params[:pool] ))
+    result[params[:template]]['error'] = 'You must specify a destination \'folder\' and \'pool\''
+  else
+    if ( $redis.scard('vmware_host_pool__ready__'+params[:template]) > 0 )
+      vm = $redis.srandmember('vmware_host_pool__ready__'+params[:template])
+      $redis.srem('vmware_host_pool__ready__'+params[:template], vm)
+      $redis.sadd('vmware_host_pool__running__'+params[:template], vm)
+
+      logger.log('s', "[<] '#{vm}' moved to 'running' queue")
+
+      result[params[:template]]['ok'] = true
+      result[params[:template]]['hostname'] = vm
+    else
+      result[params[:template]]['ok'] = false
+    end
+  end
+
+  JSON.pretty_generate(result)
+end
+
+delete '/vm/:hostname' do
+  content_type :json
+
+  result = {}
+
+  pools.each do |pool|
+    if $redis.sismember('vmware_host_pool__running__'+pool['name'], params[:hostname])
+      $redis.srem('vmware_host_pool__running__'+pool['name'], params[:hostname])
+      $redis.sadd('vmware_host_pool__completed__'+pool['name'], params[:hostname])
+    end
+  end
+
+  result['ok'] = true
+  JSON.pretty_generate(result)
 end
 
