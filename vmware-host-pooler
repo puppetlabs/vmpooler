@@ -29,8 +29,10 @@ $redis = Redis.new
 # Check the state of a VM
 def check_vm vm, pool
   Thread.new {
-    if ($vsphere_helper.find_vms(vm)[vm]) 
-      if ($vsphere_helper.find_vms(vm)[vm].summary.guest.hostName == vm)
+    host = $vsphere_helper.find_vms(vm)[vm]
+
+    if (host)
+      if (host.summary.guest.hostName == vm)
 
         begin
           Socket.getaddrinfo(vm, nil)
@@ -43,7 +45,7 @@ def check_vm vm, pool
 
         $logger.log('s', "[>] [#{pool}] '#{vm}' moved to 'ready' queue")
       else
-        if ((((Time.now - $vsphere_helper.find_vms(vm)[vm].runtime.bootTime)/60).to_s[/^\d+\.\d{1}/].to_f) > 10)
+        if ((((Time.now - host.runtime.bootTime)/60).to_s[/^\d+\.\d{1}/].to_f) > 10)
           $redis.srem('vmware_host_pool__pending__'+pool, vm)
           $redis.sadd('vmware_host_pool__completed__'+pool, vm)
 
