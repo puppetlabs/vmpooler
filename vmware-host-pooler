@@ -27,7 +27,7 @@ $redis = Redis.new
 
 
 # Check the state of a VM
-def check_vm vm, pool
+def check_vm vm, pool, timeout
   Thread.new {
     host = $vsphere_helper.find_vms(vm)[vm]
 
@@ -45,11 +45,11 @@ def check_vm vm, pool
 
         $logger.log('s', "[>] [#{pool}] '#{vm}' moved to 'ready' queue")
       else
-        if ((((Time.now - host.runtime.bootTime)/60).to_s[/^\d+\.\d{1}/].to_f) > 10)
+        if ((((Time.now - host.runtime.bootTime)/60).to_s[/^\d+\.\d{1}/].to_f) > timeout)
           $redis.srem('vmware_host_pool__pending__'+pool, vm)
           $redis.sadd('vmware_host_pool__completed__'+pool, vm)
 
-          $logger.log('d', "[!] [#{pool}] '#{vm}' marked as 'failed' after 10 minutes")
+          $logger.log('d', "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes")
         end
       end
     end
@@ -185,8 +185,9 @@ pools.each do |pool|
 #        if (! inventory[vm])
 #          $redis.srem('vmware_host_pool__pending__'+pool['name'], vm)
 #        end
+        pool['timeout'] ||= 10
 
-        check_vm(vm, pool['name'])
+        check_vm(vm, pool['name'], pool['timeout'])
       end
 
       # COMPLETED
