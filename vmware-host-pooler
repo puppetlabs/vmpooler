@@ -9,9 +9,6 @@ require 'lib/logger'
 require 'lib/require_relative'
 require 'lib/vsphere_helper'
 
-$logger = Logger.new
-$vsphere_helper = VsphereHelper.new
-
 Dir.chdir(File.dirname(__FILE__))
 
 # Load the configuration file
@@ -20,6 +17,10 @@ config = YAML.load_file(config_file)
 
 pools   = config[:pools]
 vsphere = config[:vsphere]
+
+# Load logger & vSphere helper libraries
+$logger = Logger.new config[:config]['logfile']
+$vsphere_helper = VsphereHelper.new
 
 # Connect to Redis
 $redis = Redis.new
