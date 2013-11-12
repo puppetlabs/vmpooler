@@ -22,6 +22,12 @@ vsphere = config[:vsphere]
 $logger = Logger.new config[:config]['logfile']
 $vsphere_helper = VsphereHelper.new
 
+# Load Graphite helper library (if configured)
+if (defined? config[:config]['graphite'])
+  require 'lib/graphite'
+  $graphite = Graphite.new config[:config]['graphite']
+end
+
 # Connect to Redis
 $redis = Redis.new
 
@@ -118,6 +124,8 @@ def clone_vm template, pool, folder, datastore
     finish = '%.2f' % (Time.now-start)
 
     $logger.log('s', "[+] [#{vm['template']}] '#{vm['hostname']}' cloned from '#{vm['template']}' in #{finish} seconds")
+
+    $graphite.log("vcloud.clone.#{vm['template']}", finish) if defined? $graphite
   }
 end
 
