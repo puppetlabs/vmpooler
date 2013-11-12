@@ -1,5 +1,4 @@
 require 'rubygems' unless defined?(Gem)
-require 'graphite-api'
 
 class Graphite
   def initialize(
