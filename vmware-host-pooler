@@ -152,7 +152,7 @@ def destroy_vm vm, pool
 
       $logger.log('s', "[-] [#{pool}] '#{vm}' destroyed in #{finish} seconds")
 
-      $graphite.log("vcloud.destroy.#{vm['template']}", finish) if defined? $graphite
+      $graphite.log("vcloud.destroy.#{pool}", finish) if defined? $graphite
     end
   }
 end
