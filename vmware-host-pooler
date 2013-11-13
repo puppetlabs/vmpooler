@@ -63,6 +63,19 @@ def check_pending_vm vm, pool, timeout
   }
 end
 
+def check_ready_vm vm, pool, ttl
+  Thread.new {
+    host = $vsphere_helper.find_vms(vm)[vm]
+
+    if ((((Time.now - host.runtime.bootTime)/60).to_s[/^\d+\.\d{1}/].to_f) > ttl)
+      $redis.srem('vmware_host_pool__ready__'+pool, vm)
+      $redis.sadd('vmware_host_pool__completed__'+pool, vm)
+
+      $logger.log('d', "[!] [#{pool}] '#{vm}' reached end of TTL after #{ttl} minutes")
+    end
+  }
+end
+
 # Clone a VM
 def clone_vm template, pool, folder, datastore
   Thread.new {
@@ -185,6 +198,10 @@ pools.each do |pool|
       $redis.smembers('vmware_host_pool__ready__'+pool['name']).each do |vm|
         if (! inventory[vm])
           $redis.srem('vmware_host_pool__ready__'+pool['name'], vm)
+        end
+
+        if (pool['ttl'])
+          check_ready_vm(vm, pool['name'], pool['ttl'])
         end
       end
 
