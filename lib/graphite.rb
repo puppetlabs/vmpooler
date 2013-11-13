@@ -8,9 +8,11 @@ class Graphite
   end
 
   def log path, value
-    socket = TCPSocket.new(@server, 2003)
-    socket.puts "#{path} #{value} #{Time.now.to_i}"
-    socket.close
+    Thread.new {
+      socket = TCPSocket.new(@server, 2003)
+      socket.puts "#{path} #{value} #{Time.now.to_i}"
+      socket.close
+    }
   end
 end
 
