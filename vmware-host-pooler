@@ -214,6 +214,10 @@ pools.each do |pool|
       total = $redis.scard('vmware_host_pool__ready__'+pool['name']) +
               $redis.scard('vmware_host_pool__pending__'+pool['name'])
 
+      $graphite.log(
+        'vcloud.ready.'+pool['name'], $redis.scard('vmware_host_pool__ready__'+pool['name'])
+      ) if defined? $graphite
+
       if (total < pool['size'])
         (1..(pool['size'] - total)).each { |i|
           clone_vm(
