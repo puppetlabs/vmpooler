@@ -34,7 +34,7 @@ $redis = Redis.new
 
 
 # Check the state of a VM
-def check_vm vm, pool, timeout
+def check_pending_vm vm, pool, timeout
   Thread.new {
     host = $vsphere_helper.find_vms(vm)[vm]
 
@@ -198,7 +198,7 @@ pools.each do |pool|
 #        end
         pool['timeout'] ||= 10
 
-        check_vm(vm, pool['name'], pool['timeout'])
+        check_pending_vm(vm, pool['name'], pool['timeout'])
       end
 
       # COMPLETED
