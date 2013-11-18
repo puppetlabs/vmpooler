@@ -170,9 +170,7 @@ def destroy_vm vm, pool
   }
 end
 
-
-
-pools.each do |pool|
+def check_pool pool
   puts "Starting new worker thread for pool '#{pool['name']}'"
 
   Thread.new {
@@ -250,6 +248,14 @@ pools.each do |pool|
     end
   }
 end
+
+
+
+pools.each do |pool|
+  check_pool(pool)
+end
+
+
 
 loop do
   sleep(1)
