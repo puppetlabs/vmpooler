@@ -31,6 +31,9 @@ end
 # Connect to Redis
 $redis = Redis.new
 
+# Our thread-tracker object
+$threads = {}
+
 
 
 # Check the state of a VM
@@ -171,9 +174,9 @@ def destroy_vm vm, pool
 end
 
 def check_pool pool
-  puts "Starting new worker thread for pool '#{pool['name']}'"
+  $logger.log('d', "[*] [#{pool['name']}] starting worker thread")
 
-  Thread.new {
+  $threads[pool['name']] = Thread.new {
     loop do
       # INVENTORY
       inventory = {}
@@ -251,6 +254,8 @@ end
 
 
 
+$logger.log('d', "starting vmware-host-pooler")
+
 pools.each do |pool|
   check_pool(pool)
 end
@@ -258,6 +263,13 @@ end
 
 
 loop do
+  pools.each do |pool|
+    if (! $threads[pool['name']].alive?)
+      $logger.log('d', "[!] [#{pool['name']}] worker thread died, restarting")
+      check_pool(pool)
+    end
+  end
+
   sleep(1)
 end
 
