@@ -20,6 +20,8 @@ class VsphereHelper
                                        :insecure => true
   end
 
+
+
   # an easier wrapper around the horrid PropertyCollector interface,
   # necessary for searching VMs in all Datacenters that may be nested
   # within folders of arbitrary depth
@@ -71,10 +73,14 @@ class VsphereHelper
     vms
   end
 
+
+
   def find_datastore datastorename
     datacenter = @connection.serviceInstance.find_datacenter
     datacenter.find_datastore(datastorename)
   end
+
+
 
   def find_folder foldername
     datacenter = @connection.serviceInstance.find_datacenter
@@ -91,6 +97,8 @@ class VsphereHelper
 
     base
   end
+
+
 
   def find_pool poolname
     datacenter = @connection.serviceInstance.find_datacenter
@@ -113,6 +121,8 @@ class VsphereHelper
     base
   end
 
+
+
   def get_base_vm_container_from connection
     viewManager = connection.serviceContent.viewManager
     viewManager.CreateContainerView({
@@ -121,6 +131,8 @@ class VsphereHelper
       :type      => [ 'VirtualMachine' ]
     })
   end
+
+
 
   def close
     @connection.close
