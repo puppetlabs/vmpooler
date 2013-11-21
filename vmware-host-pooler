@@ -256,17 +256,15 @@ end
 
 $logger.log('d', "starting vmware-host-pooler")
 
-pools.each do |pool|
-  check_pool(pool)
-end
-
-
-
 loop do
   pools.each do |pool|
-    if (! $threads[pool['name']].alive?)
-      $logger.log('d', "[!] [#{pool['name']}] worker thread died, restarting")
+    if (! $threads[pool['name']])
       check_pool(pool)
+    else
+      if (! $threads[pool['name']].alive?)
+        $logger.log('d', "[!] [#{pool['name']}] worker thread died, restarting")
+        check_pool(pool)
+      end
     end
   end
 
