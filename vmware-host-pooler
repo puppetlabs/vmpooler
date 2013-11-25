@@ -208,12 +208,6 @@ def check_pool pool
 
       # PENDING
       $redis.smembers('vmware_host_pool__pending__'+pool['name']).each do |vm|
-#
-# This causes a race condition where more than one VM is cloned
-#
-#        if (! inventory[vm])
-#          $redis.srem('vmware_host_pool__pending__'+pool['name'], vm)
-#        end
         pool['timeout'] ||= 10
 
         check_pending_vm(vm, pool['name'], pool['timeout'])
