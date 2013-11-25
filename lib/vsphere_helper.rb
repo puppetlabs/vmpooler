@@ -101,6 +101,12 @@ class VsphereHelper
 
 
   def find_pool poolname
+    begin
+      @connection.serviceInstance.CurrentTime
+    rescue
+      initialize()
+    end
+
     datacenter = @connection.serviceInstance.find_datacenter
     base = datacenter.hostFolder
     pools = poolname.split('/')
