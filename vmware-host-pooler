@@ -176,6 +176,8 @@ end
 def check_pool pool
   $logger.log('d', "[*] [#{pool['name']}] starting worker thread")
 
+  $redis.del('vmware_host_pool__pending__'+pool['name'])
+
   $threads[pool['name']] = Thread.new {
     loop do
       # INVENTORY
