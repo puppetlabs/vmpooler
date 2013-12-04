@@ -214,12 +214,12 @@ def check_pool pool
       $redis.smembers('vmware_host_pool__running__'+pool['name']).each do |vm|
         if (! inventory[vm])
           $redis.srem('vmware_host_pool__running__'+pool['name'], vm)
-        end
-
-        if (pool['running_ttl'])
-          check_running_vm(vm, pool['name'], pool['running_ttl'])
         else
-          check_running_vm(vm, pool['name'], '720')
+          if (pool['running_ttl'])
+            check_running_vm(vm, pool['name'], pool['running_ttl'])
+          else
+            check_running_vm(vm, pool['name'], '720')
+          end
         end
       end
 
@@ -227,10 +227,10 @@ def check_pool pool
       $redis.smembers('vmware_host_pool__ready__'+pool['name']).each do |vm|
         if (! inventory[vm])
           $redis.srem('vmware_host_pool__ready__'+pool['name'], vm)
-        end
-
-        if (pool['ready_ttl'])
-          check_ready_vm(vm, pool['name'], pool['ready_ttl'])
+        else
+          if (pool['ready_ttl'])
+            check_ready_vm(vm, pool['name'], pool['ready_ttl'])
+          end
         end
       end
 
@@ -238,16 +238,18 @@ def check_pool pool
       $redis.smembers('vmware_host_pool__pending__'+pool['name']).each do |vm|
         pool['timeout'] ||= 10
 
-        check_pending_vm(vm, pool['name'], pool['timeout'])
+        if (inventory[vm])
+          check_pending_vm(vm, pool['name'], pool['timeout'])
+        end
       end
 
       # COMPLETED
       $redis.smembers('vmware_host_pool__completed__'+pool['name']).each do |vm|
         if (! inventory[vm])
           $redis.srem('vmware_host_pool__completed__'+pool['name'], vm)
+        else
+          destroy_vm(vm, pool['name'])
         end
-
-        destroy_vm(vm, pool['name'])
       end
 
       # REPOPULATE
