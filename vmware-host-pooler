@@ -229,8 +229,8 @@ def check_pool pool
           $redis.srem('vmware_host_pool__ready__'+pool['name'], vm)
         end
 
-        if (pool['ttl'])
-          check_ready_vm(vm, pool['name'], pool['ttl'])
+        if (pool['ready_ttl'])
+          check_ready_vm(vm, pool['name'], pool['ready_ttl'])
         end
       end
 
