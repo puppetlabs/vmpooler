@@ -216,7 +216,11 @@ def check_pool pool
           $redis.srem('vmware_host_pool__running__'+pool['name'], vm)
         end
 
-        check_running_vm(vm, pool['name'], config[:config]['ttl'])
+        if (pool['running_ttl'])
+          check_running_vm(vm, pool['name'], pool['running_ttl'])
+        else
+          check_running_vm(vm, pool['name'], '720')
+        end
       end
 
       # READY
