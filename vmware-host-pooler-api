@@ -62,14 +62,26 @@ post '/vm/:template' do
     result[params[:template]]['error'] = 'You must specify a destination \'folder\' and \'pool\''
   else
     if ( $redis.scard('vmware_host_pool__ready__'+params[:template]) > 0 )
-      vm = $redis.srandmember('vmware_host_pool__ready__'+params[:template])
-      $redis.srem('vmware_host_pool__ready__'+params[:template], vm)
-      $redis.sadd('vmware_host_pool__running__'+params[:template], vm)
+      vm = nil
 
-      logger.log('s', "[<] '#{vm}' moved to 'running' queue")
+      try = $redis.srandmember('vmware_host_pool__ready__'+params[:template])
 
-      result[params[:template]]['ok'] = true
-      result[params[:template]]['hostname'] = vm
+      if (
+        $redis.smove(
+          'vmware_host_pool__ready__'+params[:template],
+          'vmware_host_pool__running__'+params[:template],
+          try
+        )
+      )
+        vm = try
+
+        logger.log('s', "[<] '#{vm}' moved to 'running' queue")
+
+        result[params[:template]]['ok'] = true
+        result[params[:template]]['hostname'] = vm
+      else
+        result[params[:template]]['ok'] = false
+      end
     else
       result[params[:template]]['ok'] = false
     end
