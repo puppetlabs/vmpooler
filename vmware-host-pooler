@@ -69,7 +69,7 @@ def check_ready_vm vm, pool, ttl
     host = $vsphere_helper.find_vms(vm)[vm]
 
     if (
-      (host.runtime)
+      (host.runtime) and
       (host.runtime.powerState != 'poweredOn')
     )
       $redis.smove('vmware_host_pool__ready__'+pool, 'vmware_host_pool__completed__'+pool, vm)
