@@ -42,19 +42,26 @@ def check_pending_vm vm, pool, timeout
     host = $vsphere_helper.find_vms(vm)[vm]
 
     if (host)
-      if (host.summary.guest.hostName == vm)
-
+      if (
+        (host.summary) and
+        (host.summary.guest) and
+        (host.summary.guest.hostName) and
+        (host.summary.guest.hostName == vm)
+      )
         begin
           Socket.getaddrinfo(vm, nil)
         rescue
-#         $logger.log('d', "[!] [#{pool}] '#{vm}' cannot connect")
         end
 
         $redis.smove('vmware_host_pool__pending__'+pool, 'vmware_host_pool__ready__'+pool, vm)
 
         $logger.log('s', "[>] [#{pool}] '#{vm}' moved to 'ready' queue")
       else
-        if ((((Time.now - host.runtime.bootTime)/60).to_s[/^\d+\.\d{1}/].to_f) > timeout)
+        if (
+          (host.runtime) and
+          (host.runtime.bootTime) and
+          ((((Time.now - host.runtime.bootTime)/60).to_s[/^\d+\.\d{1}/].to_f) > timeout)
+        )
           $redis.smove('vmware_host_pool__pending__'+pool, 'vmware_host_pool__completed__'+pool, vm)
 
           $logger.log('d', "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes")
@@ -68,18 +75,21 @@ def check_ready_vm vm, pool, ttl
   Thread.new {
     host = $vsphere_helper.find_vms(vm)[vm]
 
-    if (
-      (host.runtime) and
-      (host.runtime.powerState != 'poweredOn')
-    )
-      $redis.smove('vmware_host_pool__ready__'+pool, 'vmware_host_pool__completed__'+pool, vm)
-
-      $logger.log('d', "[!] [#{pool}] '#{vm}' appears to be powered off or dead")
-    else
-      if ((((Time.now - host.runtime.bootTime)/60).to_s[/^\d+\.\d{1}/].to_f) > ttl)
+    if (host)
+      if (
+        (host.runtime) and
+        (host.runtime.powerState) and
+        (host.runtime.powerState != 'poweredOn')
+      )
         $redis.smove('vmware_host_pool__ready__'+pool, 'vmware_host_pool__completed__'+pool, vm)
 
-        $logger.log('d', "[!] [#{pool}] '#{vm}' reached end of TTL after #{ttl} minutes")
+        $logger.log('d', "[!] [#{pool}] '#{vm}' appears to be powered off or dead")
+      else
+        if ((((Time.now - host.runtime.bootTime)/60).to_s[/^\d+\.\d{1}/].to_f) > ttl)
+          $redis.smove('vmware_host_pool__ready__'+pool, 'vmware_host_pool__completed__'+pool, vm)
+
+          $logger.log('d', "[!] [#{pool}] '#{vm}' reached end of TTL after #{ttl} minutes")
+        end
       end
     end
   }
@@ -89,18 +99,24 @@ def check_running_vm vm, pool, ttl
   Thread.new {
     host = $vsphere_helper.find_vms(vm)[vm]
 
-    if (
-      (host.runtime) and
-      (host.runtime.powerState != 'poweredOn')
-    )
-      $redis.smove('vmware_host_pool__running__'+pool, 'vmware_host_pool__completed__'+pool, vm)
-
-      $logger.log('d', "[!] [#{pool}] '#{vm}' appears to be powered off or dead")
-    else
-      if ((((Time.now - host.runtime.bootTime)/60).to_s[/^\d+\.\d{1}/].to_f) > ttl)
+    if (host)
+      if (
+        (host.runtime) and
+        (host.runtime.powerState != 'poweredOn')
+      )
         $redis.smove('vmware_host_pool__running__'+pool, 'vmware_host_pool__completed__'+pool, vm)
 
-        $logger.log('d', "[!] [#{pool}] '#{vm}' reached end of TTL after #{ttl} minutes")
+        $logger.log('d', "[!] [#{pool}] '#{vm}' appears to be powered off or dead")
+      else
+        if (
+          (host.runtime) and
+          (host.runtime.bootTime)
+          ((((Time.now - host.runtime.bootTime)/60).to_s[/^\d+\.\d{1}/].to_f) > ttl)
+        )
+          $redis.smove('vmware_host_pool__running__'+pool, 'vmware_host_pool__completed__'+pool, vm)
+
+          $logger.log('d', "[!] [#{pool}] '#{vm}' reached end of TTL after #{ttl} minutes")
+        end
       end
     end
   }
@@ -179,13 +195,14 @@ def destroy_vm vm, pool
 
     host = $vsphere_helper.find_vms(vm)[vm]
 
-    if (
-      (host) and
-      (host.runtime)
-    )
+    if (host)
       start = Time.now
 
-      if host.runtime.powerState == 'poweredOn'
+      if (
+        (host.runtime) and
+        (host.runtime.powerState) and
+        (host.runtime.powerState == 'poweredOn')
+      )
         $logger.log('d', "[ ] [#{pool}] '#{vm}' is being shut down")
         host.PowerOffVM_Task.wait_for_completion
       end
@@ -216,9 +233,12 @@ def check_pool pool
           (! $redis.sismember('vmware_host_pool__running__'+pool['name'], vm['name'])) and
           (! $redis.sismember('vmware_host_pool__ready__'+pool['name'], vm['name'])) and
           (! $redis.sismember('vmware_host_pool__pending__'+pool['name'], vm['name'])) and
-          (! $redis.sismember('vmware_host_pool__completed__'+pool['name'], vm['name']))
+          (! $redis.sismember('vmware_host_pool__completed__'+pool['name'], vm['name'])) and
+          (! $redis.sismember('vmware_host_pool__discovered__'+pool['name'], vm['name']))
         )
-          $redis.sadd('vmware_host_pool__pending__'+pool['name'], vm['name'])
+          $redis.sadd('vmware_host_pool__discovered__'+pool['name'], vm['name'])
+
+          $logger.log('s', "[?] [#{pool['name']}] '#{vm['name']}' added to 'discovered' queue")
         end
 
         inventory[vm['name']] = 1
