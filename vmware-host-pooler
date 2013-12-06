@@ -18,9 +18,8 @@ config = YAML.load_file(config_file)
 pools   = config[:pools]
 vsphere = config[:vsphere]
 
-# Load logger & vSphere helper libraries
+# Load logger library
 $logger = Logger.new config[:config]['logfile']
-$vsphere_helper = VsphereHelper.new
 
 # Load Graphite helper library (if configured)
 if (defined? config[:config]['graphite'])
@@ -31,6 +30,9 @@ end
 # Connect to Redis
 $redis = Redis.new
 
+# vSphere object
+$vsphere = {}
+
 # Our thread-tracker object
 $threads = {}
 
@@ -39,7 +41,7 @@ $threads = {}
 # Check the state of a VM
 def check_pending_vm vm, pool, timeout
   Thread.new {
-    host = $vsphere_helper.find_vms(vm)[vm]
+    host = $vsphere[pool].find_vms(vm)[vm]
 
     if (host)
       if (
@@ -73,7 +75,7 @@ end
 
 def check_ready_vm vm, pool, ttl
   Thread.new {
-    host = $vsphere_helper.find_vms(vm)[vm]
+    host = $vsphere[pool].find_vms(vm)[vm]
 
     if (host)
       if (
@@ -97,7 +99,7 @@ end
 
 def check_running_vm vm, pool, ttl
   Thread.new {
-    host = $vsphere_helper.find_vms(vm)[vm]
+    host = $vsphere[pool].find_vms(vm)[vm]
 
     if (host)
       if (
@@ -133,7 +135,7 @@ def clone_vm template, pool, folder, datastore
     end
 
     if templatefolders
-      vm[vm['template']] = $vsphere_helper.find_folder(templatefolders.join('/')).find(vm['template'])
+      vm[vm['template']] = $vsphere[vm['template']].find_folder(templatefolders.join('/')).find(vm['template'])
     else
       raise "Please provide a full path to the template"
     end
@@ -158,8 +160,8 @@ def clone_vm template, pool, folder, datastore
 
     # Put the VM in the specified folder and resource pool
     relocateSpec = RbVmomi::VIM.VirtualMachineRelocateSpec(
-      :datastore    => $vsphere_helper.find_datastore(datastore),
-      :pool         => $vsphere_helper.find_pool(pool),
+      :datastore    => $vsphere[vm['template']].find_datastore(datastore),
+      :pool         => $vsphere[vm['template']].find_pool(pool),
       :diskMoveType => :moveChildMostDiskBacking
     )
 
@@ -176,7 +178,7 @@ def clone_vm template, pool, folder, datastore
 
     start = Time.now
     vm[vm['template']].CloneVM_Task(
-      :folder => $vsphere_helper.find_folder(folder),
+      :folder => $vsphere[vm['template']].find_folder(folder),
       :name => vm['hostname'],
       :spec => spec
     ).wait_for_completion
@@ -193,7 +195,7 @@ def destroy_vm vm, pool
   Thread.new {
     $redis.srem('vmware_host_pool__completed__'+pool, vm)
 
-    host = $vsphere_helper.find_vms(vm)[vm]
+    host = $vsphere[pool].find_vms(vm)[vm]
 
     if (host)
       start = Time.now
@@ -223,10 +225,12 @@ def check_pool pool
   $redis.del('vmware_host_pool__pending__'+pool['name'])
 
   $threads[pool['name']] = Thread.new {
+    $vsphere[pool['name']] ||= VsphereHelper.new
+
     loop do
       # INVENTORY
       inventory = {}
-      base = $vsphere_helper.find_pool(pool['pool'])
+      base = $vsphere[pool['name']].find_pool(pool['pool'])
 
       base.vm.each do |vm|
         if (
