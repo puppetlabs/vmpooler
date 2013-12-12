@@ -59,27 +59,34 @@ get '/dashboard/stats/vcloud/pool' do
   end
 
   if ( params[:history] )
-    history ||= Hash.new
+    if ( config[:config]['graphite'] )
+      history ||= Hash.new
 
-    buffer = open( 'http://'+config[:config]['graphite']+'/render?target=vcloud.ready.*&from=-1hour&format=json' ).read
-    history = JSON.parse( buffer )
+      buffer = open( 'http://'+config[:config]['graphite']+'/render?target=vcloud.ready.*&from=-1hour&format=json' ).read
+      history = JSON.parse( buffer )
 
-    history.each do |pool|
-      if pool['target'] =~ /.*\.(.*)$/
-        pool['name'] = $1
-        pool['last'] = result[pool['name']]['size']
-        result[pool['name']]['history'] ||= Array.new
+      history.each do |pool|
+        if pool['target'] =~ /.*\.(.*)$/
+          pool['name'] = $1
+          pool['last'] = result[pool['name']]['size']
+          result[pool['name']]['history'] ||= Array.new
 
-        pool['datapoints'].each do |metric|
-          8.times do |n|
-            if ( metric[0] )
-              pool['last'] = metric[0].to_i
-              result[pool['name']]['history'].push( metric[0].to_i )
-            else
-              result[pool['name']]['history'].push( pool['last'] )
+          pool['datapoints'].each do |metric|
+            8.times do |n|
+              if ( metric[0] )
+                pool['last'] = metric[0].to_i
+                result[pool['name']]['history'].push( metric[0].to_i )
+              else
+                result[pool['name']]['history'].push( pool['last'] )
+              end
             end
           end
         end
+      end
+    else
+      config[:pools].each do |pool|
+        result[pool['name']] ||= Hash.new
+        result[pool['name']]['history'] = [ $redis.scard( 'vmware_host_pool__ready__' + pool['name'] ) ]
       end
     end
   end
