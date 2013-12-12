@@ -1,0 +1,138 @@
+body,
+#content {
+  margin-top: 20px;
+  width: 960px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+#header {
+  border-bottom: solid 1px #888;
+  margin-bottom: 20px;
+}
+
+#header .logo,
+#header .text {
+  margin-left: 30px;
+  margin-bottom: 5px;
+  display: inline-block;
+}
+
+#header .text {
+  float: right;
+  position: relative;
+  right: 30px;
+  top: 100px;
+  font: 50px 'PT Sans' sans-serif;
+  letter-spacing: -0.05em;
+  color: #444;
+}
+
+.label {
+  text-transform: uppercase;
+  text-indent: 25px;
+  font: 12px 'PT Sans' sans-serif;
+  font-weight: bold;
+  line-height: 20px;
+  color: #888;
+  border-bottom: solid 1px #888;
+}
+
+.spinner {
+  background-image: url( '/img/spinner.svg' );
+  width: 15px;
+  height: 15px;
+  background-size: contain;
+  opacity: .7;
+  float: left;
+  margin-right: 5px;
+  -webkit-animation:rotate 1.5s infinite steps( 12 );
+  -moz-animation:rotate 1.5s infinite steps( 12 );
+  -ms-animation:rotate 1.5s infinite steps( 12 );
+  -o-animation:rotate 1.5s infinite steps( 12 );
+  animation:rotate 1.5s infinite steps( 12 );  
+}
+@keyframes 'rotate'  {
+  from {
+    -webkit-transform: rotate( 0deg );
+    -moz-transform: rotate( 0deg );
+    -o-transform: rotate( 0deg );
+    -ms-transform: rotate( 0deg );
+    transform: rotate( 0deg );
+  }
+  to {
+    -webkit-transform: rotate( 360deg );
+    -moz-transform: rotate( 360deg );
+    -o-transform: rotate( 360deg );
+    -ms-transform: rotate( 360deg );
+    transform: rotate( 360deg );
+  }
+}
+@-moz-keyframes rotate {
+  from {
+    -moz-transform: rotate( 0deg );
+    transform: rotate( 0deg );
+  }
+  to {
+    -moz-transform: rotate( 360deg );
+    transform: rotate( 360deg );
+  }
+}
+@-webkit-keyframes 'rotate' {
+  from {
+    -webkit-transform: rotate( 0deg );
+    transform: rotate( 0deg );
+  }
+  to {
+    -webkit-transform: rotate( 360deg );
+    transform: rotate( 360deg );
+  }
+}
+@-ms-keyframes 'rotate' {
+  from {
+    -ms-transform: rotate( 0deg );
+    transform: rotate( 0deg );
+  }
+  to {
+    -ms-transform: rotate( 360deg );
+    transform: rotate( 360deg );
+  }
+}
+@-o-keyframes 'rotate' {
+  from {
+    -o-transform: rotate( 0deg );
+    transform: rotate( 0deg );
+  }
+  to {
+    -o-transform: rotate( 360deg );
+    transform: rotate( 360deg );
+  }
+}
+
+.module {
+  margin-top: 5px;
+  margin-left: 25px;
+  font: 13px 'PT Sans' sans-serif;
+  line-height: 20px;
+  color: #888;
+}
+
+.line {
+  fill: none;
+}
+
+.area {
+  stroke-width: 0;
+}
+
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #fff;
+  shape-rendering: crispEdges;
+}
+
+.tick {
+  fill: none;
+  stroke: #eee;
+}
