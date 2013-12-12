@@ -197,6 +197,7 @@ end
 def destroy_vm vm, pool
   Thread.new {
     $redis.srem('vmware_host_pool__completed__'+pool, vm)
+    $redis.hdel('vmware_host_pool__active__'+pool, vm)
 
     host = $vsphere[pool].find_vms(vm)[vm]
 
