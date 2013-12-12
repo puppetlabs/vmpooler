@@ -1,6 +1,9 @@
 #!/usr/bin/ruby
 
+require 'rubygems'
+
 require 'json'
+require 'open-uri'
 require 'redis'
 require 'sinatra'
 require 'yaml'
@@ -25,7 +28,64 @@ $redis = Redis.new
 
 # Sinatra!
 get '/' do
-  puts ''
+  erb :dashboard
+end
+
+get '/dashboard/stats/vcloud/numbers' do
+  result = Hash.new
+  result['pending'] = 0
+  result['ready'] = 0
+  result['running'] = 0
+  result['completed'] = 0
+
+  config[:pools].each do |pool|
+    result['pending'] += $redis.scard( 'vmware_host_pool__pending__' + pool['name'] )
+    result['ready'] += $redis.scard( 'vmware_host_pool__ready__' + pool['name'] )
+    result['running'] += $redis.scard( 'vmware_host_pool__running__' + pool['name'] )
+    result['completed'] += $redis.scard( 'vmware_host_pool__completed__' + pool['name'] )
+  end
+
+  content_type :json
+  JSON.pretty_generate( result )
+end
+
+get '/dashboard/stats/vcloud/pool' do
+  result = Hash.new
+
+  config[:pools].each do |pool|
+    result[pool['name']] ||= Hash.new
+    result[pool['name']]['size'] = pool['size']
+    result[pool['name']]['ready'] = $redis.scard( 'vmware_host_pool__ready__' + pool['name'] )
+  end
+
+  if ( params[:history] )
+    history ||= Hash.new
+
+    buffer = open( 'http://'+config[:config]['graphite']+'/render?target=vcloud.ready.*&from=-1hour&format=json' ).read
+    history = JSON.parse( buffer )
+
+    history.each do |pool|
+      if pool['target'] =~ /.*\.(.*)$/
+        pool['name'] = $1
+        pool['last'] = result[pool['name']]['size']
+        result[pool['name']]['history'] ||= Array.new
+
+        pool['datapoints'].each do |metric|
+          8.times do |n|
+            if ( metric[0] )
+              pool['last'] = metric[0].to_i
+              result[pool['name']]['history'].push( metric[0].to_i )
+            else
+              result[pool['name']]['history'].push( pool['last'] )
+            end
+          end
+        end
+      end
+    end
+  end
+
+  content_type :json
+  JSON.pretty_generate( result )
 end
 
 get '/status' do
