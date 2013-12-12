@@ -9,14 +9,16 @@ $:.unshift(File.dirname(__FILE__))
 require 'lib/logger'
 require 'lib/require_relative'
 
-logger = Logger.new
-
 Dir.chdir(File.dirname(__FILE__))
 
 # Load the configuration file
 config_file = File.expand_path('vmware-host-pooler.yaml')
+config = YAML.load_file(config_file)
 
-pools   = YAML.load_file(config_file)[:pools]
+pools   = config[:pools]
+
+# Load logger library
+$logger = Logger.new config[:config]['logfile']
 
 # Connect to Redis
 $redis = Redis.new
@@ -62,20 +64,10 @@ post '/vm/:template' do
     result[params[:template]]['error'] = 'You must specify a destination \'folder\' and \'pool\''
   else
     if ( $redis.scard('vmware_host_pool__ready__'+params[:template]) > 0 )
-      vm = nil
+      vm = $redis.spop('vmware_host_pool__ready__'+params[:template])
 
-      try = $redis.srandmember('vmware_host_pool__ready__'+params[:template])
-
-      if (
-        $redis.smove(
-          'vmware_host_pool__ready__'+params[:template],
-          'vmware_host_pool__running__'+params[:template],
-          try
-        )
-      )
-        vm = try
-
-        logger.log('s', "[<] '#{vm}' moved to 'running' queue")
+      unless (vm.nil?)
+        $redis.sadd('vmware_host_pool__running__'+params[:template], vm)
 
         result[params[:template]]['ok'] = true
         result[params[:template]]['hostname'] = vm
