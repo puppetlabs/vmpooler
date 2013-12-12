@@ -68,6 +68,7 @@ post '/vm/:template' do
 
       unless (vm.nil?)
         $redis.sadd('vmware_host_pool__running__'+params[:template], vm)
+        $redis.hset('vmware_host_pool__active__'+params[:template], vm, Time.now)
 
         result[params[:template]]['ok'] = true
         result[params[:template]]['hostname'] = vm
