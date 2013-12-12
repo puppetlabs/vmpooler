@@ -22,4 +22,3 @@ Fixes
 -----
 
 * The dashboard should look as good in Firefox as it does in Chrome and Safari
-* Threads shouldn't die as often as they do
