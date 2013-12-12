@@ -5,7 +5,6 @@ Features
 --------
 
 * Automatic clean-up of long-running VMs in 'running' Redis queues
-* Add dashboard to Sinatra (API) app
 * Allow rate-limiting of tasks
 
 
