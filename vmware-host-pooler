@@ -2,6 +2,7 @@
 
 require 'rbvmomi'
 require 'redis'
+require 'time'
 require 'yaml'
 
 $:.unshift(File.dirname(__FILE__))
@@ -299,6 +300,19 @@ def check_pool pool
       # COMPLETED
       $redis.smembers('vmware_host_pool__completed__'+pool['name']).each do |vm|
         if (inventory[vm])
+          begin
+            destroy_vm(vm, pool['name'])
+          rescue
+          end
+        end
+      end
+
+      # LONG-RUNNING
+      $redis.hkeys('vmware_host_pool__active__'+pool['name']).each do |vm|
+        running = (Time.now - Time.parse($redis.hget('vmware_host_pool__active__'+pool['name'], vm)))/60/60
+        if (running > 12)
+          $logger.log('d', "[!] [#{pool}] '#{vm}' reached end of TTL after 12 hours")
+
           begin
             destroy_vm(vm, pool['name'])
           rescue
