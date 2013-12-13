@@ -308,14 +308,13 @@ def check_pool pool
       end
 
       # LONG-RUNNING
-      $redis.hkeys('vmware_host_pool__active__'+pool['name']).each do |vm|
-        running = (Time.now - Time.parse($redis.hget('vmware_host_pool__active__'+pool['name'], vm)))/60/60
-        if (running > 12)
-          $logger.log('d', "[!] [#{pool}] '#{vm}' reached end of TTL after 12 hours")
+      $redis.smembers('vmware_host_pool__running__'+pool['name']).each do |vm|
+        if ($redis.hget('vmware_host_pool__active__'+pool['name'], vm))
+          running = (Time.now - Time.parse($redis.hget('vmware_host_pool__active__'+pool['name'], vm)))/60/60
+          if (running > 12)
+            $redis.smove('vmware_host_pool__running__'+pool['name'], 'vmware_host_pool__completed__'+pool['name'], vm)
 
-          begin
-            destroy_vm(vm, pool['name'])
-          rescue
+            $logger.log('d', "[!] [#{pool['name']}] '#{vm}' reached end of TTL after 12 hours")
           end
         end
       end
