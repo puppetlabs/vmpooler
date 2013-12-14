@@ -1,6 +1,6 @@
 var pool_url = '/dashboard/stats/vcloud/pool';
 var pool_width = 130;
-var pool_height = 70;
+var pool_height = 85;
 
 var stats_vcloud_pool__data  = {};
 var stats_vcloud_pool__svg   = {};
@@ -49,7 +49,7 @@ d3.json( pool_url+'?history=1',
             var area = d3.svg.area()
               .interpolate( 'basis' )
               .x( function( d, i ) { return x( i ); } )
-              .y0( pool_height )
+              .y0( pool_height - 15 )
               .y1( function( d ) { return y( d ); } );
     
             var path = d3.svg.line()
@@ -69,15 +69,15 @@ d3.json( pool_url+'?history=1',
 
             stats_vcloud_pool__svg[ pool ] = d3.select( '#stats-vcloud-pool' )
               .append( 'svg' )
-                .style( 'margin', '15 25 0 0' )
-                .style( 'padding', '0 0 20 0' )
+                .style( 'margin', '15px 25px 0px 0px' )
+                .style( 'padding', '0px 0px 20px 0px' )
                 .attr( 'width', pool_width )
                 .attr( 'height', pool_height );
 
             stats_vcloud_pool__svg[ pool ]
               .append( 'g' )
               .attr( 'class', 'x tick' )
-              .attr( 'transform', 'translate( 0,' + pool_height + ')' )
+              .attr( 'transform', 'translate( 0,' + ( pool_height - 15 ) + ')' )
               .call(
                 d3.svg.axis()
                   .scale( x )
@@ -96,8 +96,8 @@ d3.json( pool_url+'?history=1',
                 )
                 .attr( {
                   'x': '5',
-                  'y': pool_height + 15,
-                  'font-face': 'PT Sans sans-serif',
+                  'y': pool_height - 2,
+                  'font-face': '\'PT Sans\', sans-serif',
                   'font-weight': 'bold',
                   'font-size': '12px',
                   'fill': '#888'
@@ -110,8 +110,8 @@ d3.json( pool_url+'?history=1',
                 )
                 .attr( {
                   'x': '5',
-                  'y': pool_height - 5,
-                  'font-face': 'PT Sans sans-serif',
+                  'y': pool_height - 20,
+                  'font-face': '\'PT Sans\', sans-serif',
                   'font-weight': 'bold',
                   'font-size': '12px',
                   'letter-spacing': '-0.05em',
@@ -129,8 +129,8 @@ d3.json( pool_url+'?history=1',
                 )
                 .attr( {
                   'x': 40,
-                  'y': pool_height - 5,
-                  'font-face': 'PT Sans sans-serif',
+                  'y': pool_height - 20,
+                  'font-face': '\'PT Sans\', sans-serif',
                   'font-size': '12px',
                   'letter-spacing': '-0.05em',
                   'fill': '#888'

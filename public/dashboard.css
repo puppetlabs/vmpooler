@@ -22,8 +22,7 @@ body,
   float: right;
   position: relative;
   right: 30px;
-  top: 100px;
-  font: 50px 'PT Sans' sans-serif;
+  font: 50px 'PT Sans', sans-serif;
   letter-spacing: -0.05em;
   color: #444;
 }
@@ -31,7 +30,7 @@ body,
 .label {
   text-transform: uppercase;
   text-indent: 25px;
-  font: 12px 'PT Sans' sans-serif;
+  font: 12px 'PT Sans', sans-serif;
   font-weight: bold;
   line-height: 20px;
   color: #888;
@@ -112,7 +111,7 @@ body,
 .module {
   margin-top: 5px;
   margin-left: 25px;
-  font: 13px 'PT Sans' sans-serif;
+  font: 13px 'PT Sans', sans-serif;
   line-height: 20px;
   color: #888;
 }
