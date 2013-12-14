@@ -1,6 +1,6 @@
 var numbers_url = '/dashboard/stats/vcloud/numbers';
 var numbers_width = 130;
-var numbers_height = 45;
+var numbers_height = 50;
 
 var stats_vcloud_numbers__data  = {};
 var stats_vcloud_numbers__svg   = {};
@@ -31,10 +31,10 @@ d3.json( numbers_url,
 
         stats_vcloud_numbers__svg[ 'ready' ] = d3.select( '#stats-vcloud-numbers' )
           .append( 'svg' )
-            .style( 'margin', '10 25 0 0' )
-            .style( 'padding', '0 0 20 0' )
-            .attr( 'width', numbers_width )
-            .attr( 'height', numbers_height );
+            .style( 'margin', '10px 25px 0px 0px' )
+            .style( 'padding', '0px 0px 20px 0px' )
+            .attr( 'width', numbers_width + 'px' )
+            .attr( 'height', numbers_height + 'px' );
 
         stats_vcloud_numbers__svg[ 'ready' ]
           .append( 'text' )
@@ -43,8 +43,8 @@ d3.json( numbers_url,
             )
             .attr( {
               'x': '5',
-              'y': numbers_height + 6,
-              'font-face': 'PT Sans sans-serif',
+              'y': numbers_height,
+              'font-face': '\'PT Sans\', sans-serif',
               'font-size': '12px',
               'font-weight': 'bold',
               'fill': '#888'
@@ -58,7 +58,7 @@ d3.json( numbers_url,
             .attr( {
               'x': '0',
               'y': '36',
-              'font-face': 'PT Sans sans-serif',
+              'font-face': '\'PT Sans\', sans-serif',
               'font-weight': 'bold',
               'font-size': '50px',
               'letter-spacing': '-0.05em',
@@ -67,10 +67,10 @@ d3.json( numbers_url,
 
         stats_vcloud_numbers__svg[ 'pending' ] = d3.select( '#stats-vcloud-numbers' )
           .append( 'svg' )
-            .style( 'margin', '10 25 0 0' )
-            .style( 'padding', '0 0 20 0' )
-            .attr( 'width', numbers_width )
-            .attr( 'height', numbers_height );
+            .style( 'margin', '10px 25px 0px 0px' )
+            .style( 'padding', '0px 0px 20px 0px' )
+            .attr( 'width', numbers_width + 'px' )
+            .attr( 'height', numbers_height + 'px' );
 
         stats_vcloud_numbers__svg[ 'pending' ]
           .append( 'text' )
@@ -79,8 +79,8 @@ d3.json( numbers_url,
             )
             .attr( {
               'x': '5',
-              'y': numbers_height + 6,
-              'font-face': 'PT Sans sans-serif',
+              'y': numbers_height,
+              'font-face': '\'PT Sans\', sans-serif',
               'font-size': '12px',
               'font-weight': 'bold',
               'fill': '#888'
@@ -94,7 +94,7 @@ d3.json( numbers_url,
             .attr( {
               'x': '0',
               'y': '36',
-              'font-face': 'PT Sans sans-serif',
+              'font-face': '\'PT Sans\', sans-serif',
               'font-weight': 'bold',
               'font-size': '50px',
               'letter-spacing': '-0.05em',
@@ -103,10 +103,10 @@ d3.json( numbers_url,
 
         stats_vcloud_numbers__svg[ 'running' ] = d3.select( '#stats-vcloud-numbers' )
           .append( 'svg' )
-            .style( 'margin', '10 25 0 0' )
-            .style( 'padding', '0 0 20 0' )
-            .attr( 'width', numbers_width )
-            .attr( 'height', numbers_height );
+            .style( 'margin', '10px 25px 0px 0px' )
+            .style( 'padding', '0px 0px 20px 0px' )
+            .attr( 'width', numbers_width + 'px' )
+            .attr( 'height', numbers_height + 'px' );
 
         stats_vcloud_numbers__svg[ 'running' ]
           .append( 'text' )
@@ -115,8 +115,8 @@ d3.json( numbers_url,
             )
             .attr( {
               'x': '5',
-              'y': numbers_height + 6,
-              'font-face': 'PT Sans sans-serif',
+              'y': numbers_height,
+              'font-face': '\'PT Sans\', sans-serif',
               'font-size': '12px',
               'font-weight': 'bold',
               'fill': '#888'
@@ -130,7 +130,7 @@ d3.json( numbers_url,
             .attr( {
               'x': '0',
               'y': '36',
-              'font-face': 'PT Sans sans-serif',
+              'font-face': '\'PT Sans\', sans-serif',
               'font-weight': 'bold',
               'font-size': '50px',
               'letter-spacing': '-0.05em',
@@ -139,10 +139,10 @@ d3.json( numbers_url,
 
         stats_vcloud_numbers__svg[ 'completed' ] = d3.select( '#stats-vcloud-numbers' )
           .append( 'svg' )
-            .style( 'margin', '10 25 0 0' )
-            .style( 'padding', '0 0 20 0' )
-            .attr( 'width', numbers_width )
-            .attr( 'height', numbers_height );
+            .style( 'margin', '10px 25px 0px 0px' )
+            .style( 'padding', '0px 0px 20px 0px' )
+            .attr( 'width', numbers_width + 'px' )
+            .attr( 'height', numbers_height + 'px' );
 
         stats_vcloud_numbers__svg[ 'completed' ]
           .append( 'text' )
@@ -151,8 +151,8 @@ d3.json( numbers_url,
             )
             .attr( {
               'x': '5',
-              'y': numbers_height + 6,
-              'font-face': 'PT Sans sans-serif',
+              'y': numbers_height,
+              'font-face': '\'PT Sans\', sans-serif',
               'font-size': '12px',
               'font-weight': 'bold',
               'fill': '#888'
@@ -166,7 +166,7 @@ d3.json( numbers_url,
             .attr( {
               'x': '0',
               'y': '36',
-              'font-face': 'PT Sans sans-serif',
+              'font-face': '\'PT Sans\', sans-serif',
               'font-weight': 'bold',
               'font-size': '50px',
               'letter-spacing': '-0.05em',
