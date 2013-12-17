@@ -44,7 +44,7 @@ d3.json( pool_url+'?history=1',
         stats_vcloud_pool__data__keys.sort().map(
           function( pool ) {
             var x = d3.scale.linear().domain( [ 0, 500 ] ).range( [ 0, pool_width ] );
-            var y = d3.scale.linear().domain( [ parseInt( stats_vcloud_pool__data__live[ pool ][ 'size' ] ), 0 ] ).range( [ 0, pool_height ] );
+            var y = d3.scale.linear().domain( [ parseInt( stats_vcloud_pool__data__live[ pool ][ 'size' ] ), 0 ] ).range( [ 0, pool_height - 15 ] );
 
             var area = d3.svg.area()
               .interpolate( 'basis' )
