@@ -22,6 +22,7 @@ body,
   float: right;
   position: relative;
   right: 30px;
+  top: 100px;
   font: 50px 'PT Sans', sans-serif;
   letter-spacing: -0.05em;
   color: #444;
