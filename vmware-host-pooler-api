@@ -68,16 +68,19 @@ get '/dashboard/stats/vcloud/pool' do
       history.each do |pool|
         if pool['target'] =~ /.*\.(.*)$/
           pool['name'] = $1
-          pool['last'] = result[pool['name']]['size']
-          result[pool['name']]['history'] ||= Array.new
 
-          pool['datapoints'].each do |metric|
-            8.times do |n|
-              if ( metric[0] )
-                pool['last'] = metric[0].to_i
-                result[pool['name']]['history'].push( metric[0].to_i )
-              else
-                result[pool['name']]['history'].push( pool['last'] )
+          if ( result[pool['name']] )
+            pool['last'] = result[pool['name']]['size']
+            result[pool['name']]['history'] ||= Array.new
+
+            pool['datapoints'].each do |metric|
+              8.times do |n|
+                if ( metric[0] )
+                  pool['last'] = metric[0].to_i
+                  result[pool['name']]['history'].push( metric[0].to_i )
+                else
+                  result[pool['name']]['history'].push( pool['last'] )
+                end
               end
             end
           end
