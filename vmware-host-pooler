@@ -5,6 +5,8 @@ require 'redis'
 require 'time'
 require 'yaml'
 
+require 'thread/pool'
+
 $:.unshift(File.dirname(__FILE__))
 require 'lib/logger'
 require 'lib/require_relative'
@@ -37,11 +39,11 @@ $vsphere = {}
 # Our thread-tracker object
 $threads = {}
 
-
+$vcenter_pool = Thread.pool config[:config]['num_vmware_connections'] || 4
 
 # Check the state of a VM
 def check_pending_vm vm, pool, timeout
-  Thread.new {
+  $vcenter_pool.process {
     host = $vsphere[pool].find_vms(vm)[vm]
 
     if (host)
@@ -75,7 +77,7 @@ def check_pending_vm vm, pool, timeout
 end
 
 def check_ready_vm vm, pool, ttl
-  Thread.new {
+  $vcenter_pool.process {
     host = $vsphere[pool].find_vms(vm)[vm]
 
     if (host)
@@ -99,7 +101,7 @@ def check_ready_vm vm, pool, ttl
 end
 
 def check_running_vm vm, pool, ttl
-  Thread.new {
+  $vcenter_pool.process {
     host = $vsphere[pool].find_vms(vm)[vm]
 
     if (host)
@@ -127,14 +129,21 @@ end
 
 # Clone a VM
 def clone_vm template, pool, folder, datastore
-  Thread.new {
-    vm = {}
+  vm = {}
 
-    if template =~ /\//
-      templatefolders = template.split('/')
-      vm['template'] = templatefolders.pop
-    end
+  if template =~ /\//
+    templatefolders = template.split('/')
+    vm['template'] = templatefolders.pop
+  end
 
+  # Generate a randomized hostname
+  o = [('a'..'z'),('0'..'9')].map{|r| r.to_a}.flatten
+  vm['hostname'] = o[rand(25)]+(0...14).map{o[rand(o.length)]}.join
+
+  # Add VM to Redis inventory ('pending' pool)
+  $redis.sadd('vmware_host_pool__pending__'+vm['template'], vm['hostname'])
+
+  $vcenter_pool.process {
     if templatefolders
       vm[vm['template']] = $vsphere[vm['template']].find_folder(templatefolders.join('/')).find(vm['template'])
     else
@@ -144,13 +153,6 @@ def clone_vm template, pool, folder, datastore
     if vm['template'].length == 0
       raise "Unable to find template '#{vm['template']}'!"
     end
-
-    # Generate a randomized hostname
-    o = [('a'..'z'),('0'..'9')].map{|r| r.to_a}.flatten
-    vm['hostname'] = o[rand(25)]+(0...14).map{o[rand(o.length)]}.join
-
-    # Add VM to Redis inventory ('pending' pool)
-    $redis.sadd('vmware_host_pool__pending__'+vm['template'], vm['hostname'])
 
     # Annotate with creation time, origin template, etc.
     configSpec = RbVmomi::VIM.VirtualMachineConfigSpec(
@@ -196,10 +198,12 @@ end
 
 # Destroy a VM
 def destroy_vm vm, pool
-  Thread.new {
-    $redis.srem('vmware_host_pool__completed__'+pool, vm)
-    $redis.hdel('vmware_host_pool__active__'+pool, vm)
-
+  # Removing from redis before we kick off the asynchronous task
+  # prevents a nasty race condition that can lead to multiple delete
+  # tasks starting for the same VM.
+  $redis.srem('vmware_host_pool__completed__'+pool, vm)
+  $redis.hdel('vmware_host_pool__active__'+pool, vm)
+  $vcenter_pool.process {
     host = $vsphere[pool].find_vms(vm)[vm]
 
     if (host)
