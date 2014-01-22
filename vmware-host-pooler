@@ -14,19 +14,22 @@ Dir.chdir(File.dirname(__FILE__))
 
 # Load the configuration file
 config_file = File.expand_path('vmware-host-pooler.yaml')
-config = YAML.load_file(config_file)
+$config = YAML.load_file(config_file)
 
-pools   = config[:pools]
-vsphere = config[:vsphere]
+pools   = $config[:pools]
+vsphere = $config[:vsphere]
 
 # Load logger library
-$logger = Logger.new config[:config]['logfile']
+$logger = Logger.new $config[:config]['logfile']
 
 # Load Graphite helper library (if configured)
-if (defined? config[:config]['graphite'])
+if (defined? $config[:config]['graphite'])
   require 'lib/graphite'
-  $graphite = Graphite.new config[:config]['graphite']
+  $graphite = Graphite.new $config[:config]['graphite']
 end
+
+# Set some defaults
+$config[:config]['task_limit'] ||= 10
 
 # Connect to Redis
 $redis = Redis.new
@@ -187,6 +190,8 @@ def clone_vm template, pool, folder, datastore
 
     $logger.log('s', "[+] [#{vm['template']}] '#{vm['hostname']}' cloned from '#{vm['template']}' in #{finish} seconds")
 
+    $redis.decr('vmware_host_pool__tasks__clone')
+
     begin
       $graphite.log("vcloud.clone.#{vm['template']}", finish) if defined? $graphite
     rescue
@@ -226,8 +231,6 @@ end
 
 def check_pool pool
   $logger.log('d', "[*] [#{pool['name']}] starting worker thread")
-
-  $redis.del('vmware_host_pool__pending__'+pool['name'])
 
   $threads[pool['name']] = Thread.new {
     $vsphere[pool['name']] ||= VsphereHelper.new
@@ -332,14 +335,19 @@ def check_pool pool
 
       if (total < pool['size'])
         (1..(pool['size'] - total)).each { |i|
-          begin
-            clone_vm(
-              pool['template'],
-              pool['pool'],
-              pool['folder'],
-              pool['datastore']
-            )
-          rescue
+
+          if ($redis.get('vmware_host_pool__tasks__clone').to_i < $config[:config]['task_limit'])
+            begin
+              $redis.incr('vmware_host_pool__tasks__clone')
+
+              clone_vm(
+                pool['template'],
+                pool['pool'],
+                pool['folder'],
+                pool['datastore']
+              )
+            rescue
+            end
           end
         }
       end
