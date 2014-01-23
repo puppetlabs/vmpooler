@@ -19,4 +19,5 @@ Enhancements
 Fixes
 -----
 
+* VMs in 'ready' pool should be checked even if no ready_ttl is set
 * The dashboard should look as good in Firefox as it does in Chrome and Safari
