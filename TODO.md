@@ -4,8 +4,7 @@ TO DO
 Features
 --------
 
-* Automatic clean-up of long-running VMs in 'running' Redis queues
-* Allow rate-limiting of tasks
+* ...
 
 
 Enhancements
