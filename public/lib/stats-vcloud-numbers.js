@@ -29,6 +29,42 @@ d3.json( numbers_url,
 
         $( '#stats-vcloud-numbers' ).empty();
 
+        stats_vcloud_numbers__svg[ 'total' ] = d3.select( '#stats-vcloud-numbers' )
+          .append( 'svg' )
+            .style( 'margin', '10px 25px 0px 0px' )
+            .style( 'padding', '0px 0px 20px 0px' )
+            .attr( 'width', numbers_width + 'px' )
+            .attr( 'height', numbers_height + 'px' );
+
+        stats_vcloud_numbers__svg[ 'total' ]
+          .append( 'text' )
+            .text(
+              ( 'total VMs' )
+            )
+            .attr( {
+              'x': '5',
+              'y': numbers_height,
+              'font-face': '\'PT Sans\', sans-serif',
+              'font-size': '12px',
+              'font-weight': 'bold',
+              'fill': '#888'
+            } );
+
+        stats_vcloud_numbers__svg[ 'total' ]
+          .append( 'text' )
+            .text(
+              ( stats_vcloud_numbers__data__live[ 'total' ] )
+            )
+            .attr( {
+              'x': '0',
+              'y': '36',
+              'font-face': '\'PT Sans\', sans-serif',
+              'font-weight': 'bold',
+              'font-size': '50px',
+              'letter-spacing': '-0.05em',
+              'fill': '#444'
+            } );
+
         stats_vcloud_numbers__svg[ 'ready' ] = d3.select( '#stats-vcloud-numbers' )
           .append( 'svg' )
             .style( 'margin', '10px 25px 0px 0px' )
@@ -65,17 +101,17 @@ d3.json( numbers_url,
               'fill': '#444'
             } );
 
-        stats_vcloud_numbers__svg[ 'pending' ] = d3.select( '#stats-vcloud-numbers' )
+        stats_vcloud_numbers__svg[ 'cloning' ] = d3.select( '#stats-vcloud-numbers' )
           .append( 'svg' )
             .style( 'margin', '10px 25px 0px 0px' )
             .style( 'padding', '0px 0px 20px 0px' )
             .attr( 'width', numbers_width + 'px' )
             .attr( 'height', numbers_height + 'px' );
 
-        stats_vcloud_numbers__svg[ 'pending' ]
+        stats_vcloud_numbers__svg[ 'cloning' ]
           .append( 'text' )
             .text(
-              ( 'being built' )
+              ( 'being cloned' )
             )
             .attr( {
               'x': '5',
@@ -86,10 +122,10 @@ d3.json( numbers_url,
               'fill': '#888'
             } );
 
-        stats_vcloud_numbers__svg[ 'pending' ]
+        stats_vcloud_numbers__svg[ 'cloning' ]
           .append( 'text' )
             .text(
-              ( stats_vcloud_numbers__data__live[ 'pending' ] )
+              ( stats_vcloud_numbers__data__live[ 'cloning' ] )
             )
             .attr( {
               'x': '0',
@@ -100,6 +136,48 @@ d3.json( numbers_url,
               'letter-spacing': '-0.05em',
               'fill': '#444'
             } );
+
+        stats_vcloud_numbers__svg[ 'booting' ] = d3.select( '#stats-vcloud-numbers' )
+          .append( 'svg' )
+            .style( 'margin', '10px 25px 0px 0px' )
+            .style( 'padding', '0px 0px 20px 0px' )
+            .attr( 'width', numbers_width + 'px' )
+            .attr( 'height', numbers_height + 'px' );
+
+        stats_vcloud_numbers__svg[ 'booting' ]
+          .append( 'text' )
+            .text(
+              ( 'booting up' )
+            )
+            .attr( {
+              'x': '5',
+              'y': numbers_height,
+              'font-face': '\'PT Sans\', sans-serif',
+              'font-size': '12px',
+              'font-weight': 'bold',
+              'fill': '#888'
+            } );
+
+        stats_vcloud_numbers__svg[ 'booting' ]
+          .append( 'text' )
+            .text(
+              ( stats_vcloud_numbers__data__live[ 'booting' ] )
+            )
+            .attr( {
+              'x': '0',
+              'y': '36',
+              'font-face': '\'PT Sans\', sans-serif',
+              'font-weight': 'bold',
+              'font-size': '50px',
+              'letter-spacing': '-0.05em',
+              'fill': '#444'
+            } );
+
+
+
+
+
+
 
         stats_vcloud_numbers__svg[ 'running' ] = d3.select( '#stats-vcloud-numbers' )
           .append( 'svg' )
