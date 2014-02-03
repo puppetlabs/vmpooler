@@ -180,15 +180,20 @@ def clone_vm template, pool, folder, datastore
     # Clone the VM
     $logger.log('d', "[ ] [#{vm['template']}] '#{vm['hostname']}' is being cloned from '#{vm['template']}'")
 
-    start = Time.now
-    vm[vm['template']].CloneVM_Task(
-      :folder => $vsphere[vm['template']].find_folder(folder),
-      :name => vm['hostname'],
-      :spec => spec
-    ).wait_for_completion
-    finish = '%.2f' % (Time.now-start)
+    begin
+      start = Time.now
+      vm[vm['template']].CloneVM_Task(
+        :folder => $vsphere[vm['template']].find_folder(folder),
+        :name => vm['hostname'],
+        :spec => spec
+      ).wait_for_completion
+      finish = '%.2f' % (Time.now-start)
 
-    $logger.log('s', "[+] [#{vm['template']}] '#{vm['hostname']}' cloned from '#{vm['template']}' in #{finish} seconds")
+      $logger.log('s', "[+] [#{vm['template']}] '#{vm['hostname']}' cloned from '#{vm['template']}' in #{finish} seconds")
+    rescue
+      $logger.log('s', "[!] [#{vm['template']}] '#{vm['hostname']}' clone appears to have failed")
+      $redis.srem('vmware_host_pool__pending__'+vm['template'], vm['hostname'])
+    end
 
     $redis.decr('vmware_host_pool__tasks__clone')
 
@@ -365,6 +370,9 @@ end
 
 
 $logger.log('d', "starting vmware-host-pooler")
+
+# Clear out the tasks manager, as we don't know about any tasks at this point
+$redis.set('vmware_host_pool__tasks__clone', 0)
 
 loop do
   pools.each do |pool|
