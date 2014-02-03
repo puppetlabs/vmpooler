@@ -97,6 +97,10 @@ def check_ready_vm vm, pool, ttl
           $logger.log('d', "[!] [#{pool}] '#{vm}' reached end of TTL after #{ttl} minutes")
         end
       end
+    else
+      $redis.srem('vmware_host_pool__ready__'+pool, vm)
+
+      $logger.log('s', "[!] [#{pool}] '#{vm}' not found in vCenter inventory")
     end
   }
 end
