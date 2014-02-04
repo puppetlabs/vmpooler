@@ -241,6 +241,8 @@ def destroy_vm vm, pool
       host = $vsphere[pool].find_vm_heavy(vm)[vm]
 
       if (host)
+        start = Time.now
+
         if (
           (host.runtime) and
           (host.runtime.powerState) and
