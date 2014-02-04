@@ -28,7 +28,9 @@ $redis = Redis.new
 
 # Sinatra!
 get '/' do
-  erb :dashboard
+  erb :dashboard, locals: {
+    site_name: config[:config]['site_name'] || '<b>vmware-host-pooler</b>',
+  }
 end
 
 get '/dashboard/stats/vcloud/numbers' do
