@@ -315,10 +315,14 @@ def check_pool pool
           begin
             destroy_vm(vm, pool['name'])
           rescue
-            $logger.log('s', "[!] [#{pool['name']}] destroy appears to have failed")
+            $logger.log('s', "[!] [#{pool['name']}] '#{vm}' destroy appears to have failed")
             $redis.srem('vmware_host_pool__completed__'+pool['name'], vm)
             $redis.hdel('vmware_host_pool__active__'+pool['name'], vm)
           end
+        else
+          $logger.log('s', "[!] [#{pool['name']}] '#{vm}' not found in inventory, removing from 'completed' queue")
+          $redis.srem('vmware_host_pool__completed__'+pool['name'], vm)
+          $redis.hdel('vmware_host_pool__active__'+pool['name'], vm)
         end
       end
 
