@@ -22,60 +22,13 @@ class VsphereHelper
 
 
 
-  # an easier wrapper around the horrid PropertyCollector interface,
-  # necessary for searching VMs in all Datacenters that may be nested
-  # within folders of arbitrary depth
-  # returns a hash array of <name> => <VirtualMachine ManagedObjects>
-  def find_vms names, connection = @connection
-    names = names.is_a?(Array) ? names : [ names ]
-    containerView = get_base_vm_container_from connection
-    propertyCollector = connection.propertyCollector
-
-    objectSet = [{
-      :obj => containerView,
-      :skip => true,
-      :selectSet => [ RbVmomi::VIM::TraversalSpec.new({
-          :name => 'gettingTheVMs',
-          :path => 'view',
-          :skip => false,
-          :type => 'ContainerView'
-      }) ]
-    }]
-
-    propSet = [{
-      :pathSet => [ 'name' ],
-      :type => 'VirtualMachine'
-    }]
-
-    results = propertyCollector.RetrievePropertiesEx({
-      :specSet => [{
-        :objectSet => objectSet,
-        :propSet   => propSet
-      }],
-      :options => { :maxObjects => nil }
-    })
-
-    vms = {}
-    results.objects.each do |result|
-      name = result.propSet.first.val
-      next unless names.include? name
-      vms[name] = result.obj
-    end
-
-    while results.token do
-      results = propertyCollector.ContinueRetrievePropertiesEx({:token => results.token})
-      results.objects.each do |result|
-        name = result.propSet.first.val
-        next unless names.include? name
-        vms[name] = result.obj
-      end
-    end
-    vms
-  end
-
-
-
   def find_datastore datastorename
+    begin
+      @connection.serviceInstance.CurrentTime
+    rescue
+      initialize()
+    end
+
     datacenter = @connection.serviceInstance.find_datacenter
     datacenter.find_datastore(datastorename)
   end
@@ -83,6 +36,12 @@ class VsphereHelper
 
 
   def find_folder foldername
+    begin
+      @connection.serviceInstance.CurrentTime
+    rescue
+      initialize()
+    end
+
     datacenter = @connection.serviceInstance.find_datacenter
     base = datacenter.vmFolder
     folders = foldername.split('/')
@@ -129,7 +88,25 @@ class VsphereHelper
 
 
 
+  def find_vm vmname
+    begin
+      @connection.serviceInstance.CurrentTime
+    rescue
+      initialize()
+    end
+
+    @connection.searchIndex.FindByDnsName(:vmSearch => true, :dnsName => vmname)
+  end
+
+
+
   def get_base_vm_container_from connection
+    begin
+      connection.serviceInstance.CurrentTime
+    rescue
+      initialize()
+    end
+
     viewManager = connection.serviceContent.viewManager
     viewManager.CreateContainerView({
       :container => connection.serviceContent.rootFolder,
