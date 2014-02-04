@@ -45,7 +45,7 @@ $threads = {}
 # Check the state of a VM
 def check_pending_vm vm, pool, timeout
   Thread.new {
-    host = $vsphere[pool].find_vms(vm)[vm]
+    host = $vsphere[pool].find_vm(vm)
 
     if (host)
       if (
@@ -79,7 +79,7 @@ end
 
 def check_ready_vm vm, pool, ttl
   Thread.new {
-    host = $vsphere[pool].find_vms(vm)[vm]
+    host = $vsphere[pool].find_vm(vm)
 
     if (host)
       if (
@@ -107,7 +107,7 @@ end
 
 def check_running_vm vm, pool, ttl
   Thread.new {
-    host = $vsphere[pool].find_vms(vm)[vm]
+    host = $vsphere[pool].find_vm(vm)
 
     if (host)
       if (
@@ -214,7 +214,7 @@ def destroy_vm vm, pool
     $redis.srem('vmware_host_pool__completed__'+pool, vm)
     $redis.hdel('vmware_host_pool__active__'+pool, vm)
 
-    host = $vsphere[pool].find_vms(vm)[vm]
+    host = $vsphere[pool].find_vm(vm)
 
     if (host)
       start = Time.now
