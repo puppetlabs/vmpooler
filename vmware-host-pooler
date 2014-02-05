@@ -40,7 +40,11 @@ $vsphere = {}
 # Our thread-tracker object
 $threads = {}
 
+$dictionary ||= File.readlines('dictionary').map(&:chomp)
 
+def generate_hostname
+  (1..3).map { $dictionary[rand($dictionary.length)] }.join('-')
+end
 
 # Check the state of a VM
 def check_pending_vm vm, pool, timeout
@@ -153,9 +157,7 @@ def clone_vm template, pool, folder, datastore
       raise "Unable to find template '#{vm['template']}'!"
     end
 
-    # Generate a randomized hostname
-    o = [('a'..'z'),('0'..'9')].map{|r| r.to_a}.flatten
-    vm['hostname'] = o[rand(25)]+(0...14).map{o[rand(o.length)]}.join
+    vm['hostname'] = generate_hostname
 
     # Add VM to Redis inventory ('pending' pool)
     $redis.sadd('vmware_host_pool__pending__'+vm['template'], vm['hostname'])
