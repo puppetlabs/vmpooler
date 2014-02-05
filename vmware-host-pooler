@@ -217,7 +217,8 @@ def destroy_vm vm, pool
     $redis.hdel('vmware_host_pool__active__'+pool, vm)
     $redis.del('vmware_host_pool__vm__'+vm)
 
-    host = $vsphere[pool].find_vm(vm)
+    host = $vsphere[pool].find_vm(vm) ||
+           $vsphere[pool].find_vm_heavy(vm)[vm]
 
     if (host)
       start = Time.now
@@ -237,28 +238,6 @@ def destroy_vm vm, pool
       $logger.log('s', "[-] [#{pool}] '#{vm}' destroyed in #{finish} seconds")
 
       $graphite.log("vcloud.destroy.#{pool}", finish) if defined? $graphite
-    else
-      host = $vsphere[pool].find_vm_heavy(vm)[vm]
-
-      if (host)
-        start = Time.now
-
-        if (
-          (host.runtime) and
-          (host.runtime.powerState) and
-          (host.runtime.powerState == 'poweredOn')
-        )
-          $logger.log('d', "[ ] [#{pool}] '#{vm}' is being shut down")
-          host.PowerOffVM_Task.wait_for_completion
-        end
-
-        host.Destroy_Task.wait_for_completion
-        finish = '%.2f' % (Time.now-start)
-
-        $logger.log('s', "[-] [#{pool}] '#{vm}' destroyed in #{finish} seconds")
-
-        $graphite.log("vcloud.destroy.#{pool}", finish) if defined? $graphite
-      end
     end
   }
 end
