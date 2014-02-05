@@ -62,16 +62,17 @@ def check_pending_vm vm, pool, timeout
         $redis.smove('vmware_host_pool__pending__'+pool, 'vmware_host_pool__ready__'+pool, vm)
 
         $logger.log('s', "[>] [#{pool}] '#{vm}' moved to 'ready' queue")
-      else
-        if (
-          (host.runtime) and
-          (host.runtime.bootTime) and
-          ((((Time.now - host.runtime.bootTime)/60).to_s[/^\d+\.\d{1}/].to_f) > timeout)
-        )
-          $redis.smove('vmware_host_pool__pending__'+pool, 'vmware_host_pool__completed__'+pool, vm)
+      end
+    else
+      clone_stamp = $redis.hget('vmware_host_pool__vm__'+vm, 'clone')
 
-          $logger.log('d', "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes")
-        end
+      if (
+        (clone_stamp) and
+        (((Time.now - Time.parse(clone_stamp))/60) > timeout)
+      )
+        $redis.smove('vmware_host_pool__pending__'+pool, 'vmware_host_pool__completed__'+pool, vm)
+
+        $logger.log('d', "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes")
       end
     end
   }
@@ -158,6 +159,7 @@ def clone_vm template, pool, folder, datastore
 
     # Add VM to Redis inventory ('pending' pool)
     $redis.sadd('vmware_host_pool__pending__'+vm['template'], vm['hostname'])
+    $redis.hset('vmware_host_pool__vm__'+vm['hostname'], 'clone', Time.now)
 
     # Annotate with creation time, origin template, etc.
     configSpec = RbVmomi::VIM.VirtualMachineConfigSpec(
@@ -213,6 +215,7 @@ def destroy_vm vm, pool
   Thread.new {
     $redis.srem('vmware_host_pool__completed__'+pool, vm)
     $redis.hdel('vmware_host_pool__active__'+pool, vm)
+    $redis.del('vmware_host_pool__vm__'+vm)
 
     host = $vsphere[pool].find_vm(vm)
 
@@ -234,6 +237,28 @@ def destroy_vm vm, pool
       $logger.log('s', "[-] [#{pool}] '#{vm}' destroyed in #{finish} seconds")
 
       $graphite.log("vcloud.destroy.#{pool}", finish) if defined? $graphite
+    else
+      host = $vsphere[pool].find_vm_heavy(vm)[vm]
+
+      if (host)
+        start = Time.now
+
+        if (
+          (host.runtime) and
+          (host.runtime.powerState) and
+          (host.runtime.powerState == 'poweredOn')
+        )
+          $logger.log('d', "[ ] [#{pool}] '#{vm}' is being shut down")
+          host.PowerOffVM_Task.wait_for_completion
+        end
+
+        host.Destroy_Task.wait_for_completion
+        finish = '%.2f' % (Time.now-start)
+
+        $logger.log('s', "[-] [#{pool}] '#{vm}' destroyed in #{finish} seconds")
+
+        $graphite.log("vcloud.destroy.#{pool}", finish) if defined? $graphite
+      end
     end
   }
 end
@@ -299,7 +324,7 @@ def check_pool pool
 
       # PENDING
       $redis.smembers('vmware_host_pool__pending__'+pool['name']).each do |vm|
-        pool['timeout'] ||= 10
+        pool['timeout'] ||= 15
 
         if (inventory[vm])
           begin
@@ -318,11 +343,27 @@ def check_pool pool
             $logger.log('s', "[!] [#{pool['name']}] '#{vm}' destroy appears to have failed")
             $redis.srem('vmware_host_pool__completed__'+pool['name'], vm)
             $redis.hdel('vmware_host_pool__active__'+pool['name'], vm)
+            $redis.del('vmware_host_pool__vm__'+vm)
           end
         else
           $logger.log('s', "[!] [#{pool['name']}] '#{vm}' not found in inventory, removing from 'completed' queue")
           $redis.srem('vmware_host_pool__completed__'+pool['name'], vm)
           $redis.hdel('vmware_host_pool__active__'+pool['name'], vm)
+          $redis.del('vmware_host_pool__vm__'+vm)
+        end
+      end
+
+      # DISCOVERED
+      $redis.smembers('vmware_host_pool__discovered__'+pool['name']).each do |vm|
+        ['pending', 'ready', 'running', 'completed'].each do |queue|
+          if ($redis.sismember('vmware_host_pool__'+queue+'__'+pool['name'], vm))
+            $logger.log('d', "[!] [#{pool['name']}] '#{vm}' found in '#{queue}', removing from 'discovered'")
+            $redis.srem('vmware_host_pool__discovered__'+pool['name'], vm)
+          end
+        end
+
+        if ($redis.sismember('vmware_host_pool__discovered__'+pool['name'], vm))
+          $redis.smove('vmware_host_pool__discovered__'+pool['name'], 'vmware_host_pool__completed__'+pool['name'], vm)
         end
       end
 

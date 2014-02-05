@@ -100,6 +100,62 @@ class VsphereHelper
 
 
 
+  def find_vm_heavy vmname
+    begin
+      @connection.serviceInstance.CurrentTime
+    rescue
+      initialize()
+    end
+
+    vmname = vmname.is_a?(Array) ? vmname : [ vmname ]
+    containerView = get_base_vm_container_from @connection
+    propertyCollector = @connection.propertyCollector
+
+    objectSet = [{
+      :obj => containerView,
+      :skip => true,
+      :selectSet => [ RbVmomi::VIM::TraversalSpec.new({
+          :name => 'gettingTheVMs',
+          :path => 'view',
+          :skip => false,
+          :type => 'ContainerView'
+      }) ]
+    }]
+
+    propSet = [{
+      :pathSet => [ 'name' ],
+      :type => 'VirtualMachine'
+    }]
+
+    results = propertyCollector.RetrievePropertiesEx({
+      :specSet => [{
+        :objectSet => objectSet,
+        :propSet   => propSet
+      }],
+      :options => { :maxObjects => nil }
+    })
+
+    vms = {}
+    results.objects.each do |result|
+      name = result.propSet.first.val
+      next unless vmname.include? name
+      vms[name] = result.obj
+    end
+
+    while results.token do
+      results = propertyCollector.ContinueRetrievePropertiesEx({:token => results.token})
+      results.objects.each do |result|
+        name = result.propSet.first.val
+        next unless vmname.include? name
+        vms[name] = result.obj
+      end
+    end
+
+    vms
+  end
+
+
+
   def get_base_vm_container_from connection
     begin
       connection.serviceInstance.CurrentTime
