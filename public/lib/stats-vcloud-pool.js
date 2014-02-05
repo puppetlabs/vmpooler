@@ -69,8 +69,8 @@ d3.json( pool_url+'?history=1',
 
             stats_vcloud_pool__svg[ pool ] = d3.select( '#stats-vcloud-pool' )
               .append( 'svg' )
-                .style( 'margin', '15px 25px 0px 0px' )
-                .style( 'padding', '0px 0px 20px 0px' )
+                .style( 'margin', '15px 0px 0px 0px' )
+                .style( 'padding', '0px 10px 20px 10px' )
                 .attr( 'width', pool_width )
                 .attr( 'height', pool_height );
 

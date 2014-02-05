@@ -31,8 +31,8 @@ d3.json( numbers_url,
 
         stats_vcloud_numbers__svg[ 'total' ] = d3.select( '#stats-vcloud-numbers' )
           .append( 'svg' )
-            .style( 'margin', '10px 25px 0px 0px' )
-            .style( 'padding', '0px 0px 20px 0px' )
+            .style( 'margin', '15px 0px 0px 0px' )
+            .style( 'padding', '0px 10px 20px 10px' )
             .attr( 'width', numbers_width + 'px' )
             .attr( 'height', numbers_height + 'px' );
 
@@ -67,8 +67,8 @@ d3.json( numbers_url,
 
         stats_vcloud_numbers__svg[ 'ready' ] = d3.select( '#stats-vcloud-numbers' )
           .append( 'svg' )
-            .style( 'margin', '10px 25px 0px 0px' )
-            .style( 'padding', '0px 0px 20px 0px' )
+            .style( 'margin', '15px 0px 0px 0px' )
+            .style( 'padding', '0px 10px 20px 10px' )
             .attr( 'width', numbers_width + 'px' )
             .attr( 'height', numbers_height + 'px' );
 
@@ -103,8 +103,8 @@ d3.json( numbers_url,
 
         stats_vcloud_numbers__svg[ 'cloning' ] = d3.select( '#stats-vcloud-numbers' )
           .append( 'svg' )
-            .style( 'margin', '10px 25px 0px 0px' )
-            .style( 'padding', '0px 0px 20px 0px' )
+            .style( 'margin', '15px 0px 0px 0px' )
+            .style( 'padding', '0px 10px 20px 10px' )
             .attr( 'width', numbers_width + 'px' )
             .attr( 'height', numbers_height + 'px' );
 
@@ -139,8 +139,8 @@ d3.json( numbers_url,
 
         stats_vcloud_numbers__svg[ 'booting' ] = d3.select( '#stats-vcloud-numbers' )
           .append( 'svg' )
-            .style( 'margin', '10px 25px 0px 0px' )
-            .style( 'padding', '0px 0px 20px 0px' )
+            .style( 'margin', '15px 0px 0px 0px' )
+            .style( 'padding', '0px 10px 20px 10px' )
             .attr( 'width', numbers_width + 'px' )
             .attr( 'height', numbers_height + 'px' );
 
@@ -181,8 +181,8 @@ d3.json( numbers_url,
 
         stats_vcloud_numbers__svg[ 'running' ] = d3.select( '#stats-vcloud-numbers' )
           .append( 'svg' )
-            .style( 'margin', '10px 25px 0px 0px' )
-            .style( 'padding', '0px 0px 20px 0px' )
+            .style( 'margin', '15px 0px 0px 0px' )
+            .style( 'padding', '0px 10px 20px 10px' )
             .attr( 'width', numbers_width + 'px' )
             .attr( 'height', numbers_height + 'px' );
 
@@ -217,8 +217,8 @@ d3.json( numbers_url,
 
         stats_vcloud_numbers__svg[ 'completed' ] = d3.select( '#stats-vcloud-numbers' )
           .append( 'svg' )
-            .style( 'margin', '10px 25px 0px 0px' )
-            .style( 'padding', '0px 0px 20px 0px' )
+            .style( 'margin', '15px 0px 0px 0px' )
+            .style( 'padding', '0px 10px 20px 10px' )
             .attr( 'width', numbers_width + 'px' )
             .attr( 'height', numbers_height + 'px' );
 
