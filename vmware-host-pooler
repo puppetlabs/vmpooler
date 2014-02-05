@@ -346,7 +346,7 @@ def check_pool pool
             $redis.del('vmware_host_pool__vm__'+vm)
           end
         else
-          $logger.log('s', "[!] [#{pool['name']}] '#{vm}' not found in inventory, removing from 'completed' queue")
+          $logger.log('s', "[!] [#{pool['name']}] '#{vm}' not found in inventory, removed from 'completed' queue")
           $redis.srem('vmware_host_pool__completed__'+pool['name'], vm)
           $redis.hdel('vmware_host_pool__active__'+pool['name'], vm)
           $redis.del('vmware_host_pool__vm__'+vm)
@@ -357,7 +357,7 @@ def check_pool pool
       $redis.smembers('vmware_host_pool__discovered__'+pool['name']).each do |vm|
         ['pending', 'ready', 'running', 'completed'].each do |queue|
           if ($redis.sismember('vmware_host_pool__'+queue+'__'+pool['name'], vm))
-            $logger.log('d', "[!] [#{pool['name']}] '#{vm}' found in '#{queue}', removing from 'discovered'")
+            $logger.log('d', "[!] [#{pool['name']}] '#{vm}' found in '#{queue}', removed from 'discovered' queue")
             $redis.srem('vmware_host_pool__discovered__'+pool['name'], vm)
           end
         end
