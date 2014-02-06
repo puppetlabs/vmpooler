@@ -29,7 +29,8 @@ if (defined? $config[:config]['graphite'])
 end
 
 # Set some defaults
-$config[:config]['task_limit'] ||= 10
+$config[:config]['task_limit']  ||= 10
+$config[:config]['vm_lifetime'] ||= 24
 
 # Connect to Redis
 $redis = Redis.new
@@ -350,10 +351,13 @@ def check_pool pool
       $redis.smembers('vmware_host_pool__running__'+pool['name']).each do |vm|
         if ($redis.hget('vmware_host_pool__active__'+pool['name'], vm))
           running = (Time.now - Time.parse($redis.hget('vmware_host_pool__active__'+pool['name'], vm)))/60/60
-          if (running > 12)
+          if (
+            ($config[:config]['vm_lifetime'] > 0) and
+            (running > $config[:config]['vm_lifetime'])
+          )
             $redis.smove('vmware_host_pool__running__'+pool['name'], 'vmware_host_pool__completed__'+pool['name'], vm)
 
-            $logger.log('d', "[!] [#{pool['name']}] '#{vm}' reached end of TTL after 12 hours")
+            $logger.log('d', "[!] [#{pool['name']}] '#{vm}' reached end of TTL after #{$config[:config]['vm_lifetime']} hours")
           end
         end
       end
