@@ -55,7 +55,7 @@ get '/dashboard/stats/vcloud/numbers' do
   result['total'] = result['pending'].to_i + result['ready'].to_i + result['running'].to_i + result['completed'].to_i
 
   content_type :json
-  JSON.pretty_generate( result )
+  JSON.pretty_generate(result)
 end
 
 get '/dashboard/stats/vcloud/pool' do
@@ -107,7 +107,7 @@ get '/dashboard/stats/vcloud/pool' do
   end
 
   content_type :json
-  JSON.pretty_generate( result )
+  JSON.pretty_generate(result)
 end
 
 get '/status' do
@@ -174,10 +174,12 @@ delete '/vm/:hostname' do
     if $redis.sismember('vmware_host_pool__running__'+pool['name'], params[:hostname])
       $redis.srem('vmware_host_pool__running__'+pool['name'], params[:hostname])
       $redis.sadd('vmware_host_pool__completed__'+pool['name'], params[:hostname])
+      result['ok'] = true
+    else
+      result['ok'] = false
     end
   end
 
-  result['ok'] = true
   JSON.pretty_generate(result)
 end
 
