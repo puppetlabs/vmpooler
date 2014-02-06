@@ -142,24 +142,20 @@ post '/vm/:template' do
   result = {}
   result[params[:template]] = {}
 
-  if ( ( ! params[:folder] ) or ( ! params[:pool] ))
-    result[params[:template]]['error'] = 'You must specify a destination \'folder\' and \'pool\''
-  else
-    if ( $redis.scard('vmware_host_pool__ready__'+params[:template]) > 0 )
-      vm = $redis.spop('vmware_host_pool__ready__'+params[:template])
+  if ( $redis.scard('vmware_host_pool__ready__'+params[:template]) > 0 )
+    vm = $redis.spop('vmware_host_pool__ready__'+params[:template])
 
-      unless (vm.nil?)
-        $redis.sadd('vmware_host_pool__running__'+params[:template], vm)
-        $redis.hset('vmware_host_pool__active__'+params[:template], vm, Time.now)
+    unless (vm.nil?)
+      $redis.sadd('vmware_host_pool__running__'+params[:template], vm)
+      $redis.hset('vmware_host_pool__active__'+params[:template], vm, Time.now)
 
-        result[params[:template]]['ok'] = true
-        result[params[:template]]['hostname'] = vm
-      else
-        result[params[:template]]['ok'] = false
-      end
+      result[params[:template]]['ok'] = true
+      result[params[:template]]['hostname'] = vm
     else
       result[params[:template]]['ok'] = false
     end
+  else
+    result[params[:template]]['ok'] = false
   end
 
   JSON.pretty_generate(result)
