@@ -9,9 +9,31 @@ var stats_vcloud_running__svg   = {};
 
 var stats_vcloud_running__data__total = 0;
 
-d3.json( running_url,
+d3.json( running_url+'?history=1',
 
   function( stats_vcloud_running__data ) {
+
+    if ( typeof stats_vcloud_running__data[ 'stack' ] === 'undefined' ) {
+      stats_vcloud_running__data[ 'stack' ] = [];
+    }
+
+    var mytmphash  = [];
+
+    for ( var c = 0; c < 500; c++ ) {
+      for ( var key in stats_vcloud_running__data ) {
+        if ( ! stats_vcloud_running__data[ key ][ 'history' ] ) {
+          continue;
+        }
+
+        if ( ! stats_vcloud_running__data[ key ][ 'history' ][ c ] ) {
+          mytmphash[ key ] = 0;
+        }
+        else {
+          mytmphash[ key ] = stats_vcloud_running__data[ key ][ 'history' ][ c ];
+        }
+      }
+      stats_vcloud_running__data[ 'stack' ].push( mytmphash );
+    }
 
     ( function tick() {
       setTimeout( function() {
@@ -61,8 +83,6 @@ d3.json( running_url,
 
         var stack = d3.layout.stack()
           .values( function( d ) { return d.values; } );
-
-        var stats_vcloud_running__data__stack = {};
 
         if ( typeof stats_vcloud_running__data[ 'stack' ] === 'undefined' ) {
           stats_vcloud_running__data[ 'stack' ] = [];
