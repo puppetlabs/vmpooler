@@ -110,6 +110,21 @@ get '/dashboard/stats/vcloud/pool' do
   JSON.pretty_generate(result)
 end
 
+get '/dashboard/stats/vcloud/running' do
+  result = Hash.new
+
+  config[:pools].each do |pool|
+    running = $redis.scard( 'vmware_host_pool__running__' + pool['name'] )
+
+    pool['major'] = $1 if pool['name'] =~ /^(\w+)\-/
+
+    result[pool['major']] = result[pool['major']].to_i + running.to_i
+  end
+
+  content_type :json
+  JSON.pretty_generate(result)
+end
+
 get '/status' do
   content_type :json
 
