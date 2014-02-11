@@ -36,7 +36,7 @@ d3.json( running_url,
         var stats_vcloud_running__data__total__tmp = 0;
 
         for ( var key in stats_vcloud_running__data__live ) {
-          stats_vcloud_running__data__total__tmp = stats_vcloud_running__data__total__tmp + stats_vcloud_running__data__live[ key ];
+          stats_vcloud_running__data__total__tmp = stats_vcloud_running__data__total__tmp + stats_vcloud_running__data__live[ key ][ 'running' ];
           stats_vcloud_running__data__keys.push( key );
           for ( var c = 0; c < Object.keys(stats_vcloud_running__data__keys).length; c++ ) { color[key] = colorscale( c ); }
         }
@@ -64,11 +64,17 @@ d3.json( running_url,
 
         var stats_vcloud_running__data__stack = {};
 
-         if ( typeof stats_vcloud_running__data[ 'stack' ] === 'undefined' ) {
-           stats_vcloud_running__data[ 'stack' ] = [];
-         }
+        if ( typeof stats_vcloud_running__data[ 'stack' ] === 'undefined' ) {
+          stats_vcloud_running__data[ 'stack' ] = [];
+        }
 
-        stats_vcloud_running__data[ 'stack' ].push( stats_vcloud_running__data__live );
+        stats_vcloud_running__data[ 'tmp' ] = {};
+
+        for ( var key in stats_vcloud_running__data__live ) {
+          stats_vcloud_running__data[ 'tmp' ][ key ] = stats_vcloud_running__data__live[ key ][ 'running' ];
+        }
+
+        stats_vcloud_running__data[ 'stack' ].push( stats_vcloud_running__data[ 'tmp' ] );
 
         var stats_vcloud_running__data__graph = stack(
           stats_vcloud_running__data__keys.sort().map(
