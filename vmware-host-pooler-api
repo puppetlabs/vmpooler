@@ -122,6 +122,41 @@ get '/dashboard/stats/vcloud/running' do
     result[pool['major']]['running'] = result[pool['major']]['running'].to_i + running.to_i
   end
 
+  if ( params[:history] )
+    if ( config[:config]['graphite'] )
+      history ||= Hash.new
+
+      begin
+        buffer = open( 'http://'+config[:config]['graphite']+'/render?target=vcloud.running.*&from=-1hour&format=json' ).read
+        history = JSON.parse( buffer )
+
+        history.each do |pool|
+          if pool['target'] =~ /.*\.(.*)$/
+            pool['name'] = $1
+            pool['major'] = $1 if pool['name'] =~ /^(\w+)\-/
+
+            if ( result[pool['major']] )
+              pool['last'] = result[pool['major']]['running']
+              result[pool['major']]['history'] ||= Array.new
+
+              pool['datapoints'].each do |metric|
+                3.times do |n|
+                  if ( metric[0] )
+                    pool['last'] = metric[0].to_i
+                    result[pool['major']]['history'].push( metric[0].to_i )
+                  else
+                    result[pool['major']]['history'].push( pool['last'] )
+                  end
+                end
+              end
+            end
+          end
+        end
+      rescue
+      end
+    end
+  end
+
   content_type :json
   JSON.pretty_generate(result)
 end
