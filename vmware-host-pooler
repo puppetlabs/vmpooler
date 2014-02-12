@@ -18,6 +18,7 @@ $config = YAML.load_file(config_file)
 
 pools   = $config[:pools]
 vsphere = $config[:vsphere]
+redis   = $config[:redis]
 
 # Load logger library
 $logger = Logger.new $config[:config]['logfile']
@@ -31,9 +32,10 @@ end
 # Set some defaults
 $config[:config]['task_limit']  ||= 10
 $config[:config]['vm_lifetime'] ||= 24
+$config[:redis]['server'] ||= 'localhost'
 
 # Connect to Redis
-$redis = Redis.new
+$redis = Redis.new(:host => $config[:redis]['server'])
 
 # vSphere object
 $vsphere = {}
