@@ -1,5 +1,6 @@
 #!/usr/bin/ruby
 
+require 'json'
 require 'rbvmomi'
 require 'redis'
 require 'time'
@@ -164,9 +165,10 @@ def clone_vm template, pool, folder, datastore
 
     # Annotate with creation time, origin template, etc.
     configSpec = RbVmomi::VIM.VirtualMachineConfigSpec(
-      :annotation =>
-        'Base template: ' + vm['template'] + "\n" +
-        'Creation time: ' + Time.now.strftime("%Y-%m-%d %H:%M")
+      :annotation => JSON.pretty_generate({
+          base_template: vm['template'],
+          creation_timestamp: Time.now
+       })
     )
 
     # Put the VM in the specified folder and resource pool
