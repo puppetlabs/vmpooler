@@ -168,7 +168,7 @@ def clone_vm template, pool, folder, datastore
       :annotation => JSON.pretty_generate({
           name: vm['hostname'],
           base_template: vm['template'],
-          creation_timestamp: Time.now
+          creation_timestamp: Time.now.utc
        })
     )
 
