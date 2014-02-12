@@ -167,6 +167,7 @@ def clone_vm template, pool, folder, datastore
     configSpec = RbVmomi::VIM.VirtualMachineConfigSpec(
       :annotation => JSON.pretty_generate({
           name: vm['hostname'],
+          created_by: $config[:vsphere]['username'],
           base_template: vm['template'],
           creation_timestamp: Time.now.utc
        })
