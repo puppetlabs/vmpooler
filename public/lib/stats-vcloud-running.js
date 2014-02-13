@@ -1,5 +1,5 @@
 var running_url = '/dashboard/stats/vcloud/running';
-var running_height = 150;
+var running_height = 120;
 
 var colorscale = d3.scale.category20();
 var color = {};
