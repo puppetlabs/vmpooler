@@ -116,6 +116,7 @@ d3.json( running_url+'?history=1',
         var svg = d3.select( '#stats-vcloud-running' )
           .append( 'svg' )
           .attr( 'height', running_height )
+          .attr( 'width', '100%' )
           .style( 'margin-top', '15px' )
           .style( 'margin-bottom', '10px' )
           .append( 'g' );
