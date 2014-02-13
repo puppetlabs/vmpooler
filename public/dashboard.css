@@ -1,7 +1,7 @@
 body,
 #content {
   background: #fff;
-  margin-top: 10px;
+  margin-top: 0px;
   margin-left: auto;
   margin-right: auto;
 }
@@ -27,7 +27,7 @@ body,
   float: right;
   position: relative;
   right: 30px;
-  top: 100px;
+  top: 90px;
   font: 50px 'PT Sans', sans-serif;
   letter-spacing: -0.05em;
   color: #444;
