@@ -117,6 +117,7 @@ body,
 .module {
   margin-top: 5px;
   margin-left: 25px;
+  margin-right: 25px;
   font: 13px 'PT Sans', sans-serif;
   line-height: 20px;
   color: #888;
