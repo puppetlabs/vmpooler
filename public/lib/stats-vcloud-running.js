@@ -17,22 +17,16 @@ d3.json( running_url+'?history=1',
       stats_vcloud_running__data[ 'stack' ] = [];
     }
 
-    var mytmphash  = [];
+    for ( var key in stats_vcloud_running__data ) {
+      if ( stats_vcloud_running__data[ key ][ 'history' ] ) {
+        for ( var c = 0; c < stats_vcloud_running__data[ key ][ 'history' ].length; c++ ) {
+          if ( typeof stats_vcloud_running__data[ 'stack' ][ c ] === 'undefined' ) {
+            stats_vcloud_running__data[ 'stack' ][ c ] = {};
+          }
 
-    for ( var c = 0; c < 500; c++ ) {
-      for ( var key in stats_vcloud_running__data ) {
-        if ( ! stats_vcloud_running__data[ key ][ 'history' ] ) {
-          continue;
-        }
-
-        if ( ! stats_vcloud_running__data[ key ][ 'history' ][ c ] ) {
-          mytmphash[ key ] = 0;
-        }
-        else {
-          mytmphash[ key ] = stats_vcloud_running__data[ key ][ 'history' ][ c ];
+          stats_vcloud_running__data[ 'stack' ][ c ][ key ] = stats_vcloud_running__data[ key ][ 'history' ][ c ];
         }
       }
-      stats_vcloud_running__data[ 'stack' ].push( mytmphash );
     }
 
     ( function tick() {

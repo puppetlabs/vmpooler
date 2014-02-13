@@ -124,32 +124,30 @@ get '/dashboard/stats/vcloud/running' do
 
   if ( params[:history] )
     if ( config[:config]['graphite'] )
-      history ||= Hash.new
-
       begin
         buffer = open( 'http://'+config[:config]['graphite']+'/render?target=vcloud.running.*&from=-1hour&format=json' ).read
-        history = JSON.parse( buffer )
-
-        history.each do |pool|
+        JSON.parse( buffer ).each do |pool|
           if pool['target'] =~ /.*\.(.*)$/
             pool['name'] = $1
+
             pool['major'] = $1 if pool['name'] =~ /^(\w+)\-/
 
-            if ( result[pool['major']] )
-              pool['last'] = result[pool['major']]['running']
-              result[pool['major']]['history'] ||= Array.new
+            result[pool['major']]['history'] ||= Array.new
 
-              pool['datapoints'].each do |metric|
-                3.times do |n|
-                  if ( metric[0] )
-                    pool['last'] = metric[0].to_i
-                    result[pool['major']]['history'].push( metric[0].to_i )
-                  else
-                    result[pool['major']]['history'].push( pool['last'] )
-                  end
-                end
+            for i in 0..pool['datapoints'].length
+              if (
+                pool['datapoints'][i] and
+                pool['datapoints'][i][0]
+              )
+                pool['last'] = pool['datapoints'][i][0]
+
+                result[pool['major']]['history'][i] ||= 0
+                result[pool['major']]['history'][i] = result[pool['major']]['history'][i].to_i + pool['datapoints'][i][0].to_i
+              else
+                result[pool['major']]['history'][i] = result[pool['major']]['history'][i].to_i + pool['last'].to_i
               end
             end
+
           end
         end
       rescue
