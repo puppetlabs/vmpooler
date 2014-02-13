@@ -15,6 +15,7 @@ d3.json( running_url+'?history=1',
 
     if ( typeof stats_vcloud_running__data[ 'stack' ] === 'undefined' ) {
       stats_vcloud_running__data[ 'stack' ] = [];
+      stats_vcloud_running__data[ 'stack_t' ] = [];
     }
 
     for ( var key in stats_vcloud_running__data ) {
@@ -28,6 +29,15 @@ d3.json( running_url+'?history=1',
         }
       }
     }
+
+    for ( var c in stats_vcloud_running__data[ 'stack' ] ) {
+      for ( var n = 0; n < 8; n++ ) {
+        stats_vcloud_running__data[ 'stack_t' ].push( stats_vcloud_running__data[ 'stack' ][ c ] );
+      }
+    }
+
+    stats_vcloud_running__data[ 'stack' ] = stats_vcloud_running__data[ 'stack_t' ];
+    delete stats_vcloud_running__data[ 'stack_t' ];
 
     ( function tick() {
       setTimeout( function() {
