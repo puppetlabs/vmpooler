@@ -137,6 +137,42 @@ d3.json( running_url+'?history=1',
           .attr( 'stroke', function( d ) { return '#888'; } )
           .attr( 'stroke-width', '1' );
 
+        stats_vcloud_running__data__keys.sort().map(
+          function( key ) {
+            stats_vcloud_running__svg[ key ] = d3.select( '#stats-vcloud-running' )
+              .append( 'svg' )
+                .style( 'margin', '0px 0px 0px 0px' )
+                .style( 'padding', '0px 10px 10px 10px' )
+                .attr( 'width', '130px' )
+                .attr( 'height', '12px' );
+
+            stats_vcloud_running__svg[ key ]
+              .append( 'rect' )
+                .attr( {
+                  'x': '5',
+                  'y': '3',
+                  'width': '10',
+                  'height': '10',
+                  'opacity': '0.25',
+                  'fill': function( d ) { return color[ key ]; }
+                } );
+
+            stats_vcloud_running__svg[ key ]
+              .append( 'text' )
+                .text(
+                  ( key )
+                )
+                .attr( {
+                  'x': '20',
+                  'y': '12',
+                  'font-face': '\'PT Sans\', sans-serif',
+                  'font-size': '12px',
+                  'font-weight': 'bold',
+                  'fill': '#888'
+                } );
+          }
+        );
+
         if ( stats_vcloud_running__data[ 'stack' ].length > 500 ) {
           stats_vcloud_running__data[ 'stack' ].shift();
         }
