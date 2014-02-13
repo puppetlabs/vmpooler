@@ -59,16 +59,10 @@ d3.json( running_url+'?history=1',
         } )();
 
         var stats_vcloud_running__data__keys = [];
-        var stats_vcloud_running__data__total__tmp = 0;
 
         for ( var key in stats_vcloud_running__data__live ) {
-          stats_vcloud_running__data__total__tmp = stats_vcloud_running__data__total__tmp + stats_vcloud_running__data__live[ key ][ 'running' ];
           stats_vcloud_running__data__keys.push( key );
           for ( var c = 0; c < Object.keys(stats_vcloud_running__data__keys).length; c++ ) { color[key] = colorscale( c ); }
-        }
-
-        if ( stats_vcloud_running__data__total__tmp > stats_vcloud_running__data__total ) {
-          stats_vcloud_running__data__total = stats_vcloud_running__data__total__tmp;
         }
 
         $( '#stats-vcloud-running' ).empty();
@@ -111,6 +105,14 @@ d3.json( running_url+'?history=1',
               }
             }
           )
+        );
+
+        stats_vcloud_running__data__total = d3.max(
+          stats_vcloud_running__data__graph, function( layer ) {
+            return d3.max( layer.values, function( d ) {
+              return d.y0 + d.y;
+            } );
+          }
         );
 
         var svg = d3.select( '#stats-vcloud-running' )
