@@ -129,7 +129,7 @@ get '/dashboard/stats/vcloud/running' do
   if ( params[:history] )
     if ( $config[:config]['graphite'] )
       begin
-        buffer = open( 'http://'+config[:config]['graphite']+'/render?target=vcloud.running.*&from=-1hour&format=json' ).read
+        buffer = open( 'http://'+$config[:config]['graphite']+'/render?target=vcloud.running.*&from=-1hour&format=json' ).read
         JSON.parse( buffer ).each do |pool|
           if pool['target'] =~ /.*\.(.*)$/
             pool['name'] = $1
