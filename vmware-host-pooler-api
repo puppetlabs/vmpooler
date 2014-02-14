@@ -117,7 +117,7 @@ end
 get '/dashboard/stats/vcloud/running' do
   result = Hash.new
 
-  config[:pools].each do |pool|
+  $config[:pools].each do |pool|
     running = $redis.scard( 'vmware_host_pool__running__' + pool['name'] )
     pool['major'] = $1 if pool['name'] =~ /^(\w+)\-/
 
@@ -127,7 +127,7 @@ get '/dashboard/stats/vcloud/running' do
   end
 
   if ( params[:history] )
-    if ( config[:config]['graphite'] )
+    if ( $config[:config]['graphite'] )
       begin
         buffer = open( 'http://'+config[:config]['graphite']+'/render?target=vcloud.running.*&from=-1hour&format=json' ).read
         JSON.parse( buffer ).each do |pool|
