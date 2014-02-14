@@ -16,20 +16,24 @@ Dir.chdir(File.dirname(__FILE__))
 
 # Load the configuration file
 config_file = File.expand_path('vmware-host-pooler.yaml')
-config = YAML.load_file(config_file)
+$config = YAML.load_file(config_file)
 
-pools   = config[:pools]
+pools = $config[:pools]
+redis = $config[:redis]
 
 # Load logger library
-$logger = Logger.new config[:config]['logfile']
+$logger = Logger.new $config[:config]['logfile']
+
+# Set some defaults
+$config[:redis]['server'] ||= 'localhost'
 
 # Connect to Redis
-$redis = Redis.new
+$redis = Redis.new(:host => $config[:redis]['server'])
 
 # Sinatra!
 get '/' do
   erb :dashboard, locals: {
-    site_name: config[:config]['site_name'] || '<b>vmware-host-pooler</b>',
+    site_name: $config[:config]['site_name'] || '<b>vmware-host-pooler</b>',
   }
 end
 
@@ -42,7 +46,7 @@ get '/dashboard/stats/vcloud/numbers' do
   result['running'] = 0
   result['completed'] = 0
 
-  config[:pools].each do |pool|
+  $config[:pools].each do |pool|
     result['pending'] += $redis.scard( 'vmware_host_pool__pending__' + pool['name'] )
     result['ready'] += $redis.scard( 'vmware_host_pool__ready__' + pool['name'] )
     result['running'] += $redis.scard( 'vmware_host_pool__running__' + pool['name'] )
@@ -61,18 +65,18 @@ end
 get '/dashboard/stats/vcloud/pool' do
   result = Hash.new
 
-  config[:pools].each do |pool|
+  $config[:pools].each do |pool|
     result[pool['name']] ||= Hash.new
     result[pool['name']]['size'] = pool['size']
     result[pool['name']]['ready'] = $redis.scard( 'vmware_host_pool__ready__' + pool['name'] )
   end
 
   if ( params[:history] )
-    if ( config[:config]['graphite'] )
+    if ( $config[:config]['graphite'] )
       history ||= Hash.new
 
       begin
-        buffer = open( 'http://'+config[:config]['graphite']+'/render?target=vcloud.ready.*&from=-1hour&format=json' ).read
+        buffer = open( 'http://'+$config[:config]['graphite']+'/render?target=vcloud.ready.*&from=-1hour&format=json' ).read
         history = JSON.parse( buffer )
 
         history.each do |pool|
@@ -99,7 +103,7 @@ get '/dashboard/stats/vcloud/pool' do
       rescue
       end
     else
-      config[:pools].each do |pool|
+      $config[:pools].each do |pool|
         result[pool['name']] ||= Hash.new
         result[pool['name']]['history'] = [ $redis.scard( 'vmware_host_pool__ready__' + pool['name'] ) ]
       end
@@ -113,7 +117,7 @@ end
 get '/dashboard/stats/vcloud/running' do
   result = Hash.new
 
-  config[:pools].each do |pool|
+  $config[:pools].each do |pool|
     running = $redis.scard( 'vmware_host_pool__running__' + pool['name'] )
     pool['major'] = $1 if pool['name'] =~ /^(\w+)\-/
 
@@ -123,9 +127,9 @@ get '/dashboard/stats/vcloud/running' do
   end
 
   if ( params[:history] )
-    if ( config[:config]['graphite'] )
+    if ( $config[:config]['graphite'] )
       begin
-        buffer = open( 'http://'+config[:config]['graphite']+'/render?target=vcloud.running.*&from=-1hour&format=json' ).read
+        buffer = open( 'http://'+$config[:config]['graphite']+'/render?target=vcloud.running.*&from=-1hour&format=json' ).read
         JSON.parse( buffer ).each do |pool|
           if pool['target'] =~ /.*\.(.*)$/
             pool['name'] = $1
