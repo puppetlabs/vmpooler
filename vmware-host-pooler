@@ -1,5 +1,6 @@
 #!/usr/bin/ruby
 
+require 'json'
 require 'rbvmomi'
 require 'redis'
 require 'time'
@@ -166,9 +167,12 @@ def clone_vm template, pool, folder, datastore
 
     # Annotate with creation time, origin template, etc.
     configSpec = RbVmomi::VIM.VirtualMachineConfigSpec(
-      :annotation =>
-        'Base template: ' + vm['template'] + "\n" +
-        'Creation time: ' + Time.now.strftime("%Y-%m-%d %H:%M")
+      :annotation => JSON.pretty_generate({
+          name: vm['hostname'],
+          created_by: $config[:vsphere]['username'],
+          base_template: vm['template'],
+          creation_timestamp: Time.now.utc
+       })
     )
 
     # Put the VM in the specified folder and resource pool
@@ -369,9 +373,10 @@ def check_pool pool
               $redis.scard('vmware_host_pool__pending__'+pool['name'])
 
       begin
-        $graphite.log(
-          'vcloud.ready.'+pool['name'], $redis.scard('vmware_host_pool__ready__'+pool['name'])
-        ) if defined? $graphite
+        if (defined? $graphite)
+          $graphite.log('vcloud.ready.'+pool['name'], $redis.scard('vmware_host_pool__ready__'+pool['name']))
+          $graphite.log('vcloud.running.'+pool['name'], $redis.scard('vmware_host_pool__running__'+pool['name']))
+        end
       rescue
       end
 
