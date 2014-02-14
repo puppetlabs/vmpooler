@@ -163,17 +163,13 @@ get '/dashboard/stats/vcloud/running' do
   JSON.pretty_generate(result)
 end
 
-get '/status' do
+get '/vm' do
   content_type :json
 
-  result = {}
+  result = []
 
   pools.each do |pool|
-    result[pool['name']] = {}
-    result[pool['name']]['size'] = pool['size']
-    [ 'pending', 'ready', 'completed' ].each do |queue|
-      result[pool['name']][queue] = $redis.scard("vmware_host_pool__#{queue}__#{pool['name']}")
-    end
+    result.push(pool['name'])
   end
 
   JSON.pretty_generate(result)
