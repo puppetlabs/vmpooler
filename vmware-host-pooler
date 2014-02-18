@@ -33,6 +33,7 @@ end
 # Set some defaults
 $config[:config]['task_limit']  ||= 10
 $config[:config]['vm_lifetime'] ||= 24
+$config[:redis] ||= Hash.new
 $config[:redis]['server'] ||= 'localhost'
 
 # Connect to Redis
