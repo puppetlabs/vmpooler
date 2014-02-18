@@ -4,6 +4,7 @@ require 'json'
 require 'rbvmomi'
 require 'redis'
 require 'time'
+require 'timeout'
 require 'yaml'
 
 $:.unshift(File.dirname(__FILE__))
@@ -87,6 +88,14 @@ def check_ready_vm vm, pool, ttl
   Thread.new {
     host = $vsphere[pool].find_vm(vm)
 
+    if (ttl > 0)
+      if ((((Time.now - host.runtime.bootTime)/60).to_s[/^\d+\.\d{1}/].to_f) > ttl)
+        $redis.smove('vmware_host_pool__ready__'+pool, 'vmware_host_pool__completed__'+pool, vm)
+
+        $logger.log('d', "[!] [#{pool}] '#{vm}' reached end of TTL after #{ttl} minutes, removed from 'ready' queue")
+      end
+    end
+
     if (host)
       if (
         (host.runtime) and
@@ -95,18 +104,22 @@ def check_ready_vm vm, pool, ttl
       )
         $redis.smove('vmware_host_pool__ready__'+pool, 'vmware_host_pool__completed__'+pool, vm)
 
-        $logger.log('d', "[!] [#{pool}] '#{vm}' appears to be powered off or dead")
-      else
-        if ((((Time.now - host.runtime.bootTime)/60).to_s[/^\d+\.\d{1}/].to_f) > ttl)
-          $redis.smove('vmware_host_pool__ready__'+pool, 'vmware_host_pool__completed__'+pool, vm)
-
-          $logger.log('d', "[!] [#{pool}] '#{vm}' reached end of TTL after #{ttl} minutes")
-        end
+        $logger.log('d', "[!] [#{pool}] '#{vm}' appears to be powered off, removed from 'ready' queue")
       end
     else
       $redis.srem('vmware_host_pool__ready__'+pool, vm)
 
-      $logger.log('s', "[!] [#{pool}] '#{vm}' not found in vCenter inventory")
+      $logger.log('s', "[!] [#{pool}] '#{vm}' not found in vCenter inventory, removed from 'ready' queue")
+    end
+
+    begin
+      Timeout::timeout(5) {
+        TCPSocket.new vm, 22
+      }
+    rescue
+      if ($redis.smove('vmware_host_pool__ready__'+pool, 'vmware_host_pool__completed__'+pool, vm))
+        $logger.log('d', "[!] [#{pool}] '#{vm}' is unreachable, removed from 'ready' queue")
+      end
     end
   }
 end
@@ -300,11 +313,9 @@ def check_pool pool
       # READY
       $redis.smembers('vmware_host_pool__ready__'+pool['name']).each do |vm|
         if (inventory[vm])
-          if (pool['ready_ttl'])
-            begin
-              check_ready_vm(vm, pool['name'], pool['ready_ttl'])
-            rescue
-            end
+          begin
+            check_ready_vm(vm, pool['name'], pool['ready_ttl'] || 0)
+          rescue
           end
         end
       end
