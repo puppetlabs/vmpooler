@@ -25,6 +25,7 @@ redis = $config[:redis]
 $logger = Logger.new $config[:config]['logfile']
 
 # Set some defaults
+$config[:redis] ||= Hash.new
 $config[:redis]['server'] ||= 'localhost'
 
 # Connect to Redis
