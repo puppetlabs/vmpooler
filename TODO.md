@@ -16,8 +16,3 @@ Enhancements
 * Namespace the whole app
 * Require 'authorization key' (returned in POST JSON) to DELETE via the API
 
-
-Fixes
------
-
-* VMs in 'ready' pool should be checked even if no ready_ttl is set
