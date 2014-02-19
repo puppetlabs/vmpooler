@@ -87,8 +87,6 @@ end
 
 def check_ready_vm vm, pool, ttl
   Thread.new {
-    host = $vsphere[pool].find_vm(vm)
-
     if (ttl > 0)
       if ((((Time.now - host.runtime.bootTime)/60).to_s[/^\d+\.\d{1}/].to_f) > ttl)
         $redis.smove('vmware_host_pool__ready__'+pool, 'vmware_host_pool__completed__'+pool, vm)
@@ -101,9 +99,11 @@ def check_ready_vm vm, pool, ttl
 
     if (
       (! check_stamp) or
-      ((Time.now - Time.parse(clone_stamp)) > $config[:config]['vm_checktime'])
+      (((Time.now - Time.parse(check_stamp))/60) > $config[:config]['vm_checktime'])
     )
       $redis.hset('vmware_host_pool__vm__'+vm, 'check', Time.now)
+
+      host = $vsphere[pool].find_vm(vm)
 
       if (host)
         if (
