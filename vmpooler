@@ -212,7 +212,7 @@ def clone_vm template, pool, folder, datastore
     $redis.decr('vmpooler__tasks__clone')
 
     begin
-      $graphite.log("vcloud.clone.#{vm['template']}", finish) if defined? $graphite
+      $graphite.log("vmpooler.clone.#{vm['template']}", finish) if defined? $graphite
     rescue
     end
   }
@@ -245,7 +245,7 @@ def destroy_vm vm, pool
 
       $logger.log('s', "[-] [#{pool}] '#{vm}' destroyed in #{finish} seconds")
 
-      $graphite.log("vcloud.destroy.#{pool}", finish) if defined? $graphite
+      $graphite.log("vmpooler.destroy.#{pool}", finish) if defined? $graphite
     end
   }
 end
@@ -375,8 +375,8 @@ def check_pool pool
 
       begin
         if (defined? $graphite)
-          $graphite.log('vcloud.ready.'+pool['name'], $redis.scard('vmpooler__ready__'+pool['name']))
-          $graphite.log('vcloud.running.'+pool['name'], $redis.scard('vmpooler__running__'+pool['name']))
+          $graphite.log('vmpooler.ready.'+pool['name'], $redis.scard('vmpooler__ready__'+pool['name']))
+          $graphite.log('vmpooler.running.'+pool['name'], $redis.scard('vmpooler__running__'+pool['name']))
         end
       rescue
       end

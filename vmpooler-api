@@ -38,7 +38,7 @@ get '/' do
   }
 end
 
-get '/dashboard/stats/vcloud/numbers' do
+get '/dashboard/stats/vmpooler/numbers' do
   result = Hash.new
   result['pending'] = 0
   result['cloning'] = 0
@@ -63,7 +63,7 @@ get '/dashboard/stats/vcloud/numbers' do
   JSON.pretty_generate(result)
 end
 
-get '/dashboard/stats/vcloud/pool' do
+get '/dashboard/stats/vmpooler/pool' do
   result = Hash.new
 
   $config[:pools].each do |pool|
@@ -77,7 +77,7 @@ get '/dashboard/stats/vcloud/pool' do
       history ||= Hash.new
 
       begin
-        buffer = open( 'http://'+$config[:config]['graphite']+'/render?target=vcloud.ready.*&from=-1hour&format=json' ).read
+        buffer = open( 'http://'+$config[:config]['graphite']+'/render?target=vmpooler.ready.*&from=-1hour&format=json' ).read
         history = JSON.parse( buffer )
 
         history.each do |pool|
@@ -115,7 +115,7 @@ get '/dashboard/stats/vcloud/pool' do
   JSON.pretty_generate(result)
 end
 
-get '/dashboard/stats/vcloud/running' do
+get '/dashboard/stats/vmpooler/running' do
   result = Hash.new
 
   $config[:pools].each do |pool|
@@ -130,7 +130,7 @@ get '/dashboard/stats/vcloud/running' do
   if ( params[:history] )
     if ( $config[:config]['graphite'] )
       begin
-        buffer = open( 'http://'+$config[:config]['graphite']+'/render?target=vcloud.running.*&from=-1hour&format=json' ).read
+        buffer = open( 'http://'+$config[:config]['graphite']+'/render?target=vmpooler.running.*&from=-1hour&format=json' ).read
         JSON.parse( buffer ).each do |pool|
           if pool['target'] =~ /.*\.(.*)$/
             pool['name'] = $1

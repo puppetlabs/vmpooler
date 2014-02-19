@@ -1,18 +1,18 @@
-var numbers_url = '/dashboard/stats/vcloud/numbers';
+var numbers_url = '/dashboard/stats/vmpooler/numbers';
 var numbers_width = 130;
 var numbers_height = 50;
 
-var stats_vcloud_numbers__data  = {};
-var stats_vcloud_numbers__svg   = {};
+var stats_vmpooler_numbers__data  = {};
+var stats_vmpooler_numbers__svg   = {};
 
 d3.json( numbers_url,
 
-  function( stats_vcloud_numbers__data ) {
+  function( stats_vmpooler_numbers__data ) {
 
     ( function tick() {
       setTimeout( function() {
-        var stats_vcloud_numbers__data__live = ( function() {
-          var stats_vcloud_numbers__data__live = null;
+        var stats_vmpooler_numbers__data__live = ( function() {
+          var stats_vmpooler_numbers__data__live = null;
 
           $.ajax( {
             'url': numbers_url,
@@ -20,23 +20,23 @@ d3.json( numbers_url,
             'global': false,
             'dataType': 'json',
             'success': function( data ) {
-              stats_vcloud_numbers__data__live = data;
+              stats_vmpooler_numbers__data__live = data;
             }
           } );
 
-          return stats_vcloud_numbers__data__live;
+          return stats_vmpooler_numbers__data__live;
         } )();
 
-        $( '#stats-vcloud-numbers' ).empty();
+        $( '#stats-vmpooler-numbers' ).empty();
 
-        stats_vcloud_numbers__svg[ 'total' ] = d3.select( '#stats-vcloud-numbers' )
+        stats_vmpooler_numbers__svg[ 'total' ] = d3.select( '#stats-vmpooler-numbers' )
           .append( 'svg' )
             .style( 'margin', '15px 0px 0px 0px' )
             .style( 'padding', '0px 10px 20px 10px' )
             .attr( 'width', numbers_width + 'px' )
             .attr( 'height', numbers_height + 'px' );
 
-        stats_vcloud_numbers__svg[ 'total' ]
+        stats_vmpooler_numbers__svg[ 'total' ]
           .append( 'text' )
             .text(
               ( 'total VMs' )
@@ -50,10 +50,10 @@ d3.json( numbers_url,
               'fill': '#888'
             } );
 
-        stats_vcloud_numbers__svg[ 'total' ]
+        stats_vmpooler_numbers__svg[ 'total' ]
           .append( 'text' )
             .text(
-              ( stats_vcloud_numbers__data__live[ 'total' ] )
+              ( stats_vmpooler_numbers__data__live[ 'total' ] )
             )
             .attr( {
               'x': '0',
@@ -65,14 +65,14 @@ d3.json( numbers_url,
               'fill': '#444'
             } );
 
-        stats_vcloud_numbers__svg[ 'ready' ] = d3.select( '#stats-vcloud-numbers' )
+        stats_vmpooler_numbers__svg[ 'ready' ] = d3.select( '#stats-vmpooler-numbers' )
           .append( 'svg' )
             .style( 'margin', '15px 0px 0px 0px' )
             .style( 'padding', '0px 10px 20px 10px' )
             .attr( 'width', numbers_width + 'px' )
             .attr( 'height', numbers_height + 'px' );
 
-        stats_vcloud_numbers__svg[ 'ready' ]
+        stats_vmpooler_numbers__svg[ 'ready' ]
           .append( 'text' )
             .text(
               ( 'ready and waiting' )
@@ -86,10 +86,10 @@ d3.json( numbers_url,
               'fill': '#888'
             } );
 
-        stats_vcloud_numbers__svg[ 'ready' ]
+        stats_vmpooler_numbers__svg[ 'ready' ]
           .append( 'text' )
             .text(
-              ( stats_vcloud_numbers__data__live[ 'ready' ] )
+              ( stats_vmpooler_numbers__data__live[ 'ready' ] )
             )
             .attr( {
               'x': '0',
@@ -101,14 +101,14 @@ d3.json( numbers_url,
               'fill': '#444'
             } );
 
-        stats_vcloud_numbers__svg[ 'cloning' ] = d3.select( '#stats-vcloud-numbers' )
+        stats_vmpooler_numbers__svg[ 'cloning' ] = d3.select( '#stats-vmpooler-numbers' )
           .append( 'svg' )
             .style( 'margin', '15px 0px 0px 0px' )
             .style( 'padding', '0px 10px 20px 10px' )
             .attr( 'width', numbers_width + 'px' )
             .attr( 'height', numbers_height + 'px' );
 
-        stats_vcloud_numbers__svg[ 'cloning' ]
+        stats_vmpooler_numbers__svg[ 'cloning' ]
           .append( 'text' )
             .text(
               ( 'being cloned' )
@@ -122,10 +122,10 @@ d3.json( numbers_url,
               'fill': '#888'
             } );
 
-        stats_vcloud_numbers__svg[ 'cloning' ]
+        stats_vmpooler_numbers__svg[ 'cloning' ]
           .append( 'text' )
             .text(
-              ( stats_vcloud_numbers__data__live[ 'cloning' ] )
+              ( stats_vmpooler_numbers__data__live[ 'cloning' ] )
             )
             .attr( {
               'x': '0',
@@ -137,14 +137,14 @@ d3.json( numbers_url,
               'fill': '#444'
             } );
 
-        stats_vcloud_numbers__svg[ 'booting' ] = d3.select( '#stats-vcloud-numbers' )
+        stats_vmpooler_numbers__svg[ 'booting' ] = d3.select( '#stats-vmpooler-numbers' )
           .append( 'svg' )
             .style( 'margin', '15px 0px 0px 0px' )
             .style( 'padding', '0px 10px 20px 10px' )
             .attr( 'width', numbers_width + 'px' )
             .attr( 'height', numbers_height + 'px' );
 
-        stats_vcloud_numbers__svg[ 'booting' ]
+        stats_vmpooler_numbers__svg[ 'booting' ]
           .append( 'text' )
             .text(
               ( 'booting up' )
@@ -158,10 +158,10 @@ d3.json( numbers_url,
               'fill': '#888'
             } );
 
-        stats_vcloud_numbers__svg[ 'booting' ]
+        stats_vmpooler_numbers__svg[ 'booting' ]
           .append( 'text' )
             .text(
-              ( stats_vcloud_numbers__data__live[ 'booting' ] )
+              ( stats_vmpooler_numbers__data__live[ 'booting' ] )
             )
             .attr( {
               'x': '0',
@@ -179,14 +179,14 @@ d3.json( numbers_url,
 
 
 
-        stats_vcloud_numbers__svg[ 'running' ] = d3.select( '#stats-vcloud-numbers' )
+        stats_vmpooler_numbers__svg[ 'running' ] = d3.select( '#stats-vmpooler-numbers' )
           .append( 'svg' )
             .style( 'margin', '15px 0px 0px 0px' )
             .style( 'padding', '0px 10px 20px 10px' )
             .attr( 'width', numbers_width + 'px' )
             .attr( 'height', numbers_height + 'px' );
 
-        stats_vcloud_numbers__svg[ 'running' ]
+        stats_vmpooler_numbers__svg[ 'running' ]
           .append( 'text' )
             .text(
               ( 'running tests' )
@@ -200,10 +200,10 @@ d3.json( numbers_url,
               'fill': '#888'
             } );
 
-        stats_vcloud_numbers__svg[ 'running' ]
+        stats_vmpooler_numbers__svg[ 'running' ]
           .append( 'text' )
             .text(
-              ( stats_vcloud_numbers__data__live[ 'running' ] )
+              ( stats_vmpooler_numbers__data__live[ 'running' ] )
             )
             .attr( {
               'x': '0',
@@ -215,14 +215,14 @@ d3.json( numbers_url,
               'fill': '#444'
             } );
 
-        stats_vcloud_numbers__svg[ 'completed' ] = d3.select( '#stats-vcloud-numbers' )
+        stats_vmpooler_numbers__svg[ 'completed' ] = d3.select( '#stats-vmpooler-numbers' )
           .append( 'svg' )
             .style( 'margin', '15px 0px 0px 0px' )
             .style( 'padding', '0px 10px 20px 10px' )
             .attr( 'width', numbers_width + 'px' )
             .attr( 'height', numbers_height + 'px' );
 
-        stats_vcloud_numbers__svg[ 'completed' ]
+        stats_vmpooler_numbers__svg[ 'completed' ]
           .append( 'text' )
             .text(
               ( 'waiting to die' )
@@ -236,10 +236,10 @@ d3.json( numbers_url,
               'fill': '#888'
             } );
 
-        stats_vcloud_numbers__svg[ 'completed' ]
+        stats_vmpooler_numbers__svg[ 'completed' ]
           .append( 'text' )
             .text(
-              ( stats_vcloud_numbers__data__live[ 'completed' ] )
+              ( stats_vmpooler_numbers__data__live[ 'completed' ] )
             )
             .attr( {
               'x': '0',
