@@ -32,8 +32,9 @@ if (defined? $config[:config]['graphite'])
 end
 
 # Set some defaults
-$config[:config]['task_limit']  ||= 10
-$config[:config]['vm_lifetime'] ||= 24
+$config[:config]['task_limit']   ||= 10
+$config[:config]['vm_checktime'] ||= 15
+$config[:config]['vm_lifetime']  ||= 24
 $config[:redis] ||= Hash.new
 $config[:redis]['server'] ||= 'localhost'
 
@@ -96,29 +97,38 @@ def check_ready_vm vm, pool, ttl
       end
     end
 
-    if (host)
-      if (
-        (host.runtime) and
-        (host.runtime.powerState) and
-        (host.runtime.powerState != 'poweredOn')
-      )
-        $redis.smove('vmware_host_pool__ready__'+pool, 'vmware_host_pool__completed__'+pool, vm)
+    check_stamp = $redis.hget('vmware_host_pool__vm__'+vm, 'check')
 
-        $logger.log('d', "[!] [#{pool}] '#{vm}' appears to be powered off, removed from 'ready' queue")
+    if (
+      (! check_stamp) or
+      ((Time.now - Time.parse(clone_stamp)) > $config[:config]['vm_checktime'])
+    )
+      $redis.hset('vmware_host_pool__vm__'+vm, 'check', Time.now)
+
+      if (host)
+        if (
+          (host.runtime) and
+          (host.runtime.powerState) and
+          (host.runtime.powerState != 'poweredOn')
+        )
+          $redis.smove('vmware_host_pool__ready__'+pool, 'vmware_host_pool__completed__'+pool, vm)
+
+          $logger.log('d', "[!] [#{pool}] '#{vm}' appears to be powered off, removed from 'ready' queue")
+        end
+      else
+        $redis.srem('vmware_host_pool__ready__'+pool, vm)
+
+        $logger.log('s', "[!] [#{pool}] '#{vm}' not found in vCenter inventory, removed from 'ready' queue")
       end
-    else
-      $redis.srem('vmware_host_pool__ready__'+pool, vm)
 
-      $logger.log('s', "[!] [#{pool}] '#{vm}' not found in vCenter inventory, removed from 'ready' queue")
-    end
-
-    begin
-      Timeout::timeout(5) {
-        TCPSocket.new vm, 22
-      }
-    rescue
-      if ($redis.smove('vmware_host_pool__ready__'+pool, 'vmware_host_pool__completed__'+pool, vm))
-        $logger.log('d', "[!] [#{pool}] '#{vm}' is unreachable, removed from 'ready' queue")
+      begin
+        Timeout::timeout(5) {
+          TCPSocket.new vm, 22
+        }
+      rescue
+        if ($redis.smove('vmware_host_pool__ready__'+pool, 'vmware_host_pool__completed__'+pool, vm))
+          $logger.log('d', "[!] [#{pool}] '#{vm}' is unreachable, removed from 'ready' queue")
+        end
       end
     end
   }
