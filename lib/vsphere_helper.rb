@@ -11,7 +11,7 @@ class VsphereHelper
 
     Dir.chdir(File.dirname(__FILE__))
 
-    config_file = File.expand_path('../vmware-host-pooler.yaml')
+    config_file = File.expand_path('../vmpooler.yaml')
     vsphere = YAML.load_file(config_file)[:vsphere]
 
     @connection = RbVmomi::VIM.connect :host     => vsphere['server'],
