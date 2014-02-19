@@ -2,7 +2,7 @@ require 'rubygems' unless defined?(Gem)
 
 class Logger
   def initialize(
-    f = '/var/log/vmware-host-pooler.log'
+    f = '/var/log/vmpooler.log'
   )
     @file = f
   end

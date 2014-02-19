@@ -15,7 +15,7 @@ require 'lib/require_relative'
 Dir.chdir(File.dirname(__FILE__))
 
 # Load the configuration file
-config_file = File.expand_path('vmware-host-pooler.yaml')
+config_file = File.expand_path('vmpooler.yaml')
 $config = YAML.load_file(config_file)
 
 pools = $config[:pools]
@@ -34,7 +34,7 @@ $redis = Redis.new(:host => $config[:redis]['server'])
 # Sinatra!
 get '/' do
   erb :dashboard, locals: {
-    site_name: $config[:config]['site_name'] || '<b>vmware-host-pooler</b>',
+    site_name: $config[:config]['site_name'] || '<b>vmpooler</b>',
   }
 end
 
@@ -48,13 +48,13 @@ get '/dashboard/stats/vcloud/numbers' do
   result['completed'] = 0
 
   $config[:pools].each do |pool|
-    result['pending'] += $redis.scard( 'vmware_host_pool__pending__' + pool['name'] )
-    result['ready'] += $redis.scard( 'vmware_host_pool__ready__' + pool['name'] )
-    result['running'] += $redis.scard( 'vmware_host_pool__running__' + pool['name'] )
-    result['completed'] += $redis.scard( 'vmware_host_pool__completed__' + pool['name'] )
+    result['pending'] += $redis.scard( 'vmpooler__pending__' + pool['name'] )
+    result['ready'] += $redis.scard( 'vmpooler__ready__' + pool['name'] )
+    result['running'] += $redis.scard( 'vmpooler__running__' + pool['name'] )
+    result['completed'] += $redis.scard( 'vmpooler__completed__' + pool['name'] )
   end
 
-  result['cloning'] = $redis.get( 'vmware_host_pool__tasks__clone' )
+  result['cloning'] = $redis.get( 'vmpooler__tasks__clone' )
   result['booting'] = result['pending'].to_i - result['cloning'].to_i
   result['booting'] = 0 if result['booting'] < 0
   result['total'] = result['pending'].to_i + result['ready'].to_i + result['running'].to_i + result['completed'].to_i
@@ -69,7 +69,7 @@ get '/dashboard/stats/vcloud/pool' do
   $config[:pools].each do |pool|
     result[pool['name']] ||= Hash.new
     result[pool['name']]['size'] = pool['size']
-    result[pool['name']]['ready'] = $redis.scard( 'vmware_host_pool__ready__' + pool['name'] )
+    result[pool['name']]['ready'] = $redis.scard( 'vmpooler__ready__' + pool['name'] )
   end
 
   if ( params[:history] )
@@ -106,7 +106,7 @@ get '/dashboard/stats/vcloud/pool' do
     else
       $config[:pools].each do |pool|
         result[pool['name']] ||= Hash.new
-        result[pool['name']]['history'] = [ $redis.scard( 'vmware_host_pool__ready__' + pool['name'] ) ]
+        result[pool['name']]['history'] = [ $redis.scard( 'vmpooler__ready__' + pool['name'] ) ]
       end
     end
   end
@@ -119,7 +119,7 @@ get '/dashboard/stats/vcloud/running' do
   result = Hash.new
 
   $config[:pools].each do |pool|
-    running = $redis.scard( 'vmware_host_pool__running__' + pool['name'] )
+    running = $redis.scard( 'vmpooler__running__' + pool['name'] )
     pool['major'] = $1 if pool['name'] =~ /^(\w+)\-/
 
     result[pool['major']] ||= Hash.new
@@ -181,7 +181,7 @@ get '/vm/:template' do
 
   result = {}
   result[params[:template]] = {}
-  result[params[:template]]['hosts'] = $redis.smembers('vmware_host_pool__ready__'+params[:template])
+  result[params[:template]]['hosts'] = $redis.smembers('vmpooler__ready__'+params[:template])
 
   JSON.pretty_generate(result)
 end
@@ -192,12 +192,12 @@ post '/vm/:template' do
   result = {}
   result[params[:template]] = {}
 
-  if ( $redis.scard('vmware_host_pool__ready__'+params[:template]) > 0 )
-    vm = $redis.spop('vmware_host_pool__ready__'+params[:template])
+  if ( $redis.scard('vmpooler__ready__'+params[:template]) > 0 )
+    vm = $redis.spop('vmpooler__ready__'+params[:template])
 
     unless (vm.nil?)
-      $redis.sadd('vmware_host_pool__running__'+params[:template], vm)
-      $redis.hset('vmware_host_pool__active__'+params[:template], vm, Time.now)
+      $redis.sadd('vmpooler__running__'+params[:template], vm)
+      $redis.hset('vmpooler__active__'+params[:template], vm, Time.now)
 
       result[params[:template]]['ok'] = true
       result[params[:template]]['hostname'] = vm
@@ -219,9 +219,9 @@ delete '/vm/:hostname' do
   result['ok'] = false
 
   pools.each do |pool|
-    if $redis.sismember('vmware_host_pool__running__'+pool['name'], params[:hostname])
-      $redis.srem('vmware_host_pool__running__'+pool['name'], params[:hostname])
-      $redis.sadd('vmware_host_pool__completed__'+pool['name'], params[:hostname])
+    if $redis.sismember('vmpooler__running__'+pool['name'], params[:hostname])
+      $redis.srem('vmpooler__running__'+pool['name'], params[:hostname])
+      $redis.sadd('vmpooler__completed__'+pool['name'], params[:hostname])
       result['ok'] = true
     end
   end
