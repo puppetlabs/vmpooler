@@ -103,7 +103,8 @@ def check_ready_vm vm, pool, ttl
     )
       $redis.hset('vmware_host_pool__vm__'+vm, 'check', Time.now)
 
-      host = $vsphere[pool].find_vm(vm)
+      host = $vsphere[pool].find_vm(vm) ||
+             $vsphere[pool].find_vm_heavy(vm)[vm]
 
       if (host)
         if (
@@ -114,6 +115,16 @@ def check_ready_vm vm, pool, ttl
           $redis.smove('vmware_host_pool__ready__'+pool, 'vmware_host_pool__completed__'+pool, vm)
 
           $logger.log('d', "[!] [#{pool}] '#{vm}' appears to be powered off, removed from 'ready' queue")
+        end
+
+        if (
+          (host.summary.guest) and
+          (host.summary.guest.hostName) and
+          (host.summary.guest.hostName != vm)
+        )
+          $redis.smove('vmware_host_pool__ready__'+pool, 'vmware_host_pool__completed__'+pool, vm)
+
+          $logger.log('d', "[!] [#{pool}] '#{vm}' has mismatched hostname, removed from 'ready' queue")
         end
       else
         $redis.srem('vmware_host_pool__ready__'+pool, vm)
