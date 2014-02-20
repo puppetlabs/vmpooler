@@ -15,7 +15,7 @@ require 'lib/vsphere_helper'
 Dir.chdir(File.dirname(__FILE__))
 
 # Load the configuration file
-config_file = File.expand_path('vmware-host-pooler.yaml')
+config_file = File.expand_path('vmpooler.yaml')
 $config = YAML.load_file(config_file)
 
 pools   = $config[:pools]
@@ -66,18 +66,18 @@ def check_pending_vm vm, pool, timeout
         rescue
         end
 
-        $redis.smove('vmware_host_pool__pending__'+pool, 'vmware_host_pool__ready__'+pool, vm)
+        $redis.smove('vmpooler__pending__'+pool, 'vmpooler__ready__'+pool, vm)
 
         $logger.log('s', "[>] [#{pool}] '#{vm}' moved to 'ready' queue")
       end
     else
-      clone_stamp = $redis.hget('vmware_host_pool__vm__'+vm, 'clone')
+      clone_stamp = $redis.hget('vmpooler__vm__'+vm, 'clone')
 
       if (
         (clone_stamp) and
         (((Time.now - Time.parse(clone_stamp))/60) > timeout)
       )
-        $redis.smove('vmware_host_pool__pending__'+pool, 'vmware_host_pool__completed__'+pool, vm)
+        $redis.smove('vmpooler__pending__'+pool, 'vmpooler__completed__'+pool, vm)
 
         $logger.log('d', "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes")
       end
@@ -89,19 +89,19 @@ def check_ready_vm vm, pool, ttl
   Thread.new {
     if (ttl > 0)
       if ((((Time.now - host.runtime.bootTime)/60).to_s[/^\d+\.\d{1}/].to_f) > ttl)
-        $redis.smove('vmware_host_pool__ready__'+pool, 'vmware_host_pool__completed__'+pool, vm)
+        $redis.smove('vmpooler__ready__'+pool, 'vmpooler__completed__'+pool, vm)
 
         $logger.log('d', "[!] [#{pool}] '#{vm}' reached end of TTL after #{ttl} minutes, removed from 'ready' queue")
       end
     end
 
-    check_stamp = $redis.hget('vmware_host_pool__vm__'+vm, 'check')
+    check_stamp = $redis.hget('vmpooler__vm__'+vm, 'check')
 
     if (
       (! check_stamp) or
       (((Time.now - Time.parse(check_stamp))/60) > $config[:config]['vm_checktime'])
     )
-      $redis.hset('vmware_host_pool__vm__'+vm, 'check', Time.now)
+      $redis.hset('vmpooler__vm__'+vm, 'check', Time.now)
 
       host = $vsphere[pool].find_vm(vm) ||
              $vsphere[pool].find_vm_heavy(vm)[vm]
@@ -112,7 +112,7 @@ def check_ready_vm vm, pool, ttl
           (host.runtime.powerState) and
           (host.runtime.powerState != 'poweredOn')
         )
-          $redis.smove('vmware_host_pool__ready__'+pool, 'vmware_host_pool__completed__'+pool, vm)
+          $redis.smove('vmpooler__ready__'+pool, 'vmpooler__completed__'+pool, vm)
 
           $logger.log('d', "[!] [#{pool}] '#{vm}' appears to be powered off, removed from 'ready' queue")
         end
@@ -122,12 +122,12 @@ def check_ready_vm vm, pool, ttl
           (host.summary.guest.hostName) and
           (host.summary.guest.hostName != vm)
         )
-          $redis.smove('vmware_host_pool__ready__'+pool, 'vmware_host_pool__completed__'+pool, vm)
+          $redis.smove('vmpooler__ready__'+pool, 'vmpooler__completed__'+pool, vm)
 
           $logger.log('d', "[!] [#{pool}] '#{vm}' has mismatched hostname, removed from 'ready' queue")
         end
       else
-        $redis.srem('vmware_host_pool__ready__'+pool, vm)
+        $redis.srem('vmpooler__ready__'+pool, vm)
 
         $logger.log('s', "[!] [#{pool}] '#{vm}' not found in vCenter inventory, removed from 'ready' queue")
       end
@@ -137,7 +137,7 @@ def check_ready_vm vm, pool, ttl
           TCPSocket.new vm, 22
         }
       rescue
-        if ($redis.smove('vmware_host_pool__ready__'+pool, 'vmware_host_pool__completed__'+pool, vm))
+        if ($redis.smove('vmpooler__ready__'+pool, 'vmpooler__completed__'+pool, vm))
           $logger.log('d', "[!] [#{pool}] '#{vm}' is unreachable, removed from 'ready' queue")
         end
       end
@@ -154,7 +154,7 @@ def check_running_vm vm, pool, ttl
         (host.runtime) and
         (host.runtime.powerState != 'poweredOn')
       )
-        $redis.smove('vmware_host_pool__running__'+pool, 'vmware_host_pool__completed__'+pool, vm)
+        $redis.smove('vmpooler__running__'+pool, 'vmpooler__completed__'+pool, vm)
 
         $logger.log('d', "[!] [#{pool}] '#{vm}' appears to be powered off or dead")
       else
@@ -163,7 +163,7 @@ def check_running_vm vm, pool, ttl
           (host.runtime.bootTime)
           ((((Time.now - host.runtime.bootTime)/60).to_s[/^\d+\.\d{1}/].to_f) > ttl)
         )
-          $redis.smove('vmware_host_pool__running__'+pool, 'vmware_host_pool__completed__'+pool, vm)
+          $redis.smove('vmpooler__running__'+pool, 'vmpooler__completed__'+pool, vm)
 
           $logger.log('d', "[!] [#{pool}] '#{vm}' reached end of TTL after #{ttl} minutes")
         end
@@ -197,8 +197,8 @@ def clone_vm template, pool, folder, datastore
     vm['hostname'] = o[rand(25)]+(0...14).map{o[rand(o.length)]}.join
 
     # Add VM to Redis inventory ('pending' pool)
-    $redis.sadd('vmware_host_pool__pending__'+vm['template'], vm['hostname'])
-    $redis.hset('vmware_host_pool__vm__'+vm['hostname'], 'clone', Time.now)
+    $redis.sadd('vmpooler__pending__'+vm['template'], vm['hostname'])
+    $redis.hset('vmpooler__vm__'+vm['hostname'], 'clone', Time.now)
 
     # Annotate with creation time, origin template, etc.
     configSpec = RbVmomi::VIM.VirtualMachineConfigSpec(
@@ -240,13 +240,13 @@ def clone_vm template, pool, folder, datastore
       $logger.log('s', "[+] [#{vm['template']}] '#{vm['hostname']}' cloned from '#{vm['template']}' in #{finish} seconds")
     rescue
       $logger.log('s', "[!] [#{vm['template']}] '#{vm['hostname']}' clone appears to have failed")
-      $redis.srem('vmware_host_pool__pending__'+vm['template'], vm['hostname'])
+      $redis.srem('vmpooler__pending__'+vm['template'], vm['hostname'])
     end
 
-    $redis.decr('vmware_host_pool__tasks__clone')
+    $redis.decr('vmpooler__tasks__clone')
 
     begin
-      $graphite.log("vcloud.clone.#{vm['template']}", finish) if defined? $graphite
+      $graphite.log("vmpooler.clone.#{vm['template']}", finish) if defined? $graphite
     rescue
     end
   }
@@ -255,9 +255,9 @@ end
 # Destroy a VM
 def destroy_vm vm, pool
   Thread.new {
-    $redis.srem('vmware_host_pool__completed__'+pool, vm)
-    $redis.hdel('vmware_host_pool__active__'+pool, vm)
-    $redis.del('vmware_host_pool__vm__'+vm)
+    $redis.srem('vmpooler__completed__'+pool, vm)
+    $redis.hdel('vmpooler__active__'+pool, vm)
+    $redis.del('vmpooler__vm__'+vm)
 
     host = $vsphere[pool].find_vm(vm) ||
            $vsphere[pool].find_vm_heavy(vm)[vm]
@@ -279,7 +279,7 @@ def destroy_vm vm, pool
 
       $logger.log('s', "[-] [#{pool}] '#{vm}' destroyed in #{finish} seconds")
 
-      $graphite.log("vcloud.destroy.#{pool}", finish) if defined? $graphite
+      $graphite.log("vmpooler.destroy.#{pool}", finish) if defined? $graphite
     end
   }
 end
@@ -298,13 +298,13 @@ def check_pool pool
 
         base.vm.each do |vm|
           if (
-            (! $redis.sismember('vmware_host_pool__running__'+pool['name'], vm['name'])) and
-            (! $redis.sismember('vmware_host_pool__ready__'+pool['name'], vm['name'])) and
-            (! $redis.sismember('vmware_host_pool__pending__'+pool['name'], vm['name'])) and
-            (! $redis.sismember('vmware_host_pool__completed__'+pool['name'], vm['name'])) and
-            (! $redis.sismember('vmware_host_pool__discovered__'+pool['name'], vm['name']))
+            (! $redis.sismember('vmpooler__running__'+pool['name'], vm['name'])) and
+            (! $redis.sismember('vmpooler__ready__'+pool['name'], vm['name'])) and
+            (! $redis.sismember('vmpooler__pending__'+pool['name'], vm['name'])) and
+            (! $redis.sismember('vmpooler__completed__'+pool['name'], vm['name'])) and
+            (! $redis.sismember('vmpooler__discovered__'+pool['name'], vm['name']))
           )
-            $redis.sadd('vmware_host_pool__discovered__'+pool['name'], vm['name'])
+            $redis.sadd('vmpooler__discovered__'+pool['name'], vm['name'])
 
             $logger.log('s', "[?] [#{pool['name']}] '#{vm['name']}' added to 'discovered' queue")
           end
@@ -315,7 +315,7 @@ def check_pool pool
       end
 
       # RUNNING
-      $redis.smembers('vmware_host_pool__running__'+pool['name']).each do |vm|
+      $redis.smembers('vmpooler__running__'+pool['name']).each do |vm|
         if (inventory[vm])
           if (pool['running_ttl'])
             begin
@@ -332,7 +332,7 @@ def check_pool pool
       end
 
       # READY
-      $redis.smembers('vmware_host_pool__ready__'+pool['name']).each do |vm|
+      $redis.smembers('vmpooler__ready__'+pool['name']).each do |vm|
         if (inventory[vm])
           begin
             check_ready_vm(vm, pool['name'], pool['ready_ttl'] || 0)
@@ -342,7 +342,7 @@ def check_pool pool
       end
 
       # PENDING
-      $redis.smembers('vmware_host_pool__pending__'+pool['name']).each do |vm|
+      $redis.smembers('vmpooler__pending__'+pool['name']).each do |vm|
         pool['timeout'] ||= 15
 
         if (inventory[vm])
@@ -354,47 +354,47 @@ def check_pool pool
       end
 
       # COMPLETED
-      $redis.smembers('vmware_host_pool__completed__'+pool['name']).each do |vm|
+      $redis.smembers('vmpooler__completed__'+pool['name']).each do |vm|
         if (inventory[vm])
           begin
             destroy_vm(vm, pool['name'])
           rescue
             $logger.log('s', "[!] [#{pool['name']}] '#{vm}' destroy appears to have failed")
-            $redis.srem('vmware_host_pool__completed__'+pool['name'], vm)
-            $redis.hdel('vmware_host_pool__active__'+pool['name'], vm)
-            $redis.del('vmware_host_pool__vm__'+vm)
+            $redis.srem('vmpooler__completed__'+pool['name'], vm)
+            $redis.hdel('vmpooler__active__'+pool['name'], vm)
+            $redis.del('vmpooler__vm__'+vm)
           end
         else
           $logger.log('s', "[!] [#{pool['name']}] '#{vm}' not found in inventory, removed from 'completed' queue")
-          $redis.srem('vmware_host_pool__completed__'+pool['name'], vm)
-          $redis.hdel('vmware_host_pool__active__'+pool['name'], vm)
-          $redis.del('vmware_host_pool__vm__'+vm)
+          $redis.srem('vmpooler__completed__'+pool['name'], vm)
+          $redis.hdel('vmpooler__active__'+pool['name'], vm)
+          $redis.del('vmpooler__vm__'+vm)
         end
       end
 
       # DISCOVERED
-      $redis.smembers('vmware_host_pool__discovered__'+pool['name']).each do |vm|
+      $redis.smembers('vmpooler__discovered__'+pool['name']).each do |vm|
         ['pending', 'ready', 'running', 'completed'].each do |queue|
-          if ($redis.sismember('vmware_host_pool__'+queue+'__'+pool['name'], vm))
+          if ($redis.sismember('vmpooler__'+queue+'__'+pool['name'], vm))
             $logger.log('d', "[!] [#{pool['name']}] '#{vm}' found in '#{queue}', removed from 'discovered' queue")
-            $redis.srem('vmware_host_pool__discovered__'+pool['name'], vm)
+            $redis.srem('vmpooler__discovered__'+pool['name'], vm)
           end
         end
 
-        if ($redis.sismember('vmware_host_pool__discovered__'+pool['name'], vm))
-          $redis.smove('vmware_host_pool__discovered__'+pool['name'], 'vmware_host_pool__completed__'+pool['name'], vm)
+        if ($redis.sismember('vmpooler__discovered__'+pool['name'], vm))
+          $redis.smove('vmpooler__discovered__'+pool['name'], 'vmpooler__completed__'+pool['name'], vm)
         end
       end
 
       # LONG-RUNNING
-      $redis.smembers('vmware_host_pool__running__'+pool['name']).each do |vm|
-        if ($redis.hget('vmware_host_pool__active__'+pool['name'], vm))
-          running = (Time.now - Time.parse($redis.hget('vmware_host_pool__active__'+pool['name'], vm)))/60/60
+      $redis.smembers('vmpooler__running__'+pool['name']).each do |vm|
+        if ($redis.hget('vmpooler__active__'+pool['name'], vm))
+          running = (Time.now - Time.parse($redis.hget('vmpooler__active__'+pool['name'], vm)))/60/60
           if (
             ($config[:config]['vm_lifetime'] > 0) and
             (running > $config[:config]['vm_lifetime'])
           )
-            $redis.smove('vmware_host_pool__running__'+pool['name'], 'vmware_host_pool__completed__'+pool['name'], vm)
+            $redis.smove('vmpooler__running__'+pool['name'], 'vmpooler__completed__'+pool['name'], vm)
 
             $logger.log('d', "[!] [#{pool['name']}] '#{vm}' reached end of TTL after #{$config[:config]['vm_lifetime']} hours")
           end
@@ -402,13 +402,13 @@ def check_pool pool
       end
 
       # REPOPULATE
-      total = $redis.scard('vmware_host_pool__ready__'+pool['name']) +
-              $redis.scard('vmware_host_pool__pending__'+pool['name'])
+      total = $redis.scard('vmpooler__ready__'+pool['name']) +
+              $redis.scard('vmpooler__pending__'+pool['name'])
 
       begin
         if (defined? $graphite)
-          $graphite.log('vcloud.ready.'+pool['name'], $redis.scard('vmware_host_pool__ready__'+pool['name']))
-          $graphite.log('vcloud.running.'+pool['name'], $redis.scard('vmware_host_pool__running__'+pool['name']))
+          $graphite.log('vmpooler.ready.'+pool['name'], $redis.scard('vmpooler__ready__'+pool['name']))
+          $graphite.log('vmpooler.running.'+pool['name'], $redis.scard('vmpooler__running__'+pool['name']))
         end
       rescue
       end
@@ -416,9 +416,9 @@ def check_pool pool
       if (total < pool['size'])
         (1..(pool['size'] - total)).each { |i|
 
-          if ($redis.get('vmware_host_pool__tasks__clone').to_i < $config[:config]['task_limit'])
+          if ($redis.get('vmpooler__tasks__clone').to_i < $config[:config]['task_limit'])
             begin
-              $redis.incr('vmware_host_pool__tasks__clone')
+              $redis.incr('vmpooler__tasks__clone')
 
               clone_vm(
                 pool['template'],
@@ -428,7 +428,7 @@ def check_pool pool
               )
             rescue
               $logger.log('s', "[!] [#{pool['name']}] clone appears to have failed")
-              $redis.decr('vmware_host_pool__tasks__clone')
+              $redis.decr('vmpooler__tasks__clone')
             end
           end
         }
@@ -441,10 +441,10 @@ end
 
 
 
-$logger.log('d', "starting vmware-host-pooler")
+$logger.log('d', "starting vmpooler")
 
 # Clear out the tasks manager, as we don't know about any tasks at this point
-$redis.set('vmware_host_pool__tasks__clone', 0)
+$redis.set('vmpooler__tasks__clone', 0)
 
 loop do
   pools.each do |pool|

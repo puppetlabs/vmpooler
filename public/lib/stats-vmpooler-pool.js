@@ -1,30 +1,30 @@
-var pool_url = '/dashboard/stats/vcloud/pool';
+var pool_url = '/dashboard/stats/vmpooler/pool';
 var pool_width = 130;
 var pool_height = 80;
 
-var stats_vcloud_pool__data  = {};
-var stats_vcloud_pool__svg   = {};
+var stats_vmpooler_pool__data  = {};
+var stats_vmpooler_pool__svg   = {};
 
 d3.json( pool_url+'?history=1',
 
-  function( stats_vcloud_pool__data ) {
+  function( stats_vmpooler_pool__data ) {
 
-    var stats_vcloud_pool__data__keys = [];
+    var stats_vmpooler_pool__data__keys = [];
 
-    for ( var key in stats_vcloud_pool__data ) {
-      stats_vcloud_pool__data__keys.push( key );
+    for ( var key in stats_vmpooler_pool__data ) {
+      stats_vmpooler_pool__data__keys.push( key );
     }
 
-    stats_vcloud_pool__data__keys.sort().map(
+    stats_vmpooler_pool__data__keys.sort().map(
       function( pool ) {
-        stats_vcloud_pool__data[ pool ][ 'r' ] = stats_vcloud_pool__data[ pool ][ 'history' ];
+        stats_vmpooler_pool__data[ pool ][ 'r' ] = stats_vmpooler_pool__data[ pool ][ 'history' ];
       }
     );
 
     ( function tick() {
       setTimeout( function() {
-        var stats_vcloud_pool__data__live = ( function() {
-          var stats_vcloud_pool__data__live = null;
+        var stats_vmpooler_pool__data__live = ( function() {
+          var stats_vmpooler_pool__data__live = null;
 
           $.ajax( {
             'url': pool_url,
@@ -32,19 +32,19 @@ d3.json( pool_url+'?history=1',
             'global': false,
             'dataType': 'json',
             'success': function( data ) {
-              stats_vcloud_pool__data__live = data;
+              stats_vmpooler_pool__data__live = data;
             }
           } );
           
-          return stats_vcloud_pool__data__live;
+          return stats_vmpooler_pool__data__live;
         } )();
 
-        $( '#stats-vcloud-pool' ).empty();
+        $( '#stats-vmpooler-pool' ).empty();
 
-        stats_vcloud_pool__data__keys.sort().map(
+        stats_vmpooler_pool__data__keys.sort().map(
           function( pool ) {
             var x = d3.scale.linear().domain( [ 0, 500 ] ).range( [ 0, pool_width ] );
-            var y = d3.scale.linear().domain( [ parseInt( stats_vcloud_pool__data__live[ pool ][ 'size' ] ), 0 ] ).range( [ 0, pool_height - 15 ] );
+            var y = d3.scale.linear().domain( [ parseInt( stats_vmpooler_pool__data__live[ pool ][ 'size' ] ), 0 ] ).range( [ 0, pool_height - 15 ] );
 
             var area = d3.svg.area()
               .interpolate( 'basis' )
@@ -57,24 +57,24 @@ d3.json( pool_url+'?history=1',
               .x( function( d, i ) { return x( i ); } )
               .y( function( d ) { return y( d ); } );
 
-            stats_vcloud_pool__data[ pool ][ 'r' ].push( parseInt( stats_vcloud_pool__data__live[ pool ][ 'ready' ] ) );
+            stats_vmpooler_pool__data[ pool ][ 'r' ].push( parseInt( stats_vmpooler_pool__data__live[ pool ][ 'ready' ] ) );
 
-            var pool_current = stats_vcloud_pool__data[ pool ][ 'r' ].slice( -1 )[ 0 ];
-            var pool_size    = stats_vcloud_pool__data[ pool ][ 'size' ]
+            var pool_current = stats_vmpooler_pool__data[ pool ][ 'r' ].slice( -1 )[ 0 ];
+            var pool_size    = stats_vmpooler_pool__data[ pool ][ 'size' ]
             var pool_pct     = Math.floor( ( pool_current / pool_size ) * 100 );
 
             var statuscolor = '#78a830';
             if ( pool_pct < 50 ) { statuscolor = '#f0a800'; }
             if ( pool_pct < 25 ) { statuscolor = '#d84830'; }
 
-            stats_vcloud_pool__svg[ pool ] = d3.select( '#stats-vcloud-pool' )
+            stats_vmpooler_pool__svg[ pool ] = d3.select( '#stats-vmpooler-pool' )
               .append( 'svg' )
                 .style( 'margin', '15px 0px 0px 0px' )
                 .style( 'padding', '0px 10px 10px 10px' )
                 .attr( 'width', pool_width )
                 .attr( 'height', pool_height );
 
-            stats_vcloud_pool__svg[ pool ]
+            stats_vmpooler_pool__svg[ pool ]
               .append( 'g' )
               .attr( 'class', 'x tick' )
               .attr( 'transform', 'translate( 0,' + ( pool_height - 15 ) + ')' )
@@ -89,7 +89,7 @@ d3.json( pool_url+'?history=1',
                   .orient( 'bottom' )
               );
 
-            stats_vcloud_pool__svg[ pool ]
+            stats_vmpooler_pool__svg[ pool ]
               .append( 'text' )
                 .text(
                   ( pool )
@@ -103,7 +103,7 @@ d3.json( pool_url+'?history=1',
                   'fill': '#888'
                 } );
 
-            stats_vcloud_pool__svg[ pool ]
+            stats_vmpooler_pool__svg[ pool ]
               .append( 'text' )
                 .text(
                   ( pool_pct + '%' )
@@ -118,7 +118,7 @@ d3.json( pool_url+'?history=1',
                   'fill': '#888'
                 } );
 
-            stats_vcloud_pool__svg[ pool ]
+            stats_vmpooler_pool__svg[ pool ]
               .append( 'text' )
                 .text(
                   ( '( ' ) +
@@ -136,22 +136,22 @@ d3.json( pool_url+'?history=1',
                   'fill': '#888'
                 } );
 
-            stats_vcloud_pool__svg[ pool ]
+            stats_vmpooler_pool__svg[ pool ]
               .append( 'path' )
                 .attr( 'class', 'area' )
                 .attr( 'fill', statuscolor )
                 .attr( 'opacity', '0.25' )
-                .attr( 'd', area( stats_vcloud_pool__data[ pool ][ 'r' ] ) );
+                .attr( 'd', area( stats_vmpooler_pool__data[ pool ][ 'r' ] ) );
 
-            stats_vcloud_pool__svg[ pool ]
+            stats_vmpooler_pool__svg[ pool ]
               .append( 'path' )
                 .attr( 'class', 'line' )
                 .attr( 'stroke', statuscolor )
                 .attr( 'stroke-width', '1' )
-                .attr( 'd', path( stats_vcloud_pool__data[ pool ][ 'r' ] ) );
+                .attr( 'd', path( stats_vmpooler_pool__data[ pool ][ 'r' ] ) );
 
-            if ( stats_vcloud_pool__data[ pool ][ 'r' ].length > 500 ) {
-              stats_vcloud_pool__data[ pool ][ 'r' ].shift();
+            if ( stats_vmpooler_pool__data[ pool ][ 'r' ].length > 500 ) {
+              stats_vmpooler_pool__data[ pool ][ 'r' ].shift();
             }
           }
         )
