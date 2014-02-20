@@ -103,7 +103,8 @@ def check_ready_vm vm, pool, ttl
     )
       $redis.hset('vmware_host_pool__vm__'+vm, 'check', Time.now)
 
-      host = $vsphere[pool].find_vm(vm)
+      host = $vsphere[pool].find_vm(vm) ||
+             $vsphere[pool].find_vm_heavy(vm)[vm]
 
       if (host)
         if (
