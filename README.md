@@ -55,7 +55,7 @@ The following YAML configuration sets up two pools, `debian-7-i386` and `debian-
     size: 5
 ```
 
-See the provided YAML configuration example, [vmpooler.yaml.example](vmware.yaml.example), for additional configuration options and parameters.
+See the provided YAML configuration example, [vmpooler.yaml.example](vmpooler.yaml.example), for additional configuration options and parameters.
 
 ### Template set-up
 
@@ -64,7 +64,7 @@ Template set-up is left as an exercise to the reader.  Somehow, either via PXE, 
 
 ## API and Dashboard
 
-vmpooler provides an API and web front-end (dashboard) on port `:4567`.  See the provided YAML configuration example, [vmpooler.yaml.example](vmware.yaml.example), to specify an alternative port to listen on.
+vmpooler provides an API and web front-end (dashboard) on port `:4567`.  See the provided YAML configuration example, [vmpooler.yaml.example](vmpooler.yaml.example), to specify an alternative port to listen on.
 
 ### API
 
@@ -118,7 +118,7 @@ A dashboard is provided to offer real-time statistics and historical graphs.  It
 
 (img)
 
-[Graphite](http://graphite.wikidot.com/) is required for historical data retrieval.  See the provided YAML configuration example, [vmpooler.yaml.example](vmware.yaml.example), for details.
+[Graphite](http://graphite.wikidot.com/) is required for historical data retrieval.  See the provided YAML configuration example, [vmpooler.yaml.example](vmpooler.yaml.example), for details.
 
 
 ## Author
