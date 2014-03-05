@@ -1,0 +1,150 @@
+---
+# :vsphere:
+#
+# This section contains the server hostname and authentication credentials
+# needed for vmpooler to connect to VMware vSphere.
+#
+# Available configuration parameters:
+#
+#   - server
+#     The FQDN hostname of the VMware vSphere server.
+#     (required)
+#
+#   - username
+#     The username used to authenticate VMware vSphere.
+#     (required)
+#
+#   - password
+#     The password used to authenticate VMware vSphere.
+#     (required)
+
+# Example:
+
+:vsphere:
+  server: 'vsphere.company.com'
+  username: 'vmpooler'
+  password: 'swimsw1msw!m'
+
+# :redis:
+#
+# This section contains the server hostname and authentication credentials
+# needed for vmpooler to connect to Redis.
+#
+# Available configuration parameters:
+#
+#   - server
+#     The FQDN hostname of the Redis server.
+#     (optional; default: 'localhost')
+#
+#   - username
+#     The username used to authenticate Redis.
+#     (optional)
+#
+#   - password
+#     The password used to authenticate Redis.
+#     (optional)
+
+# Example:
+
+:redis:
+  server: 'redis.company.com'
+
+# :config:
+#
+# This section contains global configuration information.
+#
+# Available configuration parameters:
+#
+#   - site_name
+#     The name of your deployment.
+#     (optional; default: 'vmpooler')
+#
+#   - logfile
+#     The path to vmpooler's log file.
+#     (optional; default: '/var/log/vmpooler.log')
+#
+#   - graphite
+#     The FQDN hostname of the Graphite server.
+#     (optional)
+#
+#   - task_limit
+#     The number of concurrent VMware vSphere tasks to perform.
+#     (optional; default: '10')
+#
+#   - vm_checktime
+#     How often (in minutes) to check the sanity of VMs in 'ready' queues.
+#     (optional; default: '15')
+#
+#   - vm_lifetime
+#     How long (in hours) to keep VMs in 'running' queues before destroying.
+#     (optional; default: '24')
+
+# Example:
+
+:config:
+  site_name: 'vmpooler'
+  logfile: '/var/log/vmpooler.log'
+  graphite: 'graphite.company.com'
+  task_limit: 10
+  vm_checktime: 15
+  vm_lifetime: 12
+
+# :pools:
+#
+# This section contains a list of virtual machine 'pools' for vmpooler to
+# create and maintain.
+#
+# Available configuration parameters (per-pool):
+#
+#   - name
+#     The name of the pool.
+#     (required)
+#
+#   - template
+#     The template or virtual machine target to spawn clones from.
+#     (required)
+#
+#   - folder
+#     The vSphere 'folder' destination for spawned clones.
+#     (required)
+#
+#   - pool
+#     The vSphere 'resource pool' destination for spawned clones.
+#     (required)
+#
+#   - datastore
+#     The vSphere 'datastore' destination for spawned clones.
+#     (required)
+#
+#   - size
+#     The number of waiting VMs to keep in a pool.
+#     (required)
+#
+#   - timeout
+#     How long (in minutes) before marking a clone as 'failed' and retrying.
+#     (optional; default: '15')
+#
+#   - ready_ttl
+#     How long (in minutes) to keep VMs in 'ready' queues before destroying.
+#     (optional)
+
+# Example:
+
+:pools:
+  - name: 'debian-7-i386'
+    template: 'Templates/debian-7-i386'
+    folder: 'Pooled VMs/debian-7-i386'
+    pool: 'Pooled VMs/debian-7-i386'
+    datastore: 'vmstorage'
+    size: 5
+    timeout: 15
+    ready_ttl: 1440
+  - name: 'debian-7-x86_64'
+    template: 'Templates/debian-7-x86_64'
+    folder: 'Pooled VMs/debian-7-x86_64'
+    pool: 'Pooled VMs/debian-7-x86_64'
+    datastore: 'vmstorage'
+    size: 5
+    timeout: 15
+    ready_ttl: 1440
+
