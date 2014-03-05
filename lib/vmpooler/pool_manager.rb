@@ -1,13 +1,6 @@
 module Vmpooler
   class PoolManager
     def initialize
-      require 'json'
-      require 'rbvmomi'
-      require 'redis'
-      require 'time'
-      require 'timeout'
-      require 'yaml'
-
       # Load the configuration file
       config_file = File.expand_path('vmpooler.yaml')
       $config = YAML.load_file(config_file)
