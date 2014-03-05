@@ -1,13 +1,6 @@
 module Vmpooler
   class API
     def initialize
-      require 'sinatra/base'
-
-      require 'json'
-      require 'open-uri'
-      require 'redis'
-      require 'yaml'
-
       # Load the configuration file
       config_file = File.expand_path('vmpooler.yaml')
       $config = YAML.load_file(config_file)

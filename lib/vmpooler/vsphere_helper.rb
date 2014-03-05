@@ -3,12 +3,6 @@ require 'rubygems' unless defined?(Gem)
 module Vmpooler
   class VsphereHelper
     def initialize vInfo = {}
-      begin
-        require 'rbvmomi'
-      rescue LoadError
-        raise "Unable to load RbVmomi, please ensure its installed"
-      end
-
       config_file = File.expand_path('vmpooler.yaml')
       vsphere = YAML.load_file(config_file)[:vsphere]
 
