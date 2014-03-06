@@ -6,16 +6,6 @@ module Vmpooler
       $config = YAML.load_file(config_file)
 
       $pools   = $config[:pools]
-      vsphere = $config[:vsphere]
-      redis   = $config[:redis]
-
-      # Load logger library
-      $logger = Vmpooler::Logger.new $config[:config]['logfile']
-
-      # Load Graphite helper library (if configured)
-      if (defined? $config[:config]['graphite'])
-        $graphite = Vmpooler::Graphite.new $config[:config]['graphite']
-      end
 
       # Set some defaults
       $config[:config]['task_limit']   ||= 10
@@ -23,6 +13,15 @@ module Vmpooler
       $config[:config]['vm_lifetime']  ||= 24
       $config[:redis] ||= Hash.new
       $config[:redis]['server'] ||= 'localhost'
+
+      # Load logger library
+      $logger = Vmpooler::Logger.new $config[:config]['logfile']
+
+      # Load Graphite helper library (if configured)
+      if (defined? $config[:graphite]['server'])
+        $config[:graphite]['prefix'] ||= 'vmpooler'
+        $graphite = Vmpooler::Graphite.new $config[:graphite]['server']
+      end
 
       # Connect to Redis
       $redis = Redis.new(:host => $config[:redis]['server'])
@@ -232,7 +231,7 @@ module Vmpooler
         $redis.decr('vmpooler__tasks__clone')
 
         begin
-          $graphite.log("vmpooler.clone.#{vm['template']}", finish) if defined? $graphite
+          $graphite.log($config[:graphite]['prefix']+".clone.#{vm['template']}", finish) if defined? $graphite
         rescue
         end
       }
@@ -265,7 +264,7 @@ module Vmpooler
 
           $logger.log('s', "[-] [#{pool}] '#{vm}' destroyed in #{finish} seconds")
 
-          $graphite.log("vmpooler.destroy.#{pool}", finish) if defined? $graphite
+          $graphite.log($config[:graphite]['prefix']+".destroy.#{pool}", finish) if defined? $graphite
         end
       }
     end
@@ -393,8 +392,8 @@ module Vmpooler
 
           begin
             if (defined? $graphite)
-              $graphite.log('vmpooler.ready.'+pool['name'], $redis.scard('vmpooler__ready__'+pool['name']))
-              $graphite.log('vmpooler.running.'+pool['name'], $redis.scard('vmpooler__running__'+pool['name']))
+              $graphite.log($config[:graphite]['prefix']+'.ready.'+pool['name'], $redis.scard('vmpooler__ready__'+pool['name']))
+              $graphite.log($config[:graphite]['prefix']+'.running.'+pool['name'], $redis.scard('vmpooler__running__'+pool['name']))
             end
           rescue
           end
