@@ -5,12 +5,13 @@ module Vmpooler
       config_file = File.expand_path('vmpooler.yaml')
       $config = YAML.load_file(config_file)
 
-      pools = $config[:pools]
-      redis = $config[:redis]
-
       # Set some defaults
       $config[:redis] ||= Hash.new
       $config[:redis]['server'] ||= 'localhost'
+
+      if ($config[:graphite]['server'])
+        $config[:graphite]['prefix'] ||= 'vmpooler'
+      end
 
       # Connect to Redis
       $redis = Redis.new(:host => $config[:redis]['server'])
@@ -62,11 +63,13 @@ module Vmpooler
           end
 
           if ( params[:history] )
-            if ( $config[:config]['graphite'] )
+            if ( $config[:graphite]['server'] )
               history ||= Hash.new
 
               begin
-                buffer = open( 'http://'+$config[:config]['graphite']+'/render?target=vmpooler.ready.*&from=-1hour&format=json' ).read
+                buffer = open(
+                  'http://'+$config[:graphite]['server']+'/render?target='+$config[:graphite]['prefix']+'.ready.*&from=-1hour&format=json'
+                ).read
                 history = JSON.parse( buffer )
 
                 history.each do |pool|
@@ -117,9 +120,11 @@ module Vmpooler
           end
 
           if ( params[:history] )
-            if ( $config[:config]['graphite'] )
+            if ( $config[:graphite]['server'] )
               begin
-                buffer = open( 'http://'+$config[:config]['graphite']+'/render?target=vmpooler.running.*&from=-1hour&format=json' ).read
+                buffer = open(
+                  'http://'+$config[:graphite]['server']+'/render?target='+$config[:graphite]['prefix']+'.running.*&from=-1hour&format=json'
+                ).read
                 JSON.parse( buffer ).each do |pool|
                   if pool['target'] =~ /.*\.(.*)$/
                     pool['name'] = $1
