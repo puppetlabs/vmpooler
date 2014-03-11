@@ -49,6 +49,26 @@
 :redis:
   server: 'redis.company.com'
 
+# :graphite:
+#
+# This section contains the connection information required to store
+# historical data in an external Graphite database.
+#
+# Available configuration parameters:
+#
+#   - server
+#     The FQDN hostname of the Graphite server.
+#     (optional)
+#
+#   - prefix
+#     The prefix to use while storing Graphite data.
+#     (optional; default: 'vmpooler')
+
+# Example:
+
+:graphite:
+  server: 'graphite.company.com'
+
 # :config:
 #
 # This section contains global configuration information.
@@ -62,10 +82,6 @@
 #   - logfile
 #     The path to vmpooler's log file.
 #     (optional; default: '/var/log/vmpooler.log')
-#
-#   - graphite
-#     The FQDN hostname of the Graphite server.
-#     (optional)
 #
 #   - task_limit
 #     The number of concurrent VMware vSphere tasks to perform.
@@ -84,7 +100,6 @@
 :config:
   site_name: 'vmpooler'
   logfile: '/var/log/vmpooler.log'
-  graphite: 'graphite.company.com'
   task_limit: 10
   vm_checktime: 15
   vm_lifetime: 12
