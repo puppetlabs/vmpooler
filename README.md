@@ -116,7 +116,7 @@ $ curl -X DELETE --url vmpooler.company.com/vm/fq6qlpjlsskycq6
 
 A dashboard is provided to offer real-time statistics and historical graphs.  It looks like this in a large installation on a fairly busy day:
 
-(img)
+![dashboard](https://sschneid.github.io/vmpooler/img/screenshots/dashboard.png =720x)
 
 [Graphite](http://graphite.wikidot.com/) is required for historical data retrieval.  See the provided YAML configuration example, [vmpooler.yaml.example](vmpooler.yaml.example), for details.
 
