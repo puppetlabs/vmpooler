@@ -170,6 +170,54 @@ module Vmpooler
           JSON.pretty_generate(result)
         end
 
+        post '/vm/?' do
+          content_type :json
+
+          result = {}
+
+          available = 1
+
+          jdata = JSON.parse(request.body.read)
+
+          jdata.each do |template, count|
+            if ( $redis.scard('vmpooler__ready__'+template) < count.to_i )
+              available = 0
+            end
+          end
+
+          if ( available == 1 )
+            result['ok'] = true
+
+            jdata.each do |template, count|
+              result[template] ||= {}
+
+              count.to_i.times do |i|
+                vm = $redis.spop('vmpooler__ready__'+template)
+
+                unless (vm.nil?)
+                  $redis.sadd('vmpooler__running__'+template, vm)
+                  $redis.hset('vmpooler__active__'+template, vm, Time.now)
+
+                  result[template] ||= {}
+
+                  if ( result[template]['hostname'] )
+                    result[template]['hostname'] = [result[template]['hostname']] if ! result[template]['hostname'].is_a?(Array)
+                    result[template]['hostname'].push(vm)
+                  else
+                    result[template]['hostname'] = vm
+                  end
+                else
+                  result['ok'] = false
+                end
+              end
+            end
+          else
+            result['ok'] = false
+          end
+
+          JSON.pretty_generate(result)
+        end
+
         get '/vm/:template/?' do
           content_type :json
 
@@ -184,22 +232,47 @@ module Vmpooler
           content_type :json
 
           result = {}
-          result[params[:template]] = {}
+          request = {}
 
-          if ( $redis.scard('vmpooler__ready__'+params[:template]) > 0 )
-            vm = $redis.spop('vmpooler__ready__'+params[:template])
+          params[:template].split('+').each do |template|
+            request[template] ||= 0
+            request[template] = request[template] + 1
+          end
 
-            unless (vm.nil?)
-              $redis.sadd('vmpooler__running__'+params[:template], vm)
-              $redis.hset('vmpooler__active__'+params[:template], vm, Time.now)
+          available = 1
 
-              result[params[:template]]['ok'] = true
-              result[params[:template]]['hostname'] = vm
-            else
-              result[params[:template]]['ok'] = false
+          request.keys.each do |template|
+            if ( $redis.scard('vmpooler__ready__'+template) < request[template] )
+              available = 0
+            end
+          end
+
+          if ( available == 1 )
+            result['ok'] = true
+
+            params[:template].split('+').each do |template|
+              result[template] ||= {}
+
+              vm = $redis.spop('vmpooler__ready__'+template)
+
+              unless (vm.nil?)
+                $redis.sadd('vmpooler__running__'+template, vm)
+                $redis.hset('vmpooler__active__'+template, vm, Time.now)
+
+                result[template] ||= {}
+
+                if ( result[template]['hostname'] )
+                  result[template]['hostname'] = [result[template]['hostname']] if ! result[template]['hostname'].is_a?(Array)
+                  result[template]['hostname'].push(vm)
+                else
+                  result[template]['hostname'] = vm
+                end
+              else
+                result['ok'] = false
+              end
             end
           else
-            result[params[:template]]['ok'] = false
+            result['ok'] = false
           end
 
           JSON.pretty_generate(result)
