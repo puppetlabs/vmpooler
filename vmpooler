@@ -9,6 +9,6 @@ Thread.new { Vmpooler::API.new.execute! }
 Thread.new { Vmpooler::PoolManager.new.execute! }
 
 loop do
-  sleep(1)
+  sleep(10)
 end
 
