@@ -121,9 +121,9 @@ A dashboard is provided to offer real-time statistics and historical graphs.  It
 [Graphite](http://graphite.wikidot.com/) is required for historical data retrieval.  See the provided YAML configuration example, [vmpooler.yaml.example](vmpooler.yaml.example), for details.
 
 
-## Author
+## Authors and Contributors
 
-Scott Schneider (sschneid@gmail.com)
+- Scott Schneider (sschneid@gmail.com)
 
 
 ## License
