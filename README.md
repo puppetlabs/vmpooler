@@ -84,17 +84,59 @@ $ curl --url vmpooler.company.com/vm
 ]
 ```
 
+#### POST /vm
+Useful for batch operations; post JSON (see format below), get back VMs.
+
+```
+$ curl -d '{"debian-7-i386":"2","debian-7-x86_64":"1"}' --url vmpooler.company.com/vm
+```
+```json
+{
+  "ok": true,
+  "debian-7-i386": {
+    "hostname": [
+      "o41xtodlvnvu5cw",
+      "khirruvwfjlmx3y"
+    ]
+  },
+  "debian-7-x86_64": {
+    "hostname": "y91qbrpbfj6d13q"
+  }
+}
+```
+
 #### POST /vm/<pool>
-Check-out a VM.
+Check-out a VM or VMs.
 
 ```
 $ curl -d --url vmpooler.company.com/vm/debian-7-i386
 ```
 ```json
 {
+  "ok": true,
   "debian-7-i386": {
-    "ok": true,
     "hostname": "fq6qlpjlsskycq6"
+  }
+}
+```
+
+Multiple VMs can be requested by using multiple query parameters in the URL:
+
+```
+$ curl -d --url vmpooler.company.com/vm/debian-7-i386+debian-7-i386+debian-7-x86_64
+```
+
+```json
+{
+  "ok": true,
+  "debian-7-i386": {
+    "hostname": [
+      "sc0o4xqtodlul5w",
+      "4m4dkhqiufnjmxy"
+    ]
+  },
+  "debian-7-x86_64": {
+    "hostname": "zb91y9qbrbf6d3q"
   }
 }
 ```
@@ -121,9 +163,9 @@ A dashboard is provided to offer real-time statistics and historical graphs.  It
 [Graphite](http://graphite.wikidot.com/) is required for historical data retrieval.  See the provided YAML configuration example, [vmpooler.yaml.example](vmpooler.yaml.example), for details.
 
 
-## Author
+## Authors and Contributors
 
-Scott Schneider (sschneid@gmail.com)
+- Scott Schneider (sschneid@gmail.com)
 
 
 ## License
