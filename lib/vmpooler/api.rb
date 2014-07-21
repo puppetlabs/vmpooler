@@ -191,6 +191,8 @@ module Vmpooler
             jdata.each do |template, count|
               result[template] ||= {}
 
+              result[template]['ok'] = true ##
+
               count.to_i.times do |i|
                 vm = $redis.spop('vmpooler__ready__'+template)
 
@@ -200,6 +202,8 @@ module Vmpooler
 
                   result[template] ||= {}
 
+                  result[template]['ok'] = true ##
+
                   if ( result[template]['hostname'] )
                     result[template]['hostname'] = [result[template]['hostname']] if ! result[template]['hostname'].is_a?(Array)
                     result[template]['hostname'].push(vm)
@@ -207,6 +211,8 @@ module Vmpooler
                     result[template]['hostname'] = vm
                   end
                 else
+                  result[template]['ok'] = false ##
+
                   result['ok'] = false
                 end
               end
@@ -253,6 +259,8 @@ module Vmpooler
             params[:template].split('+').each do |template|
               result[template] ||= {}
 
+              result[template]['ok'] = true ##
+
               vm = $redis.spop('vmpooler__ready__'+template)
 
               unless (vm.nil?)
@@ -268,6 +276,8 @@ module Vmpooler
                   result[template]['hostname'] = vm
                 end
               else
+                result[template]['ok'] = false ##
+
                 result['ok'] = false
               end
             end
