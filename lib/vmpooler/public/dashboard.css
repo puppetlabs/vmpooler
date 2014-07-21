@@ -12,8 +12,7 @@ body,
 }
 
 #header {
-  border-bottom: solid 1px #888;
-  margin-bottom: 20px;
+  margin-top: 5px;
 }
 
 #header .logo,
@@ -26,11 +25,26 @@ body,
 #header .text {
   float: right;
   position: relative;
-  right: 30px;
-  top: 90px;
+  right: 40px;
+  top: 25px;
   font: 50px 'PT Sans', sans-serif;
   letter-spacing: -0.05em;
-  color: #444;
+  line-height: 50px;
+  color: #fff;
+  background: #444;
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
+#stats-vmpooler-numbers {
+  position: relative;
+  top: -80px;
+  right: 15px;
+}
+
+#stats-vmpooler-running {
+  position: relative;
+  top -20px;
 }
 
 .label {
