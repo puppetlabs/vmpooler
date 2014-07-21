@@ -25,7 +25,7 @@ body,
 #header .text {
   float: right;
   position: relative;
-  right: 25px;
+  right: 40px;
   top: 25px;
   font: 50px 'PT Sans', sans-serif;
   letter-spacing: -0.05em;
@@ -39,6 +39,7 @@ body,
 #stats-vmpooler-numbers {
   position: relative;
   top: -80px;
+  right: 15px;
 }
 
 #stats-vmpooler-running {
