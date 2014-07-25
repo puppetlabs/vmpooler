@@ -158,7 +158,7 @@ module Vmpooler
     end
 
     # Clone a VM
-    def clone_vm template, pool, folder, datastore
+    def clone_vm template, folder, datastore
       Thread.new {
         vm = {}
 
@@ -198,7 +198,6 @@ module Vmpooler
         # Put the VM in the specified folder and resource pool
         relocateSpec = RbVmomi::VIM.VirtualMachineRelocateSpec(
           :datastore    => $vsphere[vm['template']].find_datastore(datastore),
-          :pool         => $vsphere[vm['template']].find_pool(pool),
           :diskMoveType => :moveChildMostDiskBacking
         )
 
@@ -279,9 +278,9 @@ module Vmpooler
           # INVENTORY
           inventory = {}
           begin
-            base = $vsphere[pool['name']].find_pool(pool['pool'])
+            base = $vsphere[pool['name']].find_folder(pool['folder'])
 
-            base.vm.each do |vm|
+            base.childEntity.each do |vm|
               if (
                 (! $redis.sismember('vmpooler__running__'+pool['name'], vm['name'])) and
                 (! $redis.sismember('vmpooler__ready__'+pool['name'], vm['name'])) and
@@ -407,7 +406,6 @@ module Vmpooler
 
                   clone_vm(
                     pool['template'],
-                    pool['pool'],
                     pool['folder'],
                     pool['datastore']
                   )

@@ -123,10 +123,6 @@
 #     The vSphere 'folder' destination for spawned clones.
 #     (required)
 #
-#   - pool
-#     The vSphere 'resource pool' destination for spawned clones.
-#     (required)
-#
 #   - datastore
 #     The vSphere 'datastore' destination for spawned clones.
 #     (required)
@@ -149,7 +145,6 @@
   - name: 'debian-7-i386'
     template: 'Templates/debian-7-i386'
     folder: 'Pooled VMs/debian-7-i386'
-    pool: 'Pooled VMs/debian-7-i386'
     datastore: 'vmstorage'
     size: 5
     timeout: 15
@@ -157,7 +152,6 @@
   - name: 'debian-7-x86_64'
     template: 'Templates/debian-7-x86_64'
     folder: 'Pooled VMs/debian-7-x86_64'
-    pool: 'Pooled VMs/debian-7-x86_64'
     datastore: 'vmstorage'
     size: 5
     timeout: 15
