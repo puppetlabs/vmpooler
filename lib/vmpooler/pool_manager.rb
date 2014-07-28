@@ -195,9 +195,15 @@ module Vmpooler
            })
         )
 
+        # Choose a clone target
+        if ($config[:config]['clone_target']
+          $clone_target = $vsphere[vm['template']].find_least_used_host($config[:config]['clone_target'])
+        end
+
         # Put the VM in the specified folder and resource pool
         relocateSpec = RbVmomi::VIM.VirtualMachineRelocateSpec(
           :datastore    => $vsphere[vm['template']].find_datastore(datastore),
+          :host         => $clone_target,
           :diskMoveType => :moveChildMostDiskBacking
         )
 
