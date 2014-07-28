@@ -83,6 +83,10 @@
 #     The path to vmpooler's log file.
 #     (optional; default: '/var/log/vmpooler.log')
 #
+#   - clone_target
+#     The target cluster VMs are cloned into (host with least VMs chosen)
+#     (optional; default: same cluster/host as origin template)
+#
 #   - task_limit
 #     The number of concurrent VMware vSphere tasks to perform.
 #     (optional; default: '10')

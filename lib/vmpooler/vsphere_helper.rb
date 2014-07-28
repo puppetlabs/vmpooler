@@ -51,6 +51,30 @@ module Vmpooler
 
 
 
+    def find_least_used_host cluster
+      begin
+        @connection.serviceInstance.CurrentTime
+      rescue
+        initialize()
+      end
+
+      hosts = Hash.new
+      hosts_sort = Hash.new
+
+      datacenter = @connection.serviceInstance.find_datacenter
+      datacenter.hostFolder.children.each do |folder|
+        next unless folder.name == cluster
+        folder.host.each do |host|
+          hosts[host.name] = host
+          hosts_sort[host.name] = host.vm.length
+        end
+      end
+
+      hosts[hosts_sort.sort_by { |k,v| v }[0][0]]
+    end
+
+
+
     def find_pool poolname
       begin
         @connection.serviceInstance.CurrentTime
