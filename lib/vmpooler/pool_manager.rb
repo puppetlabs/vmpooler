@@ -196,7 +196,7 @@ module Vmpooler
         )
 
         # Choose a clone target
-        if ($config[:config]['clone_target']
+        if ($config[:config]['clone_target'])
           $clone_target = $vsphere[vm['template']].find_least_used_host($config[:config]['clone_target'])
         end
 
