@@ -380,9 +380,11 @@ module Vmpooler
           $redis.smembers('vmpooler__running__'+pool['name']).each do |vm|
             if ($redis.hget('vmpooler__active__'+pool['name'], vm))
               running = (Time.now - Time.parse($redis.hget('vmpooler__active__'+pool['name'], vm)))/60/60
+              lifetime = $redis.hget('vmpooler__vm__'+vm, 'lifetime') || $config[:config]['vm_lifetime']
+
               if (
-                ($config[:config]['vm_lifetime'] > 0) and
-                (running > $config[:config]['vm_lifetime'])
+                (lifetime.to_i > 0) and
+                (running.to_i > lifetime.to_i)
               )
                 $redis.smove('vmpooler__running__'+pool['name'], 'vmpooler__completed__'+pool['name'], vm)
 

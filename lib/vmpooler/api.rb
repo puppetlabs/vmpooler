@@ -305,6 +305,28 @@ module Vmpooler
 
           JSON.pretty_generate(result)
         end
+
+        put '/vm/:hostname/?' do
+          content_type :json
+
+          result = {}
+
+          result['ok'] = false
+
+          if $redis.exists('vmpooler__vm__'+params[:hostname])
+            jdata = JSON.parse(request.body.read)
+
+            jdata.each do |param, arg|
+              case param
+                when 'lifetime'
+                  $redis.hset('vmpooler__vm__'+params[:hostname], param, arg)
+                  result['ok'] = true
+              end
+            end
+          end
+
+          JSON.pretty_generate(result)
+        end
       }
 
       my_app.run!
