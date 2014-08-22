@@ -388,7 +388,7 @@ module Vmpooler
               )
                 $redis.smove('vmpooler__running__'+pool['name'], 'vmpooler__completed__'+pool['name'], vm)
 
-                $logger.log('d', "[!] [#{pool['name']}] '#{vm}' reached end of TTL after #{$config[:config]['vm_lifetime']} hours")
+                $logger.log('d', "[!] [#{pool['name']}] '#{vm}' reached end of TTL after #{lifetime} hours")
               end
             end
           end
