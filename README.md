@@ -85,6 +85,7 @@ $ curl --url vmpooler.company.com/vm
 ```
 
 #### POST /vm
+
 Useful for batch operations; post JSON (see format below), get back VMs.
 
 ```
@@ -105,7 +106,8 @@ $ curl -d '{"debian-7-i386":"2","debian-7-x86_64":"1"}' --url vmpooler.company.c
 }
 ```
 
-#### POST /vm/<pool>
+#### POST /vm/&lt;pool&gt;
+
 Check-out a VM or VMs.
 
 ```
@@ -141,7 +143,20 @@ $ curl -d --url vmpooler.company.com/vm/debian-7-i386+debian-7-i386+debian-7-x86
 }
 ```
 
-#### DELETE /vm/<hostnamename>
+#### PUT /vm/&lt;hostname&gt;
+
+Modify a checked-out VM.
+
+```
+$ curl -X PUT -d '{"lifetime":"2"}' --url vmpooler.company.com/vm/fq6qlpjlsskycq6
+```
+```json
+{
+  "ok": true
+}
+```
+
+#### DELETE /vm/&lt;hostname&gt;
 
 Schedule a checked-out VM for deletion.
 
