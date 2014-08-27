@@ -158,7 +158,7 @@ module Vmpooler
     end
 
     # Clone a VM
-    def clone_vm template, folder, datastore
+    def clone_vm template, folder, datastore, target
       Thread.new {
         vm = {}
 
@@ -196,7 +196,9 @@ module Vmpooler
         )
 
         # Choose a clone target
-        if ($config[:config]['clone_target'])
+        if (target)
+          $clone_target = $vsphere[vm['template']].find_least_used_host(target)
+        elsif ($config[:config]['clone_target'])
           $clone_target = $vsphere[vm['template']].find_least_used_host($config[:config]['clone_target'])
         end
 
@@ -415,7 +417,8 @@ module Vmpooler
                   clone_vm(
                     pool['template'],
                     pool['folder'],
-                    pool['datastore']
+                    pool['datastore'],
+                    pool['clone_target']
                   )
                 rescue
                   $logger.log('s', "[!] [#{pool['name']}] clone appears to have failed")
