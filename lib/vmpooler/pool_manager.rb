@@ -425,7 +425,7 @@ module Vmpooler
             }
           end
 
-          sleep(1)
+          sleep(5)
         end
       }
     end
