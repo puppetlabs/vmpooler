@@ -25,13 +25,12 @@ body,
 #header .text {
   float: right;
   position: relative;
-  right: 40px;
+  right: 30px;
   top: 25px;
-  font: 50px 'PT Sans', sans-serif;
+  font: 55px 'PT Sans', sans-serif;
   letter-spacing: -0.05em;
   line-height: 50px;
-  color: #fff;
-  background: #444;
+  color: #444;
   padding-left: 20px;
   padding-right: 20px;
 }
@@ -43,11 +42,11 @@ body,
 }
 
 #stats-vmpooler-running {
-  position: relative;
-  top -20px;
+  margin-bottom: -15px;
 }
 
 .label {
+  margin-top: 10px;
   text-transform: uppercase;
   text-indent: 25px;
   font: 12px 'PT Sans', sans-serif;
