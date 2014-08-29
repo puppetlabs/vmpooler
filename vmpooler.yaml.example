@@ -98,6 +98,9 @@
 #   - vm_lifetime
 #     How long (in hours) to keep VMs in 'running' queues before destroying.
 #     (optional; default: '24')
+#
+#   - domain
+#     If set, returns a top-level 'domain' JSON key in POST requests
 
 # Example:
 
@@ -107,6 +110,7 @@
   task_limit: 10
   vm_checktime: 15
   vm_lifetime: 12
+  domain: 'company.com'
 
 # :pools:
 #
