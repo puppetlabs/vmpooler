@@ -221,6 +221,10 @@ module Vmpooler
             result['ok'] = false
           end
 
+          if ( result['ok'] and $config[:config]['domain'] )
+            result['domain'] = $config[:config]['domain']
+          end
+
           JSON.pretty_generate(result)
         end
 
@@ -283,6 +287,10 @@ module Vmpooler
             end
           else
             result['ok'] = false
+          end
+
+          if ( result['ok'] and $config[:config]['domain'] )
+            result['domain'] = $config[:config]['domain']
           end
 
           JSON.pretty_generate(result)
