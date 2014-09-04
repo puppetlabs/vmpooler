@@ -65,8 +65,10 @@ module Vmpooler
       datacenter.hostFolder.children.each do |folder|
         next unless folder.name == cluster
         folder.host.each do |host|
-          hosts[host.name] = host
-          hosts_sort[host.name] = host.vm.length
+          if host.overallStatus == 'green'
+            hosts[host.name] = host
+            hosts_sort[host.name] = host.vm.length
+          end
         end
       end
 
