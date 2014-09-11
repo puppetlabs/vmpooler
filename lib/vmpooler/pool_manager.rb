@@ -48,6 +48,10 @@ module Vmpooler
           )
             begin
               Socket.getaddrinfo(vm, nil)
+
+              Timeout::timeout(5) {
+                TCPSocket.new vm, 22
+              }
             rescue
             end
 
