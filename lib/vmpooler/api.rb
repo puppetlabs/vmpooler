@@ -303,6 +303,10 @@ module Vmpooler
 
           result['ok'] = false
 
+          if ( $config[:config]['domain'] and params[:hostname] =~ /^\w+\.#{$config[:config]['domain']}$/ )
+            params[:hostname] = params[:hostname][/[^\.]+/]
+          end
+
           $config[:pools].each do |pool|
             if $redis.sismember('vmpooler__running__'+pool['name'], params[:hostname])
               $redis.srem('vmpooler__running__'+pool['name'], params[:hostname])
