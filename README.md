@@ -143,6 +143,25 @@ $ curl -d --url vmpooler.company.com/vm/debian-7-i386+debian-7-i386+debian-7-x86
 }
 ```
 
+#### GET /vm/&lt;hostname%gt;
+
+Query a checked-out VM.
+
+```
+$ curl --url vmpooler.company.com/vm/pxpmtoonx7fiqg6
+```
+```json
+{
+  "ok": true,
+  "pxpmtoonx7fiqg6": {
+    "template": "centos-6-x86_64",
+    "lifetime": 12,
+    "running": 3,
+    "domain": "company.com"
+  }
+}
+```
+
 #### PUT /vm/&lt;hostname&gt;
 
 Modify a checked-out VM.
