@@ -184,6 +184,7 @@ module Vmpooler
         # Add VM to Redis inventory ('pending' pool)
         $redis.sadd('vmpooler__pending__'+vm['template'], vm['hostname'])
         $redis.hset('vmpooler__vm__'+vm['hostname'], 'clone', Time.now)
+        $redis.hset('vmpooler__vm__'+vm['hostname'], 'template', vm['template'])
 
         # Annotate with creation time, origin template, etc.
         configSpec = RbVmomi::VIM.VirtualMachineConfigSpec(

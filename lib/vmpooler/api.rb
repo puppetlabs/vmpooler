@@ -22,6 +22,16 @@ module Vmpooler
 
         set :environment, 'production'
 
+        helpers do
+          def hostname_shorten hostname
+            if ( $config[:config]['domain'] and hostname =~ /^\w+\.#{$config[:config]['domain']}$/ )
+              hostname = hostname[/[^\.]+/]
+            end
+
+            hostname
+          end
+        end
+
         get '/' do
           erb :dashboard, locals: {
             site_name: $config[:config]['site_name'] || '<b>vmpooler</b>',
@@ -228,16 +238,6 @@ module Vmpooler
           JSON.pretty_generate(result)
         end
 
-        get '/vm/:template/?' do
-          content_type :json
-
-          result = {}
-          result[params[:template]] = {}
-          result[params[:template]]['hosts'] = $redis.smembers('vmpooler__ready__'+params[:template])
-
-          JSON.pretty_generate(result)
-        end
-
         post '/vm/:template/?' do
           content_type :json
 
@@ -296,6 +296,32 @@ module Vmpooler
           JSON.pretty_generate(result)
         end
 
+        get '/vm/:hostname/?' do
+          content_type :json
+
+          result = {}
+
+          result['ok'] = false
+
+          params[:hostname] = hostname_shorten(params[:hostname])
+
+          if $redis.exists('vmpooler__vm__'+params[:hostname])
+            result['ok'] = true
+
+            result[params[:hostname]] = {}
+
+            result[params[:hostname]]['template'] = $redis.hget('vmpooler__vm__'+params[:hostname], 'template')
+            result[params[:hostname]]['lifetime'] = $redis.hget('vmpooler__vm__'+params[:hostname], 'lifetime') || $config[:config]['vm_lifetime']
+            result[params[:hostname]]['running'] = ((Time.now - Time.parse($redis.hget('vmpooler__active__'+result[params[:hostname]]['template'], params[:hostname])))/60/60).round(2)
+
+            if ( $config[:config]['domain'] )
+              result[params[:hostname]]['domain'] = $config[:config]['domain']
+            end
+          end
+
+          JSON.pretty_generate(result)
+        end
+
         delete '/vm/:hostname/?' do
           content_type :json
 
@@ -303,9 +329,7 @@ module Vmpooler
 
           result['ok'] = false
 
-          if ( $config[:config]['domain'] and params[:hostname] =~ /^\w+\.#{$config[:config]['domain']}$/ )
-            params[:hostname] = params[:hostname][/[^\.]+/]
-          end
+          params[:hostname] = hostname_shorten(params[:hostname])
 
           $config[:pools].each do |pool|
             if $redis.sismember('vmpooler__running__'+pool['name'], params[:hostname])
@@ -324,6 +348,8 @@ module Vmpooler
           result = {}
 
           result['ok'] = false
+
+          params[:hostname] = hostname_shorten(params[:hostname])
 
           if $redis.exists('vmpooler__vm__'+params[:hostname])
             jdata = JSON.parse(request.body.read)
