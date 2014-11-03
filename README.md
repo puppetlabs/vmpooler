@@ -143,7 +143,7 @@ $ curl -d --url vmpooler.company.com/vm/debian-7-i386+debian-7-i386+debian-7-x86
 }
 ```
 
-#### GET /vm/&lt;hostname%gt;
+#### GET /vm/&lt;hostname&gt;
 
 Query a checked-out VM.
 
