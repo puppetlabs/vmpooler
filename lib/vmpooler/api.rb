@@ -190,6 +190,10 @@ module Vmpooler
           jdata = JSON.parse(request.body.read)
 
           jdata.each do |template, count|
+            if (template == 'key')
+              result['key'] = count
+            end
+
             if ( $redis.scard('vmpooler__ready__'+template) < count.to_i )
               available = 0
             end
@@ -199,6 +203,10 @@ module Vmpooler
             result['ok'] = true
 
             jdata.each do |template, count|
+              if (template == 'key')
+                next
+              end
+
               result[template] ||= {}
 
               result[template]['ok'] = true ##
@@ -213,6 +221,13 @@ module Vmpooler
                   result[template] ||= {}
 
                   result[template]['ok'] = true ##
+
+                  if ( result['key'] and $config[:config]['ssh_key'] )
+                    Net::SCP.upload!(
+                      vm, 'root', StringIO.new(result['key']), '/root/.ssh/authorized_keys',
+                      :ssh => { :keys => [ $config[:config]['ssh_key'] ] }
+                    )
+                  end
 
                   if ( result[template]['hostname'] )
                     result[template]['hostname'] = [result[template]['hostname']] if ! result[template]['hostname'].is_a?(Array)
