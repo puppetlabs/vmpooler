@@ -2,10 +2,12 @@ require 'rubygems' unless defined?(Gem)
 
 module Vmpooler
   require 'json'
+  require 'net/scp'
   require 'open-uri'
   require 'rbvmomi'
   require 'redis'
   require 'sinatra/base'
+  require 'stringio'
   require 'time'
   require 'timeout'
   require 'yaml'

@@ -101,6 +101,11 @@
 #
 #   - domain
 #     If set, returns a top-level 'domain' JSON key in POST requests
+#
+#   - ssh_key
+#     The path to a private key able to log into pooled VMs.  If set, allows a
+#     'key' parameter to be passed in POST requests to '/vm', overriding root's
+#     default authorized_keys file
 
 # Example:
 
@@ -111,6 +116,7 @@
   vm_checktime: 15
   vm_lifetime: 12
   domain: 'company.com'
+  ssh_key: '/root/.ssh/id_rsa'
 
 # :pools:
 #

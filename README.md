@@ -17,6 +17,7 @@ At [Puppet Labs](http://puppetlabs.com) we run acceptance tests on hundreds of d
 vmpooler requires the following Ruby gems be installed:
 
 - [json](http://rubygems.org/gems/json)
+- [net/scp](http://rubygems.org/gems/net-scp)
 - [rbvmomi](http://rubygems.org/gems/rbvmomi)
 - [redis](http://rubygems.org/gems/redis)
 - [sinatra](http://rubygems.org/gems/sinatra)

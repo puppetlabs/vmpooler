@@ -189,8 +189,12 @@ module Vmpooler
 
           jdata = JSON.parse(request.body.read)
 
-          jdata.each do |template, count|
-            if ( $redis.scard('vmpooler__ready__'+template) < count.to_i )
+          jdata.each do |key, val|
+            if (key == 'key')
+              result['key'] = val
+            end
+
+            if ( $redis.scard('vmpooler__ready__'+key) < val.to_i )
               available = 0
             end
           end
@@ -198,30 +202,41 @@ module Vmpooler
           if ( available == 1 )
             result['ok'] = true
 
-            jdata.each do |template, count|
-              result[template] ||= {}
+            jdata.each do |key, val|
+              if (key == 'key')
+                next
+              end
 
-              result[template]['ok'] = true ##
+              result[key] ||= {}
 
-              count.to_i.times do |i|
-                vm = $redis.spop('vmpooler__ready__'+template)
+              result[key]['ok'] = true ##
+
+              val.to_i.times do |i|
+                vm = $redis.spop('vmpooler__ready__'+key)
 
                 unless (vm.nil?)
-                  $redis.sadd('vmpooler__running__'+template, vm)
-                  $redis.hset('vmpooler__active__'+template, vm, Time.now)
+                  $redis.sadd('vmpooler__running__'+key, vm)
+                  $redis.hset('vmpooler__active__'+key, vm, Time.now)
 
-                  result[template] ||= {}
+                  result[key] ||= {}
 
-                  result[template]['ok'] = true ##
+                  result[key]['ok'] = true ##
 
-                  if ( result[template]['hostname'] )
-                    result[template]['hostname'] = [result[template]['hostname']] if ! result[template]['hostname'].is_a?(Array)
-                    result[template]['hostname'].push(vm)
+                  if ( result['key'] and $config[:config]['ssh_key'] )
+                    Net::SCP.upload!(
+                      vm, 'root', StringIO.new(result['key']), '/root/.ssh/authorized_keys',
+                      :ssh => { :keys => [ $config[:config]['ssh_key'] ] }
+                    )
+                  end
+
+                  if ( result[key]['hostname'] )
+                    result[key]['hostname'] = [result[key]['hostname']] if ! result[key]['hostname'].is_a?(Array)
+                    result[key]['hostname'].push(vm)
                   else
-                    result[template]['hostname'] = vm
+                    result[key]['hostname'] = vm
                   end
                 else
-                  result[template]['ok'] = false ##
+                  result[key]['ok'] = false ##
 
                   result['ok'] = false
                 end
