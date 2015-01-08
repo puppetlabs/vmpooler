@@ -336,7 +336,13 @@ module Vmpooler
 
           # PENDING
           $redis.smembers('vmpooler__pending__'+pool['name']).each do |vm|
-            pool['timeout'] ||= 15
+            unless (pool['timeout'])
+              if ($config[:config]['timeout'])
+                pool['timeout'] = $config[:config]['timeout']
+              else
+                pool['timeout'] = 15
+              end
+            end
 
             if (inventory[vm])
               begin
