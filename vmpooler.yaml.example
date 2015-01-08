@@ -91,6 +91,10 @@
 #     The number of concurrent VMware vSphere tasks to perform.
 #     (optional; default: '10')
 #
+#   - timeout
+#     How long (in minutes) before marking a clone as 'failed' and retrying.
+#     (optional; default: '15')
+#
 #   - vm_checktime
 #     How often (in minutes) to check the sanity of VMs in 'ready' queues.
 #     (optional; default: '15')
@@ -108,6 +112,7 @@
   site_name: 'vmpooler'
   logfile: '/var/log/vmpooler.log'
   task_limit: 10
+  timeout: 15
   vm_checktime: 15
   vm_lifetime: 12
   domain: 'company.com'
@@ -141,6 +146,7 @@
 #
 #   - timeout
 #     How long (in minutes) before marking a clone as 'failed' and retrying.
+#     This setting overrides any globally-configured timeout setting.
 #     (optional; default: '15')
 #
 #   - ready_ttl
