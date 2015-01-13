@@ -146,7 +146,7 @@ module Vmpooler
             if (
               (host.runtime) and
               (host.runtime.bootTime)
-              ((((Time.now - host.runtime.bootTime)/60).to_s[/^\d+\.\d{1}/].to_f) > ttl)
+              ((((Time.now - host.runtime.bootTime)/60).to_s[/^\d+\.\d{1}/].to_f) >= ttl)
             )
               $redis.smove('vmpooler__running__'+pool, 'vmpooler__completed__'+pool, vm)
 
