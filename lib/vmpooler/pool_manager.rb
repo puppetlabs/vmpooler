@@ -230,6 +230,8 @@ module Vmpooler
           ).wait_for_completion
           finish = '%.2f' % (Time.now-start)
 
+          $redis.hset('vmpooler__vm__'+vm['hostname'], 'clone_time', finish)
+
           $logger.log('s', "[+] [#{vm['template']}] '#{vm['hostname']}' cloned from '#{vm['template']}' in #{finish} seconds")
         rescue
           $logger.log('s', "[!] [#{vm['template']}] '#{vm['hostname']}' clone appears to have failed")
