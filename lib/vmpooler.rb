@@ -1,6 +1,7 @@
 require 'rubygems' unless defined?(Gem)
 
 module Vmpooler
+  require 'date'
   require 'json'
   require 'open-uri'
   require 'rbvmomi'
