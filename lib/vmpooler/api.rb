@@ -172,7 +172,6 @@ module Vmpooler
           content_type :json
 
           result = {}
-          clone_times = []
 
           result['capacity_current'] = 0
           result['capacity_total'] = 0
@@ -189,22 +188,18 @@ module Vmpooler
               result['empty'] ||= []
               result['empty'].push( pool['name'] )
             end
-
-            $redis.smembers( 'vmpooler__ready__'+pool['name'] ).each do |vm|
-              clone_time = $redis.hget( 'vmpooler__vm__'+vm, 'clone_time' )
-              clone_times.push( clone_time ) if clone_time.to_f > 0
-            end
           end
 
           if ( result['empty'] )
             result['status'] = 0
           end
 
-          if ( clone_times.any? )
-            result['clone_average'] = clone_times.map( &:to_f ).reduce( :+ ) / clone_times.size
-          end
-
           result['capacity_perecent'] = ( result['capacity_current'].to_f / result['capacity_total'].to_f ) * 100.0
+
+          result['clone_total'] = $redis.hlen('vmpooler__clone__'+Date.today.to_s)
+          if ( result['clone_total'] > 0 )
+            result['clone_average'] = $redis.hvals('vmpooler__clone__'+Date.today.to_s).map( &:to_f ).reduce( :+ ) / result['clone_total']
+          end
 
           JSON.pretty_generate(Hash[result.sort_by{|k,v| k}])
         end
