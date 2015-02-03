@@ -197,7 +197,9 @@ module Vmpooler
           result['capacity_perecent'] = ( result['capacity_current'].to_f / result['capacity_total'].to_f ) * 100.0
 
           result['clone_total'] = $redis.hlen('vmpooler__clone__'+Date.today.to_s)
-          result['clone_average'] = $redis.hvals('vmpooler__clone__'+Date.today.to_s).map( &:to_f ).reduce( :+ ) / result['clone_total']
+          if ( result['clone_total'] > 0 )
+            result['clone_average'] = $redis.hvals('vmpooler__clone__'+Date.today.to_s).map( &:to_f ).reduce( :+ ) / result['clone_total']
+          end
 
           JSON.pretty_generate(Hash[result.sort_by{|k,v| k}])
         end
