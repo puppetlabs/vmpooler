@@ -5,6 +5,8 @@ module Vmpooler
       config_file = File.expand_path('vmpooler.yaml')
       $config = YAML.load_file(config_file)
 
+      $config[:uptime] = Time.now
+
       # Set some defaults
       $config[:redis] ||= Hash.new
       $config[:redis]['server'] ||= 'localhost'
@@ -200,6 +202,8 @@ module Vmpooler
           if ( result['clone_total'] > 0 )
             result['clone_average'] = $redis.hvals('vmpooler__clone__'+Date.today.to_s).map( &:to_f ).reduce( :+ ) / result['clone_total']
           end
+
+          result['uptime'] = Time.now - $config[:uptime]
 
           JSON.pretty_generate(Hash[result.sort_by{|k,v| k}])
         end
