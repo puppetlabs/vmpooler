@@ -397,8 +397,12 @@ module Vmpooler
             jdata.each do |param, arg|
               case param
                 when 'lifetime'
-                  $redis.hset('vmpooler__vm__'+params[:hostname], param, arg)
-                  result['ok'] = true
+                  arg = arg.to_i
+
+                  if arg > 0
+                    $redis.hset('vmpooler__vm__'+params[:hostname], param, arg)
+                    result['ok'] = true
+                  end
               end
             end
           end
