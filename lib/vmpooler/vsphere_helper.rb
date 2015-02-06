@@ -2,36 +2,32 @@ require 'rubygems' unless defined?(Gem)
 
 module Vmpooler
   class VsphereHelper
-    def initialize vInfo = {}
+    def initialize(_vInfo = {})
       config_file = File.expand_path('vmpooler.yaml')
       vsphere = YAML.load_file(config_file)[:vsphere]
 
-      @connection = RbVmomi::VIM.connect :host     => vsphere['server'],
-                                         :user     => vsphere['username'],
-                                         :password => vsphere['password'],
-                                         :insecure => true
+      @connection = RbVmomi::VIM.connect host: vsphere['server'],
+                                         user: vsphere['username'],
+                                         password: vsphere['password'],
+                                         insecure: true
     end
 
-
-
-    def find_datastore datastorename
+    def find_datastore(datastorename)
       begin
         @connection.serviceInstance.CurrentTime
       rescue
-        initialize()
+        initialize
       end
 
       datacenter = @connection.serviceInstance.find_datacenter
       datacenter.find_datastore(datastorename)
     end
 
-
-
-    def find_folder foldername
+    def find_folder(foldername)
       begin
         @connection.serviceInstance.CurrentTime
       rescue
-        initialize()
+        initialize
       end
 
       datacenter = @connection.serviceInstance.find_datacenter
@@ -49,42 +45,38 @@ module Vmpooler
       base
     end
 
-
-
-    def find_least_used_host cluster
+    def find_least_used_host(cluster)
       begin
         @connection.serviceInstance.CurrentTime
       rescue
-        initialize()
+        initialize
       end
 
-      hosts = Hash.new
-      hosts_sort = Hash.new
+      hosts = {}
+      hosts_sort = {}
 
       datacenter = @connection.serviceInstance.find_datacenter
       datacenter.hostFolder.children.each do |folder|
         next unless folder.name == cluster
         folder.host.each do |host|
-          if (
-            (host.overallStatus == 'green') and
-            (! host.runtime.inMaintenanceMode)
-          )
+          if
+            (host.overallStatus == 'green') &&
+            (!host.runtime.inMaintenanceMode)
+
             hosts[host.name] = host
             hosts_sort[host.name] = host.vm.length
           end
         end
       end
 
-      hosts[hosts_sort.sort_by { |k,v| v }[0][0]]
+      hosts[hosts_sort.sort_by { |_k, v| v }[0][0]]
     end
 
-
-
-    def find_pool poolname
+    def find_pool(poolname)
       begin
         @connection.serviceInstance.CurrentTime
       rescue
-        initialize()
+        initialize
       end
 
       datacenter = @connection.serviceInstance.find_datacenter
@@ -103,58 +95,54 @@ module Vmpooler
         end
       end
 
-      base = base.resourcePool unless base.is_a?(RbVmomi::VIM::ResourcePool) and base.respond_to?(:resourcePool)
+      base = base.resourcePool unless base.is_a?(RbVmomi::VIM::ResourcePool) && base.respond_to?(:resourcePool)
       base
     end
 
-
-
-    def find_vm vmname
+    def find_vm(vmname)
       begin
         @connection.serviceInstance.CurrentTime
       rescue
-        initialize()
+        initialize
       end
 
-      @connection.searchIndex.FindByDnsName(:vmSearch => true, :dnsName => vmname)
+      @connection.searchIndex.FindByDnsName(vmSearch: true, dnsName: vmname)
     end
 
-
-
-    def find_vm_heavy vmname
+    def find_vm_heavy(vmname)
       begin
         @connection.serviceInstance.CurrentTime
       rescue
-        initialize()
+        initialize
       end
 
-      vmname = vmname.is_a?(Array) ? vmname : [ vmname ]
+      vmname = vmname.is_a?(Array) ? vmname : [vmname]
       containerView = get_base_vm_container_from @connection
       propertyCollector = @connection.propertyCollector
 
       objectSet = [{
-        :obj => containerView,
-        :skip => true,
-        :selectSet => [ RbVmomi::VIM::TraversalSpec.new({
-            :name => 'gettingTheVMs',
-            :path => 'view',
-           :skip => false,
-            :type => 'ContainerView'
-        }) ]
+        obj: containerView,
+        skip: true,
+        selectSet: [RbVmomi::VIM::TraversalSpec.new(
+            name: 'gettingTheVMs',
+            path: 'view',
+            skip: false,
+            type: 'ContainerView'
+        )]
       }]
 
       propSet = [{
-        :pathSet => [ 'name' ],
-        :type => 'VirtualMachine'
+        pathSet: ['name'],
+        type: 'VirtualMachine'
       }]
 
-      results = propertyCollector.RetrievePropertiesEx({
-        :specSet => [{
-          :objectSet => objectSet,
-          :propSet   => propSet
+      results = propertyCollector.RetrievePropertiesEx(
+        specSet: [{
+          objectSet: objectSet,
+          propSet: propSet
         }],
-        :options => { :maxObjects => nil }
-      })
+        options: { maxObjects: nil }
+      )
 
       vms = {}
       results.objects.each do |result|
@@ -163,8 +151,8 @@ module Vmpooler
         vms[name] = result.obj
       end
 
-      while results.token do
-        results = propertyCollector.ContinueRetrievePropertiesEx({:token => results.token})
+      while results.token
+        results = propertyCollector.ContinueRetrievePropertiesEx(token: results.token)
         results.objects.each do |result|
           name = result.propSet.first.val
           next unless vmname.include? name
@@ -175,29 +163,23 @@ module Vmpooler
       vms
     end
 
-
-
-    def get_base_vm_container_from connection
+    def get_base_vm_container_from(connection)
       begin
         connection.serviceInstance.CurrentTime
       rescue
-        initialize()
+        initialize
       end
 
       viewManager = connection.serviceContent.viewManager
-      viewManager.CreateContainerView({
-        :container => connection.serviceContent.rootFolder,
-        :recursive => true,
-        :type      => [ 'VirtualMachine' ]
-      })
+      viewManager.CreateContainerView(
+        container: connection.serviceContent.rootFolder,
+        recursive: true,
+        type: ['VirtualMachine']
+      )
     end
-
-
 
     def close
       @connection.close
     end
-
   end
 end
-
