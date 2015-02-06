@@ -19,4 +19,3 @@ module Vmpooler
     end
   end
 end
-

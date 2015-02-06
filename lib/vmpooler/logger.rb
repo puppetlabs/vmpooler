@@ -8,7 +8,7 @@ module Vmpooler
       @file = f
     end
 
-    def log level, string
+    def log(_level, string)
       time = Time.new
       stamp = time.strftime('%Y-%m-%d %H:%M:%S')
 
@@ -18,4 +18,3 @@ module Vmpooler
     end
   end
 end
-
