@@ -195,7 +195,7 @@ module Vmpooler
             result['status'] = 0
           end
 
-          result['capacity_perecent'] = (result['capacity_current'].to_f / result['capacity_total'].to_f) * 100.0
+          result['capacity_percent'] = (result['capacity_current'].to_f / result['capacity_total'].to_f) * 100.0
 
           result['clone_total'] = $redis.hlen('vmpooler__clone__' + Date.today.to_s)
           if result['clone_total'] > 0
