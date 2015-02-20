@@ -151,54 +151,54 @@ module Vmpooler
         get '/status/?' do
           content_type :json
 
-          result = {}
+          result = {
+            status: 1,
 
-          result['status'] = 1
+            pending: 0,
+            cloning: 0,
+            booting: 0,
+            ready: 0,
+            running: 0,
+            completed: 0,
 
-          result['pending'] = 0
-          result['cloning'] = 0
-          result['booting'] = 0
-          result['ready'] = 0
-          result['running'] = 0
-          result['completed'] = 0
-
-          result['capacity_current'] = 0
-          result['capacity_total'] = 0
+            capacity_current: 0,
+            capacity_total: 0
+          }
 
           $config[:pools].each do |pool|
-            pool['capacity_current'] = $redis.scard('vmpooler__ready__' + pool['name']).to_i
+            pool[:capacity_current] = $redis.scard('vmpooler__ready__' + pool['name']).to_i
 
-            result['capacity_current'] += pool['capacity_current']
-            result['capacity_total'] += pool['size'].to_i
+            result[:capacity_current] += pool[:capacity_current]
+            result[:capacity_total] += pool['size'].to_i
 
-            if (pool['capacity_current'] == 0)
-              result['empty'] ||= []
-              result['empty'].push(pool['name'])
+            if (pool[:capacity_current] == 0)
+              result[:empty] ||= []
+              result[:empty].push(pool['name'])
             end
 
-            result['pending'] += $redis.scard('vmpooler__pending__' + pool['name'])
-            result['ready'] += $redis.scard('vmpooler__ready__' + pool['name'])
-            result['running'] += $redis.scard('vmpooler__running__' + pool['name'])
-            result['completed'] += $redis.scard('vmpooler__completed__' + pool['name'])
+            result[:pending] += $redis.scard('vmpooler__pending__' + pool['name'])
+            result[:ready] += $redis.scard('vmpooler__ready__' + pool['name'])
+            result[:running] += $redis.scard('vmpooler__running__' + pool['name'])
+            result[:completed] += $redis.scard('vmpooler__completed__' + pool['name'])
           end
 
-          if result['empty']
-            result['status'] = 0
+          if result[:empty]
+            result[:status] = 0
           end
 
-          result['capacity_percent'] = (result['capacity_current'].to_f / result['capacity_total'].to_f) * 100.0
+          result[:capacity_percent] = (result[:capacity_current].to_f / result[:capacity_total].to_f) * 100.0
 
-          result['cloning'] = $redis.get('vmpooler__tasks__clone')
-          result['booting'] = result['pending'].to_i - result['cloning'].to_i
-          result['booting'] = 0 if result['booting'] < 0
-          result['total'] = result['pending'].to_i + result['ready'].to_i + result['running'].to_i + result['completed'].to_i
+          result[:cloning] = $redis.get('vmpooler__tasks__clone')
+          result[:booting] = result[:pending].to_i - result[:cloning].to_i
+          result[:booting] = 0 if result[:booting] < 0
+          result[:total] = result[:pending].to_i + result[:ready].to_i + result[:running].to_i + result[:completed].to_i
 
-          result['clone_total'] = $redis.hlen('vmpooler__clone__' + Date.today.to_s)
-          if result['clone_total'] > 0
-            result['clone_average'] = $redis.hvals('vmpooler__clone__' + Date.today.to_s).map(&:to_f).reduce(:+) / result['clone_total']
+          result[:clone_total] = $redis.hlen('vmpooler__clone__' + Date.today.to_s)
+          if result[:clone_total] > 0
+            result[:clone_average] = $redis.hvals('vmpooler__clone__' + Date.today.to_s).map(&:to_f).reduce(:+) / result[:clone_total]
           end
 
-          result['uptime'] = Time.now - $config[:uptime] if $config[:uptime]
+          result[:uptime] = Time.now - $config[:uptime] if $config[:uptime]
 
           JSON.pretty_generate(Hash[result.sort_by { |k, _v| k }])
         end
