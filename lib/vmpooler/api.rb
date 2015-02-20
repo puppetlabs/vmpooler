@@ -186,7 +186,7 @@ module Vmpooler
             result[:status] = 0
           end
 
-          result[:capacity_percent] = (result[:capacity_current].to_f / result[:capacity_total].to_f) * 100.0
+          result[:capacity_percent] = ((result[:capacity_current].to_f / result[:capacity_total].to_f) * 100.0).round(1)
 
           result[:cloning] = $redis.get('vmpooler__tasks__clone')
           result[:booting] = result[:pending].to_i - result[:cloning].to_i
@@ -195,10 +195,10 @@ module Vmpooler
 
           result[:clone_total] = $redis.hlen('vmpooler__clone__' + Date.today.to_s)
           if result[:clone_total] > 0
-            result[:clone_average] = $redis.hvals('vmpooler__clone__' + Date.today.to_s).map(&:to_f).reduce(:+) / result[:clone_total]
+            result[:clone_average] = ($redis.hvals('vmpooler__clone__' + Date.today.to_s).map(&:to_f).reduce(:+) / result[:clone_total]).round(1)
           end
 
-          result[:uptime] = Time.now - $config[:uptime] if $config[:uptime]
+          result[:uptime] = (Time.now - $config[:uptime]).round(1) if $config[:uptime]
 
           JSON.pretty_generate(Hash[result.sort_by { |k, _v| k }])
         end
