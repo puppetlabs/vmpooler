@@ -31,6 +31,10 @@ module Vmpooler
 
             hostname
           end
+
+          def validate_date_str(date_str)
+            /^\d{4}-\d{2}-\d{2}$/ === date_str
+          end
         end
 
         get '/' do
@@ -205,6 +209,74 @@ module Vmpooler
           result['uptime'] = Time.now - $config[:uptime]
 
           JSON.pretty_generate(Hash[result.sort_by { |k, _v| k }])
+        end
+
+        get '/summary/?' do
+          result = {
+              clone_total: 0,
+              clone_average: 0,
+              daily: []   # used for daily info
+          }
+
+          from_param, to_param = params[:from], params[:to]
+
+          # Check date formats.
+          # It is ok if to_param is nil, we will assume this means 'today'
+          if to_param.nil?
+            to_param = Date.today.to_s
+          elsif !validate_date_str(to_param.to_s)
+            halt 400, 'Invalid "to" date format, must match YYYY-MM-DD'
+          end
+
+          # We do need a from date, however.
+          if from_param.nil? or !validate_date_str(from_param.to_s)
+          halt 400, 'Invalid "from" date format, must match YYYY-MM-DD'
+          end
+
+          from_date, to_date = Date.parse(from_param), Date.parse(to_param)
+
+          if to_date < from_date
+            halt 400, 'Date range is invalid, "to" cannot come before "from".'
+          elsif from_date > Date.today
+            halt 400, 'Date range is invalid, "from" must be in the past.'
+          end
+
+          # total clone time for entire duration requested.
+          total_clone_time = 0
+
+          # generate sequence/range for from_date to to_date (inclusive).
+          # for each date, calculate the day's clone total & average, as well
+          # as add to total/overall values.
+          (from_date..to_date).each do |date|
+            me = {
+                day: date.to_s,
+                clone_total: $redis.hlen('vmpooler__clone__' + date.to_s),
+                clone_average: 0
+            }
+            result[:clone_total] += me[:clone_total]
+
+            clone_time = $redis.hvals('vmpooler__clone__' + date.to_s).map(&:to_f).reduce(:+)
+            total_clone_time += clone_time.to_f
+
+            # if clone_total > 0, calculate clone_average.
+            # this prevents divide by 0 problems.
+            if me[:clone_total] > 0
+              me[:clone_average] = clone_time / me[:clone_total]
+            else
+              me[:clone_average] = 0
+            end
+
+            # add to daily array
+            result[:daily].push(me)
+          end
+
+          # again, calc clone_average if we had clones.
+          if result[:clone_total] > 0
+            result[:clone_average] = total_clone_time / result[:clone_total]
+          end
+
+          content_type :json
+          JSON.pretty_generate(result)
         end
 
         get '/vm/?' do
