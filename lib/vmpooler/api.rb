@@ -296,7 +296,7 @@ module Vmpooler
               # if clone_total > 0, calculate clone_average.
               # this prevents divide by 0 problems.
               if me[:clone][:count][:total] > 0
-                me[:clone][:duration][:average] = clone_time / me[:clone][:duration][:total]
+                me[:clone][:duration][:average] = mean(clone_times)
               else
                 me[:clone][:duration][:average] = 0
               end
