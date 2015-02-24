@@ -309,12 +309,15 @@ module Vmpooler
 
           # again, calc clone_average if we had clones.
           unless total_clones_per_day.nil? or total_clones_per_day.length == 0
+            # totals
+            result[:clone][:count][:total] = total_clones_per_day.reduce(:+).to_i
+            result[:clone][:duration][:total] = total_clone_dur_day.reduce(:+).to_f
+
+            # averages and other things.
             result[:clone][:duration][:average] = result[:clone][:duration][:total] / result[:clone][:count][:total]
             result[:clone][:duration][:min], result[:clone][:duration][:max] = min_max_clone_times.minmax
-            result[:clone][:duration][:total] = total_clone_dur_day.reduce(:+).to_f
             result[:clone][:count][:min], result[:clone][:count][:max] = total_clones_per_day.minmax
             result[:clone][:count][:average] = mean(total_clones_per_day)
-            result[:clone][:count][:total] = total_clones_per_day.reduce(:+).to_i
           end
 
           content_type :json
