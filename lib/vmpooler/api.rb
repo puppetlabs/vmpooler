@@ -163,7 +163,8 @@ module Vmpooler
             },
             capacity: {
               current: 0,
-              total: 0
+              total: 0,
+              percent: 0
             },
             clone: {
               duration: {
@@ -181,7 +182,8 @@ module Vmpooler
               booting: 0,
               ready: 0,
               running: 0,
-              completed: 0
+              completed: 0,
+              total: 0
             }
           }
 
