@@ -214,12 +214,15 @@ module Vmpooler
                   duration: {
                       average: 0,
                       min: 0,
-                      max: 0
+                      max: 0,
+                      total: 0
                   },
-                  average: 0,
-                  min: 0,
-                  max: 0,
-                  total: 0
+                  count: {
+                      average: 0,
+                      min: 0,
+                      max: 0,
+                      total: 0
+                  }
               },
               daily: []   # used for daily info
           }
@@ -248,9 +251,9 @@ module Vmpooler
           end
 
           # total clone time for entire duration requested.
-          total_clone_time = 0
           min_max_clone_times = []    # min/max clone times from each day.
           total_clones_per_day = []   # total clones from each day
+          total_clone_dur_day = []    # total clone durations from each day
 
           # generate sequence/range for from_date to to_date (inclusive).
           # for each date, calculate the day's clone total & average, as well
@@ -259,44 +262,59 @@ module Vmpooler
             me = {
                 date: date.to_s,
                 clone: {
-                    average: 0,
-                    min: 0,
-                    max: 0,
-                    total: $redis.hlen('vmpooler__clone__' + date.to_s).to_i,
+                    duration: {
+                        average: 0,
+                        min: 0,
+                        max: 0,
+                        total: 0
+                    },
+                    count: {
+                        total: $redis.hlen('vmpooler__clone__' + date.to_s).to_i
+                    }
                 }
             }
-            result[:clone][:total] += me[:clone][:total]
-            total_clones_per_day.push(me[:clone][:total])
 
+            # add to daily clone count array
+            total_clones_per_day.push(me[:clone][:count][:total])
+
+            # fetch clone times from redis for this date. convert the results
+            # to float (numeric).
             clone_times = $redis.hvals('vmpooler__clone__' + date.to_s).map(&:to_f)
 
-            unless clone_times.nil? or clone_times.empty?
+            unless clone_times.nil? or clone_times.length == 0
               clone_time = clone_times.reduce(:+).to_f
-              total_clone_time += clone_time
+              # add clone time for this date for later processing
+              total_clone_dur_day.push(clone_time)
 
-              me[:clone][:min], me[:clone][:max] = clone_times.minmax
-              min_max_clone_times.push(me[:clone][:min])
-              min_max_clone_times.push(me[:clone][:max])
+              me[:clone][:duration][:total] = clone_time
+
+              # min and max clone durations for the day.
+              mi, ma = clone_times.minmax
+              me[:clone][:duration][:min], me[:clone][:duration][:max] = mi, ma
+              min_max_clone_times.push(mi, ma)
 
               # if clone_total > 0, calculate clone_average.
               # this prevents divide by 0 problems.
-              if me[:clone][:total] > 0
-                me[:clone][:average] = clone_time / me[:clone][:total]
+              if me[:clone][:count][:total] > 0
+                me[:clone][:duration][:average] = clone_time / me[:clone][:duration][:total]
               else
-                me[:clone][:average] = 0
+                me[:clone][:duration][:average] = 0
               end
 
-              # add to daily array
-              result[:daily].push(me)
             end
+
+            # add to daily array
+            result[:daily].push(me)
           end
 
           # again, calc clone_average if we had clones.
-          if result[:clone][:total] > 0
-            result[:clone][:duration][:average] = total_clone_time / result[:clone][:total]
+          unless total_clones_per_day.nil? or total_clones_per_day.length == 0
+            result[:clone][:duration][:average] = result[:clone][:duration][:total] / result[:clone][:count][:total]
             result[:clone][:duration][:min], result[:clone][:duration][:max] = min_max_clone_times.minmax
-            result[:clone][:min], result[:clone][:max] = total_clones_per_day.minmax
-            result[:clone][:average] = mean(total_clones_per_day)
+            result[:clone][:duration][:total] = total_clone_dur_day.reduce(:+).to_f
+            result[:clone][:count][:min], result[:clone][:count][:max] = total_clones_per_day.minmax
+            result[:clone][:count][:average] = mean(total_clones_per_day)
+            result[:clone][:count][:total] = total_clones_per_day.reduce(:+).to_i
           end
 
           content_type :json
