@@ -268,10 +268,10 @@ module Vmpooler
             result[:clone][:total] += me[:clone][:total]
             total_clones_per_day.push(me[:clone][:total])
 
-            clone_times = $redis.hvals('vmpooler__clone__' + date.to_s)
+            clone_times = $redis.hvals('vmpooler__clone__' + date.to_s).map(&:to_f)
 
             unless clone_times.nil? or clone_times.empty?
-              clone_time = clone_times.map(&:to_f).reduce(:+).to_f
+              clone_time = clone_times.reduce(:+).to_f
               total_clone_time += clone_time
 
               me[:clone][:min], me[:clone][:max] = clone_times.minmax
@@ -293,8 +293,8 @@ module Vmpooler
 
           # again, calc clone_average if we had clones.
           if result[:clone][:total] > 0
-            result[:clone][:timings][:average] = total_clone_time / result[:clone][:total]
-            result[:clone][:timings][:min], result[:clone][:timings][:max] = min_max_clone_times.minmax
+            result[:clone][:duration][:average] = total_clone_time / result[:clone][:total]
+            result[:clone][:duration][:min], result[:clone][:duration][:max] = min_max_clone_times.minmax
             result[:clone][:min], result[:clone][:max] = total_clones_per_day.minmax
             result[:clone][:average] = mean(total_clones_per_day)
           end
