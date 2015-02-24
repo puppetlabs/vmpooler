@@ -196,10 +196,10 @@ module Vmpooler
               result[:status][:empty].push(pool['name'])
             end
 
-            result[:queue][:pending] += $redis.scard('vmpooler__pending__' + pool['name'])
-            result[:queue][:ready] += $redis.scard('vmpooler__ready__' + pool['name'])
-            result[:queue][:running] += $redis.scard('vmpooler__running__' + pool['name'])
-            result[:queue][:completed] += $redis.scard('vmpooler__completed__' + pool['name'])
+            result[:queue][:pending] += $redis.scard('vmpooler__pending__' + pool['name']).to_i
+            result[:queue][:ready] += $redis.scard('vmpooler__ready__' + pool['name']).to_i
+            result[:queue][:running] += $redis.scard('vmpooler__running__' + pool['name']).to_i
+            result[:queue][:completed] += $redis.scard('vmpooler__completed__' + pool['name']).to_i
           end
 
           if result[:status][:empty]
@@ -214,7 +214,7 @@ module Vmpooler
           result[:queue][:booting] = 0 if result[:queue][:booting] < 0
           result[:queue][:total] = result[:queue][:pending].to_i + result[:queue][:ready].to_i + result[:queue][:running].to_i + result[:queue][:completed].to_i
 
-          result[:clone][:count][:total] = $redis.hlen('vmpooler__clone__' + Date.today.to_s)
+          result[:clone][:count][:total] = $redis.hlen('vmpooler__clone__' + Date.today.to_s).to_i
           if result[:clone][:count][:total] > 0
             clone_times = $redis.hvals('vmpooler__clone__' + Date.today.to_s).map(&:to_f)
 
