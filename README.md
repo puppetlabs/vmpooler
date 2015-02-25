@@ -70,7 +70,9 @@ vmpooler provides an API and web front-end (dashboard) on port `:4567`.  See the
 
 vmpooler provides a REST API for VM management.  The following examples use `curl` for communication.
 
-#### GET /vm
+#### VM operations
+
+##### GET /vm
 
 Retrieve a list of available VM pools.
 
@@ -84,7 +86,7 @@ $ curl --url vmpooler.company.com/vm
 ]
 ```
 
-#### POST /vm
+##### POST /vm
 
 Useful for batch operations; post JSON (see format below), get back VMs.
 
@@ -106,7 +108,7 @@ $ curl -d '{"debian-7-i386":"2","debian-7-x86_64":"1"}' --url vmpooler.company.c
 }
 ```
 
-#### POST /vm/&lt;pool&gt;
+##### POST /vm/&lt;pool&gt;
 
 Check-out a VM or VMs.
 
@@ -143,7 +145,7 @@ $ curl -d --url vmpooler.company.com/vm/debian-7-i386+debian-7-i386+debian-7-x86
 }
 ```
 
-#### GET /vm/&lt;hostname&gt;
+##### GET /vm/&lt;hostname&gt;
 
 Query a checked-out VM.
 
@@ -162,7 +164,7 @@ $ curl --url vmpooler.company.com/vm/pxpmtoonx7fiqg6
 }
 ```
 
-#### PUT /vm/&lt;hostname&gt;
+##### PUT /vm/&lt;hostname&gt;
 
 Modify a checked-out VM.
 
@@ -175,7 +177,7 @@ $ curl -X PUT -d '{"lifetime":"2"}' --url vmpooler.company.com/vm/fq6qlpjlsskycq
 }
 ```
 
-#### DELETE /vm/&lt;hostname&gt;
+##### DELETE /vm/&lt;hostname&gt;
 
 Schedule a checked-out VM for deletion.
 
@@ -185,6 +187,74 @@ $ curl -X DELETE --url vmpooler.company.com/vm/fq6qlpjlsskycq6
 ```json
 {
   "ok": true
+}
+```
+
+#### Status and metrics
+
+##### GET /status
+
+A "live" status endpoint, representing the current state of the service.
+
+```
+$ curl --url vmpooler.company.com/status
+```
+```json
+{
+  "capacity": {
+    "current": 716,
+    "total": 717,
+    "percent": 99.9
+  },
+  "clone": {
+    "duration": {
+      "average": 8.8,
+      "min": 2.79,
+      "max": 69.76
+    },
+    "count": {
+      "total": 1779
+    }
+  },
+  "queue": {
+    "pending": 1,
+    "cloning": 0,
+    "booting": 1,
+    "ready": 716,
+    "running": 142,
+    "completed": 0,
+    "total": 859
+  },
+  "status": {
+    "ok": true,
+    "message": "Battle station fully armed and operational."
+  }
+}
+```
+
+If there are empty pools, the "status" section will convey this:
+
+```json
+   "status": {
+     "ok": false,
+     "message": "Found 2 empty pools.",
+     "empty": [
+       "centos-6-x86_64",
+       "debian-7-x86_64"
+     ]
+   }
+```
+
+##### GET /summary
+
+...
+
+```
+$ curl --url vmpooler.company.com/summary
+```
+```json
+{
+  ...
 }
 ```
 
