@@ -42,6 +42,16 @@ module Vmpooler
           end
         end
 
+        not_found do
+          content_type :json
+
+          result = {
+            ok: false
+          }
+
+          JSON.pretty_generate(result)
+        end
+
         get '/' do
           erb :dashboard, locals: {
             site_name: $config[:config]['site_name'] || '<b>vmpooler</b>'
