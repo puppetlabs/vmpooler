@@ -258,8 +258,10 @@ module Vmpooler
             halt 400, 'Invalid "to" date format, must match YYYY-MM-DD'
           end
 
-          # We do need a from date, however.
-          if from_param.nil? or !validate_date_str(from_param.to_s)
+          # It is also ok if from_param is nil, we will assume this also means 'today'
+          if from_param.nil?
+            from_param = Date.today.to_s
+          elsif !validate_date_str(from_param.to_s)
           halt 400, 'Invalid "from" date format, must match YYYY-MM-DD'
           end
 
