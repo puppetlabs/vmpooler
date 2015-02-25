@@ -345,8 +345,14 @@ module Vmpooler
             result[:clone][:duration][:total] = total_clone_dur_day.reduce(:+).to_f
 
             # averages and other things.
-            result[:clone][:duration][:average] = result[:clone][:duration][:total] / result[:clone][:count][:total]
-            result[:clone][:duration][:min], result[:clone][:duration][:max] = min_max_clone_times.minmax
+            if result[:clone][:count][:total] != 0
+              result[:clone][:duration][:average] = result[:clone][:duration][:total] / result[:clone][:count][:total]
+            end
+
+            if min_max_clone_times.length > 0
+              result[:clone][:duration][:min], result[:clone][:duration][:max] = min_max_clone_times.minmax
+            end
+
             result[:clone][:count][:min], result[:clone][:count][:max] = total_clones_per_day.minmax
             result[:clone][:count][:average] = mean(total_clones_per_day)
           end
