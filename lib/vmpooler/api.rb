@@ -209,7 +209,7 @@ module Vmpooler
             result[:status][:message] = "Found #{result[:status][:empty].length} empty pools."
           end
 
-          result[:capacity][:percent] = ((result[:capacity][:current].to_f / result[:capacity][:total].to_f) * 100.0).round(1)
+          result[:capacity][:percent] = ((result[:capacity][:current].to_f / result[:capacity][:total].to_f) * 100.0).round(1) if result[:capacity][:total] > 0
 
           result[:queue][:cloning] = $redis.get('vmpooler__tasks__clone').to_i
           result[:queue][:booting] = result[:queue][:pending].to_i - result[:queue][:cloning].to_i
@@ -220,7 +220,7 @@ module Vmpooler
           if result[:clone][:count][:total] > 0
             clone_times = $redis.hvals('vmpooler__clone__' + Date.today.to_s).map(&:to_f)
 
-            result[:clone][:duration][:average] = (clone_times.reduce(:+) / result[:clone][:count][:total]).round(1)
+            result[:clone][:duration][:average] = (clone_times.reduce(:+).to_f / result[:clone][:count][:total]).round(1)
             result[:clone][:duration][:min], result[:clone][:duration][:max] = clone_times.minmax
           end
 
