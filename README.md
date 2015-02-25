@@ -235,14 +235,14 @@ $ curl --url vmpooler.company.com/status
 If there are empty pools, the "status" section will convey this:
 
 ```json
-   "status": {
-     "ok": false,
-     "message": "Found 2 empty pools.",
-     "empty": [
-       "centos-6-x86_64",
-       "debian-7-x86_64"
-     ]
-   }
+  "status": {
+    "ok": false,
+    "message": "Found 2 empty pools.",
+    "empty": [
+      "centos-6-x86_64",
+      "debian-7-x86_64"
+    ]
+  }
 ```
 
 ##### GET /summary
