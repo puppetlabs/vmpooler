@@ -207,6 +207,7 @@ module Vmpooler
           end
 
           if result[:status][:empty]
+            status 503
             result[:status][:ok] = false
             result[:status][:message] = "Found #{result[:status][:empty].length} empty pools."
           end
@@ -403,11 +404,13 @@ module Vmpooler
                 else
                   result[key]['ok'] = false ##
 
+                  status 503
                   result['ok'] = false
                 end
               end
             end
           else
+            status 503
             result['ok'] = false
           end
 
@@ -462,10 +465,12 @@ module Vmpooler
               else
                 result[template]['ok'] = false ##
 
+                status 503
                 result['ok'] = false
               end
             end
           else
+            status 503
             result['ok'] = false
           end
 
@@ -481,11 +486,13 @@ module Vmpooler
 
           result = {}
 
+          status 404
           result['ok'] = false
 
           params[:hostname] = hostname_shorten(params[:hostname])
 
           if $redis.exists('vmpooler__vm__' + params[:hostname])
+            stauts 200
             result['ok'] = true
 
             result[params[:hostname]] = {}
@@ -507,6 +514,7 @@ module Vmpooler
 
           result = {}
 
+          status 404
           result['ok'] = false
 
           params[:hostname] = hostname_shorten(params[:hostname])
@@ -515,6 +523,8 @@ module Vmpooler
             if $redis.sismember('vmpooler__running__' + pool['name'], params[:hostname])
               $redis.srem('vmpooler__running__' + pool['name'], params[:hostname])
               $redis.sadd('vmpooler__completed__' + pool['name'], params[:hostname])
+
+              status 200
               result['ok'] = true
             end
           end
@@ -527,6 +537,7 @@ module Vmpooler
 
           result = {}
 
+          status 404
           result['ok'] = false
 
           params[:hostname] = hostname_shorten(params[:hostname])
@@ -541,6 +552,8 @@ module Vmpooler
 
                   if arg > 0
                     $redis.hset('vmpooler__vm__' + params[:hostname], param, arg)
+
+                    status 200
                     result['ok'] = true
                   end
               end
