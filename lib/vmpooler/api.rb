@@ -207,7 +207,6 @@ module Vmpooler
           end
 
           if result[:status][:empty]
-            status 503
             result[:status][:ok] = false
             result[:status][:message] = "Found #{result[:status][:empty].length} empty pools."
           end
