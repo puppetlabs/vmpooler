@@ -59,7 +59,9 @@ module Vmpooler
         end
 
         get '/dashboard/stats/vmpooler/pool/?' do
-          result = Hash.new
+          content_type :json
+
+          result = {}
 
           $config[:pools].each do |pool|
             result[pool['name']] ||= Hash.new
@@ -108,12 +110,13 @@ module Vmpooler
             end
           end
 
-          content_type :json
           JSON.pretty_generate(result)
         end
 
         get '/dashboard/stats/vmpooler/running/?' do
-          result = Hash.new
+          content_type :json
+
+          result = {}
 
           $config[:pools].each do |pool|
             running = $redis.scard('vmpooler__running__' + pool['name'])
@@ -159,7 +162,6 @@ module Vmpooler
             end
           end
 
-          content_type :json
           JSON.pretty_generate(result)
         end
 
@@ -240,6 +242,8 @@ module Vmpooler
         end
 
         get '/summary/?' do
+          content_type :json
+
           result = {
               clone: {
                   duration: {
@@ -359,7 +363,6 @@ module Vmpooler
             result[:clone][:count][:average] = mean(total_clones_per_day)
           end
 
-          content_type :json
           JSON.pretty_generate(result)
         end
 
@@ -418,11 +421,13 @@ module Vmpooler
                 else
                   result[key]['ok'] = false ##
 
+                  status 503
                   result['ok'] = false
                 end
               end
             end
           else
+            status 503
             result['ok'] = false
           end
 
@@ -477,10 +482,12 @@ module Vmpooler
               else
                 result[template]['ok'] = false ##
 
+                status 503
                 result['ok'] = false
               end
             end
           else
+            status 503
             result['ok'] = false
           end
 
@@ -496,11 +503,13 @@ module Vmpooler
 
           result = {}
 
+          status 404
           result['ok'] = false
 
           params[:hostname] = hostname_shorten(params[:hostname])
 
           if $redis.exists('vmpooler__vm__' + params[:hostname])
+            stauts 200
             result['ok'] = true
 
             result[params[:hostname]] = {}
@@ -522,6 +531,7 @@ module Vmpooler
 
           result = {}
 
+          status 404
           result['ok'] = false
 
           params[:hostname] = hostname_shorten(params[:hostname])
@@ -530,6 +540,8 @@ module Vmpooler
             if $redis.sismember('vmpooler__running__' + pool['name'], params[:hostname])
               $redis.srem('vmpooler__running__' + pool['name'], params[:hostname])
               $redis.sadd('vmpooler__completed__' + pool['name'], params[:hostname])
+
+              status 200
               result['ok'] = true
             end
           end
@@ -542,6 +554,7 @@ module Vmpooler
 
           result = {}
 
+          status 404
           result['ok'] = false
 
           params[:hostname] = hostname_shorten(params[:hostname])
@@ -556,6 +569,8 @@ module Vmpooler
 
                   if arg > 0
                     $redis.hset('vmpooler__vm__' + params[:hostname], param, arg)
+
+                    status 200
                     result['ok'] = true
                   end
               end
