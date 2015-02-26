@@ -51,7 +51,7 @@ module Vmpooler
         get '/dashboard/stats/vmpooler/pool/?' do
           content_type :json
 
-          result = Hash.new
+          result = {}
 
           $config[:pools].each do |pool|
             result[pool['name']] ||= Hash.new
@@ -106,7 +106,7 @@ module Vmpooler
         get '/dashboard/stats/vmpooler/running/?' do
           content_type :json
 
-          result = Hash.new
+          result = {}
 
           $config[:pools].each do |pool|
             running = $redis.scard('vmpooler__running__' + pool['name'])
