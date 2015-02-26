@@ -49,6 +49,8 @@ module Vmpooler
         end
 
         get '/dashboard/stats/vmpooler/pool/?' do
+          content_type :json
+
           result = Hash.new
 
           $config[:pools].each do |pool|
@@ -98,11 +100,12 @@ module Vmpooler
             end
           end
 
-          content_type :json
           JSON.pretty_generate(result)
         end
 
         get '/dashboard/stats/vmpooler/running/?' do
+          content_type :json
+
           result = Hash.new
 
           $config[:pools].each do |pool|
@@ -149,7 +152,6 @@ module Vmpooler
             end
           end
 
-          content_type :json
           JSON.pretty_generate(result)
         end
 
@@ -230,6 +232,8 @@ module Vmpooler
         end
 
         get '/summary/?' do
+          content_type :json
+
           result = {
               clone: {
                   duration: {
@@ -341,7 +345,6 @@ module Vmpooler
             result[:clone][:count][:average] = mean(total_clones_per_day)
           end
 
-          content_type :json
           JSON.pretty_generate(result)
         end
 
