@@ -53,7 +53,7 @@ module Vmpooler
             finish = '%.2f' % (Time.now - Time.parse($redis.hget('vmpooler__vm__' + vm, 'clone')))
 
             $redis.smove('vmpooler__pending__' + pool, 'vmpooler__ready__' + pool, vm)
-            $redis.hset('vmpooler__boot__' + Date.today.to_s, vm, finish)
+            $redis.hset('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm, finish)
 
             $logger.log('s', "[>] [#{pool}] '#{vm}' moved to 'ready' queue")
           end
@@ -232,7 +232,7 @@ module Vmpooler
           ).wait_for_completion
           finish = '%.2f' % (Time.now - start)
 
-          $redis.hset('vmpooler__clone__' + Date.today.to_s, vm['hostname'], finish)
+          $redis.hset('vmpooler__clone__' + Date.today.to_s, vm['template'] + ':' + vm['hostname'], finish)
           $redis.hset('vmpooler__vm__' + vm['hostname'], 'clone_time', finish)
 
           $logger.log('s', "[+] [#{vm['template']}] '#{vm['hostname']}' cloned from '#{vm['template']}' in #{finish} seconds")
