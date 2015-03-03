@@ -50,7 +50,10 @@ module Vmpooler
             rescue
             end
 
+            finish = '%.2f' % (Time.now - Time.parse($redis.hget('vmpooler__vm__' + vm, 'clone')))
+
             $redis.smove('vmpooler__pending__' + pool, 'vmpooler__ready__' + pool, vm)
+            $redis.hset('vmpooler__boot__' + Date.today.to_s, vm, finish)
 
             $logger.log('s', "[>] [#{pool}] '#{vm}' moved to 'ready' queue")
           end
