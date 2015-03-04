@@ -5,6 +5,83 @@ module Vmpooler
     api_prefix  = "/api/v#{api_version}"
 
     helpers do
+      def get_capacity_metrics()
+        capacity = {
+          current: 0,
+          total: 0,
+          percent: 0
+        }
+
+        $config[:pools].each do |pool|
+          pool['capacity'] = $redis.scard('vmpooler__ready__' + pool['name']).to_i
+
+          capacity[:current] += pool['capacity']
+          capacity[:total] += pool['size'].to_i
+        end
+
+        if capacity[:total] > 0
+          capacity[:percent] = ((capacity[:current].to_f / capacity[:total].to_f) * 100.0).round(1)
+        end
+
+        capacity
+      end
+
+      def get_clone_metrics(date_str)
+        clone = {
+          duration: {
+            average: 0,
+            min: 0,
+            max: 0,
+            total: 0
+          },
+          count: {
+            total: 0
+          }
+        }
+
+        clone[:count][:total] = $redis.hlen('vmpooler__clone__' + date_str).to_i
+
+        if clone[:count][:total] > 0
+          clone_times = get_clone_times(date_str)
+
+          clone[:duration][:total] = clone_times.reduce(:+).to_f
+          clone[:duration][:average] = (clone[:duration][:total] / clone[:count][:total]).round(1)
+          clone[:duration][:min], clone[:duration][:max] = clone_times.minmax
+        end
+
+        clone
+      end
+
+      def get_clone_times(date_str)
+        $redis.hvals('vmpooler__clone__' + date_str).map(&:to_f)
+      end
+
+      def get_queue_metrics()
+        queue = {
+          pending: 0,
+          cloning: 0,
+          booting: 0,
+          ready: 0,
+          running: 0,
+          completed: 0,
+          total: 0
+        }
+
+        $config[:pools].each do |pool|
+          queue[:pending] += $redis.scard('vmpooler__pending__' + pool['name']).to_i
+          queue[:ready] += $redis.scard('vmpooler__ready__' + pool['name']).to_i
+          queue[:running] += $redis.scard('vmpooler__running__' + pool['name']).to_i
+          queue[:completed] += $redis.scard('vmpooler__completed__' + pool['name']).to_i
+        end
+
+        queue[:cloning] = $redis.get('vmpooler__tasks__clone').to_i
+        queue[:booting] = queue[:pending].to_i - queue[:cloning].to_i
+        queue[:booting] = 0 if queue[:booting] < 0
+        queue[:total] = queue[:pending].to_i + queue[:ready].to_i + queue[:running].to_i + queue[:completed].to_i
+
+        queue
+      end
+
       def hostname_shorten(hostname)
         if $config[:config]['domain'] && hostname =~ /^\w+\.#{$config[:config]['domain']}$/
           hostname = hostname[/[^\.]+/]
@@ -13,13 +90,13 @@ module Vmpooler
         hostname
       end
 
-      def validate_date_str(date_str)
-        /^\d{4}-\d{2}-\d{2}$/ === date_str
-      end
-
       def mean(list)
         s = list.map(&:to_f).reduce(:+).to_f
         (s > 0 && list.length > 0) ? s / list.length.to_f : 0
+      end
+
+      def validate_date_str(date_str)
+        /^\d{4}-\d{2}-\d{2}$/ === date_str
       end
     end
 
@@ -30,68 +107,22 @@ module Vmpooler
         status: {
           ok: true,
           message: 'Battle station fully armed and operational.'
-        },
-        capacity: {
-          current: 0,
-          total: 0,
-          percent: 0
-        },
-        clone: {
-          duration: {
-            average: 0,
-            min: 0,
-            max: 0
-          },
-          count: {
-            total: 0
-          }
-        },
-        queue: {
-          pending: 0,
-          cloning: 0,
-          booting: 0,
-          ready: 0,
-          running: 0,
-          completed: 0,
-          total: 0
         }
       }
 
+      result[:capacity] = get_capacity_metrics()
+      result[:queue] = get_queue_metrics()
+      result[:clone] = get_clone_metrics(Date.today.to_s)
+
+      # Check for empty pools
       $config[:pools].each do |pool|
-        pool['capacity'] = $redis.scard('vmpooler__ready__' + pool['name']).to_i
-
-        result[:capacity][:current] += pool['capacity']
-        result[:capacity][:total] += pool['size'].to_i
-
-        if (pool['capacity'] == 0)
+        if $redis.scard('vmpooler__ready__' + pool['name']).to_i == 0
           result[:status][:empty] ||= []
           result[:status][:empty].push(pool['name'])
+
+          result[:status][:ok] = false
+          result[:status][:message] = "Found #{result[:status][:empty].length} empty pools."
         end
-
-        result[:queue][:pending] += $redis.scard('vmpooler__pending__' + pool['name']).to_i
-        result[:queue][:ready] += $redis.scard('vmpooler__ready__' + pool['name']).to_i
-        result[:queue][:running] += $redis.scard('vmpooler__running__' + pool['name']).to_i
-        result[:queue][:completed] += $redis.scard('vmpooler__completed__' + pool['name']).to_i
-      end
-
-      if result[:status][:empty]
-        result[:status][:ok] = false
-        result[:status][:message] = "Found #{result[:status][:empty].length} empty pools."
-      end
-
-      result[:capacity][:percent] = ((result[:capacity][:current].to_f / result[:capacity][:total].to_f) * 100.0).round(1) if result[:capacity][:total] > 0
-
-      result[:queue][:cloning] = $redis.get('vmpooler__tasks__clone').to_i
-      result[:queue][:booting] = result[:queue][:pending].to_i - result[:queue][:cloning].to_i
-      result[:queue][:booting] = 0 if result[:queue][:booting] < 0
-      result[:queue][:total] = result[:queue][:pending].to_i + result[:queue][:ready].to_i + result[:queue][:running].to_i + result[:queue][:completed].to_i
-
-      result[:clone][:count][:total] = $redis.hlen('vmpooler__clone__' + Date.today.to_s).to_i
-      if result[:clone][:count][:total] > 0
-        clone_times = $redis.hvals('vmpooler__clone__' + Date.today.to_s).map(&:to_f)
-
-        result[:clone][:duration][:average] = (clone_times.reduce(:+).to_f / result[:clone][:count][:total]).round(1)
-        result[:clone][:duration][:min], result[:clone][:duration][:max] = clone_times.minmax
       end
 
       result[:status][:uptime] = (Time.now - $config[:uptime]).round(1) if $config[:uptime]
@@ -117,108 +148,58 @@ module Vmpooler
                   total: 0
               }
           },
-          daily: []   # used for daily info
+          daily: []
       }
 
-      from_param, to_param = params[:from], params[:to]
+      from_param = params[:from] || Date.today.to_s
+      to_param   = params[:to]   || Date.today.to_s
 
-      # Check date formats.
-      # It is ok if to_param is nil, we will assume this means 'today'
-      if to_param.nil?
-        to_param = Date.today.to_s
-      elsif !validate_date_str(to_param.to_s)
-        halt 400, 'Invalid "to" date format, must match YYYY-MM-DD'
-      end
-
-      # It is also ok if from_param is nil, we will assume this also means 'today'
-      if from_param.nil?
-        from_param = Date.today.to_s
-      elsif !validate_date_str(from_param.to_s)
-      halt 400, 'Invalid "from" date format, must match YYYY-MM-DD'
+      # Validate date formats
+      [from_param, to_param].each do |param|
+        if !validate_date_str(param.to_s)
+          halt 400, "Invalid date format '#{param}', must match YYYY-MM-DD."
+        end
       end
 
       from_date, to_date = Date.parse(from_param), Date.parse(to_param)
 
       if to_date < from_date
-        halt 400, 'Date range is invalid, "to" cannot come before "from".'
+        halt 400, 'Date range is invalid, \'to\' cannot come before \'from\'.'
       elsif from_date > Date.today
-        halt 400, 'Date range is invalid, "from" must be in the past.'
+        halt 400, 'Date range is invalid, \'from\' must be in the past.'
       end
 
-      # total clone time for entire duration requested.
-      min_max_clone_times = []    # min/max clone times from each day.
-      total_clones_per_day = []   # total clones from each day
-      total_clone_dur_day = []    # total clone durations from each day
-
-      # generate sequence/range for from_date to to_date (inclusive).
-      # for each date, calculate the day's clone total & average, as well
-      # as add to total/overall values.
       (from_date..to_date).each do |date|
-        me = {
-            date: date.to_s,
-            clone: {
-                duration: {
-                    average: 0,
-                    min: 0,
-                    max: 0,
-                    total: 0
-                },
-                count: {
-                    total: $redis.hlen('vmpooler__clone__' + date.to_s).to_i
-                }
-            }
+        daily = {
+          date: date.to_s,
+          clone: get_clone_metrics(date.to_s)
         }
 
-        # add to daily clone count array
-        total_clones_per_day.push(me[:clone][:count][:total])
-
-        # fetch clone times from redis for this date. convert the results
-        # to float (numeric).
-        clone_times = $redis.hvals('vmpooler__clone__' + date.to_s).map(&:to_f)
-
-        unless clone_times.nil? or clone_times.length == 0
-          clone_time = clone_times.reduce(:+).to_f
-          # add clone time for this date for later processing
-          total_clone_dur_day.push(clone_time)
-
-          me[:clone][:duration][:total] = clone_time
-
-          # min and max clone durations for the day.
-          mi, ma = clone_times.minmax
-          me[:clone][:duration][:min], me[:clone][:duration][:max] = mi, ma
-          min_max_clone_times.push(mi, ma)
-
-          # if clone_total > 0, calculate clone_average.
-          # this prevents divide by 0 problems.
-          if me[:clone][:count][:total] > 0
-            me[:clone][:duration][:average] = mean(clone_times)
-          else
-            me[:clone][:duration][:average] = 0
-          end
-        end
-
-        # add to daily array
-        result[:daily].push(me)
+        result[:daily].push(daily)
       end
 
-      # again, calc clone_average if we had clones.
-      unless total_clones_per_day.nil? or total_clones_per_day.length == 0
-        # totals
-        result[:clone][:count][:total] = total_clones_per_day.reduce(:+).to_i
-        result[:clone][:duration][:total] = total_clone_dur_day.reduce(:+).to_f
+      daily_clone_counts = []
+      daily_clone_durations = []
 
-        # averages and other things.
-        if result[:clone][:count][:total] != 0
+      result[:daily].each do |daily|
+        daily_clone_counts.push(daily[:clone][:count][:total])
+
+        if daily[:clone][:count][:total] > 0
+          daily_clone_durations.push(daily[:clone][:duration][:min])
+          daily_clone_durations.push(daily[:clone][:duration][:max])
+        end
+
+        result[:clone][:count][:total] += daily[:clone][:count][:total]
+        result[:clone][:duration][:total] += daily[:clone][:duration][:total]
+
+        if result[:clone][:count][:total] > 0
           result[:clone][:duration][:average] = result[:clone][:duration][:total] / result[:clone][:count][:total]
         end
-
-        if min_max_clone_times.length > 0
-          result[:clone][:duration][:min], result[:clone][:duration][:max] = min_max_clone_times.minmax
-        end
-
-        result[:clone][:count][:min], result[:clone][:count][:max] = total_clones_per_day.minmax
-        result[:clone][:count][:average] = mean(total_clones_per_day)
       end
+
+      result[:clone][:count][:min], result[:clone][:count][:max] = daily_clone_counts.minmax
+      result[:clone][:count][:average] = mean(daily_clone_counts)
+      result[:clone][:duration][:min], result[:clone][:duration][:max] = daily_clone_durations.minmax
 
       JSON.pretty_generate(result)
     end
