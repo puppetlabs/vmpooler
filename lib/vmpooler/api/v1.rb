@@ -9,6 +9,32 @@ module Vmpooler
         $redis.hvals('vmpooler__clone__' + date.to_s).map(&:to_f)
       end
 
+      def get_queue_metrics()
+        queue = {
+          pending: 0,
+          cloning: 0,
+          booting: 0,
+          ready: 0,
+          running: 0,
+          completed: 0,
+          total: 0
+        }
+
+        $config[:pools].each do |pool|
+          queue[:pending] += $redis.scard('vmpooler__pending__' + pool['name']).to_i
+          queue[:ready] += $redis.scard('vmpooler__ready__' + pool['name']).to_i
+          queue[:running] += $redis.scard('vmpooler__running__' + pool['name']).to_i
+          queue[:completed] += $redis.scard('vmpooler__completed__' + pool['name']).to_i
+        end
+
+        queue[:cloning] = $redis.get('vmpooler__tasks__clone').to_i
+        queue[:booting] = queue[:pending].to_i - queue[:cloning].to_i
+        queue[:booting] = 0 if queue[:booting] < 0
+        queue[:total] = queue[:pending].to_i + queue[:ready].to_i + queue[:running].to_i + queue[:completed].to_i
+
+        queue
+      end
+
       def hostname_shorten(hostname)
         if $config[:config]['domain'] && hostname =~ /^\w+\.#{$config[:config]['domain']}$/
           hostname = hostname[/[^\.]+/]
@@ -49,17 +75,10 @@ module Vmpooler
           count: {
             total: 0
           }
-        },
-        queue: {
-          pending: 0,
-          cloning: 0,
-          booting: 0,
-          ready: 0,
-          running: 0,
-          completed: 0,
-          total: 0
         }
       }
+
+      result[:queue] = get_queue_metrics()
 
       $config[:pools].each do |pool|
         pool['capacity'] = $redis.scard('vmpooler__ready__' + pool['name']).to_i
@@ -71,11 +90,6 @@ module Vmpooler
           result[:status][:empty] ||= []
           result[:status][:empty].push(pool['name'])
         end
-
-        result[:queue][:pending] += $redis.scard('vmpooler__pending__' + pool['name']).to_i
-        result[:queue][:ready] += $redis.scard('vmpooler__ready__' + pool['name']).to_i
-        result[:queue][:running] += $redis.scard('vmpooler__running__' + pool['name']).to_i
-        result[:queue][:completed] += $redis.scard('vmpooler__completed__' + pool['name']).to_i
       end
 
       if result[:status][:empty]
@@ -84,11 +98,6 @@ module Vmpooler
       end
 
       result[:capacity][:percent] = ((result[:capacity][:current].to_f / result[:capacity][:total].to_f) * 100.0).round(1) if result[:capacity][:total] > 0
-
-      result[:queue][:cloning] = $redis.get('vmpooler__tasks__clone').to_i
-      result[:queue][:booting] = result[:queue][:pending].to_i - result[:queue][:cloning].to_i
-      result[:queue][:booting] = 0 if result[:queue][:booting] < 0
-      result[:queue][:total] = result[:queue][:pending].to_i + result[:queue][:ready].to_i + result[:queue][:running].to_i + result[:queue][:completed].to_i
 
       result[:clone][:count][:total] = $redis.hlen('vmpooler__clone__' + Date.today.to_s).to_i
       if result[:clone][:count][:total] > 0
