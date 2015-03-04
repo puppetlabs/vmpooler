@@ -5,6 +5,10 @@ module Vmpooler
     api_prefix  = "/api/v#{api_version}"
 
     helpers do
+      def get_clone_times(date)
+        $redis.hvals('vmpooler__clone__' + date.to_s).map(&:to_f)
+      end
+
       def hostname_shorten(hostname)
         if $config[:config]['domain'] && hostname =~ /^\w+\.#{$config[:config]['domain']}$/
           hostname = hostname[/[^\.]+/]
@@ -88,7 +92,7 @@ module Vmpooler
 
       result[:clone][:count][:total] = $redis.hlen('vmpooler__clone__' + Date.today.to_s).to_i
       if result[:clone][:count][:total] > 0
-        clone_times = $redis.hvals('vmpooler__clone__' + Date.today.to_s).map(&:to_f)
+        clone_times = get_clone_times(Date.today)
 
         result[:clone][:duration][:average] = (clone_times.reduce(:+).to_f / result[:clone][:count][:total]).round(1)
         result[:clone][:duration][:min], result[:clone][:duration][:max] = clone_times.minmax
@@ -174,7 +178,7 @@ module Vmpooler
 
         # fetch clone times from redis for this date. convert the results
         # to float (numeric).
-        clone_times = $redis.hvals('vmpooler__clone__' + date.to_s).map(&:to_f)
+        clone_times = get_clone_times(date)
 
         unless clone_times.nil? or clone_times.length == 0
           clone_time = clone_times.reduce(:+).to_f
