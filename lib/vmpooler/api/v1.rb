@@ -26,7 +26,7 @@ module Vmpooler
         capacity
       end
 
-      def get_clone_metrics(date)
+      def get_clone_metrics(date_str)
         clone = {
           duration: {
             average: 0,
@@ -39,10 +39,10 @@ module Vmpooler
           }
         }
 
-        clone[:count][:total] = $redis.hlen('vmpooler__clone__' + date).to_i
+        clone[:count][:total] = $redis.hlen('vmpooler__clone__' + date_str).to_i
 
         if clone[:count][:total] > 0
-          clone_times = get_clone_times(date)
+          clone_times = get_clone_times(date_str)
 
           clone[:duration][:total] = clone_times.reduce(:+).to_f
           clone[:duration][:average] = (clone[:duration][:total] / clone[:count][:total]).round(1)
@@ -52,8 +52,8 @@ module Vmpooler
         clone
       end
 
-      def get_clone_times(date)
-        $redis.hvals('vmpooler__clone__' + date.to_s).map(&:to_f)
+      def get_clone_times(date_str)
+        $redis.hvals('vmpooler__clone__' + date_str).map(&:to_f)
       end
 
       def get_queue_metrics()
