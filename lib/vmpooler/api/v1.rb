@@ -26,6 +26,30 @@ module Vmpooler
         capacity
       end
 
+      def get_clone_metrics(date)
+        clone = {
+          duration: {
+            average: 0,
+            min: 0,
+            max: 0
+          },
+          count: {
+            total: 0
+          }
+        }
+
+        clone[:count][:total] = $redis.hlen('vmpooler__clone__' + date).to_i
+
+        if clone[:count][:total] > 0
+          clone_times = get_clone_times(date)
+
+          clone[:duration][:average] = (clone_times.reduce(:+).to_f / clone[:count][:total]).round(1)
+          clone[:duration][:min], clone[:duration][:max] = clone_times.minmax
+        end
+
+        clone
+      end
+
       def get_clone_times(date)
         $redis.hvals('vmpooler__clone__' + date.to_s).map(&:to_f)
       end
@@ -81,21 +105,12 @@ module Vmpooler
         status: {
           ok: true,
           message: 'Battle station fully armed and operational.'
-        },
-        clone: {
-          duration: {
-            average: 0,
-            min: 0,
-            max: 0
-          },
-          count: {
-            total: 0
-          }
         }
       }
 
       result[:capacity] = get_capacity_metrics()
       result[:queue] = get_queue_metrics()
+      result[:clone] = get_clone_metrics(Date.today.to_s)
 
       # Check for empty pools
       $config[:pools].each do |pool|
@@ -106,14 +121,6 @@ module Vmpooler
           result[:status][:ok] = false
           result[:status][:message] = "Found #{result[:status][:empty].length} empty pools."
         end
-      end
-
-      result[:clone][:count][:total] = $redis.hlen('vmpooler__clone__' + Date.today.to_s).to_i
-      if result[:clone][:count][:total] > 0
-        clone_times = get_clone_times(Date.today)
-
-        result[:clone][:duration][:average] = (clone_times.reduce(:+).to_f / result[:clone][:count][:total]).round(1)
-        result[:clone][:duration][:min], result[:clone][:duration][:max] = clone_times.minmax
       end
 
       result[:status][:uptime] = (Time.now - $config[:uptime]).round(1) if $config[:uptime]
