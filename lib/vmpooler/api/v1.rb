@@ -124,29 +124,22 @@ module Vmpooler
           daily: []   # used for daily info
       }
 
-      from_param, to_param = params[:from], params[:to]
+      from_param = params[:from] || Date.today.to_s
+      to_param   = params[:to]   || Date.today.to_s
 
-      # Check date formats.
-      # It is ok if to_param is nil, we will assume this means 'today'
-      if to_param.nil?
-        to_param = Date.today.to_s
-      elsif !validate_date_str(to_param.to_s)
-        halt 400, 'Invalid "to" date format, must match YYYY-MM-DD'
-      end
-
-      # It is also ok if from_param is nil, we will assume this also means 'today'
-      if from_param.nil?
-        from_param = Date.today.to_s
-      elsif !validate_date_str(from_param.to_s)
-      halt 400, 'Invalid "from" date format, must match YYYY-MM-DD'
+      # Validate date formats
+      [from_param, to_param].each do |param|
+        if !validate_date_str(param.to_s)
+          halt 400, "Invalid date format '#{param}', must match YYYY-MM-DD."
+        end
       end
 
       from_date, to_date = Date.parse(from_param), Date.parse(to_param)
 
       if to_date < from_date
-        halt 400, 'Date range is invalid, "to" cannot come before "from".'
+        halt 400, 'Date range is invalid, \'to\' cannot come before \'from\'.'
       elsif from_date > Date.today
-        halt 400, 'Date range is invalid, "from" must be in the past.'
+        halt 400, 'Date range is invalid, \'from\' must be in the past.'
       end
 
       # total clone time for entire duration requested.
