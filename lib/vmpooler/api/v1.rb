@@ -183,8 +183,11 @@ module Vmpooler
 
       result[:daily].each do |daily|
         daily_clone_counts.push(daily[:clone][:count][:total])
-        daily_clone_durations.push(daily[:clone][:duration][:min])
-        daily_clone_durations.push(daily[:clone][:duration][:max])
+
+        if daily[:clone][:count][:total] > 0
+          daily_clone_durations.push(daily[:clone][:duration][:min])
+          daily_clone_durations.push(daily[:clone][:duration][:max])
+        end
 
         result[:clone][:count][:total] += daily[:clone][:count][:total]
         result[:clone][:duration][:total] += daily[:clone][:duration][:total]
