@@ -134,21 +134,21 @@ module Vmpooler
       content_type :json
 
       result = {
-          clone: {
-              duration: {
-                  average: 0,
-                  min: 0,
-                  max: 0,
-                  total: 0
-              },
-              count: {
-                  average: 0,
-                  min: 0,
-                  max: 0,
-                  total: 0
-              }
+        clone: {
+          duration: {
+            average: 0,
+            min: 0,
+            max: 0,
+            total: 0
           },
-          daily: []
+          count: {
+            average: 0,
+            min: 0,
+            max: 0,
+            total: 0
+          }
+        },
+        daily: []
       }
 
       from_param = params[:from] || Date.today.to_s
