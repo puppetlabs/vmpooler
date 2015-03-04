@@ -5,6 +5,27 @@ module Vmpooler
     api_prefix  = "/api/v#{api_version}"
 
     helpers do
+      def get_capacity_metrics()
+        capacity = {
+          current: 0,
+          total: 0,
+          percent: 0
+        }
+
+        $config[:pools].each do |pool|
+          pool['capacity'] = $redis.scard('vmpooler__ready__' + pool['name']).to_i
+
+          capacity[:current] += pool['capacity']
+          capacity[:total] += pool['size'].to_i
+        end
+
+        if capacity[:total] > 0
+          capacity[:percent] = ((capacity[:current].to_f / capacity[:total].to_f) * 100.0).round(1)
+        end
+
+        capacity
+      end
+
       def get_clone_times(date)
         $redis.hvals('vmpooler__clone__' + date.to_s).map(&:to_f)
       end
@@ -61,11 +82,6 @@ module Vmpooler
           ok: true,
           message: 'Battle station fully armed and operational.'
         },
-        capacity: {
-          current: 0,
-          total: 0,
-          percent: 0
-        },
         clone: {
           duration: {
             average: 0,
@@ -78,26 +94,19 @@ module Vmpooler
         }
       }
 
+      result[:capacity] = get_capacity_metrics()
       result[:queue] = get_queue_metrics()
 
+      # Check for empty pools
       $config[:pools].each do |pool|
-        pool['capacity'] = $redis.scard('vmpooler__ready__' + pool['name']).to_i
-
-        result[:capacity][:current] += pool['capacity']
-        result[:capacity][:total] += pool['size'].to_i
-
-        if (pool['capacity'] == 0)
+        if $redis.scard('vmpooler__ready__' + pool['name']).to_i == 0
           result[:status][:empty] ||= []
           result[:status][:empty].push(pool['name'])
+
+          result[:status][:ok] = false
+          result[:status][:message] = "Found #{result[:status][:empty].length} empty pools."
         end
       end
-
-      if result[:status][:empty]
-        result[:status][:ok] = false
-        result[:status][:message] = "Found #{result[:status][:empty].length} empty pools."
-      end
-
-      result[:capacity][:percent] = ((result[:capacity][:current].to_f / result[:capacity][:total].to_f) * 100.0).round(1) if result[:capacity][:total] > 0
 
       result[:clone][:count][:total] = $redis.hlen('vmpooler__clone__' + Date.today.to_s).to_i
       if result[:clone][:count][:total] > 0
