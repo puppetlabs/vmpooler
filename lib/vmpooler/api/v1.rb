@@ -13,13 +13,13 @@ module Vmpooler
         hostname
       end
 
-      def validate_date_str(date_str)
-        /^\d{4}-\d{2}-\d{2}$/ === date_str
-      end
-
       def mean(list)
         s = list.map(&:to_f).reduce(:+).to_f
         (s > 0 && list.length > 0) ? s / list.length.to_f : 0
+      end
+
+      def validate_date_str(date_str)
+        /^\d{4}-\d{2}-\d{2}$/ === date_str
       end
     end
 
