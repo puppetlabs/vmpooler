@@ -395,7 +395,7 @@ module Vmpooler
       params[:hostname] = hostname_shorten(params[:hostname])
 
       if $redis.exists('vmpooler__vm__' + params[:hostname])
-        stauts 200
+        status 200
         result['ok'] = true
 
         result[params[:hostname]] = {}
