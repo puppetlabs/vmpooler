@@ -5,36 +5,6 @@ module Vmpooler
     api_prefix  = "/api/v#{api_version}"
 
     helpers do
-      def get_boot_metrics(date_str)
-        boot = {
-          duration: {
-            average: 0,
-            min: 0,
-            max: 0,
-            total: 0
-          },
-          count: {
-            total: 0
-          }
-        }
-
-        boot[:count][:total] = $redis.hlen('vmpooler__boot__' + date_str).to_i
-
-        if boot[:count][:total] > 0
-          boot_times = get_boot_times(date_str)
-
-          boot[:duration][:total] = boot_times.reduce(:+).to_f
-          boot[:duration][:average] = (boot[:duration][:total] / boot[:count][:total]).round(1)
-          boot[:duration][:min], boot[:duration][:max] = boot_times.minmax
-        end
-
-        boot
-      end
-
-      def get_boot_times(date_str)
-        $redis.hvals('vmpooler__boot__' + date_str).map(&:to_f)
-      end
-
       def get_capacity_metrics()
         capacity = {
           current: 0,
@@ -54,36 +24,6 @@ module Vmpooler
         end
 
         capacity
-      end
-
-      def get_clone_metrics(date_str)
-        clone = {
-          duration: {
-            average: 0,
-            min: 0,
-            max: 0,
-            total: 0
-          },
-          count: {
-            total: 0
-          }
-        }
-
-        clone[:count][:total] = $redis.hlen('vmpooler__clone__' + date_str).to_i
-
-        if clone[:count][:total] > 0
-          clone_times = get_clone_times(date_str)
-
-          clone[:duration][:total] = clone_times.reduce(:+).to_f
-          clone[:duration][:average] = (clone[:duration][:total] / clone[:count][:total]).round(1)
-          clone[:duration][:min], clone[:duration][:max] = clone_times.minmax
-        end
-
-        clone
-      end
-
-      def get_clone_times(date_str)
-        $redis.hvals('vmpooler__clone__' + date_str).map(&:to_f)
       end
 
       def get_queue_metrics()
@@ -110,6 +50,70 @@ module Vmpooler
         queue[:total] = queue[:pending].to_i + queue[:ready].to_i + queue[:running].to_i + queue[:completed].to_i
 
         queue
+      end
+
+      def get_task_metrics(task_str, date_str, opts = {})
+        opts = { :bypool => false }.merge(opts)
+
+        task = {
+          duration: {
+            average: 0,
+            min: 0,
+            max: 0,
+            total: 0
+          },
+          count: {
+            total: 0
+          }
+        }
+
+        task[:count][:total] = $redis.hlen('vmpooler__' + task_str + '__' + date_str).to_i
+
+        if task[:count][:total] > 0
+          if opts[:bypool] == true
+            task_times_bypool = {}
+
+            task[:count][:pool] = {}
+            task[:duration][:pool] = {}
+
+            $redis.hkeys('vmpooler__' + task_str + '__' + date_str).each do |key|
+              pool = 'unknown'
+              hostname = 'unknown'
+
+              if key =~ /\:/
+                pool, hostname = key.split(':')
+              else
+                hostname = key
+              end
+
+              task[:count][:pool][pool] ||= {}
+              task[:duration][:pool][pool] ||= {}
+
+              task_times_bypool[pool] ||= []
+              task_times_bypool[pool].push($redis.hget('vmpooler__' + task_str + '__' + date_str, key).to_f)
+            end
+
+            task_times_bypool.each_key do |pool|
+              task[:count][:pool][pool][:total] = task_times_bypool[pool].length
+
+              task[:duration][:pool][pool][:total] = task_times_bypool[pool].reduce(:+).to_f
+              task[:duration][:pool][pool][:average] = (task[:duration][:pool][pool][:total] / task[:count][:pool][pool][:total]).round(1)
+              task[:duration][:pool][pool][:min], task[:duration][:pool][pool][:max] = task_times_bypool[pool].minmax
+            end
+          end
+
+          task_times = get_task_times(task_str, date_str)
+
+          task[:duration][:total] = task_times.reduce(:+).to_f
+          task[:duration][:average] = (task[:duration][:total] / task[:count][:total]).round(1)
+          task[:duration][:min], task[:duration][:max] = task_times.minmax
+        end
+
+        task
+      end
+
+      def get_task_times(task, date_str)
+        $redis.hvals("vmpooler__#{task}__" + date_str).map(&:to_f)
       end
 
       def hostname_shorten(hostname)
@@ -142,8 +146,8 @@ module Vmpooler
 
       result[:capacity] = get_capacity_metrics()
       result[:queue] = get_queue_metrics()
-      result[:clone] = get_clone_metrics(Date.today.to_s)
-      result[:boot] = get_boot_metrics(Date.today.to_s)
+      result[:clone] = get_task_metrics('clone', Date.today.to_s)
+      result[:boot] = get_task_metrics('boot', Date.today.to_s)
 
       # Check for empty pools
       $config[:pools].each do |pool|
@@ -170,13 +174,15 @@ module Vmpooler
             average: 0,
             min: 0,
             max: 0,
-            total: 0
+            total: 0,
+            pool: {}
           },
           count: {
             average: 0,
             min: 0,
             max: 0,
-            total: 0
+            total: 0,
+            pool: {}
           }
         },
         clone: {
@@ -184,13 +190,15 @@ module Vmpooler
             average: 0,
             min: 0,
             max: 0,
-            total: 0
+            total: 0,
+            pool: {}
           },
           count: {
             average: 0,
             min: 0,
             max: 0,
-            total: 0
+            total: 0,
+            pool: {}
           }
         },
         daily: []
@@ -217,8 +225,8 @@ module Vmpooler
       (from_date..to_date).each do |date|
         daily = {
           date: date.to_s,
-          boot: get_boot_metrics(date.to_s),
-          clone: get_clone_metrics(date.to_s)
+          boot: get_task_metrics('boot', date.to_s, :bypool => true),
+          clone: get_task_metrics('clone', date.to_s, :bypool => true)
         }
 
         result[:daily].push(daily)
@@ -226,11 +234,33 @@ module Vmpooler
 
       [:boot, :clone].each do |task|
         daily_counts = []
+        daily_counts_bypool = {}
         daily_durations = []
+        daily_durations_bypool = {}
 
         result[:daily].each do |daily|
-          daily_counts.push(daily[task][:count][:total])
+          if daily[task][:count][:pool]
+            daily[task][:count][:pool].each_key do |pool|
+              daily_counts_bypool[pool] ||= []
+              daily_counts_bypool[pool].push(daily[task][:count][:pool][pool][:total])
 
+              if daily[task][:count][:pool][pool][:total] > 0
+                daily_durations_bypool[pool] ||= []
+                daily_durations_bypool[pool].push(daily[task][:duration][:pool][pool][:min])
+                daily_durations_bypool[pool].push(daily[task][:duration][:pool][pool][:max])
+              end
+
+              result[task][:count][:pool][pool] ||= {}
+              result[task][:count][:pool][pool][:total] ||= 0
+              result[task][:count][:pool][pool][:total] += daily[task][:count][:pool][pool][:total]
+
+              result[task][:duration][:pool][pool] ||= {}
+              result[task][:duration][:pool][pool][:total] ||= 0
+              result[task][:duration][:pool][pool][:total] += daily[task][:duration][:pool][pool][:total]
+            end
+          end
+
+          daily_counts.push(daily[task][:count][:total])
           if daily[task][:count][:total] > 0
             daily_durations.push(daily[task][:duration][:min])
             daily_durations.push(daily[task][:duration][:max])
@@ -238,15 +268,32 @@ module Vmpooler
 
           result[task][:count][:total] += daily[task][:count][:total]
           result[task][:duration][:total] += daily[task][:duration][:total]
+        end
 
-          if result[task][:count][:total] > 0
-            result[task][:duration][:average] = result[task][:duration][:total] / result[task][:count][:total]
-          end
+        if result[task][:count][:total] > 0
+          result[task][:duration][:average] = result[task][:duration][:total] / result[task][:count][:total] ##??
         end
 
         result[task][:count][:min], result[task][:count][:max] = daily_counts.minmax
         result[task][:count][:average] = mean(daily_counts)
-        result[task][:duration][:min], result[task][:duration][:max] = daily_durations.minmax
+
+        if daily_durations.length > 0
+          result[task][:duration][:min], result[task][:duration][:max] = daily_durations.minmax
+        end
+
+        daily_counts_bypool.each_key do |pool|
+          result[task][:count][:pool][pool][:min], result[task][:count][:pool][pool][:max] = daily_counts_bypool[pool].minmax
+          result[task][:count][:pool][pool][:average] = mean(daily_counts_bypool[pool])
+
+          if daily_durations_bypool[pool].length > 0
+            result[task][:duration][:pool][pool] ||= {}
+            result[task][:duration][:pool][pool][:min], result[task][:duration][:pool][pool][:max] = daily_durations_bypool[pool].minmax
+          end
+
+          if result[task][:count][:pool][pool][:total] > 0
+           result[task][:duration][:pool][pool][:average] = result[task][:duration][:pool][pool][:total] / result[task][:count][:pool][pool][:total]
+          end
+        end
       end
 
       JSON.pretty_generate(result)
