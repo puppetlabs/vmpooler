@@ -76,7 +76,7 @@ module Vmpooler
             task[:count][:pool] = {}
             task[:duration][:pool] = {}
 
-            $redis.hkeys('vmpooler__' + task_str + '__' + date_str).each do |key|
+            $redis.hgetall('vmpooler__' + task_str + '__' + date_str).each do |key, value|
               pool = 'unknown'
               hostname = 'unknown'
 
@@ -90,7 +90,7 @@ module Vmpooler
               task[:duration][:pool][pool] ||= {}
 
               task_times_bypool[pool] ||= []
-              task_times_bypool[pool].push($redis.hget('vmpooler__' + task_str + '__' + date_str, key).to_f)
+              task_times_bypool[pool].push(value.to_f)
             end
 
             task_times_bypool.each_key do |pool|
