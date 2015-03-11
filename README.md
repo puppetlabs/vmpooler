@@ -245,16 +245,137 @@ If there are empty pools, the "status" section will convey this:
   }
 ```
 
-##### GET /summary
+##### GET /summary[?from=YYYY-MM-DD[&to=YYYY-MM-DD]]
 
-...
+Returns a summary, or report, for the timespan between `from` and `to` (inclusive)
+parameters. The response includes both an overall and daily view of tracked
+metrics, such as boot and cloning durations.
+
+Any omitted query parameter will default to now/today. A request without any
+parameters will result in the current day's summary.
 
 ```
 $ curl --url vmpooler.company.com/summary
 ```
 ```json
 {
-  ...
+  "boot": {
+    "duration": {
+      "average": 106.6,
+      "min": 83.09,
+      "max": 121.06,
+      "total": 639.36,
+    },
+    "count": {
+      "average": 6,
+      "min": 6,
+      "max": 6,
+      "total": 6,
+    }
+  },
+  "clone": {
+    "duration": {
+      "average": 4.6,
+      "min": 2.78,
+      "max": 8.1,
+      "total": 63.94,
+    },
+    "count": {
+      "average": 14,
+      "min": 14,
+      "max": 14,
+      "total": 14,
+    }
+  },
+  "daily": [
+    {
+      "date": "2015-03-11",
+      "boot": {
+        "duration": {
+          "average": 106.6,
+          "min": 83.09,
+          "max": 121.06,
+          "total": 639.36
+        },
+        "count": {
+          "total": 6
+        }
+      },
+      "clone": {
+        "duration": {
+          "average": 4.6,
+          "min": 2.78,
+          "max": 8.1,
+          "total": 63.94
+        },
+        "count": {
+          "total": 14
+        }
+      }
+    }
+  ]
+}
+```
+
+```
+$ curl -G -d 'from=2015-03-10' -d 'to=2015-03-11' --url vmpooler.company.com/summary
+```
+```json
+{
+  "boot": {...},
+  "clone": {...},
+  "daily": [
+    {
+      "date": "2015-03-10",
+      "boot": {
+        "duration": {
+          "average": 0,
+          "min": 0,
+          "max": 0,
+          "total": 0
+        },
+        "count": {
+          "total": 0
+        }
+      },
+      "clone": {
+        "duration": {
+          "average": 0,
+          "min": 0,
+          "max": 0,
+          "total": 0
+        },
+        "count": {
+          "total": 0
+        }
+      }
+    },
+    {
+      "date": "2015-03-11",
+      "boot": {
+        "duration": {
+          "average": 106.6,
+          "min": 83.09,
+          "max": 121.06,
+          "total": 639.36
+        },
+        "count": {
+          "total": 6
+        }
+      },
+      "clone": {
+        "duration": {
+          "average": 4.6,
+          "min": 2.78,
+          "max": 8.1,
+          "total": 63.94
+        },
+        "count": {
+          "total": 14
+        }
+      }
+    }
+  ]
 }
 ```
 
@@ -267,12 +388,6 @@ A dashboard is provided to offer real-time statistics and historical graphs.  It
 [Graphite](http://graphite.wikidot.com/) is required for historical data retrieval.  See the provided YAML configuration example, [vmpooler.yaml.example](vmpooler.yaml.example), for details.
 
 
-## Authors and Contributors
-
-- Scott Schneider (sschneid@gmail.com)
-
-
 ## License
 
 vmpooler is distributed under the [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.html).  See the [LICENSE](LICENSE) file for more details.
-
