@@ -34,11 +34,19 @@ module Vmpooler
     end
 
     get '/' do
-      erb :dashboard, locals: {
-        site_name: $config[:config]['site_name'] || '<b>vmpooler</b>'
-      }
+      redirect to('/dashboard/')
     end
 
+    # Load dashboard components
+    begin
+      require "dashboard"
+    rescue LoadError
+      require File.expand_path(File.join(File.dirname(__FILE__), 'dashboard'))
+    end
+
+    use Vmpooler::Dashboard
+
+    # Load API components
     %w( dashboard reroute v1 ).each do |lib|
       begin
         require "api/#{lib}"

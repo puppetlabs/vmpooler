@@ -41,12 +41,14 @@ body,
   padding-right: 20px;
 }
 
-#stats-vmpooler-numbers {
+#stats-vmpooler-numbers,
+#stats-vmpooler-numbers-weekly {
   position: relative;
   top: -80px;
   right: 15px;
 }
 
+#stats-vmpooler-weekly,
 #stats-vmpooler-running {
   margin-bottom: -15px;
 }
