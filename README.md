@@ -168,8 +168,26 @@ $ curl --url vmpooler.company.com/vm/pxpmtoonx7fiqg6
 
 Modify a checked-out VM.
 
+The following are valid PUT parameters and their required data structures:
+
+parameter | description | required structure
+--------- | ----------- | ------------------
+*lifetime* | VM TTL (in hours) | integer
+*tags* | free-form VM tagging | hash
+
+Any modifications can be verified using the [GET /vm/&lt;hostname&gt;](#get-vmhostname) endpoint.
+
 ```
 $ curl -X PUT -d '{"lifetime":"2"}' --url vmpooler.company.com/vm/fq6qlpjlsskycq6
+```
+```json
+{
+  "ok": true
+}
+```
+
+```
+$ curl -X PUT -d '{"tags":{"department":"engineering","user":"sschneid"}}' --url vmpooler.company.com/vm/fq6qlpjlsskycq6
 ```
 ```json
 {
