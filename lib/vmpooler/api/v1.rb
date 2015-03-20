@@ -504,6 +504,8 @@ module Vmpooler
       if $redis.exists('vmpooler__vm__' + params[:hostname])
         jdata = JSON.parse(request.body.read)
 
+        failure = false
+
         jdata.each do |param, arg|
           case param
             when 'lifetime'
@@ -511,21 +513,26 @@ module Vmpooler
 
               if arg > 0
                 $redis.hset('vmpooler__vm__' + params[:hostname], param, arg)
-
-                status 200
-                result['ok'] = true
+              else
+                failure = true
               end
             when 'tags'
               if arg.is_a?(Hash)
                 arg.keys.each do |tag|
                   $redis.hset('vmpooler__vm__' + params[:hostname], 'tag:' + tag, arg[tag])
                 end
-
-                status 200
-                result['ok'] = true
+              else
+                failure = true
               end
           end
         end
+      end
+
+      if failure
+        status 400
+      else
+        status 200
+        result['ok'] = true
       end
 
       JSON.pretty_generate(result)
