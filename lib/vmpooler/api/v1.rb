@@ -445,11 +445,20 @@ module Vmpooler
         status 200
         result['ok'] = true
 
+        rdata = $redis.hgetall('vmpooler__vm__' + params[:hostname])
+
         result[params[:hostname]] = {}
 
-        result[params[:hostname]]['template'] = $redis.hget('vmpooler__vm__' + params[:hostname], 'template')
-        result[params[:hostname]]['lifetime'] = $redis.hget('vmpooler__vm__' + params[:hostname], 'lifetime') || $config[:config]['vm_lifetime']
+        result[params[:hostname]]['template'] = rdata['template']
+        result[params[:hostname]]['lifetime'] = rdata['lifetime'] || $config[:config]['vm_lifetime']
         result[params[:hostname]]['running'] = ((Time.now - Time.parse($redis.hget('vmpooler__active__' + result[params[:hostname]]['template'], params[:hostname]))) / 60 / 60).round(2)
+
+        rdata.keys.each do |key|
+          if key.match('^tag\:(.+?)$')
+            result[params[:hostname]]['tags'] ||= {}
+            result[params[:hostname]]['tags'][$1] = rdata[key]
+          end
+        end
 
         if $config[:config]['domain']
           result[params[:hostname]]['domain'] = $config[:config]['domain']
@@ -485,6 +494,8 @@ module Vmpooler
     put "#{api_prefix}/vm/:hostname/?" do
       content_type :json
 
+      failure = false
+
       result = {}
 
       status 404
@@ -495,18 +506,40 @@ module Vmpooler
       if $redis.exists('vmpooler__vm__' + params[:hostname])
         jdata = JSON.parse(request.body.read)
 
+        # Validate data payload
         jdata.each do |param, arg|
           case param
             when 'lifetime'
-              arg = arg.to_i
-
-              if arg > 0
-                $redis.hset('vmpooler__vm__' + params[:hostname], param, arg)
-
-                status 200
-                result['ok'] = true
+              unless arg.to_i > 0
+                failure = true
               end
+            when 'tags'
+              unless arg.is_a?(Hash)
+                failure = true
+              end
+            else
+              failure = true
           end
+        end
+
+        if failure
+          status 400
+        else
+          jdata.each do |param, arg|
+            case param
+              when 'lifetime'
+                arg = arg.to_i
+
+                $redis.hset('vmpooler__vm__' + params[:hostname], param, arg)
+              when 'tags'
+                arg.keys.each do |tag|
+                    $redis.hset('vmpooler__vm__' + params[:hostname], 'tag:' + tag, arg[tag])
+                end
+            end
+          end
+
+          status 200
+          result['ok'] = true
         end
       end
 
