@@ -494,6 +494,8 @@ module Vmpooler
     put "#{api_prefix}/vm/:hostname/?" do
       content_type :json
 
+      failure = false
+
       result = {}
 
       status 404
@@ -504,27 +506,40 @@ module Vmpooler
       if $redis.exists('vmpooler__vm__' + params[:hostname])
         jdata = JSON.parse(request.body.read)
 
+        # Validate data payload
         jdata.each do |param, arg|
           case param
             when 'lifetime'
-              arg = arg.to_i
-
-              if arg > 0
-                $redis.hset('vmpooler__vm__' + params[:hostname], param, arg)
-
-                status 200
-                result['ok'] = true
+              unless arg.to_i > 0
+                failure = true
               end
             when 'tags'
-              if arg.is_a?(Hash)
-                arg.keys.each do |tag|
-                  $redis.hset('vmpooler__vm__' + params[:hostname], 'tag:' + tag, arg[tag])
-                end
-
-                status 200
-                result['ok'] = true
+              unless arg.is_a?(Hash)
+                failure = true
               end
+            else
+              failure = true
           end
+        end
+
+        if failure
+          status 400
+        else
+          jdata.each do |param, arg|
+            case param
+              when 'lifetime'
+                arg = arg.to_i
+
+                $redis.hset('vmpooler__vm__' + params[:hostname], param, arg)
+              when 'tags'
+                arg.keys.each do |tag|
+                    $redis.hset('vmpooler__vm__' + params[:hostname], 'tag:' + tag, arg[tag])
+                end
+            end
+          end
+
+          status 200
+          result['ok'] = true
         end
       end
 
