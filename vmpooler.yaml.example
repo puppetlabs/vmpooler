@@ -43,6 +43,10 @@
 #   - password
 #     The password used to authenticate Redis.
 #     (optional)
+#
+#   - data_ttl
+#     How long (in hours) to retain metadata in Redis after VM destruction.
+#     (optional; default: '168')
 
 # Example:
 

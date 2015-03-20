@@ -11,8 +11,8 @@ module Vmpooler
       $config[:config]['task_limit']   ||= 10
       $config[:config]['vm_checktime'] ||= 15
       $config[:config]['vm_lifetime']  ||= 24
-      $config[:redis] ||= {}
-      $config[:redis]['server'] ||= 'localhost'
+      $config[:redis]             ||= {}
+      $config[:redis]['server']   ||= 'localhost'
 
       # Load logger library
       $logger = Vmpooler::Logger.new $config[:config]['logfile']
