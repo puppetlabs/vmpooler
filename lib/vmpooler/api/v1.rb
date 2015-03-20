@@ -445,11 +445,20 @@ module Vmpooler
         status 200
         result['ok'] = true
 
+        rdata = $redis.hgetall('vmpooler__vm__' + params[:hostname])
+
         result[params[:hostname]] = {}
 
-        result[params[:hostname]]['template'] = $redis.hget('vmpooler__vm__' + params[:hostname], 'template')
-        result[params[:hostname]]['lifetime'] = $redis.hget('vmpooler__vm__' + params[:hostname], 'lifetime') || $config[:config]['vm_lifetime']
+        result[params[:hostname]]['template'] = rdata['template']
+        result[params[:hostname]]['lifetime'] = rdata['lifetime'] || $config[:config]['vm_lifetime']
         result[params[:hostname]]['running'] = ((Time.now - Time.parse($redis.hget('vmpooler__active__' + result[params[:hostname]]['template'], params[:hostname]))) / 60 / 60).round(2)
+
+        rdata.keys.each do |key|
+          if key.match('^tag\:(.+?)$')
+            result[params[:hostname]]['tags'] ||= {}
+            result[params[:hostname]]['tags'][$1] = rdata[key]
+          end
+        end
 
         if $config[:config]['domain']
           result[params[:hostname]]['domain'] = $config[:config]['domain']
@@ -495,6 +504,8 @@ module Vmpooler
       if $redis.exists('vmpooler__vm__' + params[:hostname])
         jdata = JSON.parse(request.body.read)
 
+        failure = false
+
         jdata.each do |param, arg|
           case param
             when 'lifetime'
@@ -502,12 +513,26 @@ module Vmpooler
 
               if arg > 0
                 $redis.hset('vmpooler__vm__' + params[:hostname], param, arg)
-
-                status 200
-                result['ok'] = true
+              else
+                failure = true
+              end
+            when 'tags'
+              if arg.is_a?(Hash)
+                arg.keys.each do |tag|
+                  $redis.hset('vmpooler__vm__' + params[:hostname], 'tag:' + tag, arg[tag])
+                end
+              else
+                failure = true
               end
           end
         end
+      end
+
+      if failure
+        status 400
+      else
+        status 200
+        result['ok'] = true
       end
 
       JSON.pretty_generate(result)
