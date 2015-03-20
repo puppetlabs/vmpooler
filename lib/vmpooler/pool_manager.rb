@@ -256,7 +256,7 @@ module Vmpooler
       Thread.new do
         $redis.srem('vmpooler__completed__' + pool, vm)
         $redis.hdel('vmpooler__active__' + pool, vm)
-        $redis.del('vmpooler__vm__' + vm)
+        $redis.hset('vmpooler__vm__' + vm, 'destroy', Time.now)
 
         host = $vsphere[pool].find_vm(vm) ||
                $vsphere[pool].find_vm_heavy(vm)[vm]

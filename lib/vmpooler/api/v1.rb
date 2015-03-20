@@ -340,6 +340,7 @@ module Vmpooler
             unless vm.nil?
               $redis.sadd('vmpooler__running__' + key, vm)
               $redis.hset('vmpooler__active__' + key, vm, Time.now)
+              $redis.hset('vmpooler__vm__' + vm, 'checkout', Time.now)
 
               result[key] ||= {}
 
@@ -403,6 +404,7 @@ module Vmpooler
           unless vm.nil?
             $redis.sadd('vmpooler__running__' + template, vm)
             $redis.hset('vmpooler__active__' + template, vm, Time.now)
+            $redis.hset('vmpooler__vm__' + vm, 'checkout', Time.now)
 
             result[template] ||= {}
 
