@@ -504,7 +504,12 @@ module Vmpooler
       params[:hostname] = hostname_shorten(params[:hostname])
 
       if $redis.exists('vmpooler__vm__' + params[:hostname])
-        jdata = JSON.parse(request.body.read)
+        begin
+          jdata = JSON.parse(request.body.read)
+        rescue
+          status 400
+          return JSON.pretty_generate(result)
+        end
 
         # Validate data payload
         jdata.each do |param, arg|
