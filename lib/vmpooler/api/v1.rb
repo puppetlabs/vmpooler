@@ -453,7 +453,12 @@ module Vmpooler
 
         result[params[:hostname]]['template'] = rdata['template']
         result[params[:hostname]]['lifetime'] = rdata['lifetime'] || $config[:config]['vm_lifetime']
-        result[params[:hostname]]['running'] = ((Time.now - Time.parse($redis.hget('vmpooler__active__' + result[params[:hostname]]['template'], params[:hostname]))) / 60 / 60).round(2)
+
+        if rdata['destroy']
+          result[params[:hostname]]['running'] = ((Time.parse(rdata['destroy']) - Time.parse(rdata['checkout'])) / 60 / 60).round(2)
+        else
+          result[params[:hostname]]['running'] = ((Time.now - Time.parse(rdata['checkout'])) / 60 / 60).round(2)
+        end
 
         rdata.keys.each do |key|
           if key.match('^tag\:(.+?)$')
