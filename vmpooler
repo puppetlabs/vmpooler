@@ -6,6 +6,7 @@ require 'rubygems' unless defined?(Gem)
 require 'lib/vmpooler'
 
 Thread.new { Vmpooler::API.new.execute! }
+Thread.new { Vmpooler::Janitor.new.execute! }
 Thread.new { Vmpooler::PoolManager.new.execute! }
 
 loop do

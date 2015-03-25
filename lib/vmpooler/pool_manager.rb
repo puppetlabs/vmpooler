@@ -11,8 +11,8 @@ module Vmpooler
       $config[:config]['task_limit']   ||= 10
       $config[:config]['vm_checktime'] ||= 15
       $config[:config]['vm_lifetime']  ||= 24
-      $config[:redis] ||= {}
-      $config[:redis]['server'] ||= 'localhost'
+      $config[:redis]             ||= {}
+      $config[:redis]['server']   ||= 'localhost'
 
       # Load logger library
       $logger = Vmpooler::Logger.new $config[:config]['logfile']
@@ -256,7 +256,7 @@ module Vmpooler
       Thread.new do
         $redis.srem('vmpooler__completed__' + pool, vm)
         $redis.hdel('vmpooler__active__' + pool, vm)
-        $redis.del('vmpooler__vm__' + vm)
+        $redis.hset('vmpooler__vm__' + vm, 'destroy', Time.now)
 
         host = $vsphere[pool].find_vm(vm) ||
                $vsphere[pool].find_vm_heavy(vm)[vm]
