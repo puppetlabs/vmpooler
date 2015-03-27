@@ -189,6 +189,10 @@ module Vmpooler
         $redis.hset('vmpooler__vm__' + vm['hostname'], 'clone', Time.now)
         $redis.hset('vmpooler__vm__' + vm['hostname'], 'template', vm['template'])
 
+        # Set some default tags
+        $redis.hset('vmpooler__vm__' + vm['hostname'], 'tag:created_by', 'unknown')
+        $redis.hset('vmpooler__vm__' + vm['hostname'], 'tag:project', 'unknown')
+
         # Annotate with creation time, origin template, etc.
         configSpec = RbVmomi::VIM.VirtualMachineConfigSpec(
           annotation: JSON.pretty_generate(
