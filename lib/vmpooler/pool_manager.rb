@@ -1,30 +1,19 @@
 module Vmpooler
   class PoolManager
-    def initialize
-      # Load the configuration file
-      config_file = File.expand_path('vmpooler.yaml')
-      $config = YAML.load_file(config_file)
+    def initialize(config, pools, logger, redis, graphite=nil)
+      $config = config
 
-      $pools   = $config[:pools]
-
-      # Set some defaults
-      $config[:config]['task_limit']   ||= 10
-      $config[:config]['vm_checktime'] ||= 15
-      $config[:config]['vm_lifetime']  ||= 24
-      $config[:redis]             ||= {}
-      $config[:redis]['server']   ||= 'localhost'
+      $pools   = pools
 
       # Load logger library
-      $logger = Vmpooler::Logger.new $config[:config]['logfile']
+      $logger = logger
 
-      # Load Graphite helper library (if configured)
-      if defined? $config[:graphite]['server']
-        $config[:graphite]['prefix'] ||= 'vmpooler'
-        $graphite = Vmpooler::Graphite.new $config[:graphite]['server']
+      unless graphite.nil?
+        $graphite = graphite
       end
 
       # Connect to Redis
-      $redis = Redis.new(host: $config[:redis]['server'])
+      $redis = redis
 
       # vSphere object
       $vsphere = {}
