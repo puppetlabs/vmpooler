@@ -12,21 +12,24 @@ module Vmpooler
     end
 
     def execute!
-
       loop do
-        $redis.keys('vmpooler__vm__*').each do |key|
-          data = $redis.hgetall(key)
-
-          if data['destroy']
-            lifetime = (Time.now - Time.parse(data['destroy'])) / 60 / 60
-
-            if lifetime > $data_ttl
-              $redis.del(key)
-            end
-          end
-        end
+        find_stale_vms
 
         sleep(600)
+      end
+    end
+
+    def find_stale_vms
+      $redis.keys('vmpooler__vm__*').each do |key|
+        data = $redis.hgetall(key)
+
+        if data['destroy']
+          lifetime = (Time.now - Time.parse(data['destroy'])) / 60 / 60
+
+          if lifetime > $data_ttl
+            $redis.del(key)
+          end
+        end
       end
     end
   end
