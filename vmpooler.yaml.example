@@ -109,6 +109,9 @@
 #
 #   - domain
 #     If set, returns a top-level 'domain' JSON key in POST requests
+#
+#   - dns_servers
+#     Provide an array of dns_servers to configure when customizing the VM. 
 
 # Example:
 
@@ -120,6 +123,8 @@
   vm_checktime: 15
   vm_lifetime: 12
   domain: 'company.com'
+  dns_servers:
+    - 192.168.1.1
 
 # :pools:
 #
@@ -156,6 +161,10 @@
 #   - ready_ttl
 #     How long (in minutes) to keep VMs in 'ready' queues before destroying.
 #     (optional)
+#
+#   - customize
+#     Should the VM be customized upon deployment.
+#     (optional)
 
 # Example:
 
@@ -174,4 +183,11 @@
     size: 5
     timeout: 15
     ready_ttl: 1440
+  - name: 'centos-6-x86_64'
+    template: 'Templates/centos-6-x86_64'
+    folder: 'Pooled VMs/centos-6-x86_64'
+    size: 5
+    timeout: 15
+    ready_ttl: 1440
+    customize: true
 
