@@ -12,8 +12,8 @@ module Vmpooler
           percent: 0
         }
 
-        $config[:pools].each do |pool|
-          pool['capacity'] = $redis.scard('vmpooler__ready__' + pool['name']).to_i
+        Vmpooler::API.settings.config[:pools].each do |pool|
+          pool['capacity'] = Vmpooler::API.settings.redis.scard('vmpooler__ready__' + pool['name']).to_i
 
           capacity[:current] += pool['capacity']
           capacity[:total] += pool['size'].to_i
@@ -37,14 +37,14 @@ module Vmpooler
           total: 0
         }
 
-        $config[:pools].each do |pool|
-          queue[:pending] += $redis.scard('vmpooler__pending__' + pool['name']).to_i
-          queue[:ready] += $redis.scard('vmpooler__ready__' + pool['name']).to_i
-          queue[:running] += $redis.scard('vmpooler__running__' + pool['name']).to_i
-          queue[:completed] += $redis.scard('vmpooler__completed__' + pool['name']).to_i
+        Vmpooler::API.settings.config[:pools].each do |pool|
+          queue[:pending] += Vmpooler::API.settings.redis.scard('vmpooler__pending__' + pool['name']).to_i
+          queue[:ready] += Vmpooler::API.settings.redis.scard('vmpooler__ready__' + pool['name']).to_i
+          queue[:running] += Vmpooler::API.settings.redis.scard('vmpooler__running__' + pool['name']).to_i
+          queue[:completed] += Vmpooler::API.settings.redis.scard('vmpooler__completed__' + pool['name']).to_i
         end
 
-        queue[:cloning] = $redis.get('vmpooler__tasks__clone').to_i
+        queue[:cloning] = Vmpooler::API.settings.redis.get('vmpooler__tasks__clone').to_i
         queue[:booting] = queue[:pending].to_i - queue[:cloning].to_i
         queue[:booting] = 0 if queue[:booting] < 0
         queue[:total] = queue[:pending].to_i + queue[:ready].to_i + queue[:running].to_i + queue[:completed].to_i
@@ -67,7 +67,7 @@ module Vmpooler
           }
         }
 
-        task[:count][:total] = $redis.hlen('vmpooler__' + task_str + '__' + date_str).to_i
+        task[:count][:total] = Vmpooler::API.settings.redis.hlen('vmpooler__' + task_str + '__' + date_str).to_i
 
         if task[:count][:total] > 0
           if opts[:bypool] == true
@@ -76,7 +76,7 @@ module Vmpooler
             task[:count][:pool] = {}
             task[:duration][:pool] = {}
 
-            $redis.hgetall('vmpooler__' + task_str + '__' + date_str).each do |key, value|
+            Vmpooler::API.settings.redis.hgetall('vmpooler__' + task_str + '__' + date_str).each do |key, value|
               pool = 'unknown'
               hostname = 'unknown'
 
@@ -113,11 +113,11 @@ module Vmpooler
       end
 
       def get_task_times(task, date_str)
-        $redis.hvals("vmpooler__#{task}__" + date_str).map(&:to_f)
+        Vmpooler::API.settings.redis.hvals("vmpooler__#{task}__" + date_str).map(&:to_f)
       end
 
       def hostname_shorten(hostname)
-        if $config[:config]['domain'] && hostname =~ /^\w+\.#{$config[:config]['domain']}$/
+        if Vmpooler::API.settings.config[:config]['domain'] && hostname =~ /^\w+\.#{Vmpooler::API.settings.config[:config]['domain']}$/
           hostname = hostname[/[^\.]+/]
         end
 
@@ -150,8 +150,8 @@ module Vmpooler
       result[:boot] = get_task_metrics('boot', Date.today.to_s)
 
       # Check for empty pools
-      $config[:pools].each do |pool|
-        if $redis.scard('vmpooler__ready__' + pool['name']).to_i == 0
+      Vmpooler::API.settings.config[:pools].each do |pool|
+        if Vmpooler::API.settings.redis.scard('vmpooler__ready__' + pool['name']).to_i == 0
           result[:status][:empty] ||= []
           result[:status][:empty].push(pool['name'])
 
@@ -160,7 +160,7 @@ module Vmpooler
         end
       end
 
-      result[:status][:uptime] = (Time.now - $config[:uptime]).round(1) if $config[:uptime]
+      result[:status][:uptime] = (Time.now - Vmpooler::API.settings.config[:uptime]).round(1) if Vmpooler::API.settings.config[:uptime]
 
       JSON.pretty_generate(Hash[result.sort_by { |k, _v| k }])
     end
@@ -304,7 +304,7 @@ module Vmpooler
 
       result = []
 
-      $config[:pools].each do |pool|
+      Vmpooler::API.settings.config[:pools].each do |pool|
         result.push(pool['name'])
       end
 
@@ -321,7 +321,7 @@ module Vmpooler
       jdata = JSON.parse(request.body.read)
 
       jdata.each do |key, val|
-        if $redis.scard('vmpooler__ready__' + key) < val.to_i
+        if Vmpooler::API.settings.redis.scard('vmpooler__ready__' + key) < val.to_i
           available = 0
         end
       end
@@ -335,12 +335,12 @@ module Vmpooler
           result[key]['ok'] = true ##
 
           val.to_i.times do |_i|
-            vm = $redis.spop('vmpooler__ready__' + key)
+            vm = Vmpooler::API.settings.redis.spop('vmpooler__ready__' + key)
 
             unless vm.nil?
-              $redis.sadd('vmpooler__running__' + key, vm)
-              $redis.hset('vmpooler__active__' + key, vm, Time.now)
-              $redis.hset('vmpooler__vm__' + vm, 'checkout', Time.now)
+              Vmpooler::API.settings.redis.sadd('vmpooler__running__' + key, vm)
+              Vmpooler::API.settings.redis.hset('vmpooler__active__' + key, vm, Time.now)
+              Vmpooler::API.settings.redis.hset('vmpooler__vm__' + vm, 'checkout', Time.now)
 
               result[key] ||= {}
 
@@ -365,8 +365,8 @@ module Vmpooler
         result['ok'] = false
       end
 
-      if result['ok'] && $config[:config]['domain']
-        result['domain'] = $config[:config]['domain']
+      if result['ok'] && Vmpooler::API.settings.config[:config]['domain']
+        result['domain'] = Vmpooler::API.settings.config[:config]['domain']
       end
 
       JSON.pretty_generate(result)
@@ -386,7 +386,7 @@ module Vmpooler
       available = 1
 
       request.keys.each do |template|
-        if $redis.scard('vmpooler__ready__' + template) < request[template]
+        if Vmpooler::API.settings.redis.scard('vmpooler__ready__' + template) < request[template]
           available = 0
         end
       end
@@ -399,12 +399,12 @@ module Vmpooler
 
           result[template]['ok'] = true ##
 
-          vm = $redis.spop('vmpooler__ready__' + template)
+          vm = Vmpooler::API.settings.redis.spop('vmpooler__ready__' + template)
 
           unless vm.nil?
-            $redis.sadd('vmpooler__running__' + template, vm)
-            $redis.hset('vmpooler__active__' + template, vm, Time.now)
-            $redis.hset('vmpooler__vm__' + vm, 'checkout', Time.now)
+            Vmpooler::API.settings.redis.sadd('vmpooler__running__' + template, vm)
+            Vmpooler::API.settings.redis.hset('vmpooler__active__' + template, vm, Time.now)
+            Vmpooler::API.settings.redis.hset('vmpooler__vm__' + vm, 'checkout', Time.now)
 
             result[template] ||= {}
 
@@ -426,8 +426,8 @@ module Vmpooler
         result['ok'] = false
       end
 
-      if result['ok'] && $config[:config]['domain']
-        result['domain'] = $config[:config]['domain']
+      if result['ok'] && Vmpooler::API.settings.config[:config]['domain']
+        result['domain'] = Vmpooler::API.settings.config[:config]['domain']
       end
 
       JSON.pretty_generate(result)
@@ -443,16 +443,16 @@ module Vmpooler
 
       params[:hostname] = hostname_shorten(params[:hostname])
 
-      if $redis.exists('vmpooler__vm__' + params[:hostname])
+      if Vmpooler::API.settings.redis.exists('vmpooler__vm__' + params[:hostname])
         status 200
         result['ok'] = true
 
-        rdata = $redis.hgetall('vmpooler__vm__' + params[:hostname])
+        rdata = Vmpooler::API.settings.redis.hgetall('vmpooler__vm__' + params[:hostname])
 
         result[params[:hostname]] = {}
 
         result[params[:hostname]]['template'] = rdata['template']
-        result[params[:hostname]]['lifetime'] = rdata['lifetime'] || $config[:config]['vm_lifetime']
+        result[params[:hostname]]['lifetime'] = rdata['lifetime'] || Vmpooler::API.settings.config[:config]['vm_lifetime']
 
         if rdata['destroy']
           result[params[:hostname]]['running'] = ((Time.parse(rdata['destroy']) - Time.parse(rdata['checkout'])) / 60 / 60).round(2)
@@ -467,8 +467,8 @@ module Vmpooler
           end
         end
 
-        if $config[:config]['domain']
-          result[params[:hostname]]['domain'] = $config[:config]['domain']
+        if Vmpooler::API.settings.config[:config]['domain']
+          result[params[:hostname]]['domain'] = Vmpooler::API.settings.config[:config]['domain']
         end
       end
 
@@ -485,10 +485,10 @@ module Vmpooler
 
       params[:hostname] = hostname_shorten(params[:hostname])
 
-      $config[:pools].each do |pool|
-        if $redis.sismember('vmpooler__running__' + pool['name'], params[:hostname])
-          $redis.srem('vmpooler__running__' + pool['name'], params[:hostname])
-          $redis.sadd('vmpooler__completed__' + pool['name'], params[:hostname])
+      Vmpooler::API.settings.config[:pools].each do |pool|
+        if Vmpooler::API.settings.redis.sismember('vmpooler__running__' + pool['name'], params[:hostname])
+          Vmpooler::API.settings.redis.srem('vmpooler__running__' + pool['name'], params[:hostname])
+          Vmpooler::API.settings.redis.sadd('vmpooler__completed__' + pool['name'], params[:hostname])
 
           status 200
           result['ok'] = true
@@ -510,7 +510,7 @@ module Vmpooler
 
       params[:hostname] = hostname_shorten(params[:hostname])
 
-      if $redis.exists('vmpooler__vm__' + params[:hostname])
+      if Vmpooler::API.settings.redis.exists('vmpooler__vm__' + params[:hostname])
         begin
           jdata = JSON.parse(request.body.read)
         rescue
@@ -542,10 +542,10 @@ module Vmpooler
               when 'lifetime'
                 arg = arg.to_i
 
-                $redis.hset('vmpooler__vm__' + params[:hostname], param, arg)
+                Vmpooler::API.settings.redis.hset('vmpooler__vm__' + params[:hostname], param, arg)
               when 'tags'
                 arg.keys.each do |tag|
-                    $redis.hset('vmpooler__vm__' + params[:hostname], 'tag:' + tag, arg[tag])
+                    Vmpooler::API.settings.redis.hset('vmpooler__vm__' + params[:hostname], 'tag:' + tag, arg[tag])
                 end
             end
           end

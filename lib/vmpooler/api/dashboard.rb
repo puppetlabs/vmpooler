@@ -6,19 +6,19 @@ module Vmpooler
 
       result = {}
 
-      $config[:pools].each do |pool|
+      Vmpooler::API.settings.config[:pools].each do |pool|
         result[pool['name']] ||= {}
         result[pool['name']]['size'] = pool['size']
         result[pool['name']]['ready'] = $redis.scard('vmpooler__ready__' + pool['name'])
       end
 
       if params[:history]
-        if $config[:graphite]['server']
+        if Vmpooler::API.settings.config[:graphite]['server']
           history ||= {}
 
           begin
             buffer = open(
-              'http://' + $config[:graphite]['server'] + '/render?target=' + $config[:graphite]['prefix'] + '.ready.*&from=-1hour&format=json'
+              'http://' + Vmpooler::API.settings.config[:graphite]['server'] + '/render?target=' + Vmpooler::API.settings.config[:graphite]['prefix'] + '.ready.*&from=-1hour&format=json'
             ).read
             history = JSON.parse(buffer)
 
@@ -46,9 +46,9 @@ module Vmpooler
           rescue
           end
         else
-          $config[:pools].each do |pool|
+          Vmpooler::API.settings.config[:pools].each do |pool|
             result[pool['name']] ||= {}
-            result[pool['name']]['history'] = [$redis.scard('vmpooler__ready__' + pool['name'])]
+            result[pool['name']]['history'] = [Vmpooler::API.settings.redis.scard('vmpooler__ready__' + pool['name'])]
           end
         end
       end
@@ -61,8 +61,8 @@ module Vmpooler
 
       result = {}
 
-      $config[:pools].each do |pool|
-        running = $redis.scard('vmpooler__running__' + pool['name'])
+      Vmpooler::API.settings.config[:pools].each do |pool|
+        running = Vmpooler::API.settings.redis.scard('vmpooler__running__' + pool['name'])
         pool['major'] = Regexp.last_match[1] if pool['name'] =~ /^(\w+)\-/
 
         result[pool['major']] ||= {}
@@ -71,10 +71,10 @@ module Vmpooler
       end
 
       if params[:history]
-        if $config[:graphite]['server']
+        if Vmpooler::API.settings.config[:graphite]['server']
           begin
             buffer = open(
-              'http://' + $config[:graphite]['server'] + '/render?target=' + $config[:graphite]['prefix'] + '.running.*&from=-1hour&format=json'
+              'http://' + Vmpooler::API.settings.config[:graphite]['server'] + '/render?target=' + Vmpooler::API.settings.config[:graphite]['prefix'] + '.running.*&from=-1hour&format=json'
             ).read
             JSON.parse(buffer).each do |pool|
               if pool['target'] =~ /.*\.(.*)$/

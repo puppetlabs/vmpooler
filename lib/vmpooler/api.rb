@@ -1,24 +1,7 @@
 module Vmpooler
   class API < Sinatra::Base
     def initialize
-      # Load the configuration file
-      config_file = File.expand_path('vmpooler.yaml')
-      $config = YAML.load_file(config_file)
-
-      $config[:uptime] = Time.now
-
-      # Set some defaults
-      $config[:redis] ||= {}
-      $config[:redis]['server'] ||= 'localhost'
-
-      if $config[:graphite]['server']
-        $config[:graphite]['prefix'] ||= 'vmpooler'
-      end
-
-      # Connect to Redis
-      $redis = Redis.new(host: $config[:redis]['server'])
-
-      super()
+      super
     end
 
     set :environment, :production
@@ -51,8 +34,14 @@ module Vmpooler
     use Vmpooler::API::Reroute
     use Vmpooler::API::V1
 
-    Thread.new do
-      run!
+    def configure(config, redis, environment = :production)
+      self.settings.set :config, config
+      self.settings.set :redis, redis
+      self.settings.set :environment, environment
+    end
+
+    def execute!
+      self.settings.run!
     end
   end
 end
