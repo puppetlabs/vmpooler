@@ -9,7 +9,7 @@ config = Vmpooler.config
 redis_host = config[:redis]['server']
 redis_ttl = config[:redis]['data_ttl']
 logger_file = config[:config]['logfile']
-graphite = defined? config[:graphite]['server'] ? config[:graphite]['server'] : nil
+graphite = config[:graphite]['server'] ? config[:graphite]['server'] : nil
 
 api = Thread.new {
         thr = Vmpooler::API.new
