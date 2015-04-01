@@ -25,40 +25,50 @@ module Vmpooler
     # Check the state of a VM
     def check_pending_vm(vm, pool, timeout)
       Thread.new do
-        host = $vsphere[pool].find_vm(vm)
+        _check_pending_vm(vm, pool, timeout)
+      end
+    end
 
-        if host
-          if
-            (host.summary) &&
-            (host.summary.guest) &&
-            (host.summary.guest.hostName) &&
-            (host.summary.guest.hostName == vm)
+    def _check_pending_vm(vm, pool, timeout)
+      host = $vsphere[pool].find_vm(vm)
 
-            begin
-              Socket.getaddrinfo(vm, nil)
-            rescue
-            end
+      if host
+        move_pending_vm_to_ready(vm, pool, host)
+      else
+        fail_pending_vm(vm, pool, timeout)
+      end
+    end
 
-            clone_time = $redis.hget('vmpooler__vm__' + vm, 'clone')
-            finish = '%.2f' % (Time.now - Time.parse(clone_time)) if clone_time
+    def fail_pending_vm(vm, pool, timeout)
+      clone_stamp = $redis.hget('vmpooler__vm__' + vm, 'clone')
 
-            $redis.smove('vmpooler__pending__' + pool, 'vmpooler__ready__' + pool, vm)
-            $redis.hset('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm, finish)
+      if (clone_stamp) &&
+          (((Time.now - Time.parse(clone_stamp)) / 60) > timeout)
 
-            $logger.log('s', "[>] [#{pool}] '#{vm}' moved to 'ready' queue")
-          end
-        else
-          clone_stamp = $redis.hget('vmpooler__vm__' + vm, 'clone')
+        $redis.smove('vmpooler__pending__' + pool, 'vmpooler__completed__' + pool, vm)
 
-          if
-            (clone_stamp) &&
-            (((Time.now - Time.parse(clone_stamp)) / 60) > timeout)
+        $logger.log('d', "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes")
+      end
+    end
 
-            $redis.smove('vmpooler__pending__' + pool, 'vmpooler__completed__' + pool, vm)
+    def move_pending_vm_to_ready(vm, pool, host)
+      if (host.summary) &&
+          (host.summary.guest) &&
+          (host.summary.guest.hostName) &&
+          (host.summary.guest.hostName == vm)
 
-            $logger.log('d', "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes")
-          end
+        begin
+          Socket.getaddrinfo(vm, nil)
+        rescue
         end
+
+        clone_time = $redis.hget('vmpooler__vm__' + vm, 'clone')
+        finish = '%.2f' % (Time.now - Time.parse(clone_time)) if clone_time
+
+        $redis.smove('vmpooler__pending__' + pool, 'vmpooler__ready__' + pool, vm)
+        $redis.hset('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm, finish)
+
+        $logger.log('s', "[>] [#{pool}] '#{vm}' moved to 'ready' queue")
       end
     end
 
