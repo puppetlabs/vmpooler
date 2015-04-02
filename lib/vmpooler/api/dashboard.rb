@@ -9,7 +9,7 @@ module Vmpooler
       Vmpooler::API.settings.config[:pools].each do |pool|
         result[pool['name']] ||= {}
         result[pool['name']]['size'] = pool['size']
-        result[pool['name']]['ready'] = $redis.scard('vmpooler__ready__' + pool['name'])
+        result[pool['name']]['ready'] = Vmpooler::API.settings.redis.scard('vmpooler__ready__' + pool['name'])
       end
 
       if params[:history]
