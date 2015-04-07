@@ -7,25 +7,23 @@ require 'lib/vmpooler'
 
 config = Vmpooler.config
 redis_host = config[:redis]['server']
-redis_ttl = config[:redis]['data_ttl']
 logger_file = config[:config]['logfile']
 graphite = config[:graphite]['server'] ? config[:graphite]['server'] : nil
 
 api = Thread.new {
-        thr = Vmpooler::API.new
-        thr.helpers.configure(config, Vmpooler.new_redis(redis_host))
-        thr.helpers.execute!
-      }
-janitor = Thread.new {
-            Vmpooler::Janitor.new(Vmpooler.new_logger(logger_file), Vmpooler.new_redis(redis_host), redis_ttl).execute!
-          }
-manager = Thread.new {
-            Vmpooler::PoolManager.new(config,
-                                      config[:pools],
-                                      Vmpooler.new_logger(logger_file),
-                                      Vmpooler.new_redis(redis_host),
-                                      Vmpooler.new_graphite(graphite)).execute!
-          }
+  thr = Vmpooler::API.new
+  thr.helpers.configure(config, Vmpooler.new_redis(redis_host))
+  thr.helpers.execute!
+}
 
-[api, janitor, manager].each { |t| t.join }
+manager = Thread.new {
+  Vmpooler::PoolManager.new(
+    config,
+    Vmpooler.new_logger(logger_file),
+    Vmpooler.new_redis(redis_host),
+    Vmpooler.new_graphite(graphite)
+  ).execute!
+}
+
+[api, manager].each { |t| t.join }
 
