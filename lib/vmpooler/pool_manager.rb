@@ -1,9 +1,7 @@
 module Vmpooler
   class PoolManager
-    def initialize(config, pools, logger, redis, graphite=nil)
+    def initialize(config, logger, redis, graphite=nil)
       $config = config
-
-      $pools   = pools
 
       # Load logger library
       $logger = logger
@@ -257,6 +255,9 @@ module Vmpooler
         $redis.hdel('vmpooler__active__' + pool, vm)
         $redis.hset('vmpooler__vm__' + vm, 'destroy', Time.now)
 
+        # Auto-expire metadata key
+        $redis.expire('vmpooler__vm__' + vm, ($config[:redis]['data_ttl'].to_i * 60 * 60))
+
         host = $vsphere[pool].find_vm(vm) ||
                $vsphere[pool].find_vm_heavy(vm)[vm]
 
@@ -451,7 +452,7 @@ module Vmpooler
       $redis.set('vmpooler__tasks__clone', 0)
 
       loop do
-        $pools.each do |pool|
+        $config[:pools].each do |pool|
           if ! $threads[pool['name']]
             check_pool(pool)
           else
