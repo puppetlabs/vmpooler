@@ -338,7 +338,7 @@ module Vmpooler
               rescue
               end
             else
-              $logger.log('d', "[*] [#{pool['name']}] vm #{vm} is not in inventory, removing from 'ready' queue")
+              $logger.log('d', "[!] [#{pool['name']}] '#{vm}' is not in inventory, removing from 'ready' queue")
               $redis.srem('vmpooler__ready__' + pool['name'], vm)
               $redis.del('vmpooler__vm__' + vm)
             end
@@ -360,7 +360,7 @@ module Vmpooler
               rescue
               end
             else
-              $logger.log('d', "[*] [#{pool['name']}] #{vm} not in inventory, removing from 'pending' queue")
+              $logger.log('d', "[!] [#{pool['name']}] '#{vm}' not in inventory, removing from 'pending' queue")
               $redis.srem('vmpooler__pending__' + pool['name'], vm)
               $redis.del('vmpooler__vm__' + vm)
             end
