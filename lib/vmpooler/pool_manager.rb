@@ -399,7 +399,7 @@ module Vmpooler
 
               if
                 (lifetime.to_i > 0) &&
-                (running.to_i > lifetime.to_i)
+                (running.to_i >= lifetime.to_i)
 
                 $redis.smove('vmpooler__running__' + pool['name'], 'vmpooler__completed__' + pool['name'], vm)
 
