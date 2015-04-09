@@ -452,7 +452,7 @@ module Vmpooler
         result[params[:hostname]] = {}
 
         result[params[:hostname]]['template'] = rdata['template']
-        result[params[:hostname]]['lifetime'] = rdata['lifetime'] || Vmpooler::API.settings.config[:config]['vm_lifetime']
+        result[params[:hostname]]['lifetime'] = (rdata['lifetime'] || Vmpooler::API.settings.config[:config]['vm_lifetime']).to_i
 
         if rdata['destroy']
           result[params[:hostname]]['running'] = ((Time.parse(rdata['destroy']) - Time.parse(rdata['checkout'])) / 60 / 60).round(2)
