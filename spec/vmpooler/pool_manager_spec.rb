@@ -4,14 +4,13 @@ describe 'Pool Manager' do
   let(:logger) { double('logger') }
   let(:redis) { double('redis') }
   let(:config) { {} }
-  let(:pools) { {} }
   let(:graphite) { nil }
   let(:pool) { 'pool1' }
   let(:vm) { 'vm1' }
   let(:timeout) { 5 }
   let(:host) { double('host') }
 
-  subject { Vmpooler::PoolManager.new(config, pools, logger, redis, graphite) }
+  subject { Vmpooler::PoolManager.new(config, logger, redis, graphite) }
 
   describe '#_check_pending_vm' do
     let(:pool_helper) { double('pool') }
