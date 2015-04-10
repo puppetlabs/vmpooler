@@ -11,13 +11,20 @@ describe Vmpooler::API do
   describe 'Dashboard' do
 
     context '/' do
+      before { get '/' }
+
+      it { expect(last_response.status).to eq(302) }
+      it { expect(last_response.location).to eq('http://example.org/dashboard/') }
+    end
+
+    context '/dashboard/' do
       let(:config) { {
           config: {'site_name' => 'test pooler'}
       } }
 
       before do
         $config = config
-        get '/'
+        get '/dashboard/'
       end
 
       it { expect(last_response).to be_ok }
