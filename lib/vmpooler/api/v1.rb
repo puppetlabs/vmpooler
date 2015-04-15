@@ -5,133 +5,7 @@ module Vmpooler
     api_prefix  = "/api/v#{api_version}"
 
     helpers do
-      def get_capacity_metrics()
-        capacity = {
-          current: 0,
-          total: 0,
-          percent: 0
-        }
-
-        Vmpooler::API.settings.config[:pools].each do |pool|
-          pool['capacity'] = Vmpooler::API.settings.redis.scard('vmpooler__ready__' + pool['name']).to_i
-
-          capacity[:current] += pool['capacity']
-          capacity[:total] += pool['size'].to_i
-        end
-
-        if capacity[:total] > 0
-          capacity[:percent] = ((capacity[:current].to_f / capacity[:total].to_f) * 100.0).round(1)
-        end
-
-        capacity
-      end
-
-      def get_queue_metrics()
-        queue = {
-          pending: 0,
-          cloning: 0,
-          booting: 0,
-          ready: 0,
-          running: 0,
-          completed: 0,
-          total: 0
-        }
-
-        Vmpooler::API.settings.config[:pools].each do |pool|
-          queue[:pending] += Vmpooler::API.settings.redis.scard('vmpooler__pending__' + pool['name']).to_i
-          queue[:ready] += Vmpooler::API.settings.redis.scard('vmpooler__ready__' + pool['name']).to_i
-          queue[:running] += Vmpooler::API.settings.redis.scard('vmpooler__running__' + pool['name']).to_i
-          queue[:completed] += Vmpooler::API.settings.redis.scard('vmpooler__completed__' + pool['name']).to_i
-        end
-
-        queue[:cloning] = Vmpooler::API.settings.redis.get('vmpooler__tasks__clone').to_i
-        queue[:booting] = queue[:pending].to_i - queue[:cloning].to_i
-        queue[:booting] = 0 if queue[:booting] < 0
-        queue[:total] = queue[:pending].to_i + queue[:ready].to_i + queue[:running].to_i + queue[:completed].to_i
-
-        queue
-      end
-
-      def get_task_metrics(task_str, date_str, opts = {})
-        opts = { :bypool => false }.merge(opts)
-
-        task = {
-          duration: {
-            average: 0,
-            min: 0,
-            max: 0,
-            total: 0
-          },
-          count: {
-            total: 0
-          }
-        }
-
-        task[:count][:total] = Vmpooler::API.settings.redis.hlen('vmpooler__' + task_str + '__' + date_str).to_i
-
-        if task[:count][:total] > 0
-          if opts[:bypool] == true
-            task_times_bypool = {}
-
-            task[:count][:pool] = {}
-            task[:duration][:pool] = {}
-
-            Vmpooler::API.settings.redis.hgetall('vmpooler__' + task_str + '__' + date_str).each do |key, value|
-              pool = 'unknown'
-              hostname = 'unknown'
-
-              if key =~ /\:/
-                pool, hostname = key.split(':')
-              else
-                hostname = key
-              end
-
-              task[:count][:pool][pool] ||= {}
-              task[:duration][:pool][pool] ||= {}
-
-              task_times_bypool[pool] ||= []
-              task_times_bypool[pool].push(value.to_f)
-            end
-
-            task_times_bypool.each_key do |pool|
-              task[:count][:pool][pool][:total] = task_times_bypool[pool].length
-
-              task[:duration][:pool][pool][:total] = task_times_bypool[pool].reduce(:+).to_f
-              task[:duration][:pool][pool][:average] = (task[:duration][:pool][pool][:total] / task[:count][:pool][pool][:total]).round(1)
-              task[:duration][:pool][pool][:min], task[:duration][:pool][pool][:max] = task_times_bypool[pool].minmax
-            end
-          end
-
-          task_times = get_task_times(task_str, date_str)
-
-          task[:duration][:total] = task_times.reduce(:+).to_f
-          task[:duration][:average] = (task[:duration][:total] / task[:count][:total]).round(1)
-          task[:duration][:min], task[:duration][:max] = task_times.minmax
-        end
-
-        task
-      end
-
-      def get_task_times(task, date_str)
-        Vmpooler::API.settings.redis.hvals("vmpooler__#{task}__" + date_str).map(&:to_f)
-      end
-
-      def hostname_shorten(hostname)
-        if Vmpooler::API.settings.config[:config]['domain'] && hostname =~ /^\w+\.#{Vmpooler::API.settings.config[:config]['domain']}$/
-          hostname = hostname[/[^\.]+/]
-        end
-
-        hostname
-      end
-
-      def mean(list)
-        s = list.map(&:to_f).reduce(:+).to_f
-        (s > 0 && list.length > 0) ? s / list.length.to_f : 0
-      end
-
-      def validate_date_str(date_str)
-        /^\d{4}-\d{2}-\d{2}$/ === date_str
-      end
+      include Vmpooler::API::Helpers
     end
 
     get "#{api_prefix}/status/?" do
@@ -144,10 +18,10 @@ module Vmpooler
         }
       }
 
-      result[:capacity] = get_capacity_metrics()
-      result[:queue] = get_queue_metrics()
-      result[:clone] = get_task_metrics('clone', Date.today.to_s)
-      result[:boot] = get_task_metrics('boot', Date.today.to_s)
+      result[:capacity] = get_capacity_metrics(Vmpooler::API.settings.config[:pools], Vmpooler::API.settings.redis)
+      result[:queue] = get_queue_metrics(Vmpooler::API.settings.config[:pools], Vmpooler::API.settings.redis)
+      result[:clone] = get_task_metrics(Vmpooler::API.settings.redis, 'clone', Date.today.to_s)
+      result[:boot] = get_task_metrics(Vmpooler::API.settings.redis, 'boot', Date.today.to_s)
 
       # Check for empty pools
       Vmpooler::API.settings.config[:pools].each do |pool|
@@ -225,8 +99,8 @@ module Vmpooler
       (from_date..to_date).each do |date|
         daily = {
           date: date.to_s,
-          boot: get_task_metrics('boot', date.to_s, :bypool => true),
-          clone: get_task_metrics('clone', date.to_s, :bypool => true)
+          boot: get_task_metrics(Vmpooler::API.settings.redis, 'boot', date.to_s, :bypool => true),
+          clone: get_task_metrics(Vmpooler::API.settings.redis, 'clone', date.to_s, :bypool => true)
         }
 
         result[:daily].push(daily)
@@ -441,7 +315,7 @@ module Vmpooler
       status 404
       result['ok'] = false
 
-      params[:hostname] = hostname_shorten(params[:hostname])
+      params[:hostname] = hostname_shorten(params[:hostname], Vmpooler::API.settings.config[:config]['domain'])
 
       if Vmpooler::API.settings.redis.exists('vmpooler__vm__' + params[:hostname])
         status 200
@@ -483,7 +357,7 @@ module Vmpooler
       status 404
       result['ok'] = false
 
-      params[:hostname] = hostname_shorten(params[:hostname])
+      params[:hostname] = hostname_shorten(params[:hostname], Vmpooler::API.settings.config[:config]['domain'])
 
       Vmpooler::API.settings.config[:pools].each do |pool|
         if Vmpooler::API.settings.redis.sismember('vmpooler__running__' + pool['name'], params[:hostname])
@@ -508,7 +382,7 @@ module Vmpooler
       status 404
       result['ok'] = false
 
-      params[:hostname] = hostname_shorten(params[:hostname])
+      params[:hostname] = hostname_shorten(params[:hostname], Vmpooler::API.settings.config[:config]['domain'])
 
       if Vmpooler::API.settings.redis.exists('vmpooler__vm__' + params[:hostname])
         begin

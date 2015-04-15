@@ -30,7 +30,7 @@ module Vmpooler
     use Vmpooler::Dashboard
 
     # Load API components
-    %w( dashboard reroute v1 ).each do |lib|
+    %w( helpers dashboard reroute v1 ).each do |lib|
       begin
         require "api/#{lib}"
       rescue LoadError
