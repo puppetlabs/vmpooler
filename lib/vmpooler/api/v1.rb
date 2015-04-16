@@ -295,13 +295,13 @@ module Vmpooler
             else
               result[key]['ok'] = false ##
 
-              status 503
+              status(503)
               result['ok'] = false
             end
           end
         end
       else
-        status 503
+        status(503)
         result['ok'] = false
       end
 
@@ -357,12 +357,12 @@ module Vmpooler
           else
             result[template]['ok'] = false ##
 
-            status 503
+            status(503)
             result['ok'] = false
           end
         end
       else
-        status 503
+        status(503)
         result['ok'] = false
       end
 
@@ -378,13 +378,13 @@ module Vmpooler
 
       result = {}
 
-      status 404
+      status(404)
       result['ok'] = false
 
       params[:hostname] = hostname_shorten(params[:hostname], Vmpooler::API.settings.config[:config]['domain'])
 
       if Vmpooler::API.settings.redis.exists('vmpooler__vm__' + params[:hostname])
-        status 200
+        status(200)
         result['ok'] = true
 
         rdata = Vmpooler::API.settings.redis.hgetall('vmpooler__vm__' + params[:hostname])
@@ -420,7 +420,7 @@ module Vmpooler
 
       result = {}
 
-      status 404
+      status(404)
       result['ok'] = false
 
       params[:hostname] = hostname_shorten(params[:hostname], Vmpooler::API.settings.config[:config]['domain'])
@@ -430,7 +430,7 @@ module Vmpooler
           Vmpooler::API.settings.redis.srem('vmpooler__running__' + pool['name'], params[:hostname])
           Vmpooler::API.settings.redis.sadd('vmpooler__completed__' + pool['name'], params[:hostname])
 
-          status 200
+          status(200)
           result['ok'] = true
         end
       end
@@ -445,7 +445,7 @@ module Vmpooler
 
       result = {}
 
-      status 404
+      status(404)
       result['ok'] = false
 
       params[:hostname] = hostname_shorten(params[:hostname], Vmpooler::API.settings.config[:config]['domain'])
@@ -454,7 +454,7 @@ module Vmpooler
         begin
           jdata = JSON.parse(request.body.read)
         rescue
-          status 400
+          status(400)
           return JSON.pretty_generate(result)
         end
 
@@ -475,7 +475,7 @@ module Vmpooler
         end
 
         if failure
-          status 400
+          status(400)
         else
           jdata.each do |param, arg|
             case param
@@ -490,7 +490,7 @@ module Vmpooler
             end
           end
 
-          status 200
+          status(200)
           result['ok'] = true
         end
       end
