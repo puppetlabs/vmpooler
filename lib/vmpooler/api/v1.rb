@@ -173,6 +173,72 @@ module Vmpooler
       JSON.pretty_generate(result)
     end
 
+    get "#{api_prefix}/token/:token/?" do
+      content_type :json
+
+      result = {}
+
+      Vmpooler::API.settings.config[:auth] ? status(401) : status(404)
+      result['ok'] = false
+
+      if Vmpooler::API.settings.config[:auth] and Vmpooler::API.settings.redis.exists('vmpooler__token__' + params[:token])
+        status(200)
+        result['ok'] = true
+
+        result[params[:token]] = Vmpooler::API.settings.redis.hgetall('vmpooler__token__' + params[:token])        
+      end
+
+      JSON.pretty_generate(result)
+    end
+
+    delete "#{api_prefix}/token/:token/?" do
+      content_type :json
+
+      result = {}
+
+      Vmpooler::API.settings.config[:auth] ? status(401) : status(404)
+      result['ok'] = false
+
+      if Vmpooler::API.settings.config[:auth] and Vmpooler::API.settings.redis.exists('vmpooler__token__' + params[:token])
+        status(200)
+        result['ok'] = true
+
+        Vmpooler::API.settings.redis.del('vmpooler__token__' + params[:token])
+      end
+
+      JSON.pretty_generate(result)
+    end
+
+    post "#{api_prefix}/token" do
+      content_type :json
+
+      result = {}
+
+      Vmpooler::API.settings.config[:auth] ? status(401) : status(404)
+      result['ok'] = false
+
+      jdata = JSON.parse(request.body.read)
+
+      if Vmpooler::API.settings.config[:auth] and jdata['username'] and jdata['password']
+        if authenticate(
+          Vmpooler::API.settings.config[:auth],
+          jdata['username'].to_s,
+          jdata['password'].to_s
+        )
+          status(200)
+          result['ok'] = true
+
+          o = [('a'..'z'), ('0'..'9')].map(&:to_a).flatten
+          result['token'] = o[rand(25)] + (0...31).map { o[rand(o.length)] }.join
+
+          Vmpooler::API.settings.redis.hset('vmpooler__token__' + result['token'], 'user', jdata['username'].to_s)
+          Vmpooler::API.settings.redis.hset('vmpooler__token__' + result['token'], 'timestamp', Time.now)
+        end
+      end
+
+      JSON.pretty_generate(result)
+    end
+
     get "#{api_prefix}/vm/?" do
       content_type :json
 

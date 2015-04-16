@@ -4,6 +4,35 @@ module Vmpooler
 
     module Helpers
 
+      def authenticate(auth, username_str, password_str)
+        case auth['provider']
+          when 'ldap'
+            require 'rubygems'
+            require 'net/ldap'
+
+            ldap = Net::LDAP.new(
+              :host => auth[:ldap]['host'],
+              :port => auth[:ldap]['port'] || 389,
+              :encryption => {
+                :method => :start_tls,
+                :tls_options => { :ssl_version => 'TLSv1' }
+              },
+              :base => auth[:ldap]['base'],
+              :auth => {
+                :method => :simple,
+                :username => "#{auth[:ldap]['user_object']}=#{username_str},#{auth[:ldap]['base']}",
+                :password => password_str
+              }
+            )
+
+            if ldap.bind
+              return true
+            end
+        end
+
+        return false
+      end
+
       def mean(list)
         s = list.map(&:to_f).reduce(:+).to_f
         (s > 0 && list.length > 0) ? s / list.length.to_f : 0
