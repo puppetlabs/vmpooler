@@ -176,10 +176,9 @@ module Vmpooler
     get "#{api_prefix}/token/:token/?" do
       content_type :json
 
-      result = {}
+      result = { 'ok' => false }
 
       Vmpooler::API.settings.config[:auth] ? status(401) : status(404)
-      result['ok'] = false
 
       if Vmpooler::API.settings.config[:auth] and Vmpooler::API.settings.redis.exists('vmpooler__token__' + params[:token])
         status(200)
@@ -194,10 +193,9 @@ module Vmpooler
     delete "#{api_prefix}/token/:token/?" do
       content_type :json
 
-      result = {}
+      result = { 'ok' => false }
 
       Vmpooler::API.settings.config[:auth] ? status(401) : status(404)
-      result['ok'] = false
 
       if Vmpooler::API.settings.config[:auth] and Vmpooler::API.settings.redis.exists('vmpooler__token__' + params[:token])
         status(200)
@@ -212,10 +210,9 @@ module Vmpooler
     post "#{api_prefix}/token" do
       content_type :json
 
-      result = {}
+      result = { 'ok' => false }
 
       Vmpooler::API.settings.config[:auth] ? status(401) : status(404)
-      result['ok'] = false
 
       jdata = JSON.parse(request.body.read)
 
@@ -376,10 +373,9 @@ module Vmpooler
     get "#{api_prefix}/vm/:hostname/?" do
       content_type :json
 
-      result = {}
+      result = { 'ok' => false }
 
       status(404)
-      result['ok'] = false
 
       params[:hostname] = hostname_shorten(params[:hostname], Vmpooler::API.settings.config[:config]['domain'])
 
@@ -418,10 +414,9 @@ module Vmpooler
     delete "#{api_prefix}/vm/:hostname/?" do
       content_type :json
 
-      result = {}
+      result = { 'ok' => false }
 
       status(404)
-      result['ok'] = false
 
       params[:hostname] = hostname_shorten(params[:hostname], Vmpooler::API.settings.config[:config]['domain'])
 
@@ -443,10 +438,9 @@ module Vmpooler
 
       failure = false
 
-      result = {}
+      result = { 'ok' => false }
 
       status(404)
-      result['ok'] = false
 
       params[:hostname] = hostname_shorten(params[:hostname], Vmpooler::API.settings.config[:config]['domain'])
 
