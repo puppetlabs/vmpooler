@@ -180,11 +180,11 @@ module Vmpooler
 
       Vmpooler::API.settings.config[:auth] ? status(401) : status(404)
 
-      if Vmpooler::API.settings.config[:auth] and Vmpooler::API.settings.redis.exists('vmpooler__token__' + params[:token])
+      result[params[:token]] = Vmpooler::API.settings.redis.hgetall('vmpooler__token__' + params[:token])
+
+      if Vmpooler::API.settings.config[:auth] and not result[params[:token]].nil?
         status(200)
         result['ok'] = true
-
-        result[params[:token]] = Vmpooler::API.settings.redis.hgetall('vmpooler__token__' + params[:token])        
       end
 
       JSON.pretty_generate(result)
