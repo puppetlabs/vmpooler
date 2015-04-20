@@ -182,9 +182,11 @@ module Vmpooler
 
       result[params[:token]] = Vmpooler::API.settings.redis.hgetall('vmpooler__token__' + params[:token])
 
-      if Vmpooler::API.settings.config[:auth] and not result[params[:token]].nil?
+      if Vmpooler::API.settings.config[:auth] and result[params[:token]]['timestamp']
         status(200)
         result['ok'] = true
+      else
+        result.delete(params[:token])
       end
 
       JSON.pretty_generate(result)
@@ -197,11 +199,9 @@ module Vmpooler
 
       Vmpooler::API.settings.config[:auth] ? status(401) : status(404)
 
-      if Vmpooler::API.settings.config[:auth] and Vmpooler::API.settings.redis.exists('vmpooler__token__' + params[:token])
+      if Vmpooler::API.settings.config[:auth] and Vmpooler::API.settings.redis.del('vmpooler__token__' + params[:token])
         status(200)
         result['ok'] = true
-
-        Vmpooler::API.settings.redis.del('vmpooler__token__' + params[:token])
       end
 
       JSON.pretty_generate(result)
