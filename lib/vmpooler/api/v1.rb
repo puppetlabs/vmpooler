@@ -173,6 +173,69 @@ module Vmpooler
       JSON.pretty_generate(result)
     end
 
+    get "#{api_prefix}/token/:token/?" do
+      content_type :json
+
+      result = { 'ok' => false }
+
+      Vmpooler::API.settings.config[:auth] ? status(401) : status(404)
+
+      result[params[:token]] = Vmpooler::API.settings.redis.hgetall('vmpooler__token__' + params[:token])
+
+      if Vmpooler::API.settings.config[:auth] and result[params[:token]]['timestamp']
+        status(200)
+        result['ok'] = true
+      else
+        result.delete(params[:token])
+      end
+
+      JSON.pretty_generate(result)
+    end
+
+    delete "#{api_prefix}/token/:token/?" do
+      content_type :json
+
+      result = { 'ok' => false }
+
+      Vmpooler::API.settings.config[:auth] ? status(401) : status(404)
+
+      if Vmpooler::API.settings.config[:auth] and Vmpooler::API.settings.redis.del('vmpooler__token__' + params[:token])
+        status(200)
+        result['ok'] = true
+      end
+
+      JSON.pretty_generate(result)
+    end
+
+    post "#{api_prefix}/token" do
+      content_type :json
+
+      result = { 'ok' => false }
+
+      Vmpooler::API.settings.config[:auth] ? status(401) : status(404)
+
+      jdata = JSON.parse(request.body.read)
+
+      if Vmpooler::API.settings.config[:auth] and jdata['username'] and jdata['password']
+        if authenticate(
+          Vmpooler::API.settings.config[:auth],
+          jdata['username'].to_s,
+          jdata['password'].to_s
+        )
+          status(200)
+          result['ok'] = true
+
+          o = [('a'..'z'), ('0'..'9')].map(&:to_a).flatten
+          result['token'] = o[rand(25)] + (0...31).map { o[rand(o.length)] }.join
+
+          Vmpooler::API.settings.redis.hset('vmpooler__token__' + result['token'], 'user', jdata['username'].to_s)
+          Vmpooler::API.settings.redis.hset('vmpooler__token__' + result['token'], 'timestamp', Time.now)
+        end
+      end
+
+      JSON.pretty_generate(result)
+    end
+
     get "#{api_prefix}/vm/?" do
       content_type :json
 
@@ -229,13 +292,13 @@ module Vmpooler
             else
               result[key]['ok'] = false ##
 
-              status 503
+              status(503)
               result['ok'] = false
             end
           end
         end
       else
-        status 503
+        status(503)
         result['ok'] = false
       end
 
@@ -291,12 +354,12 @@ module Vmpooler
           else
             result[template]['ok'] = false ##
 
-            status 503
+            status(503)
             result['ok'] = false
           end
         end
       else
-        status 503
+        status(503)
         result['ok'] = false
       end
 
@@ -310,15 +373,14 @@ module Vmpooler
     get "#{api_prefix}/vm/:hostname/?" do
       content_type :json
 
-      result = {}
+      result = { 'ok' => false }
 
-      status 404
-      result['ok'] = false
+      status(404)
 
       params[:hostname] = hostname_shorten(params[:hostname], Vmpooler::API.settings.config[:config]['domain'])
 
       if Vmpooler::API.settings.redis.exists('vmpooler__vm__' + params[:hostname])
-        status 200
+        status(200)
         result['ok'] = true
 
         rdata = Vmpooler::API.settings.redis.hgetall('vmpooler__vm__' + params[:hostname])
@@ -352,10 +414,9 @@ module Vmpooler
     delete "#{api_prefix}/vm/:hostname/?" do
       content_type :json
 
-      result = {}
+      result = { 'ok' => false }
 
-      status 404
-      result['ok'] = false
+      status(404)
 
       params[:hostname] = hostname_shorten(params[:hostname], Vmpooler::API.settings.config[:config]['domain'])
 
@@ -364,7 +425,7 @@ module Vmpooler
           Vmpooler::API.settings.redis.srem('vmpooler__running__' + pool['name'], params[:hostname])
           Vmpooler::API.settings.redis.sadd('vmpooler__completed__' + pool['name'], params[:hostname])
 
-          status 200
+          status(200)
           result['ok'] = true
         end
       end
@@ -377,10 +438,9 @@ module Vmpooler
 
       failure = false
 
-      result = {}
+      result = { 'ok' => false }
 
-      status 404
-      result['ok'] = false
+      status(404)
 
       params[:hostname] = hostname_shorten(params[:hostname], Vmpooler::API.settings.config[:config]['domain'])
 
@@ -388,7 +448,7 @@ module Vmpooler
         begin
           jdata = JSON.parse(request.body.read)
         rescue
-          status 400
+          status(400)
           return JSON.pretty_generate(result)
         end
 
@@ -409,7 +469,7 @@ module Vmpooler
         end
 
         if failure
-          status 400
+          status(400)
         else
           jdata.each do |param, arg|
             case param
@@ -424,7 +484,7 @@ module Vmpooler
             end
           end
 
-          status 200
+          status(200)
           result['ok'] = true
         end
       end

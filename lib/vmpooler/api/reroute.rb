@@ -11,6 +11,18 @@ module Vmpooler
       call env.merge("PATH_INFO" => "/api/v#{api_version}/summary")
     end
 
+    post '/token/?' do
+      call env.merge("PATH_INFO" => "/api/v#{api_version}/token")
+    end
+
+    get '/token/:token/?' do
+      call env.merge("PATH_INFO" => "/api/v#{api_version}/token/#{params[:token]}")
+    end
+
+    delete '/token/:token/?' do
+      call env.merge("PATH_INFO" => "/api/v#{api_version}/token/#{params[:token]}")
+    end
+
     get '/vm/?' do
       call env.merge("PATH_INFO" => "/api/v#{api_version}/vm")
     end
