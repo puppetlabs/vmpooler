@@ -156,7 +156,227 @@ describe Vmpooler::API::V1 do
         end
       end
     end
+  end
 
+  describe '/vm' do
+    let(:redis)  { double('redis') }
+    let(:prefix) { '/api/v1' }
+    let(:config) { {
+      config: {
+        'site_name' => 'test pooler',
+        'vm_lifetime_auth' => 2
+      },
+      pools: [
+        {'name' => 'pool1', 'size' => 5},
+        {'name' => 'pool2', 'size' => 10}
+      ]
+    } }
+
+    before do
+      app.settings.set :config, config
+      app.settings.set :redis, redis
+
+      allow(redis).to receive(:exists).and_return '1'
+      allow(redis).to receive(:hset).and_return '1'
+      allow(redis).to receive(:sadd).and_return '1'
+      allow(redis).to receive(:scard).and_return '5'
+      allow(redis).to receive(:spop).with('vmpooler__ready__pool1').and_return 'abcdefghijklmnop'
+      allow(redis).to receive(:spop).with('vmpooler__ready__pool2').and_return 'qrstuvwxyz012345'
+    end
+
+    describe 'POST /vm' do
+      it 'returns a single VM' do
+        post "#{prefix}/vm", '{"pool1":"1"}'
+
+        expected = {
+          ok: true,
+          pool1: {
+            ok: true,
+            hostname: 'abcdefghijklmnop'
+          }
+        }
+
+        expect(last_response).to be_ok
+        expect(last_response.header['Content-Type']).to eq('application/json')
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+        expect(last_response.status).to eq(200)
+      end
+
+      it 'returns multiple VMs' do
+        post "#{prefix}/vm", '{"pool1":"1","pool2":"1"}'
+
+        expected = {
+          ok: true,
+          pool1: {
+            ok: true,
+            hostname: 'abcdefghijklmnop'
+          },
+          pool2: {
+            ok: true,
+            hostname: 'qrstuvwxyz012345'
+          }
+        }
+
+        expect(last_response).to be_ok
+        expect(last_response.header['Content-Type']).to eq('application/json')
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+        expect(last_response.status).to eq(200)
+      end
+
+      context '(auth not configured)' do
+        let(:config) { { auth: false } }
+
+        it 'does not extend VM lifetime if auth token is provided' do
+          expect(redis).not_to receive(:hset).with("vmpooler__vm__abcdefghijklmnop", "lifetime", 2)
+
+          post "#{prefix}/vm", '{"pool1":"1"}', {
+            'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
+          }
+
+          expected = {
+            ok: true,
+            pool1: {
+              ok: true,
+              hostname: 'abcdefghijklmnop'
+            }
+          }
+
+          expect(last_response).to be_ok
+          expect(last_response.header['Content-Type']).to eq('application/json')
+          expect(last_response.body).to eq(JSON.pretty_generate(expected))
+          expect(last_response.status).to eq(200)
+        end
+      end
+
+      context '(auth configured)' do
+        let(:config) { { auth: true } }
+
+        it 'extends VM lifetime if auth token is provided' do
+          expect(redis).to receive(:hset).with("vmpooler__vm__abcdefghijklmnop", "lifetime", 2).once
+
+          post "#{prefix}/vm", '{"pool1":"1"}', {
+            'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
+          }
+
+          expected = {
+            ok: true,
+            pool1: {
+              ok: true,
+              hostname: 'abcdefghijklmnop'
+            }
+          }
+
+          expect(last_response).to be_ok
+          expect(last_response.header['Content-Type']).to eq('application/json')
+          expect(last_response.body).to eq(JSON.pretty_generate(expected))
+          expect(last_response.status).to eq(200)
+        end
+
+        it 'does not extend VM lifetime if auth token is not provided' do
+          expect(redis).not_to receive(:hset).with("vmpooler__vm__abcdefghijklmnop", "lifetime", 2)
+
+          post "#{prefix}/vm", '{"pool1":"1"}'
+
+          expected = {
+            ok: true,
+            pool1: {
+              ok: true,
+              hostname: 'abcdefghijklmnop'
+            }
+          }
+
+          expect(last_response).to be_ok
+          expect(last_response.header['Content-Type']).to eq('application/json')
+          expect(last_response.body).to eq(JSON.pretty_generate(expected))
+          expect(last_response.status).to eq(200)
+        end
+      end
+    end
+  end
+
+  describe '/vm/:hostname' do
+    let(:redis)  { double('redis') }
+    let(:prefix) { '/api/v1' }
+    let(:config) { {
+      pools: [
+        {'name' => 'pool1', 'size' => 5},
+        {'name' => 'pool2', 'size' => 10}
+      ]
+    } }
+
+    before do
+      app.settings.set :config, config
+      app.settings.set :redis, redis
+
+      allow(redis).to receive(:exists).and_return '1'
+      allow(redis).to receive(:hset).and_return '1'
+    end
+
+    describe 'PUT /vm/:hostname' do
+        it 'allows tags to be set' do
+          put "#{prefix}/vm/testhost", '{"tags":{"tested_by":"rspec"}}'
+
+          expect(last_response).to be_ok
+          expect(last_response.header['Content-Type']).to eq('application/json')
+          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => true}))
+          expect(last_response.status).to eq(200)
+        end
+
+        it 'does not set tags if request body format is invalid' do
+          put "#{prefix}/vm/testhost", '{"tags":{"tested"}}'
+
+          expect(last_response).to_not be_ok
+          expect(last_response.header['Content-Type']).to eq('application/json')
+          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => false}))
+          expect(last_response.status).to eq(400)
+        end
+
+      context '(auth not configured)' do
+        let(:config) { { auth: false } }
+
+        it 'allows VM lifetime to be modified without a token' do
+          put "#{prefix}/vm/testhost", '{"lifetime":"1"}'
+
+          expect(last_response).to be_ok
+          expect(last_response.header['Content-Type']).to eq('application/json')
+          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => true}))
+          expect(last_response.status).to eq(200)
+        end
+
+        it 'does not allow a lifetime to be 0' do
+          put "#{prefix}/vm/testhost", '{"lifetime":"0"}'
+
+          expect(last_response).to_not be_ok
+          expect(last_response.header['Content-Type']).to eq('application/json')
+          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => false}))
+          expect(last_response.status).to eq(400)
+        end
+      end
+
+      context '(auth configured)' do
+        let(:config) { { auth: true } }
+
+        it 'allows VM lifetime to be modified with a token' do
+          put "#{prefix}/vm/testhost", '{"lifetime":"1"}', {
+            'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
+          }
+
+          expect(last_response).to be_ok
+          expect(last_response.header['Content-Type']).to eq('application/json')
+          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => true}))
+          expect(last_response.status).to eq(200)
+        end
+
+        it 'does not allows VM lifetime to be modified without a token' do
+          put "#{prefix}/vm/testhost", '{"lifetime":"1"}'
+
+          expect(last_response).to_not be_ok
+          expect(last_response.header['Content-Type']).to eq('application/json')
+          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => false}))
+          expect(last_response.status).to eq(401)
+        end
+      end
+    end
   end
 
 end

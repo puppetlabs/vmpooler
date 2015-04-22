@@ -4,7 +4,28 @@ module Vmpooler
 
     module Helpers
 
-      def protected!
+      def has_token?
+        request.env['HTTP_X_AUTH_TOKEN'].nil? ? false : true
+      end
+
+      def valid_token?(backend)
+        return false unless has_token?
+
+        backend.exists('vmpooler__token__' + request.env['HTTP_X_AUTH_TOKEN']) ? true : false
+      end
+
+      def validate_token(backend)
+        return if valid_token?(backend)
+
+        content_type :json
+
+        result = { 'ok' => false }
+
+        headers['WWW-Authenticate'] = 'Basic realm="Authentication required"'
+        halt 401, JSON.pretty_generate(result)
+      end
+
+      def validate_auth(backend)
         return if authorized?
 
         content_type :json
@@ -75,11 +96,11 @@ module Vmpooler
         hostname
       end
 
-      def get_task_times(redis, task, date_str)
-        redis.hvals("vmpooler__#{task}__" + date_str).map(&:to_f)
+      def get_task_times(backend, task, date_str)
+        backend.hvals("vmpooler__#{task}__" + date_str).map(&:to_f)
       end
 
-      def get_capacity_metrics(pools, redis)
+      def get_capacity_metrics(pools, backend)
         capacity = {
             current: 0,
             total:   0,
@@ -87,7 +108,7 @@ module Vmpooler
         }
 
         pools.each do |pool|
-          pool['capacity'] = redis.scard('vmpooler__ready__' + pool['name']).to_i
+          pool['capacity'] = backend.scard('vmpooler__ready__' + pool['name']).to_i
 
           capacity[:current] += pool['capacity']
           capacity[:total]   += pool['size'].to_i
@@ -100,7 +121,7 @@ module Vmpooler
         capacity
       end
 
-      def get_queue_metrics(pools, redis)
+      def get_queue_metrics(pools, backend)
         queue = {
             pending:   0,
             cloning:   0,
@@ -112,13 +133,13 @@ module Vmpooler
         }
 
         pools.each do |pool|
-          queue[:pending]   += redis.scard('vmpooler__pending__' + pool['name']).to_i
-          queue[:ready]     += redis.scard('vmpooler__ready__' + pool['name']).to_i
-          queue[:running]   += redis.scard('vmpooler__running__' + pool['name']).to_i
-          queue[:completed] += redis.scard('vmpooler__completed__' + pool['name']).to_i
+          queue[:pending]   += backend.scard('vmpooler__pending__' + pool['name']).to_i
+          queue[:ready]     += backend.scard('vmpooler__ready__' + pool['name']).to_i
+          queue[:running]   += backend.scard('vmpooler__running__' + pool['name']).to_i
+          queue[:completed] += backend.scard('vmpooler__completed__' + pool['name']).to_i
         end
 
-        queue[:cloning] = redis.get('vmpooler__tasks__clone').to_i
+        queue[:cloning] = backend.get('vmpooler__tasks__clone').to_i
         queue[:booting] = queue[:pending].to_i - queue[:cloning].to_i
         queue[:booting] = 0 if queue[:booting] < 0
         queue[:total]   = queue[:pending].to_i + queue[:ready].to_i + queue[:running].to_i + queue[:completed].to_i
@@ -126,7 +147,7 @@ module Vmpooler
         queue
       end
 
-      def get_task_metrics(redis, task_str, date_str, opts = {})
+      def get_task_metrics(backend, task_str, date_str, opts = {})
         opts = {:bypool => false}.merge(opts)
 
         task = {
@@ -141,7 +162,7 @@ module Vmpooler
             }
         }
 
-        task[:count][:total] = redis.hlen('vmpooler__' + task_str + '__' + date_str).to_i
+        task[:count][:total] = backend.hlen('vmpooler__' + task_str + '__' + date_str).to_i
 
         if task[:count][:total] > 0
           if opts[:bypool] == true
@@ -150,7 +171,7 @@ module Vmpooler
             task[:count][:pool]    = {}
             task[:duration][:pool] = {}
 
-            redis.hgetall('vmpooler__' + task_str + '__' + date_str).each do |key, value|
+            backend.hgetall('vmpooler__' + task_str + '__' + date_str).each do |key, value|
               pool     = 'unknown'
               hostname = 'unknown'
 
@@ -176,7 +197,7 @@ module Vmpooler
             end
           end
 
-          task_times = get_task_times(redis, task_str, date_str)
+          task_times = get_task_times(backend, task_str, date_str)
 
           task[:duration][:total]                      = task_times.reduce(:+).to_f
           task[:duration][:average]                    = (task[:duration][:total] / task[:count][:total]).round(1)

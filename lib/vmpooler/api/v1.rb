@@ -8,6 +8,30 @@ module Vmpooler
       include Vmpooler::API::Helpers
     end
 
+    def backend
+      Vmpooler::API.settings.redis
+    end
+
+    def config
+      Vmpooler::API.settings.config[:config]
+    end
+
+    def pools
+      Vmpooler::API.settings.config[:pools]
+    end
+
+    def has_valid_token?
+      valid_token?(backend)
+    end
+
+    def need_auth!
+      validate_auth(backend)
+    end
+
+    def need_token!
+      validate_token(backend)
+    end
+
     get "#{api_prefix}/status/?" do
       content_type :json
 
@@ -18,14 +42,14 @@ module Vmpooler
         }
       }
 
-      result[:capacity] = get_capacity_metrics(Vmpooler::API.settings.config[:pools], Vmpooler::API.settings.redis)
-      result[:queue] = get_queue_metrics(Vmpooler::API.settings.config[:pools], Vmpooler::API.settings.redis)
-      result[:clone] = get_task_metrics(Vmpooler::API.settings.redis, 'clone', Date.today.to_s)
-      result[:boot] = get_task_metrics(Vmpooler::API.settings.redis, 'boot', Date.today.to_s)
+      result[:capacity] = get_capacity_metrics(pools, backend)
+      result[:queue] = get_queue_metrics(pools, backend)
+      result[:clone] = get_task_metrics(backend, 'clone', Date.today.to_s)
+      result[:boot] = get_task_metrics(backend, 'boot', Date.today.to_s)
 
       # Check for empty pools
-      Vmpooler::API.settings.config[:pools].each do |pool|
-        if Vmpooler::API.settings.redis.scard('vmpooler__ready__' + pool['name']).to_i == 0
+      pools.each do |pool|
+        if backend.scard('vmpooler__ready__' + pool['name']).to_i == 0
           result[:status][:empty] ||= []
           result[:status][:empty].push(pool['name'])
 
@@ -99,8 +123,8 @@ module Vmpooler
       (from_date..to_date).each do |date|
         daily = {
           date: date.to_s,
-          boot: get_task_metrics(Vmpooler::API.settings.redis, 'boot', date.to_s, :bypool => true),
-          clone: get_task_metrics(Vmpooler::API.settings.redis, 'clone', date.to_s, :bypool => true)
+          boot: get_task_metrics(backend, 'boot', date.to_s, :bypool => true),
+          clone: get_task_metrics(backend, 'clone', date.to_s, :bypool => true)
         }
 
         result[:daily].push(daily)
@@ -182,9 +206,9 @@ module Vmpooler
       if Vmpooler::API.settings.config[:auth]
         status 401
 
-        protected!
+        need_auth!
 
-        token = Vmpooler::API.settings.redis.hgetall('vmpooler__token__' + params[:token])
+        token = backend.hgetall('vmpooler__token__' + params[:token])
 
         if not token.nil? and not token.empty?
           status 200
@@ -206,9 +230,9 @@ module Vmpooler
       if Vmpooler::API.settings.config[:auth]
         status 401
 
-        protected!
+        need_auth!
 
-        if Vmpooler::API.settings.redis.del('vmpooler__token__' + params[:token]).to_i > 0
+        if backend.del('vmpooler__token__' + params[:token]).to_i > 0
           status 200
           result['ok'] = true
         end
@@ -226,13 +250,13 @@ module Vmpooler
       if Vmpooler::API.settings.config[:auth]
         status 401
 
-        protected!
+        need_auth!
 
         o = [('a'..'z'), ('0'..'9')].map(&:to_a).flatten
         result['token'] = o[rand(25)] + (0...31).map { o[rand(o.length)] }.join
 
-        Vmpooler::API.settings.redis.hset('vmpooler__token__' + result['token'], 'user', @auth.username)
-        Vmpooler::API.settings.redis.hset('vmpooler__token__' + result['token'], 'timestamp', Time.now)
+        backend.hset('vmpooler__token__' + result['token'], 'user', @auth.username)
+        backend.hset('vmpooler__token__' + result['token'], 'timestamp', Time.now)
 
         status 200
         result['ok'] = true
@@ -246,7 +270,7 @@ module Vmpooler
 
       result = []
 
-      Vmpooler::API.settings.config[:pools].each do |pool|
+      pools.each do |pool|
         result.push(pool['name'])
       end
 
@@ -263,7 +287,7 @@ module Vmpooler
       jdata = JSON.parse(request.body.read)
 
       jdata.each do |key, val|
-        if Vmpooler::API.settings.redis.scard('vmpooler__ready__' + key) < val.to_i
+        if backend.scard('vmpooler__ready__' + key).to_i < val.to_i
           available = 0
         end
       end
@@ -277,12 +301,16 @@ module Vmpooler
           result[key]['ok'] = true ##
 
           val.to_i.times do |_i|
-            vm = Vmpooler::API.settings.redis.spop('vmpooler__ready__' + key)
+            vm = backend.spop('vmpooler__ready__' + key)
 
             unless vm.nil?
-              Vmpooler::API.settings.redis.sadd('vmpooler__running__' + key, vm)
-              Vmpooler::API.settings.redis.hset('vmpooler__active__' + key, vm, Time.now)
-              Vmpooler::API.settings.redis.hset('vmpooler__vm__' + vm, 'checkout', Time.now)
+              backend.sadd('vmpooler__running__' + key, vm)
+              backend.hset('vmpooler__active__' + key, vm, Time.now)
+              backend.hset('vmpooler__vm__' + vm, 'checkout', Time.now)
+
+              if Vmpooler::API.settings.config[:auth] and has_valid_token? and config['vm_lifetime_auth'].to_i > 0
+                backend.hset('vmpooler__vm__' + vm, 'lifetime', config['vm_lifetime_auth'].to_i)
+              end
 
               result[key] ||= {}
 
@@ -307,8 +335,8 @@ module Vmpooler
         result['ok'] = false
       end
 
-      if result['ok'] && Vmpooler::API.settings.config[:config]['domain']
-        result['domain'] = Vmpooler::API.settings.config[:config]['domain']
+      if result['ok'] && config['domain']
+        result['domain'] = config['domain']
       end
 
       JSON.pretty_generate(result)
@@ -328,7 +356,7 @@ module Vmpooler
       available = 1
 
       request.keys.each do |template|
-        if Vmpooler::API.settings.redis.scard('vmpooler__ready__' + template) < request[template]
+        if backend.scard('vmpooler__ready__' + template) < request[template]
           available = 0
         end
       end
@@ -341,12 +369,12 @@ module Vmpooler
 
           result[template]['ok'] = true ##
 
-          vm = Vmpooler::API.settings.redis.spop('vmpooler__ready__' + template)
+          vm = backend.spop('vmpooler__ready__' + template)
 
           unless vm.nil?
-            Vmpooler::API.settings.redis.sadd('vmpooler__running__' + template, vm)
-            Vmpooler::API.settings.redis.hset('vmpooler__active__' + template, vm, Time.now)
-            Vmpooler::API.settings.redis.hset('vmpooler__vm__' + vm, 'checkout', Time.now)
+            backend.sadd('vmpooler__running__' + template, vm)
+            backend.hset('vmpooler__active__' + template, vm, Time.now)
+            backend.hset('vmpooler__vm__' + vm, 'checkout', Time.now)
 
             result[template] ||= {}
 
@@ -368,8 +396,8 @@ module Vmpooler
         result['ok'] = false
       end
 
-      if result['ok'] && Vmpooler::API.settings.config[:config]['domain']
-        result['domain'] = Vmpooler::API.settings.config[:config]['domain']
+      if result['ok'] && config['domain']
+        result['domain'] = config['domain']
       end
 
       JSON.pretty_generate(result)
@@ -383,18 +411,18 @@ module Vmpooler
       status 404
       result['ok'] = false
 
-      params[:hostname] = hostname_shorten(params[:hostname], Vmpooler::API.settings.config[:config]['domain'])
+      params[:hostname] = hostname_shorten(params[:hostname], config['domain'])
 
-      if Vmpooler::API.settings.redis.exists('vmpooler__vm__' + params[:hostname])
+      if backend.exists('vmpooler__vm__' + params[:hostname])
         status 200
         result['ok'] = true
 
-        rdata = Vmpooler::API.settings.redis.hgetall('vmpooler__vm__' + params[:hostname])
+        rdata = backend.hgetall('vmpooler__vm__' + params[:hostname])
 
         result[params[:hostname]] = {}
 
         result[params[:hostname]]['template'] = rdata['template']
-        result[params[:hostname]]['lifetime'] = (rdata['lifetime'] || Vmpooler::API.settings.config[:config]['vm_lifetime']).to_i
+        result[params[:hostname]]['lifetime'] = (rdata['lifetime'] || config['vm_lifetime']).to_i
 
         if rdata['destroy']
           result[params[:hostname]]['running'] = ((Time.parse(rdata['destroy']) - Time.parse(rdata['checkout'])) / 60 / 60).round(2)
@@ -409,8 +437,8 @@ module Vmpooler
           end
         end
 
-        if Vmpooler::API.settings.config[:config]['domain']
-          result[params[:hostname]]['domain'] = Vmpooler::API.settings.config[:config]['domain']
+        if config['domain']
+          result[params[:hostname]]['domain'] = config['domain']
         end
       end
 
@@ -425,12 +453,12 @@ module Vmpooler
       status 404
       result['ok'] = false
 
-      params[:hostname] = hostname_shorten(params[:hostname], Vmpooler::API.settings.config[:config]['domain'])
+      params[:hostname] = hostname_shorten(params[:hostname], config['domain'])
 
-      Vmpooler::API.settings.config[:pools].each do |pool|
-        if Vmpooler::API.settings.redis.sismember('vmpooler__running__' + pool['name'], params[:hostname])
-          Vmpooler::API.settings.redis.srem('vmpooler__running__' + pool['name'], params[:hostname])
-          Vmpooler::API.settings.redis.sadd('vmpooler__completed__' + pool['name'], params[:hostname])
+      pools.each do |pool|
+        if backend.sismember('vmpooler__running__' + pool['name'], params[:hostname])
+          backend.srem('vmpooler__running__' + pool['name'], params[:hostname])
+          backend.sadd('vmpooler__completed__' + pool['name'], params[:hostname])
 
           status 200
           result['ok'] = true
@@ -443,27 +471,26 @@ module Vmpooler
     put "#{api_prefix}/vm/:hostname/?" do
       content_type :json
 
+      status 404
+      result = { 'ok' => false }
+
       failure = false
 
-      result = {}
+      params[:hostname] = hostname_shorten(params[:hostname], config['domain'])
 
-      status 404
-      result['ok'] = false
-
-      params[:hostname] = hostname_shorten(params[:hostname], Vmpooler::API.settings.config[:config]['domain'])
-
-      if Vmpooler::API.settings.redis.exists('vmpooler__vm__' + params[:hostname])
+      if backend.exists('vmpooler__vm__' + params[:hostname])
         begin
           jdata = JSON.parse(request.body.read)
         rescue
-          status 400
-          return JSON.pretty_generate(result)
+          halt 400, JSON.pretty_generate(result)
         end
 
         # Validate data payload
         jdata.each do |param, arg|
           case param
             when 'lifetime'
+              need_token! if Vmpooler::API.settings.config[:auth]
+
               unless arg.to_i > 0
                 failure = true
               end
@@ -482,12 +509,14 @@ module Vmpooler
           jdata.each do |param, arg|
             case param
               when 'lifetime'
+                need_token! if Vmpooler::API.settings.config[:auth]
+
                 arg = arg.to_i
 
-                Vmpooler::API.settings.redis.hset('vmpooler__vm__' + params[:hostname], param, arg)
+                backend.hset('vmpooler__vm__' + params[:hostname], param, arg)
               when 'tags'
                 arg.keys.each do |tag|
-                    Vmpooler::API.settings.redis.hset('vmpooler__vm__' + params[:hostname], 'tag:' + tag, arg[tag])
+                    backend.hset('vmpooler__vm__' + params[:hostname], 'tag:' + tag, arg[tag])
                 end
             end
           end
