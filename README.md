@@ -70,6 +70,57 @@ vmpooler provides an API and web front-end (dashboard) on port `:4567`.  See the
 
 vmpooler provides a REST API for VM management.  The following examples use `curl` for communication.
 
+#### Token operations
+
+Token-based authentication can be used when requesting or modifying VMs.  The `/token` route can be used to create, query, or delete tokens.  See the provided YAML configuration example, [vmpooler.yaml.example](vmpooler.yaml.example), for information on configuring an authentication store to use when performing token operations.
+
+##### GET /token/&lt;token&gt;
+
+Get information about an existing token.
+
+```
+$ curl -u sschneid --url vmpooler.company.com/token/utpg2i2xswor6h8ttjhu3d47z53yy47y
+Enter host password for user 'sschneid':
+```
+```json
+{
+  "ok": true,
+  "utpg2i2xswor6h8ttjhu3d47z53yy47y": {
+    "user": "sschneid",
+    "timestamp": "2015-04-28 19:17:47 -0700"
+  }
+}
+```
+
+##### POST /token
+
+Generate a new authentication token.
+
+```
+$ curl -X POST -u sschneid --url vmpooler.company.com/token
+Enter host password for user 'sschneid':
+```
+```json
+{
+    "ok": true,
+    "token": "utpg2i2xswor6h8ttjhu3d47z53yy47y"
+}
+```
+
+##### DELETE /token/&lt;token&gt;
+
+Delete an authentication token.
+
+```
+$ curl -X DELETE -u sschneid --url vmpooler.company.com/token/utpg2i2xswor6h8ttjhu3d47z53yy47y
+Enter host password for user 'sschneid':
+```
+```json
+{
+  "ok": true
+}
+```
+
 #### VM operations
 
 ##### GET /vm
@@ -89,6 +140,8 @@ $ curl --url vmpooler.company.com/vm
 ##### POST /vm
 
 Useful for batch operations; post JSON (see format below), get back VMs.
+
+If an authentication store is configured, an authentication token supplied via the `X-AUTH-TOKEN` HTTP header will modify a VM's default lifetime.  See the provided YAML configuration example, [vmpooler.yaml.example](vmpooler.yaml.example), and the 'token operations' section above for more information.
 
 ```
 $ curl -d '{"debian-7-i386":"2","debian-7-x86_64":"1"}' --url vmpooler.company.com/vm
@@ -176,6 +229,8 @@ parameter | description | required structure
 *tags* | free-form VM tagging | hash
 
 Any modifications can be verified using the [GET /vm/&lt;hostname&gt;](#get-vmhostname) endpoint.
+
+If an authentication store is configured, an authentication token is required (via the `X-AUTH-TOKEN` HTTP header) to access this route.  See the provided YAML configuration example, [vmpooler.yaml.example](vmpooler.yaml.example), and the 'token operations' section above for more information.
 
 ```
 $ curl -X PUT -d '{"lifetime":"2"}' --url vmpooler.company.com/vm/fq6qlpjlsskycq6

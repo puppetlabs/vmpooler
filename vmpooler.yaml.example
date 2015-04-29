@@ -73,6 +73,39 @@
 :graphite:
   server: 'graphite.company.com'
 
+# :auth:
+#
+# This section contains information related to authenticating users
+# for token operations.
+#
+# Currently the only supported provider is LDAP; the following parameters
+# will all be under an ':ldap:' subsection (see example below).
+#
+# Available configuration parameters:
+#
+#   - host
+#     The FQDN hostname of the LDAP server.
+#
+#   - port
+#     The port used to connect to the LDAP service.
+#     (optional; default: '389')
+#
+#   - base
+#     The base DN used for LDAP searches.
+#
+#   - user_object
+#     The LDAP object-type used to designate a user object.
+
+# Example:
+
+:auth:
+  provider: 'ldap'
+  :ldap:
+    host: 'ldap.company.com'
+    port: 389
+    base: 'ou=users,dc=company,dc=com'
+    user_object: 'uid'
+
 # :config:
 #
 # This section contains global configuration information.
@@ -107,6 +140,10 @@
 #     How long (in hours) to keep VMs in 'running' queues before destroying.
 #     (optional; default: '24')
 #
+#   - vm_lifetime_auth
+#     Same as vm_lifetime, but applied if a valid authentication token is
+#     included during the request.
+#
 #   - domain
 #     If set, returns a top-level 'domain' JSON key in POST requests
 
@@ -119,6 +156,7 @@
   timeout: 15
   vm_checktime: 15
   vm_lifetime: 12
+  vm_lifetime_auth: 24
   domain: 'company.com'
 
 # :pools:
