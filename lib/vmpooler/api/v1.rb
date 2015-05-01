@@ -426,7 +426,7 @@ module Vmpooler
 
         if rdata['destroy']
           result[params[:hostname]]['running'] = ((Time.parse(rdata['destroy']) - Time.parse(rdata['checkout'])) / 60 / 60).round(2)
-        else
+        elsif rdata['checkout']
           result[params[:hostname]]['running'] = ((Time.now - Time.parse(rdata['checkout'])) / 60 / 60).round(2)
         end
 
