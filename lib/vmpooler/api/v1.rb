@@ -426,8 +426,14 @@ module Vmpooler
 
         if rdata['destroy']
           result[params[:hostname]]['running'] = ((Time.parse(rdata['destroy']) - Time.parse(rdata['checkout'])) / 60 / 60).round(2)
+          result[params[:hostname]]['state'] = 'destroyed'
         elsif rdata['checkout']
           result[params[:hostname]]['running'] = ((Time.now - Time.parse(rdata['checkout'])) / 60 / 60).round(2)
+          result[params[:hostname]]['state'] = 'running'
+        elsif rdata['check']
+          result[params[:hostname]]['state'] = 'ready'
+        else
+          result[params[:hostname]]['state'] = 'pending'
         end
 
         rdata.keys.each do |key|

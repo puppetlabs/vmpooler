@@ -211,7 +211,8 @@ $ curl --url vmpooler.company.com/vm/pxpmtoonx7fiqg6
   "pxpmtoonx7fiqg6": {
     "template": "centos-6-x86_64",
     "lifetime": 12,
-    "running": 3,
+    "running": 3.1,
+    "state": "running",
     "domain": "company.com"
   }
 }
