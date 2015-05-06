@@ -308,8 +308,15 @@ module Vmpooler
               backend.hset('vmpooler__active__' + key, vm, Time.now)
               backend.hset('vmpooler__vm__' + vm, 'checkout', Time.now)
 
-              if Vmpooler::API.settings.config[:auth] and has_valid_token? and config['vm_lifetime_auth'].to_i > 0
-                backend.hset('vmpooler__vm__' + vm, 'lifetime', config['vm_lifetime_auth'].to_i)
+              if Vmpooler::API.settings.config[:auth] and has_valid_token?
+                backend.hset('vmpooler__vm__' + vm, 'token:token', request.env['HTTP_X_AUTH_TOKEN'])
+                backend.hset('vmpooler__vm__' + vm, 'token:user',
+                  backend.hget('vmpooler__token__' + request.env['HTTP_X_AUTH_TOKEN'], 'user')
+                )
+
+                if config['vm_lifetime_auth'].to_i > 0
+                  backend.hset('vmpooler__vm__' + vm, 'lifetime', config['vm_lifetime_auth'].to_i)
+                end
               end
 
               result[key] ||= {}

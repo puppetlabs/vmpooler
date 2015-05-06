@@ -177,6 +177,7 @@ describe Vmpooler::API::V1 do
       app.settings.set :redis, redis
 
       allow(redis).to receive(:exists).and_return '1'
+      allow(redis).to receive(:hget).with('vmpooler__token__abcdefghijklmnopqrstuvwxyz012345', 'user').and_return 'jdoe'
       allow(redis).to receive(:hset).and_return '1'
       allow(redis).to receive(:sadd).and_return '1'
       allow(redis).to receive(:scard).and_return '5'
