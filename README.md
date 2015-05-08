@@ -79,14 +79,14 @@ Token-based authentication can be used when requesting or modifying VMs.  The `/
 Get information about an existing token.
 
 ```
-$ curl -u sschneid --url vmpooler.company.com/token/utpg2i2xswor6h8ttjhu3d47z53yy47y
-Enter host password for user 'sschneid':
+$ curl -u jdoe --url vmpooler.company.com/token/utpg2i2xswor6h8ttjhu3d47z53yy47y
+Enter host password for user 'jdoe':
 ```
 ```json
 {
   "ok": true,
   "utpg2i2xswor6h8ttjhu3d47z53yy47y": {
-    "user": "sschneid",
+    "user": "jdoe",
     "timestamp": "2015-04-28 19:17:47 -0700"
   }
 }
@@ -97,8 +97,8 @@ Enter host password for user 'sschneid':
 Generate a new authentication token.
 
 ```
-$ curl -X POST -u sschneid --url vmpooler.company.com/token
-Enter host password for user 'sschneid':
+$ curl -X POST -u jdoe --url vmpooler.company.com/token
+Enter host password for user 'jdoe':
 ```
 ```json
 {
@@ -112,8 +112,8 @@ Enter host password for user 'sschneid':
 Delete an authentication token.
 
 ```
-$ curl -X DELETE -u sschneid --url vmpooler.company.com/token/utpg2i2xswor6h8ttjhu3d47z53yy47y
-Enter host password for user 'sschneid':
+$ curl -X DELETE -u jdoe --url vmpooler.company.com/token/utpg2i2xswor6h8ttjhu3d47z53yy47y
+Enter host password for user 'jdoe':
 ```
 ```json
 {
@@ -213,6 +213,10 @@ $ curl --url vmpooler.company.com/vm/pxpmtoonx7fiqg6
     "lifetime": 12,
     "running": 3.1,
     "state": "running",
+    "tags": {
+      "department": "engineering",
+      "user": "jdoe"
+    },
     "domain": "company.com"
   }
 }
@@ -243,7 +247,7 @@ $ curl -X PUT -d '{"lifetime":"2"}' --url vmpooler.company.com/vm/fq6qlpjlsskycq
 ```
 
 ```
-$ curl -X PUT -d '{"tags":{"department":"engineering","user":"sschneid"}}' --url vmpooler.company.com/vm/fq6qlpjlsskycq6
+$ curl -X PUT -d '{"tags":{"department":"engineering","user":"jdoe"}}' --url vmpooler.company.com/vm/fq6qlpjlsskycq6
 ```
 ```json
 {
@@ -361,6 +365,20 @@ $ curl --url vmpooler.company.com/summary
       "total": 14,
     }
   },
+  "tag": {
+    "department": {
+      "engineering": 14,
+      "help desk": 10,
+      "IT": 44,
+      "total": 68
+    },
+    "user": {
+      "arodgers": 54,
+      "cmatthews": 10,
+      "jnelson": 4,
+      "total": 68
+    }
+  },
   "daily": [
     {
       "date": "2015-03-11",
@@ -384,6 +402,20 @@ $ curl --url vmpooler.company.com/summary
         },
         "count": {
           "total": 14
+        }
+      },
+      "tag": {
+        "department": {
+          "engineering": 14,
+          "help desk": 10,
+          "IT": 44,
+          "total": 68
+        },
+        "user": {
+          "arodgers": 54,
+          "cmatthews": 10,
+          "jnelson": 4,
+          "total": 68
         }
       }
     }
@@ -422,7 +454,8 @@ $ curl -G -d 'from=2015-03-10' -d 'to=2015-03-11' --url vmpooler.company.com/sum
         "count": {
           "total": 0
         }
-      }
+      },
+      "tag": { }
     },
     {
       "date": "2015-03-11",
@@ -447,7 +480,8 @@ $ curl -G -d 'from=2015-03-10' -d 'to=2015-03-11' --url vmpooler.company.com/sum
         "count": {
           "total": 14
         }
-      }
+      },
+      "tag": { }
     }
   ]
 }
