@@ -152,4 +152,20 @@ describe Vmpooler::API::Helpers do
     end
   end
 
+  describe '#get_tag_metrics' do
+    let(:redis) { double('redis') }
+
+    it 'returns basic tag metrics' do
+      allow(redis).to receive(:hgetall).with('vmpooler__tag__2015-01-01').and_return({"abcdefghijklmno:tag" => "value"})
+
+      expect(subject.get_tag_metrics(redis, '2015-01-01')).to eq({"tag" => {"value"=>1, "total"=>1}})
+    end
+
+    it 'calculates tag totals' do
+      allow(redis).to receive(:hgetall).with('vmpooler__tag__2015-01-01').and_return({"abcdefghijklmno:tag" => "value", "pqrstuvwxyz12345:tag" => "another_value"})
+
+      expect(subject.get_tag_metrics(redis, '2015-01-01')).to eq({"tag"=>{"value"=>1, "total"=>2, "another_value"=>1}})
+    end
+  end
+
 end
