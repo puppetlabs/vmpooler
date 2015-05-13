@@ -147,6 +147,28 @@ module Vmpooler
         queue
       end
 
+      def get_tag_metrics(backend, date_str)
+        tags = {}
+
+        backend.hgetall('vmpooler__tag__' + date_str).each do |key, value|
+          hostname = 'unknown'
+          tag = 'unknown'
+
+          if key =~ /\:/
+            hostname, tag = key.split(':', 2)
+          end
+
+          tags[tag] ||= {}
+          tags[tag][value] ||= 0
+          tags[tag][value] += 1
+
+          tags[tag]['total'] ||= 0
+          tags[tag]['total'] += 1
+        end
+
+        tags
+      end
+
       def get_task_metrics(backend, task_str, date_str, opts = {})
         opts = {:bypool => false}.merge(opts)
 

@@ -99,6 +99,7 @@ module Vmpooler
             pool: {}
           }
         },
+        tag: {},
         daily: []
       }
 
@@ -124,7 +125,8 @@ module Vmpooler
         daily = {
           date: date.to_s,
           boot: get_task_metrics(backend, 'boot', date.to_s, :bypool => true),
-          clone: get_task_metrics(backend, 'clone', date.to_s, :bypool => true)
+          clone: get_task_metrics(backend, 'clone', date.to_s, :bypool => true),
+          tag: get_tag_metrics(backend, date.to_s)
         }
 
         result[:daily].push(daily)
@@ -190,6 +192,17 @@ module Vmpooler
 
           if result[task][:count][:pool][pool][:total] > 0
            result[task][:duration][:pool][pool][:average] = result[task][:duration][:pool][pool][:total] / result[task][:count][:pool][pool][:total]
+          end
+        end
+      end
+
+      result[:daily].each do |daily|
+        daily[:tag].each_key do |tag|
+          result[:tag][tag] ||= {}
+
+          daily[:tag][tag].each do |key, value|
+            result[:tag][tag][key] ||= 0
+            result[:tag][tag][key] += value
           end
         end
       end
@@ -530,6 +543,7 @@ module Vmpooler
               when 'tags'
                 arg.keys.each do |tag|
                     backend.hset('vmpooler__vm__' + params[:hostname], 'tag:' + tag, arg[tag])
+                    backend.hset('vmpooler__tag__' + Date.today.to_s, params[:hostname] + ':' + tag, arg[tag])
                 end
             end
           end
