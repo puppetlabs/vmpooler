@@ -544,6 +544,9 @@ module Vmpooler
                 arg.keys.each do |tag|
                     backend.hset('vmpooler__vm__' + params[:hostname], 'tag:' + tag, arg[tag])
                     backend.hset('vmpooler__tag__' + Date.today.to_s, params[:hostname] + ':' + tag, arg[tag])
+
+                    # Auto-expire summary index
+                    backend.expire('vmpooler__tag__' + Date.today.to_s, (Vmpooler::API.settings.config[:redis]['data_ttl'].to_i * 60 * 60))
                 end
             end
           end
