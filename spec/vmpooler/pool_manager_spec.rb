@@ -1,4 +1,5 @@
 require 'spec_helper'
+require 'time'
 
 describe 'Pool Manager' do
   let(:logger) { double('logger') }
@@ -145,5 +146,69 @@ describe 'Pool Manager' do
     end
   end
 
+  describe '#_check_running_vm' do
+    let(:pool_helper) { double('pool') }
+    let(:vsphere) { {pool => pool_helper} }
+
+    before do
+      expect(subject).not_to be_nil
+      $vsphere = vsphere
+    end
+
+    it 'does nothing with nil host' do
+      allow(pool_helper).to receive(:find_vm).and_return(nil)
+      expect(redis).not_to receive(:smove)
+      subject._check_running_vm(vm, pool, timeout)
+    end
+
+    context 'valid host' do
+      let(:vm_host) { double('vmhost') }
+
+      it 'moves vm when not poweredOn' do
+        allow(pool_helper).to receive(:find_vm).and_return vm_host
+        allow(vm_host).to receive(:runtime).and_return true
+        allow(vm_host).to receive_message_chain(:runtime, :powerState).and_return 'poweredOff'
+
+        expect(redis).to receive(:smove)
+        expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' appears to be powered off or dead")
+
+        subject._check_running_vm(vm, pool, timeout)
+      end
+
+      it 'moves vm when poweredOn, but past TTL' do
+        allow(pool_helper).to receive(:find_vm).and_return vm_host
+        allow(vm_host).to receive(:runtime).and_return true
+        allow(vm_host).to receive_message_chain(:runtime, :powerState).and_return 'poweredOn'
+        allow(vm_host).to receive_message_chain(:runtime, :bootTime).and_return Time.parse('2005-01-01')
+
+        expect(redis).to receive(:smove)
+        expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' reached end of TTL after #{timeout} minutes")
+
+        subject._check_running_vm(vm, pool, timeout)
+      end
+
+    end
+
+  end
+
+  describe '#move_running_to_completed' do
+    before do
+      expect(subject).not_to be_nil
+    end
+
+    it 'uses the pool in smove' do
+      allow(redis).to receive(:smove).with(String, String, String)
+      allow(logger).to receive(:log)
+      expect(redis).to receive(:smove).with('vmpooler__running__p1', 'vmpooler__completed__p1', 'vm1')
+      subject.move_vm_queue('p1', 'vm1', 'running', 'completed', 'msg')
+    end
+
+    it 'logs msg' do
+      allow(redis).to receive(:smove)
+      allow(logger).to receive(:log)
+      expect(logger).to receive(:log).with('d', "[!] [p1] 'vm1' a msg here")
+      subject.move_vm_queue('p1', 'vm1', 'running', 'completed', 'a msg here')
+    end
+  end
 
 end

@@ -132,29 +132,32 @@ module Vmpooler
 
     def check_running_vm(vm, pool, ttl)
       Thread.new do
-        host = $vsphere[pool].find_vm(vm)
+        _check_running_vm(vm, pool, ttl)
+      end
+    end
 
-        if host
-          if
-            (host.runtime) &&
+    def _check_running_vm(vm, pool, ttl)
+      host = $vsphere[pool].find_vm(vm)
+
+      if host
+        queue_from, queue_to = 'running', 'completed'
+
+        if (host.runtime) &&
             (host.runtime.powerState != 'poweredOn')
-
-            $redis.smove('vmpooler__running__' + pool, 'vmpooler__completed__' + pool, vm)
-
-            $logger.log('d', "[!] [#{pool}] '#{vm}' appears to be powered off or dead")
-          else
-            if
-              (host.runtime) &&
+          move_vm_queue(pool, vm, queue_from, queue_to, 'appears to be powered off or dead')
+        else
+          if (host.runtime) &&
               (host.runtime.bootTime)
-              ((((Time.now - host.runtime.bootTime) / 60).to_s[/^\d+\.\d{1}/].to_f) > ttl)
-
-              $redis.smove('vmpooler__running__' + pool, 'vmpooler__completed__' + pool, vm)
-
-              $logger.log('d', "[!] [#{pool}] '#{vm}' reached end of TTL after #{ttl} minutes")
-            end
+            ((((Time.now - host.runtime.bootTime) / 60).to_s[/^\d+\.\d{1}/].to_f) > ttl)
+            move_vm_queue(pool, vm, queue_from, queue_to, "reached end of TTL after #{ttl} minutes")
           end
         end
       end
+    end
+
+    def move_vm_queue(pool, vm, queue_from, queue_to, msg)
+      $redis.smove("vmpooler__#{queue_from}__#{pool}", "vmpooler__#{queue_to}__#{pool}", vm)
+      $logger.log('d', "[!] [#{pool}] '#{vm}' #{msg}")
     end
 
     # Clone a VM
