@@ -66,6 +66,9 @@ module Vmpooler
         $redis.smove('vmpooler__pending__' + pool, 'vmpooler__ready__' + pool, vm)
         $redis.hset('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm, finish)
 
+        # Auto-expire summary index
+        $redis.expire('vmpooler__boot__' + Date.today.to_s, ($config[:redis]['data_ttl'].to_i * 60 * 60))
+
         $logger.log('s', "[>] [#{pool}] '#{vm}' moved to 'ready' queue")
       end
     end
@@ -235,6 +238,9 @@ module Vmpooler
 
           $redis.hset('vmpooler__clone__' + Date.today.to_s, vm['template'] + ':' + vm['hostname'], finish)
           $redis.hset('vmpooler__vm__' + vm['hostname'], 'clone_time', finish)
+
+          # Auto-expire summary index
+          $redis.expire('vmpooler__clone__' + Date.today.to_s, ($config[:redis]['data_ttl'].to_i * 60 * 60))
 
           $logger.log('s', "[+] [#{vm['template']}] '#{vm['hostname']}' cloned from '#{vm['template']}' in #{finish} seconds")
         rescue

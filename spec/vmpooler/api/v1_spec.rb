@@ -302,7 +302,10 @@ describe Vmpooler::API::V1 do
       pools: [
         {'name' => 'pool1', 'size' => 5},
         {'name' => 'pool2', 'size' => 10}
-      ]
+      ],
+      redis: {
+        'data_ttl' => '168'
+      }
     } }
 
     before do
@@ -310,6 +313,7 @@ describe Vmpooler::API::V1 do
       app.settings.set :redis, redis
 
       allow(redis).to receive(:exists).and_return '1'
+      allow(redis).to receive(:expire).with('vmpooler__tag__' + Date.today.to_s, 604800).and_return '1'
       allow(redis).to receive(:hset).and_return '1'
     end
 

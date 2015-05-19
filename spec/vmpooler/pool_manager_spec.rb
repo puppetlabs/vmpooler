@@ -82,11 +82,17 @@ describe 'Pool Manager' do
     end
 
     context 'a host with proper summary' do
+      let(:config) { {
+        redis: { 'data_ttl' => '168' }
+      } }
+
+
       before do
         allow(host).to receive(:summary).and_return true
         allow(host).to receive_message_chain(:summary, :guest).and_return true
         allow(host).to receive_message_chain(:summary, :guest, :hostName).and_return vm
 
+        allow(redis).to receive(:expire).with('vmpooler__boot__' + Date.today.to_s, 604800).and_return '1'
         allow(redis).to receive(:hget)
         allow(redis).to receive(:smove)
         allow(redis).to receive(:hset)
