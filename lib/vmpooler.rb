@@ -37,6 +37,12 @@ module Vmpooler
       parsed_config[:graphite]['prefix'] ||= 'vmpooler'
     end
 
+    if parsed_config[:tagfilter]
+      parsed_config[:tagfilter].keys.each do |tag|
+        parsed_config[:tagfilter][tag] = Regexp.new(parsed_config[:tagfilter][tag])
+      end
+    end
+
     parsed_config[:uptime] = Time.now
 
     parsed_config
