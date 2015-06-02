@@ -106,6 +106,18 @@
     base: 'ou=users,dc=company,dc=com'
     user_object: 'uid'
 
+# :tagfilter:
+#
+# Filter tags by regular expression.
+
+# Example:
+#
+# This example demonstrates discarding everything after a '/' character for
+# the 'url' tag, transforming 'foo.com/something.html' to 'foo.com'.
+
+:tagfilter:
+  url: '(.*)\/'
+
 # :config:
 #
 # This section contains global configuration information.
