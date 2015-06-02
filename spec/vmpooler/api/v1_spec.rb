@@ -332,6 +332,23 @@ describe Vmpooler::API::V1 do
           expect(last_response.status).to eq(400)
         end
 
+      context '(tagfilter configured)' do
+        let(:config) { {
+          tagfilter: { 'url' => '(.*)\/' },
+        } }
+
+        it 'correctly filters tags' do
+          expect(redis).to receive(:hset).with("vmpooler__vm__testhost", "tag:url", "foo.com")
+
+          put "#{prefix}/vm/testhost", '{"tags":{"url":"foo.com/something.html"}}'
+
+          expect(last_response).to be_ok
+          expect(last_response.header['Content-Type']).to eq('application/json')
+          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => true}))
+          expect(last_response.status).to eq(200)
+        end
+      end
+
       context '(auth not configured)' do
         let(:config) { { auth: false } }
 

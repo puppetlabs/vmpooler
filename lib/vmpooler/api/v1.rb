@@ -542,8 +542,13 @@ module Vmpooler
                 backend.hset('vmpooler__vm__' + params[:hostname], param, arg)
               when 'tags'
                 arg.keys.each do |tag|
-                    backend.hset('vmpooler__vm__' + params[:hostname], 'tag:' + tag, arg[tag])
-                    backend.hset('vmpooler__tag__' + Date.today.to_s, params[:hostname] + ':' + tag, arg[tag])
+                  if Vmpooler::API.settings.config[:tagfilter] and Vmpooler::API.settings.config[:tagfilter][tag]
+                    filter = Vmpooler::API.settings.config[:tagfilter][tag]
+                    arg[tag] = arg[tag].match(filter).captures.join
+                  end
+
+                  backend.hset('vmpooler__vm__' + params[:hostname], 'tag:' + tag, arg[tag])
+                  backend.hset('vmpooler__tag__' + Date.today.to_s, params[:hostname] + ':' + tag, arg[tag])
                 end
             end
           end
