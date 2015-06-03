@@ -147,7 +147,9 @@ module Vmpooler
         queue
       end
 
-      def get_tag_metrics(backend, date_str)
+      def get_tag_metrics(backend, date_str, opts = {})
+        opts = {:only => false}.merge(opts)
+
         tags = {}
 
         backend.hgetall('vmpooler__tag__' + date_str).each do |key, value|
@@ -156,6 +158,10 @@ module Vmpooler
 
           if key =~ /\:/
             hostname, tag = key.split(':', 2)
+          end
+
+          if opts[:only]
+            next unless tag == opts[:only]
           end
 
           tags[tag] ||= {}
@@ -169,8 +175,38 @@ module Vmpooler
         tags
       end
 
+      def get_tag_summary(backend, from_date, to_date, opts = {})
+        opts = {:only => false}.merge(opts)
+
+        result = {
+          tag: {},
+          daily: []
+        }
+
+        (from_date..to_date).each do |date|
+          daily = {
+            date: date.to_s,
+            tag: get_tag_metrics(backend, date.to_s, opts)
+          }
+          result[:daily].push(daily)
+        end
+
+        result[:daily].each do |daily|
+          daily[:tag].each_key do |tag|
+            result[:tag][tag] ||= {}
+
+            daily[:tag][tag].each do |key, value|
+              result[:tag][tag][key] ||= 0
+              result[:tag][tag][key] += value
+            end
+          end
+        end
+
+        result
+      end
+
       def get_task_metrics(backend, task_str, date_str, opts = {})
-        opts = {:bypool => false}.merge(opts)
+        opts = {:bypool => false, :only => false}.merge(opts)
 
         task = {
             duration: {
@@ -226,7 +262,94 @@ module Vmpooler
           task[:duration][:min], task[:duration][:max] = task_times.minmax
         end
 
+        if opts[:only]
+          task.each_key do |key|
+            task.delete(key) unless key.to_s == opts[:only]
+          end
+        end
+
         task
+      end
+
+      def get_task_summary(backend, task_str, from_date, to_date, opts = {})
+        opts = {:bypool => false, :only => false}.merge(opts)
+
+        task_sym = task_str.to_sym
+
+        result = {
+          task_sym => {},
+          daily: []
+        }
+
+        (from_date..to_date).each do |date|
+          daily = {
+            date: date.to_s,
+            task_sym => get_task_metrics(backend, task_str, date.to_s, opts)
+          }
+          result[:daily].push(daily)
+        end
+
+        daily_task = {}
+        daily_task_bypool = {} if opts[:bypool] == true
+
+        result[:daily].each do |daily|
+          daily[task_sym].each_key do |type|
+            result[task_sym][type] ||= {}
+            daily_task[type] ||= {}
+
+            ['min', 'max'].each do |key|
+              if daily[task_sym][type][key]
+                daily_task[type][:data] ||= []
+                daily_task[type][:data].push(daily[task_sym][type][key])
+              end
+            end
+
+            result[task_sym][type][:total] ||= 0
+            result[task_sym][type][:total] += daily[task_sym][type][:total]
+
+            if opts[:bypool] == true
+              result[task_sym][type][:pool] ||= {}
+              daily_task_bypool[type] ||= {}
+
+              next unless daily[task_sym][type][:pool]
+
+              daily[task_sym][type][:pool].each_key do |pool|
+                result[task_sym][type][:pool][pool] ||= {}
+                daily_task_bypool[type][pool] ||= {}
+
+                ['min', 'max'].each do |key|
+                  if daily[task_sym][type][:pool][pool][key.to_sym]
+                    daily_task_bypool[type][pool][:data] ||= []
+                    daily_task_bypool[type][pool][:data].push(daily[task_sym][type][:pool][pool][key.to_sym])
+                  end
+                end
+
+                result[task_sym][type][:pool][pool][:total] ||= 0
+                result[task_sym][type][:pool][pool][:total] += daily[task_sym][type][:pool][pool][:total]
+              end
+            end
+          end
+        end
+
+        result[task_sym].each_key do |type|
+          if daily_task[type][:data]
+            result[task_sym][type][:min], result[task_sym][type][:max] = daily_task[type][:data].minmax
+            result[task_sym][type][:average] = mean(daily_task[type][:data])
+          end
+
+          if opts[:bypool] == true
+            result[task_sym].each_key do |type|
+              result[task_sym][type][:pool].each_key do |pool|
+                if daily_task_bypool[type][pool][:data]
+                  result[task_sym][type][:pool][pool][:min], result[task_sym][type][:pool][pool][:max] = daily_task_bypool[type][pool][:data].minmax
+                  result[task_sym][type][:pool][pool][:average] = mean(daily_task_bypool[type][pool][:data])
+                end
+              end
+            end
+          end
+        end
+
+        result
       end
 
     end
