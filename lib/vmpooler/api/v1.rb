@@ -544,7 +544,7 @@ module Vmpooler
                 arg.keys.each do |tag|
                   if Vmpooler::API.settings.config[:tagfilter] and Vmpooler::API.settings.config[:tagfilter][tag]
                     filter = Vmpooler::API.settings.config[:tagfilter][tag]
-                    arg[tag] = arg[tag].match(filter).captures.join
+                    arg[tag] = arg[tag].match(filter).captures.join if arg[tag].match(filter)
                   end
 
                   backend.hset('vmpooler__vm__' + params[:hostname], 'tag:' + tag, arg[tag])
