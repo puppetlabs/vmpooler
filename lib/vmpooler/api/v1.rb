@@ -67,39 +67,6 @@ module Vmpooler
       content_type :json
 
       result = {
-        boot: {
-          duration: {
-            average: 0,
-            min: 0,
-            max: 0,
-            total: 0,
-            pool: {}
-          },
-          count: {
-            average: 0,
-            min: 0,
-            max: 0,
-            total: 0,
-            pool: {}
-          }
-        },
-        clone: {
-          duration: {
-            average: 0,
-            min: 0,
-            max: 0,
-            total: 0,
-            pool: {}
-          },
-          count: {
-            average: 0,
-            min: 0,
-            max: 0,
-            total: 0,
-            pool: {}
-          }
-        },
-        tag: {},
         daily: []
       }
 
@@ -121,90 +88,75 @@ module Vmpooler
         halt 400, 'Date range is invalid, \'from\' must be in the past.'
       end
 
-      (from_date..to_date).each do |date|
-        daily = {
-          date: date.to_s,
-          boot: get_task_metrics(backend, 'boot', date.to_s, :bypool => true),
-          clone: get_task_metrics(backend, 'clone', date.to_s, :bypool => true),
-          tag: get_tag_metrics(backend, date.to_s)
-        }
+      boot = get_task_summary(backend, 'boot', from_param, to_param, :bypool => true)
+      clone = get_task_summary(backend, 'clone', from_param, to_param, :bypool => true)
+      tag = get_tag_summary(backend, from_param, to_param)
 
-        result[:daily].push(daily)
+      result[:boot] = boot[:boot]
+      result[:clone] = clone[:clone]
+      result[:tag] = tag[:tag]
+
+      daily = {}
+
+      boot[:daily].each do |day|
+        daily[day[:date]] ||= {}
+        daily[day[:date]][:boot] = day[:boot]
       end
 
-      [:boot, :clone].each do |task|
-        daily_counts = []
-        daily_counts_bypool = {}
-        daily_durations = []
-        daily_durations_bypool = {}
+      clone[:daily].each do |day|
+        daily[day[:date]] ||= {}
+        daily[day[:date]][:clone] = day[:clone]
+      end
 
-        result[:daily].each do |daily|
-          if daily[task][:count][:pool]
-            daily[task][:count][:pool].each_key do |pool|
-              daily_counts_bypool[pool] ||= []
-              daily_counts_bypool[pool].push(daily[task][:count][:pool][pool][:total])
+      tag[:daily].each do |day|
+        daily[day[:date]] ||= {}
+        daily[day[:date]][:tag] = day[:tag]
+      end
 
-              if daily[task][:count][:pool][pool][:total] > 0
-                daily_durations_bypool[pool] ||= []
-                daily_durations_bypool[pool].push(daily[task][:duration][:pool][pool][:min])
-                daily_durations_bypool[pool].push(daily[task][:duration][:pool][pool][:max])
-              end
+      daily.each_key do |day|
+        result[:daily].push({
+          date: day,
+          boot: daily[day][:boot],
+          clone: daily[day][:clone],
+          tag: daily[day][:tag]
+        })
+      end
 
-              result[task][:count][:pool][pool] ||= {}
-              result[task][:count][:pool][pool][:total] ||= 0
-              result[task][:count][:pool][pool][:total] += daily[task][:count][:pool][pool][:total]
+      JSON.pretty_generate(result)
+    end
 
-              result[task][:duration][:pool][pool] ||= {}
-              result[task][:duration][:pool][pool][:total] ||= 0
-              result[task][:duration][:pool][pool][:total] += daily[task][:duration][:pool][pool][:total]
-            end
-          end
+    get "#{api_prefix}/summary/:route/?:key?/?" do
+      content_type :json
 
-          daily_counts.push(daily[task][:count][:total])
-          if daily[task][:count][:total] > 0
-            daily_durations.push(daily[task][:duration][:min])
-            daily_durations.push(daily[task][:duration][:max])
-          end
+      result = {}
 
-          result[task][:count][:total] += daily[task][:count][:total]
-          result[task][:duration][:total] += daily[task][:duration][:total]
-        end
+      from_param = params[:from] || Date.today.to_s
+      to_param   = params[:to]   || Date.today.to_s
 
-        if result[task][:count][:total] > 0
-          result[task][:duration][:average] = result[task][:duration][:total] / result[task][:count][:total] ##??
-        end
-
-        result[task][:count][:min], result[task][:count][:max] = daily_counts.minmax
-        result[task][:count][:average] = mean(daily_counts)
-
-        if daily_durations.length > 0
-          result[task][:duration][:min], result[task][:duration][:max] = daily_durations.minmax
-        end
-
-        daily_counts_bypool.each_key do |pool|
-          result[task][:count][:pool][pool][:min], result[task][:count][:pool][pool][:max] = daily_counts_bypool[pool].minmax
-          result[task][:count][:pool][pool][:average] = mean(daily_counts_bypool[pool])
-
-          if daily_durations_bypool[pool].length > 0
-            result[task][:duration][:pool][pool] ||= {}
-            result[task][:duration][:pool][pool][:min], result[task][:duration][:pool][pool][:max] = daily_durations_bypool[pool].minmax
-          end
-
-          if result[task][:count][:pool][pool][:total] > 0
-           result[task][:duration][:pool][pool][:average] = result[task][:duration][:pool][pool][:total] / result[task][:count][:pool][pool][:total]
-          end
+      # Validate date formats
+      [from_param, to_param].each do |param|
+        if !validate_date_str(param.to_s)
+          halt 400, "Invalid date format '#{param}', must match YYYY-MM-DD."
         end
       end
 
-      result[:daily].each do |daily|
-        daily[:tag].each_key do |tag|
-          result[:tag][tag] ||= {}
+      from_date, to_date = Date.parse(from_param), Date.parse(to_param)
 
-          daily[:tag][tag].each do |key, value|
-            result[:tag][tag][key] ||= 0
-            result[:tag][tag][key] += value
-          end
-        end
+      if to_date < from_date
+        halt 400, 'Date range is invalid, \'to\' cannot come before \'from\'.'
+      elsif from_date > Date.today
+        halt 400, 'Date range is invalid, \'from\' must be in the past.'
+      end
+
+      case params[:route]
+        when 'boot'
+          result = get_task_summary(backend, 'boot', from_date, to_date, :bypool => true, :only => params[:key])
+        when 'clone'
+          result = get_task_summary(backend, 'clone', from_date, to_date, :bypool => true, :only => params[:key])
+        when 'tag'
+          result = get_tag_summary(backend, from_date, to_date, :only => params[:key])
+        else
+          halt 404, JSON.pretty_generate({ 'ok' => false })
       end
 
       JSON.pretty_generate(result)

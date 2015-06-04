@@ -11,6 +11,10 @@ module Vmpooler
       call env.merge("PATH_INFO" => "/api/v#{api_version}/summary")
     end
 
+    get '/summary/:route/?:key?/?' do
+      call env.merge("PATH_INFO" => "/api/v#{api_version}/summary/#{params[:route]}/#{params[:key]}")
+    end
+
     post '/token/?' do
       call env.merge("PATH_INFO" => "/api/v#{api_version}/token")
     end
