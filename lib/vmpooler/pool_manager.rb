@@ -161,7 +161,7 @@ module Vmpooler
     end
 
     # Clone a VM
-    def clone_vm(template, folder, datastore, target)
+    def clone_vm(template, folder, datastore, target, customize)
       Thread.new do
         vm = {}
 
@@ -199,24 +199,73 @@ module Vmpooler
            )
         )
 
-        # Choose a clone target
+        # Choose a clone target and pool
         if target
           $clone_target = $vsphere[vm['template']].find_least_used_host(target)
+          $clone_pool = $vsphere[vm['template']].find_pool(target)
         elsif $config[:config]['clone_target']
           $clone_target = $vsphere[vm['template']].find_least_used_host($config[:config]['clone_target'])
+          $clone_pool = $vsphere[vm['template']].find_pool($config[:config]['clone_target'])
         end
 
         # Put the VM in the specified folder and resource pool
         relocateSpec = RbVmomi::VIM.VirtualMachineRelocateSpec(
           datastore: $vsphere[vm['template']].find_datastore(datastore),
           host: $clone_target,
+          pool: $clone_pool,
           diskMoveType: :moveChildMostDiskBacking
         )
+ 
+        # Do we need to customize the VM's?
+        if customize
+          # Save domain for easier usage
+          cust_domain = $config[:config]['domain']
+          cust_dns_servers = $config[:config]['dns_servers'] ||= []
+
+          # Build IP Settings
+          cust_ip_settings = RbVmomi::VIM::CustomizationIPSettings.new(
+            "ip" => RbVmomi::VIM::CustomizationDhcpIpGenerator.new()
+          )
+          cust_ip_settings.dnsDomain = cust_domain
+
+          # Build the Custom Adapter Mapping Supports only one eth right now
+          cust_adapter_mapping = [RbVmomi::VIM::CustomizationAdapterMapping.new(
+            "adapter" => cust_ip_settings
+          )]
+
+          # Build global IP settings
+          cust_global_ip_settings = RbVmomi::VIM::CustomizationGlobalIPSettings.new(
+            :dnsServerList => cust_dns_servers,
+            :dnsSuffixList => [cust_domain]
+          )
+
+          # Build hostname object
+          cust_hostname = RbVmomi::VIM::CustomizationFixedName.new(:name => vm['hostname'])
+
+          # Build the CustomizationLinuxPrep Object
+          cust_prep = RbVmomi::VIM::CustomizationLinuxPrep.new(
+            :domain      => cust_domain,
+            :hostName    => cust_hostname
+            #:hwClockUTC => cust_hwclockutc,
+            #:timeZone   => cust_timezone
+            )
+
+          # Customize the VM
+          customizationSpec = RbVmomi::VIM::CustomizationSpec.new(
+            :identity         => cust_prep,
+            :globalIPSettings => cust_global_ip_settings,
+            :nicSettingMap    => cust_adapter_mapping
+          )
+        end
+
+        # Make sure we've got a customization_spec value
+        customization_spec ||= nil
 
         # Create a clone spec
         spec = RbVmomi::VIM.VirtualMachineCloneSpec(
           location: relocateSpec,
           config: configSpec,
+          customization: customizationSpec,
           powerOn: true,
           template: false
         )
@@ -291,7 +340,6 @@ module Vmpooler
 
       $threads[pool['name']] = Thread.new do
         $vsphere[pool['name']] ||= Vmpooler::VsphereHelper.new
-
         loop do
           # INVENTORY
           inventory = {}
@@ -429,11 +477,13 @@ module Vmpooler
                 begin
                   $redis.incr('vmpooler__tasks__clone')
 
+                  $logger.log('d', "[*] [#{pool['name']}] attempting to clone vm")
                   clone_vm(
                     pool['template'],
                     pool['folder'],
                     pool['datastore'],
-                    pool['clone_target']
+                    pool['clone_target'],
+                    pool['customize']
                   )
                 rescue
                   $logger.log('s', "[!] [#{pool['name']}] clone appears to have failed")
