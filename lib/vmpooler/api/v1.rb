@@ -499,6 +499,8 @@ module Vmpooler
                     arg[tag] = arg[tag].match(filter).captures.join if arg[tag].match(filter)
                   end
 
+                  next if arg[tag].nil? or arg[tag].empty?
+
                   backend.hset('vmpooler__vm__' + params[:hostname], 'tag:' + tag, arg[tag])
                   backend.hset('vmpooler__tag__' + Date.today.to_s, params[:hostname] + ':' + tag, arg[tag])
                 end

@@ -323,6 +323,15 @@ describe Vmpooler::API::V1 do
           expect(last_response.status).to eq(200)
         end
 
+        it 'skips empty tags' do
+          put "#{prefix}/vm/testhost", '{"tags":{"tested_by":""}}'
+
+          expect(last_response).to be_ok
+          expect(last_response.header['Content-Type']).to eq('application/json')
+          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => true}))
+          expect(last_response.status).to eq(200)
+        end
+
         it 'does not set tags if request body format is invalid' do
           put "#{prefix}/vm/testhost", '{"tags":{"tested"}}'
 
