@@ -79,6 +79,26 @@ module Vmpooler
         return false
       end
 
+      def export_tags(backend, hostname, tags)
+        tags.each_pair do |tag, value|
+          next if value.nil? or value.empty?
+
+          backend.hset('vmpooler__vm__' + hostname, 'tag:' + tag, value)
+          backend.hset('vmpooler__tag__' + Date.today.to_s, hostname + ':' + tag, value)
+        end
+      end
+
+      def filter_tags(tags)
+        return unless Vmpooler::API.settings.config[:tagfilter]
+
+        tags.each_pair do |tag, value|
+          next unless filter = Vmpooler::API.settings.config[:tagfilter][tag]
+          tags[tag] = value.match(filter).captures.join if value.match(filter)
+        end
+
+        tags
+      end
+
       def mean(list)
         s = list.map(&:to_f).reduce(:+).to_f
         (s > 0 && list.length > 0) ? s / list.length.to_f : 0
