@@ -476,6 +476,10 @@ module Vmpooler
               unless arg.is_a?(Hash)
                 failure = true
               end
+
+              if config['allowed_tags']
+                failure = true if not (arg.keys - config['allowed_tags']).empty?
+              end
             else
               failure = true
           end
