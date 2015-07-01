@@ -323,6 +323,15 @@ describe Vmpooler::API::V1 do
           expect(last_response.status).to eq(200)
         end
 
+        it 'skips empty tags' do
+          put "#{prefix}/vm/testhost", '{"tags":{"tested_by":""}}'
+
+          expect(last_response).to be_ok
+          expect(last_response.header['Content-Type']).to eq('application/json')
+          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => true}))
+          expect(last_response.status).to eq(200)
+        end
+
         it 'does not set tags if request body format is invalid' do
           put "#{prefix}/vm/testhost", '{"tags":{"tested"}}'
 
@@ -331,6 +340,23 @@ describe Vmpooler::API::V1 do
           expect(last_response.body).to eq(JSON.pretty_generate({'ok' => false}))
           expect(last_response.status).to eq(400)
         end
+
+      context '(allowed_tags configured)' do
+        let(:config) { {
+          config: {
+            'allowed_tags' => ['created_by', 'project', 'url']
+          }
+        } }
+
+        it 'fails if specified tag is not in allowed_tags array' do
+          put "#{prefix}/vm/testhost", '{"tags":{"created_by":"rspec","tested_by":"rspec"}}'
+
+          expect(last_response).to_not be_ok
+          expect(last_response.header['Content-Type']).to eq('application/json')
+          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => false}))
+          expect(last_response.status).to eq(400)
+        end
+      end
 
       context '(tagfilter configured)' do
         let(:config) { {

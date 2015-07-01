@@ -476,6 +476,10 @@ module Vmpooler
               unless arg.is_a?(Hash)
                 failure = true
               end
+
+              if config['allowed_tags']
+                failure = true if not (arg.keys - config['allowed_tags']).empty?
+              end
             else
               failure = true
           end
@@ -493,15 +497,8 @@ module Vmpooler
 
                 backend.hset('vmpooler__vm__' + params[:hostname], param, arg)
               when 'tags'
-                arg.keys.each do |tag|
-                  if Vmpooler::API.settings.config[:tagfilter] and Vmpooler::API.settings.config[:tagfilter][tag]
-                    filter = Vmpooler::API.settings.config[:tagfilter][tag]
-                    arg[tag] = arg[tag].match(filter).captures.join if arg[tag].match(filter)
-                  end
-
-                  backend.hset('vmpooler__vm__' + params[:hostname], 'tag:' + tag, arg[tag])
-                  backend.hset('vmpooler__tag__' + Date.today.to_s, params[:hostname] + ':' + tag, arg[tag])
-                end
+                filter_tags(arg)
+                export_tags(backend, params[:hostname], arg)
             end
           end
 
