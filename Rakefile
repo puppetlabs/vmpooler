@@ -11,3 +11,5 @@ RSpec::Core::RakeTask.new(:junit) do |t|
   t.rspec_opts = %w[-r yarjuf -f JUnit -o results.xml]
   t.pattern    = 'spec/'
 end
+
+task :default => [:test]
