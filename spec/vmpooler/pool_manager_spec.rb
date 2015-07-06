@@ -169,6 +169,7 @@ describe 'Pool Manager' do
         allow(vm_host).to receive(:runtime).and_return true
         allow(vm_host).to receive_message_chain(:runtime, :powerState).and_return 'poweredOff'
 
+        expect(redis).to receive(:hget)
         expect(redis).to receive(:smove)
         expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' appears to be powered off or dead")
 
@@ -179,10 +180,10 @@ describe 'Pool Manager' do
         allow(pool_helper).to receive(:find_vm).and_return vm_host
         allow(vm_host).to receive(:runtime).and_return true
         allow(vm_host).to receive_message_chain(:runtime, :powerState).and_return 'poweredOn'
-        allow(vm_host).to receive_message_chain(:runtime, :bootTime).and_return Time.parse('2005-01-01')
 
+        expect(redis).to receive(:hget).with('vmpooler__active__pool1', 'vm1').and_return((Time.now - timeout*60*60).to_s)
         expect(redis).to receive(:smove)
-        expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' reached end of TTL after #{timeout} minutes")
+        expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' reached end of TTL after #{timeout} hours")
 
         subject._check_running_vm(vm, pool, timeout)
       end
@@ -208,6 +209,42 @@ describe 'Pool Manager' do
       allow(logger).to receive(:log)
       expect(logger).to receive(:log).with('d', "[!] [p1] 'vm1' a msg here")
       subject.move_vm_queue('p1', 'vm1', 'running', 'completed', 'a msg here')
+    end
+  end
+
+  describe '#_check_pool' do
+    let(:pool_helper) { double('pool') }
+    let(:vsphere) { {pool => pool_helper} }
+    let(:config) { {
+      config: { task_limit: 10 },
+      pools: [ {'name' => 'pool1', 'size' => 5} ]
+    } }
+
+    before do
+      expect(subject).not_to be_nil
+      $vsphere = vsphere
+      allow(logger).to receive(:log)
+      allow(pool_helper).to receive(:find_folder)
+      allow(redis).to receive(:smembers).with('vmpooler__pending__pool1').and_return([])
+      allow(redis).to receive(:smembers).with('vmpooler__ready__pool1').and_return([])
+      allow(redis).to receive(:smembers).with('vmpooler__running__pool1').and_return([])
+      allow(redis).to receive(:smembers).with('vmpooler__completed__pool1').and_return([])
+      allow(redis).to receive(:smembers).with('vmpooler__discovered__pool1').and_return([])
+      allow(redis).to receive(:set)
+      allow(redis).to receive(:get).with('vmpooler__tasks__clone').and_return(0)
+      allow(redis).to receive(:get).with('vmpooler__empty__pool1').and_return(nil)
+    end
+
+    context 'logging' do
+
+      it 'logs empty pool' do
+        allow(redis).to receive(:scard).with('vmpooler__pending__pool1').and_return(0)
+        allow(redis).to receive(:scard).with('vmpooler__ready__pool1').and_return(0)
+
+        expect(logger).to receive(:log).with('s', "[!] [pool1] is empty")
+        subject._check_pool(config[:pools][0])
+      end
+
     end
   end
 
