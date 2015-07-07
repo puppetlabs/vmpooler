@@ -2,7 +2,7 @@ require 'rspec/core/rake_task'
 
 desc 'Run rspec tests with coloring.'
 RSpec::Core::RakeTask.new(:test) do |t|
-  t.rspec_opts = %w[--color]
+  t.rspec_opts = %w[--color --format documentation]
   t.pattern    = 'spec/'
 end
 
