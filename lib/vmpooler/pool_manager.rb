@@ -142,14 +142,20 @@ module Vmpooler
       if host
         queue_from, queue_to = 'running', 'completed'
 
+        # Check that VM is powered on
         if (host.runtime) &&
             (host.runtime.powerState != 'poweredOn')
           move_vm_queue(pool, vm, queue_from, queue_to, 'appears to be powered off or dead')
-        else
-          if (host.runtime) &&
-              (host.runtime.bootTime)
-            ((((Time.now - host.runtime.bootTime) / 60).to_s[/^\d+\.\d{1}/].to_f) > ttl)
-            move_vm_queue(pool, vm, queue_from, queue_to, "reached end of TTL after #{ttl} minutes")
+        end
+
+        # Check that VM is within defined lifetime
+        checkouttime = $redis.hget('vmpooler__active__' + pool, vm)
+        if checkouttime
+          running = (Time.now - Time.parse(checkouttime)) / 60 / 60
+
+          if (ttl.to_i > 0) &&
+              (running.to_i >= ttl.to_i)
+            move_vm_queue(pool, vm, queue_from, queue_to, "reached end of TTL after #{ttl} hours")
           end
         end
       end
@@ -289,161 +295,143 @@ module Vmpooler
     def check_pool(pool)
       $logger.log('d', "[*] [#{pool['name']}] starting worker thread")
 
+      $vsphere[pool['name']] ||= Vmpooler::VsphereHelper.new
+
       $threads[pool['name']] = Thread.new do
-        $vsphere[pool['name']] ||= Vmpooler::VsphereHelper.new
-
         loop do
-          # INVENTORY
-          inventory = {}
-          begin
-            base = $vsphere[pool['name']].find_folder(pool['folder'])
-
-            base.childEntity.each do |vm|
-              if
-                (! $redis.sismember('vmpooler__running__' + pool['name'], vm['name'])) &&
-                (! $redis.sismember('vmpooler__ready__' + pool['name'], vm['name'])) &&
-                (! $redis.sismember('vmpooler__pending__' + pool['name'], vm['name'])) &&
-                (! $redis.sismember('vmpooler__completed__' + pool['name'], vm['name'])) &&
-                (! $redis.sismember('vmpooler__discovered__' + pool['name'], vm['name']))
-
-                $redis.sadd('vmpooler__discovered__' + pool['name'], vm['name'])
-
-                $logger.log('s', "[?] [#{pool['name']}] '#{vm['name']}' added to 'discovered' queue")
-              end
-
-              inventory[vm['name']] = 1
-            end
-          rescue
-          end
-
-          # RUNNING
-          $redis.smembers('vmpooler__running__' + pool['name']).each do |vm|
-            if inventory[vm]
-              if pool['running_ttl']
-                begin
-                  check_running_vm(vm, pool['name'], pool['running_ttl'])
-                rescue
-                end
-              else
-                begin
-                  check_running_vm(vm, pool['name'], '720')
-                rescue
-                end
-              end
-            end
-          end
-
-          # READY
-          $redis.smembers('vmpooler__ready__' + pool['name']).each do |vm|
-            if inventory[vm]
-              begin
-                check_ready_vm(vm, pool['name'], pool['ready_ttl'] || 0)
-              rescue
-              end
-            end
-          end
-
-          # PENDING
-          $redis.smembers('vmpooler__pending__' + pool['name']).each do |vm|
-            unless pool['timeout']
-              if $config[:config]['timeout']
-                pool['timeout'] = $config[:config]['timeout']
-              else
-                pool['timeout'] = 15
-              end
-            end
-
-            if inventory[vm]
-              begin
-                check_pending_vm(vm, pool['name'], pool['timeout'])
-              rescue
-              end
-            end
-          end
-
-          # COMPLETED
-          $redis.smembers('vmpooler__completed__' + pool['name']).each do |vm|
-            if inventory[vm]
-              begin
-                destroy_vm(vm, pool['name'])
-              rescue
-                $logger.log('s', "[!] [#{pool['name']}] '#{vm}' destroy appears to have failed")
-                $redis.srem('vmpooler__completed__' + pool['name'], vm)
-                $redis.hdel('vmpooler__active__' + pool['name'], vm)
-                $redis.del('vmpooler__vm__' + vm)
-              end
-            else
-              $logger.log('s', "[!] [#{pool['name']}] '#{vm}' not found in inventory, removed from 'completed' queue")
-              $redis.srem('vmpooler__completed__' + pool['name'], vm)
-              $redis.hdel('vmpooler__active__' + pool['name'], vm)
-              $redis.del('vmpooler__vm__' + vm)
-            end
-          end
-
-          # DISCOVERED
-          $redis.smembers('vmpooler__discovered__' + pool['name']).each do |vm|
-            %w(pending ready running completed).each do |queue|
-              if $redis.sismember('vmpooler__' + queue + '__' + pool['name'], vm)
-                $logger.log('d', "[!] [#{pool['name']}] '#{vm}' found in '#{queue}', removed from 'discovered' queue")
-                $redis.srem('vmpooler__discovered__' + pool['name'], vm)
-              end
-            end
-
-            if $redis.sismember('vmpooler__discovered__' + pool['name'], vm)
-              $redis.smove('vmpooler__discovered__' + pool['name'], 'vmpooler__completed__' + pool['name'], vm)
-            end
-          end
-
-          # LONG-RUNNING
-          $redis.smembers('vmpooler__running__' + pool['name']).each do |vm|
-            if $redis.hget('vmpooler__active__' + pool['name'], vm)
-              running = (Time.now - Time.parse($redis.hget('vmpooler__active__' + pool['name'], vm))) / 60 / 60
-              lifetime = $redis.hget('vmpooler__vm__' + vm, 'lifetime') || $config[:config]['vm_lifetime']
-
-              if
-                (lifetime.to_i > 0) &&
-                (running.to_i >= lifetime.to_i)
-
-                $redis.smove('vmpooler__running__' + pool['name'], 'vmpooler__completed__' + pool['name'], vm)
-
-                $logger.log('d', "[!] [#{pool['name']}] '#{vm}' reached end of TTL after #{lifetime} hours")
-              end
-            end
-          end
-
-          # REPOPULATE
-          total = $redis.scard('vmpooler__ready__' + pool['name']) +
-                  $redis.scard('vmpooler__pending__' + pool['name'])
-
-          begin
-            if defined? $graphite
-              $graphite.log($config[:graphite]['prefix'] + '.ready.' + pool['name'], $redis.scard('vmpooler__ready__' + pool['name']))
-              $graphite.log($config[:graphite]['prefix'] + '.running.' + pool['name'], $redis.scard('vmpooler__running__' + pool['name']))
-            end
-          rescue
-          end
-
-          if total < pool['size']
-            (1..(pool['size'] - total)).each do |_i|
-              if $redis.get('vmpooler__tasks__clone').to_i < $config[:config]['task_limit']
-                begin
-                  $redis.incr('vmpooler__tasks__clone')
-
-                  clone_vm(
-                    pool['template'],
-                    pool['folder'],
-                    pool['datastore'],
-                    pool['clone_target']
-                  )
-                rescue
-                  $logger.log('s', "[!] [#{pool['name']}] clone appears to have failed")
-                  $redis.decr('vmpooler__tasks__clone')
-                end
-              end
-            end
-          end
-
+          _check_pool(pool)
           sleep(5)
+        end
+      end
+    end
+
+    def _check_pool(pool)
+      # INVENTORY
+      inventory = {}
+      begin
+        base = $vsphere[pool['name']].find_folder(pool['folder'])
+
+        base.childEntity.each do |vm|
+          if
+            (! $redis.sismember('vmpooler__running__' + pool['name'], vm['name'])) &&
+            (! $redis.sismember('vmpooler__ready__' + pool['name'], vm['name'])) &&
+            (! $redis.sismember('vmpooler__pending__' + pool['name'], vm['name'])) &&
+            (! $redis.sismember('vmpooler__completed__' + pool['name'], vm['name'])) &&
+            (! $redis.sismember('vmpooler__discovered__' + pool['name'], vm['name']))
+
+            $redis.sadd('vmpooler__discovered__' + pool['name'], vm['name'])
+
+            $logger.log('s', "[?] [#{pool['name']}] '#{vm['name']}' added to 'discovered' queue")
+          end
+
+          inventory[vm['name']] = 1
+        end
+      rescue
+      end
+
+      # RUNNING
+      $redis.smembers('vmpooler__running__' + pool['name']).each do |vm|
+        if inventory[vm]
+          begin
+            check_running_vm(vm, pool['name'], $redis.hget('vmpooler__vm__' + vm, 'lifetime') || $config[:config]['vm_lifetime'] || 12)
+          rescue
+          end
+        end
+      end
+
+      # READY
+      $redis.smembers('vmpooler__ready__' + pool['name']).each do |vm|
+        if inventory[vm]
+          begin
+            check_ready_vm(vm, pool['name'], pool['ready_ttl'] || 0)
+          rescue
+          end
+        end
+      end
+
+      # PENDING
+      $redis.smembers('vmpooler__pending__' + pool['name']).each do |vm|
+        if inventory[vm]
+          begin
+            check_pending_vm(vm, pool['name'], pool['timeout'] || $config[:config]['timeout'] || 15)
+          rescue
+          end
+        end
+      end
+
+      # COMPLETED
+      $redis.smembers('vmpooler__completed__' + pool['name']).each do |vm|
+        if inventory[vm]
+          begin
+            destroy_vm(vm, pool['name'])
+          rescue
+            $logger.log('s', "[!] [#{pool['name']}] '#{vm}' destroy appears to have failed")
+            $redis.srem('vmpooler__completed__' + pool['name'], vm)
+            $redis.hdel('vmpooler__active__' + pool['name'], vm)
+            $redis.del('vmpooler__vm__' + vm)
+          end
+        else
+          $logger.log('s', "[!] [#{pool['name']}] '#{vm}' not found in inventory, removed from 'completed' queue")
+          $redis.srem('vmpooler__completed__' + pool['name'], vm)
+          $redis.hdel('vmpooler__active__' + pool['name'], vm)
+          $redis.del('vmpooler__vm__' + vm)
+        end
+      end
+
+      # DISCOVERED
+      $redis.smembers('vmpooler__discovered__' + pool['name']).each do |vm|
+        %w(pending ready running completed).each do |queue|
+          if $redis.sismember('vmpooler__' + queue + '__' + pool['name'], vm)
+            $logger.log('d', "[!] [#{pool['name']}] '#{vm}' found in '#{queue}', removed from 'discovered' queue")
+            $redis.srem('vmpooler__discovered__' + pool['name'], vm)
+          end
+        end
+
+        if $redis.sismember('vmpooler__discovered__' + pool['name'], vm)
+          $redis.smove('vmpooler__discovered__' + pool['name'], 'vmpooler__completed__' + pool['name'], vm)
+        end
+      end
+
+      # REPOPULATE
+      ready = $redis.scard('vmpooler__ready__' + pool['name'])
+      total = $redis.scard('vmpooler__pending__' + pool['name']) + ready
+
+      begin
+        if defined? $graphite
+          $graphite.log($config[:graphite]['prefix'] + '.ready.' + pool['name'], $redis.scard('vmpooler__ready__' + pool['name']))
+          $graphite.log($config[:graphite]['prefix'] + '.running.' + pool['name'], $redis.scard('vmpooler__running__' + pool['name']))
+        end
+      rescue
+      end
+
+      if $redis.get('vmpooler__empty__' + pool['name'])
+        unless ready == 0
+          $redis.del('vmpooler__empty__' + pool['name'])
+        end
+      else
+        if ready == 0
+          $redis.set('vmpooler__empty__' + pool['name'], 'true')
+          $logger.log('s', "[!] [#{pool['name']}] is empty")
+        end
+      end
+
+      if total < pool['size']
+        (1..(pool['size'] - total)).each do |_i|
+          if $redis.get('vmpooler__tasks__clone').to_i < $config[:config]['task_limit'].to_i
+            begin
+              $redis.incr('vmpooler__tasks__clone')
+
+              clone_vm(
+                pool['template'],
+                pool['folder'],
+                pool['datastore'],
+                pool['clone_target']
+              )
+            rescue
+              $logger.log('s', "[!] [#{pool['name']}] clone appears to have failed")
+              $redis.decr('vmpooler__tasks__clone')
+            end
+          end
         end
       end
     end
