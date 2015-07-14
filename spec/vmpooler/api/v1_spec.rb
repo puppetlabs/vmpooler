@@ -432,6 +432,33 @@ describe Vmpooler::API::V1 do
         end
       end
     end
+
+    describe 'POST /vm/:hostname/snapshot' do
+        it 'creates a snapshot' do
+          expect(redis).to receive(:sadd)
+
+          post "#{prefix}/vm/testhost/snapshot"
+
+          expect(last_response.header['Content-Type']).to eq('application/json')
+          expect(JSON.parse(last_response.body)['ok']).to eq(true)
+          expect(JSON.parse(last_response.body)['testhost']['snapshot'].length).to be(32)
+          expect(last_response.status).to eq(202)
+        end
+    end
+
+    describe 'POST /vm/:hostname/snapshot/:snapshot' do
+        it 'reverts to a snapshot' do
+          expect(redis).to receive(:exists).with('vmpooler__vm__testhost').and_return(1)
+          expect(redis).to receive(:hget).with('vmpooler__vm__testhost', 'snapshot:testsnapshot').and_return(1)
+          expect(redis).to receive(:sadd)
+
+          post "#{prefix}/vm/testhost/snapshot/testsnapshot"
+
+          expect(last_response.header['Content-Type']).to eq('application/json')
+          expect(last_response.body).to include('"ok": true')
+          expect(last_response.status).to eq(202)
+        end
+    end
   end
 
 end
