@@ -413,6 +413,11 @@ module Vmpooler
             result[params[:hostname]]['tags'] ||= {}
             result[params[:hostname]]['tags'][$1] = rdata[key]
           end
+
+          if key.match('^snapshot\:(.+?)$')
+            result[params[:hostname]]['snapshots'] ||= []
+            result[params[:hostname]]['snapshots'].push($1)
+          end
         end
 
         if config['domain']
@@ -505,6 +510,47 @@ module Vmpooler
           status 200
           result['ok'] = true
         end
+      end
+
+      JSON.pretty_generate(result)
+    end
+
+    post "#{api_prefix}/vm/:hostname/snapshot/?" do
+      content_type :json
+
+      status 404
+      result = { 'ok' => false }
+
+      params[:hostname] = hostname_shorten(params[:hostname], config['domain'])
+
+      if backend.exists('vmpooler__vm__' + params[:hostname])
+        result[params[:hostname]] = {}
+
+        o = [('a'..'z'), ('0'..'9')].map(&:to_a).flatten
+        result[params[:hostname]]['snapshot'] = o[rand(25)] + (0...31).map { o[rand(o.length)] }.join
+
+        backend.sadd('vmpooler__tasks__snapshot', params[:hostname] + ':' + result[params[:hostname]]['snapshot'])
+
+        status 202
+        result['ok'] = true
+      end
+
+      JSON.pretty_generate(result)
+    end
+
+    post "#{api_prefix}/vm/:hostname/snapshot/:snapshot/?" do
+      content_type :json
+
+      status 404
+      result = { 'ok' => false }
+
+      params[:hostname] = hostname_shorten(params[:hostname], config['domain'])
+
+      if backend.exists('vmpooler__vm__' + params[:hostname]) and backend.hget('vmpooler__vm__' + params[:hostname], 'snapshot:' + params[:snapshot])
+        backend.sadd('vmpooler__tasks__snapshot-revert', params[:hostname] + ':' + params[:snapshot])
+
+        status 202
+        result['ok'] = true
       end
 
       JSON.pretty_generate(result)
