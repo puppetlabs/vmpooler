@@ -518,6 +518,8 @@ module Vmpooler
     post "#{api_prefix}/vm/:hostname/snapshot/?" do
       content_type :json
 
+      need_token! if Vmpooler::API.settings.config[:auth]
+
       status 404
       result = { 'ok' => false }
 
@@ -540,6 +542,8 @@ module Vmpooler
 
     post "#{api_prefix}/vm/:hostname/snapshot/:snapshot/?" do
       content_type :json
+
+      need_token! if Vmpooler::API.settings.config[:auth]
 
       status 404
       result = { 'ok' => false }
