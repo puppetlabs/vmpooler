@@ -102,8 +102,6 @@ module Vmpooler
     def find_snapshot(vm, snapshotname)
       if vm.snapshot
         get_snapshot_list(vm.snapshot.rootSnapshotList, snapshotname)
-      else
-        return []
       end
     end
 
@@ -187,7 +185,7 @@ module Vmpooler
     end
 
     def get_snapshot_list(tree, snapshotname)
-      snapshot = []
+      snapshot = nil
 
       tree.each do |child|
         if child.name == snapshotname
