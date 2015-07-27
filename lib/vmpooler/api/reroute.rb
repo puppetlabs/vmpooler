@@ -50,6 +50,14 @@ module Vmpooler
     put '/vm/:hostname/?' do
       call env.merge("PATH_INFO" => "/api/v#{api_version}/vm/#{params[:hostname]}")
     end
+
+    post '/vm/:hostname/snapshot/?' do
+      call env.merge("PATH_INFO" => "/api/v#{api_version}/vm/#{params[:hostname]}/snapshot")
+    end
+
+    post '/vm/:hostname/snapshot/:snapshot/?' do
+      call env.merge("PATH_INFO" => "/api/v#{api_version}/vm/#{params[:hostname]}/snapshot/#{params[:snapshot]}")
+    end
   end
   end
 end

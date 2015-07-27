@@ -99,6 +99,12 @@ module Vmpooler
       base
     end
 
+    def find_snapshot(vm, snapshotname)
+      if vm.snapshot
+        get_snapshot_list(vm.snapshot.rootSnapshotList, snapshotname)
+      end
+    end
+
     def find_vm(vmname)
       begin
         @connection.serviceInstance.CurrentTime
@@ -176,6 +182,20 @@ module Vmpooler
         recursive: true,
         type: ['VirtualMachine']
       )
+    end
+
+    def get_snapshot_list(tree, snapshotname)
+      snapshot = nil
+
+      tree.each do |child|
+        if child.name == snapshotname
+          snapshot ||= child.snapshot
+        else
+          snapshot ||= get_snapshot_list(child.childSnapshotList, snapshotname)
+        end
+      end
+
+      snapshot
     end
 
     def close
