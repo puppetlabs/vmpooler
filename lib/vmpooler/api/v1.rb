@@ -438,10 +438,14 @@ module Vmpooler
 
       params[:hostname] = hostname_shorten(params[:hostname], config['domain'])
 
-      pools.each do |pool|
-        if backend.sismember('vmpooler__running__' + pool['name'], params[:hostname])
-          backend.srem('vmpooler__running__' + pool['name'], params[:hostname])
-          backend.sadd('vmpooler__completed__' + pool['name'], params[:hostname])
+      if backend.exists('vmpooler__vm__' + params[:hostname])
+        rdata = backend.hgetall('vmpooler__vm__' + params[:hostname])
+
+        need_token! if rdata['token:token']
+
+        if backend.sismember('vmpooler__running__' + rdata['template'], params[:hostname])
+          backend.srem('vmpooler__running__' + rdata['template'], params[:hostname])
+          backend.sadd('vmpooler__completed__' + rdata['template'], params[:hostname])
 
           status 200
           result['ok'] = true
