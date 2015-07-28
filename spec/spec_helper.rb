@@ -1,3 +1,4 @@
+require 'helpers'
+require 'rbvmomi'
 require 'rspec'
 require 'vmpooler'
-require 'rbvmomi'

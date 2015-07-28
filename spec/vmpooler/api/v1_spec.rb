@@ -34,10 +34,7 @@ describe Vmpooler::API::V1 do
         it 'returns a 404' do
           get "#{prefix}/token/this"
 
-          expect(last_response).not_to be_ok
-          expect(last_response.header['Content-Type']).to eq('application/json')
-          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => false}))
-          expect(last_response.status).to eq(404)
+          expect_json(ok = false, http = 404)
         end
       end
 
@@ -51,10 +48,7 @@ describe Vmpooler::API::V1 do
         it 'returns a 401 if not authed' do
           get "#{prefix}/token/this"
 
-          expect(last_response).not_to be_ok
-          expect(last_response.header['Content-Type']).to eq('application/json')
-          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => false}))
-          expect(last_response.status).to eq(401)
+          expect_json(ok = false, http = 401)
         end
 
         it 'returns a token if authed' do
@@ -62,10 +56,9 @@ describe Vmpooler::API::V1 do
 
           get "#{prefix}/token/this"
 
-          expect(last_response).to be_ok
-          expect(last_response.header['Content-Type']).to eq('application/json')
-          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => true, 'this' => 'atoken'}))
-          expect(last_response.status).to eq(200)
+          expect(last_response.body).to include('"this": "atoken"')
+
+          expect_json(ok = true, http = 200)
         end
       end
     end
@@ -77,10 +70,7 @@ describe Vmpooler::API::V1 do
         it 'returns a 404' do
           post "#{prefix}/token"
 
-          expect(last_response).not_to be_ok
-          expect(last_response.header['Content-Type']).to eq('application/json')
-          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => false}))
-          expect(last_response.status).to eq(404)
+          expect_json(ok = false, http = 404)
         end
       end
 
@@ -94,10 +84,7 @@ describe Vmpooler::API::V1 do
         it 'returns a 401 if not authed' do
           post "#{prefix}/token"
 
-          expect(last_response).not_to be_ok
-          expect(last_response.header['Content-Type']).to eq('application/json')
-          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => false}))
-          expect(last_response.status).to eq(401)
+          expect_json(ok = false, http = 401)
         end
 
         it 'returns a token if authed' do
@@ -105,11 +92,9 @@ describe Vmpooler::API::V1 do
 
           post "#{prefix}/token"
 
-          expect(last_response).to be_ok
-          expect(last_response.header['Content-Type']).to eq('application/json')
-          expect(JSON.parse(last_response.body)['ok']).to eq(true)
           expect(JSON.parse(last_response.body)['token'].length).to be(32)
-          expect(last_response.status).to eq(200)
+
+          expect_json(ok = true, http = 200)
         end
       end
     end
@@ -121,10 +106,7 @@ describe Vmpooler::API::V1 do
         it 'returns a 404' do
           delete "#{prefix}/token/this"
 
-          expect(last_response).not_to be_ok
-          expect(last_response.header['Content-Type']).to eq('application/json')
-          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => false}))
-          expect(last_response.status).to eq(404)
+          expect_json(ok = false, http = 404)
         end
       end
 
@@ -138,10 +120,7 @@ describe Vmpooler::API::V1 do
         it 'returns a 401 if not authed' do
           delete "#{prefix}/token/this"
 
-          expect(last_response).not_to be_ok
-          expect(last_response.header['Content-Type']).to eq('application/json')
-          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => false}))
-          expect(last_response.status).to eq(401)
+          expect_json(ok = false, http = 401)
         end
 
         it 'deletes a token if authed' do
@@ -149,10 +128,7 @@ describe Vmpooler::API::V1 do
 
           delete "#{prefix}/token/this"
 
-          expect(last_response).to be_ok
-          expect(last_response.header['Content-Type']).to eq('application/json')
-          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => true}))
-          expect(last_response.status).to eq(200)
+          expect_json(ok = true, http = 200)
         end
       end
     end
@@ -197,10 +173,9 @@ describe Vmpooler::API::V1 do
           }
         }
 
-        expect(last_response).to be_ok
-        expect(last_response.header['Content-Type']).to eq('application/json')
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
-        expect(last_response.status).to eq(200)
+
+        expect_json(ok = true, http = 200)
       end
 
       it 'returns multiple VMs' do
@@ -218,10 +193,9 @@ describe Vmpooler::API::V1 do
           }
         }
 
-        expect(last_response).to be_ok
-        expect(last_response.header['Content-Type']).to eq('application/json')
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
-        expect(last_response.status).to eq(200)
+
+        expect_json(ok = true, http = 200)
       end
 
       context '(auth not configured)' do
@@ -242,10 +216,9 @@ describe Vmpooler::API::V1 do
             }
           }
 
-          expect(last_response).to be_ok
-          expect(last_response.header['Content-Type']).to eq('application/json')
           expect(last_response.body).to eq(JSON.pretty_generate(expected))
-          expect(last_response.status).to eq(200)
+
+          expect_json(ok = true, http = 200)
         end
       end
 
@@ -267,10 +240,9 @@ describe Vmpooler::API::V1 do
             }
           }
 
-          expect(last_response).to be_ok
-          expect(last_response.header['Content-Type']).to eq('application/json')
           expect(last_response.body).to eq(JSON.pretty_generate(expected))
-          expect(last_response.status).to eq(200)
+
+          expect_json(ok = true, http = 200)
         end
 
         it 'does not extend VM lifetime if auth token is not provided' do
@@ -286,10 +258,9 @@ describe Vmpooler::API::V1 do
             }
           }
 
-          expect(last_response).to be_ok
-          expect(last_response.header['Content-Type']).to eq('application/json')
           expect(last_response.body).to eq(JSON.pretty_generate(expected))
-          expect(last_response.status).to eq(200)
+
+          expect_json(ok = true, http = 200)
         end
       end
     end
@@ -317,28 +288,19 @@ describe Vmpooler::API::V1 do
         it 'allows tags to be set' do
           put "#{prefix}/vm/testhost", '{"tags":{"tested_by":"rspec"}}'
 
-          expect(last_response).to be_ok
-          expect(last_response.header['Content-Type']).to eq('application/json')
-          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => true}))
-          expect(last_response.status).to eq(200)
+          expect_json(ok = true, http = 200)
         end
 
         it 'skips empty tags' do
           put "#{prefix}/vm/testhost", '{"tags":{"tested_by":""}}'
 
-          expect(last_response).to be_ok
-          expect(last_response.header['Content-Type']).to eq('application/json')
-          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => true}))
-          expect(last_response.status).to eq(200)
+          expect_json(ok = true, http = 200)
         end
 
         it 'does not set tags if request body format is invalid' do
           put "#{prefix}/vm/testhost", '{"tags":{"tested"}}'
 
-          expect(last_response).to_not be_ok
-          expect(last_response.header['Content-Type']).to eq('application/json')
-          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => false}))
-          expect(last_response.status).to eq(400)
+          expect_json(ok = false, http = 400)
         end
 
       context '(allowed_tags configured)' do
@@ -351,10 +313,7 @@ describe Vmpooler::API::V1 do
         it 'fails if specified tag is not in allowed_tags array' do
           put "#{prefix}/vm/testhost", '{"tags":{"created_by":"rspec","tested_by":"rspec"}}'
 
-          expect(last_response).to_not be_ok
-          expect(last_response.header['Content-Type']).to eq('application/json')
-          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => false}))
-          expect(last_response.status).to eq(400)
+          expect_json(ok = false, http = 400)
         end
       end
 
@@ -368,10 +327,7 @@ describe Vmpooler::API::V1 do
 
           put "#{prefix}/vm/testhost", '{"tags":{"url":"foo.com/something.html"}}'
 
-          expect(last_response).to be_ok
-          expect(last_response.header['Content-Type']).to eq('application/json')
-          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => true}))
-          expect(last_response.status).to eq(200)
+          expect_json(ok = true, http = 200)
         end
 
         it 'doesn\'t eat tags not matching filter' do
@@ -379,10 +335,7 @@ describe Vmpooler::API::V1 do
 
           put "#{prefix}/vm/testhost", '{"tags":{"url":"foo.com"}}'
 
-          expect(last_response).to be_ok
-          expect(last_response.header['Content-Type']).to eq('application/json')
-          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => true}))
-          expect(last_response.status).to eq(200)
+          expect_json(ok = true, http = 200)
         end
       end
 
@@ -392,19 +345,13 @@ describe Vmpooler::API::V1 do
         it 'allows VM lifetime to be modified without a token' do
           put "#{prefix}/vm/testhost", '{"lifetime":"1"}'
 
-          expect(last_response).to be_ok
-          expect(last_response.header['Content-Type']).to eq('application/json')
-          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => true}))
-          expect(last_response.status).to eq(200)
+          expect_json(ok = true, http = 200)
         end
 
         it 'does not allow a lifetime to be 0' do
           put "#{prefix}/vm/testhost", '{"lifetime":"0"}'
 
-          expect(last_response).to_not be_ok
-          expect(last_response.header['Content-Type']).to eq('application/json')
-          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => false}))
-          expect(last_response.status).to eq(400)
+          expect_json(ok = false, http = 400)
         end
       end
 
@@ -416,19 +363,13 @@ describe Vmpooler::API::V1 do
             'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
           }
 
-          expect(last_response).to be_ok
-          expect(last_response.header['Content-Type']).to eq('application/json')
-          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => true}))
-          expect(last_response.status).to eq(200)
+          expect_json(ok = true, http = 200)
         end
 
         it 'does not allows VM lifetime to be modified without a token' do
           put "#{prefix}/vm/testhost", '{"lifetime":"1"}'
 
-          expect(last_response).to_not be_ok
-          expect(last_response.header['Content-Type']).to eq('application/json')
-          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => false}))
-          expect(last_response.status).to eq(401)
+          expect_json(ok = false, http = 401)
         end
       end
     end
@@ -446,10 +387,7 @@ describe Vmpooler::API::V1 do
 
           delete "#{prefix}/vm/testhost"
 
-          expect(last_response).not_to be_ok
-          expect(last_response.header['Content-Type']).to eq('application/json')
-          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => false}))
-          expect(last_response.status).to eq(404)
+          expect_json(ok = false, http = 404)
         end
 
         it 'deletes an existing VM' do
@@ -461,10 +399,7 @@ describe Vmpooler::API::V1 do
 
           delete "#{prefix}/vm/testhost"
 
-          expect(last_response).to be_ok
-          expect(last_response.header['Content-Type']).to eq('application/json')
-          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => true}))
-          expect(last_response.status).to eq(200)
+          expect_json(ok = true, http = 200)
         end
       end
 
@@ -481,10 +416,7 @@ describe Vmpooler::API::V1 do
 
             delete "#{prefix}/vm/testhost"
 
-            expect(last_response).to be_ok
-            expect(last_response.header['Content-Type']).to eq('application/json')
-            expect(last_response.body).to eq(JSON.pretty_generate({'ok' => true}))
-            expect(last_response.status).to eq(200)
+            expect_json(ok = true, http = 200)
           end
         end
 
@@ -497,10 +429,7 @@ describe Vmpooler::API::V1 do
 
             delete "#{prefix}/vm/testhost"
 
-            expect(last_response).not_to be_ok
-            expect(last_response.header['Content-Type']).to eq('application/json')
-            expect(last_response.body).to eq(JSON.pretty_generate({'ok' => false}))
-            expect(last_response.status).to eq(401)
+            expect_json(ok = false, http = 401)
           end
 
           it 'deletes a VM when token is supplied' do
@@ -514,10 +443,7 @@ describe Vmpooler::API::V1 do
               'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
             }
 
-            expect(last_response).to be_ok
-            expect(last_response.header['Content-Type']).to eq('application/json')
-            expect(last_response.body).to eq(JSON.pretty_generate({'ok' => true}))
-            expect(last_response.status).to eq(200)
+            expect_json(ok = true, http = 200)
           end
         end
       end
@@ -532,10 +458,9 @@ describe Vmpooler::API::V1 do
 
           post "#{prefix}/vm/testhost/snapshot"
 
-          expect(last_response.header['Content-Type']).to eq('application/json')
-          expect(JSON.parse(last_response.body)['ok']).to eq(true)
           expect(JSON.parse(last_response.body)['testhost']['snapshot'].length).to be(32)
-          expect(last_response.status).to eq(202)
+
+          expect_json(ok = true, http = 202)
         end
       end
 
@@ -545,10 +470,7 @@ describe Vmpooler::API::V1 do
         it 'returns a 401 if not authed' do
           post "#{prefix}/vm/testhost/snapshot"
 
-          expect(last_response).not_to be_ok
-          expect(last_response.header['Content-Type']).to eq('application/json')
-          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => false}))
-          expect(last_response.status).to eq(401)
+          expect_json(ok = false, http = 401)
         end
 
         it 'creates a snapshot if authed' do
@@ -558,10 +480,9 @@ describe Vmpooler::API::V1 do
             'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
           }
 
-          expect(last_response.header['Content-Type']).to eq('application/json')
-          expect(JSON.parse(last_response.body)['ok']).to eq(true)
           expect(JSON.parse(last_response.body)['testhost']['snapshot'].length).to be(32)
-          expect(last_response.status).to eq(202)
+
+          expect_json(ok = true, http = 202)
         end
       end
     end
@@ -577,9 +498,7 @@ describe Vmpooler::API::V1 do
 
           post "#{prefix}/vm/testhost/snapshot/testsnapshot"
 
-          expect(last_response.header['Content-Type']).to eq('application/json')
-          expect(last_response.body).to include('"ok": true')
-          expect(last_response.status).to eq(202)
+          expect_json(ok = true, http = 202)
         end
       end
 
@@ -589,10 +508,7 @@ describe Vmpooler::API::V1 do
         it 'returns a 401 if not authed' do
           post "#{prefix}/vm/testhost/snapshot"
 
-          expect(last_response).not_to be_ok
-          expect(last_response.header['Content-Type']).to eq('application/json')
-          expect(last_response.body).to eq(JSON.pretty_generate({'ok' => false}))
-          expect(last_response.status).to eq(401)
+          expect_json(ok = false, http = 401)
         end
 
         it 'reverts to a snapshot if authed' do
@@ -604,9 +520,7 @@ describe Vmpooler::API::V1 do
             'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
           }
 
-          expect(last_response.header['Content-Type']).to eq('application/json')
-          expect(last_response.body).to include('"ok": true')
-          expect(last_response.status).to eq(202)
+          expect_json(ok = true, http = 202)
         end
       end
 
