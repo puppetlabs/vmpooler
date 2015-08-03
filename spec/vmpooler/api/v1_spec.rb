@@ -379,9 +379,7 @@ describe Vmpooler::API::V1 do
         let(:config) { { auth: false } }
 
         it 'does not delete a non-existant VM' do
-          expect(redis).to receive(:exists).with('vmpooler__vm__testhost').and_return false
-          expect(redis).not_to receive(:sismember)
-          expect(redis).not_to receive(:hgetall)
+          expect(redis).to receive(:hgetall).and_return({})
           expect(redis).not_to receive(:sadd)
           expect(redis).not_to receive(:srem)
 
@@ -391,11 +389,9 @@ describe Vmpooler::API::V1 do
         end
 
         it 'deletes an existing VM' do
-          expect(redis).to receive(:exists).with('vmpooler__vm__testhost').and_return '1'
-          expect(redis).to receive(:sismember).with('vmpooler__running__pool1', 'testhost').and_return '1'
           expect(redis).to receive(:hgetall).with('vmpooler__vm__testhost').and_return({"template" => "pool1"})
+          expect(redis).to receive(:srem).and_return(true)
           expect(redis).to receive(:sadd)
-          expect(redis).to receive(:srem)
 
           delete "#{prefix}/vm/testhost"
 
@@ -408,11 +404,9 @@ describe Vmpooler::API::V1 do
 
         context '(checked-out without token)' do
           it 'deletes a VM without supplying a token' do
-            expect(redis).to receive(:exists).with('vmpooler__vm__testhost').and_return '1'
-            expect(redis).to receive(:sismember).with('vmpooler__running__pool1', 'testhost').and_return '1'
             expect(redis).to receive(:hgetall).with('vmpooler__vm__testhost').and_return({"template" => "pool1"})
+            expect(redis).to receive(:srem).and_return(true)
             expect(redis).to receive(:sadd)
-            expect(redis).to receive(:srem)
 
             delete "#{prefix}/vm/testhost"
 
@@ -422,7 +416,6 @@ describe Vmpooler::API::V1 do
 
         context '(checked-out with token)' do
           it 'fails to delete a VM without supplying a token' do
-            expect(redis).to receive(:exists).with('vmpooler__vm__testhost').and_return '1'
             expect(redis).to receive(:hgetall).with('vmpooler__vm__testhost').and_return({"template" => "pool1", "token:token" => "abcdefghijklmnopqrstuvwxyz012345"})
             expect(redis).not_to receive(:sadd)
             expect(redis).not_to receive(:srem)
@@ -433,11 +426,9 @@ describe Vmpooler::API::V1 do
           end
 
           it 'deletes a VM when token is supplied' do
-            expect(redis).to receive(:exists).with('vmpooler__vm__testhost').and_return '1'
             expect(redis).to receive(:hgetall).with('vmpooler__vm__testhost').and_return({"template" => "pool1", "token:token" => "abcdefghijklmnopqrstuvwxyz012345"})
-            expect(redis).to receive(:sismember).with('vmpooler__running__pool1', 'testhost').and_return '1'
+            expect(redis).to receive(:srem).and_return(true)
             expect(redis).to receive(:sadd)
-            expect(redis).to receive(:srem)
 
             delete "#{prefix}/vm/testhost", "", {
               'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
@@ -492,7 +483,6 @@ describe Vmpooler::API::V1 do
         let(:config) { { auth: false } }
 
         it 'reverts to a snapshot' do
-          expect(redis).to receive(:exists).with('vmpooler__vm__testhost').and_return(1)
           expect(redis).to receive(:hget).with('vmpooler__vm__testhost', 'snapshot:testsnapshot').and_return(1)
           expect(redis).to receive(:sadd)
 
@@ -512,7 +502,6 @@ describe Vmpooler::API::V1 do
         end
 
         it 'reverts to a snapshot if authed' do
-          expect(redis).to receive(:exists).with('vmpooler__vm__testhost').and_return(1)
           expect(redis).to receive(:hget).with('vmpooler__vm__testhost', 'snapshot:testsnapshot').and_return(1)
           expect(redis).to receive(:sadd)
 

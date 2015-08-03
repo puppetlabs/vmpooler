@@ -385,11 +385,10 @@ module Vmpooler
 
       params[:hostname] = hostname_shorten(params[:hostname], config['domain'])
 
-      if backend.exists('vmpooler__vm__' + params[:hostname])
+      rdata = backend.hgetall('vmpooler__vm__' + params[:hostname])
+      unless rdata.empty?
         status 200
         result['ok'] = true
-
-        rdata = backend.hgetall('vmpooler__vm__' + params[:hostname])
 
         result[params[:hostname]] = {}
 
@@ -438,13 +437,11 @@ module Vmpooler
 
       params[:hostname] = hostname_shorten(params[:hostname], config['domain'])
 
-      if backend.exists('vmpooler__vm__' + params[:hostname])
-        rdata = backend.hgetall('vmpooler__vm__' + params[:hostname])
-
+      rdata = backend.hgetall('vmpooler__vm__' + params[:hostname])
+      unless rdata.empty?
         need_token! if rdata['token:token']
 
-        if backend.sismember('vmpooler__running__' + rdata['template'], params[:hostname])
-          backend.srem('vmpooler__running__' + rdata['template'], params[:hostname])
+        if backend.srem('vmpooler__running__' + rdata['template'], params[:hostname])
           backend.sadd('vmpooler__completed__' + rdata['template'], params[:hostname])
 
           status 200
@@ -554,7 +551,7 @@ module Vmpooler
 
       params[:hostname] = hostname_shorten(params[:hostname], config['domain'])
 
-      if backend.exists('vmpooler__vm__' + params[:hostname]) and backend.hget('vmpooler__vm__' + params[:hostname], 'snapshot:' + params[:snapshot])
+      unless backend.hget('vmpooler__vm__' + params[:hostname], 'snapshot:' + params[:snapshot]).to_i.zero?
         backend.sadd('vmpooler__tasks__snapshot-revert', params[:hostname] + ':' + params[:snapshot])
 
         status 202
