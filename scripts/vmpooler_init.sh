@@ -13,6 +13,7 @@ PIDFILE=/var/run/$NAME.pid
 SCRIPTNAME=/etc/init.d/$NAME
 
 case "$1" in
+
 start)
   printf "%-50s" "Starting $NAME..."
   cd $DAEMON_PATH
@@ -24,6 +25,7 @@ start)
             printf "%s\n" "ok"
         fi
 ;;
+
 status)
         printf "%-50s" "Checking $NAME..."
         if [ -f $PIDFILE ]; then
@@ -37,6 +39,7 @@ status)
             printf "%s\n" "not running"
         fi
 ;;
+
 stop)
         printf "%-50s" "Stopping $NAME..."
             PID=`cat $PIDFILE`
@@ -58,4 +61,6 @@ restart)
 *)
         echo "Usage: $0 {status|start|stop|restart}"
         exit 1
+;;
+
 esac
