@@ -6,21 +6,20 @@ vmpooler provides a REST API for VM management.  The following examples use `cur
 
 Token-based authentication can be used when requesting or modifying VMs.  The `/token` route can be used to create, query, or delete tokens.  See the provided YAML configuration example, [vmpooler.yaml.example](vmpooler.yaml.example), for information on configuring an authentication store to use when performing token operations.
 
-##### GET /token/&lt;token&gt;
+##### GET /token
 
-Get information about an existing token.
+Get a list of issued tokens.
 
 ```
-$ curl -u jdoe --url vmpooler.company.com/token/utpg2i2xswor6h8ttjhu3d47z53yy47y
+$ curl -u jdoe --url vmpooler.company.com/token
 Enter host password for user 'jdoe':
 ```
 ```json
 {
-  "ok": true,
-  "utpg2i2xswor6h8ttjhu3d47z53yy47y": {
-    "user": "jdoe",
-    "timestamp": "2015-04-28 19:17:47 -0700"
-  }
+    "ok": true,
+    "utpg2i2xswor6h8ttjhu3d47z53yy47y": {
+      "created": "2015-04-28 19:17:47 -0700"
+    }
 }
 ```
 
@@ -36,6 +35,24 @@ Enter host password for user 'jdoe':
 {
     "ok": true,
     "token": "utpg2i2xswor6h8ttjhu3d47z53yy47y"
+}
+```
+
+##### GET /token/&lt;token&gt;
+
+Get information about an existing token.
+
+```
+$ curl -u jdoe --url vmpooler.company.com/token/utpg2i2xswor6h8ttjhu3d47z53yy47y
+Enter host password for user 'jdoe':
+```
+```json
+{
+  "ok": true,
+  "utpg2i2xswor6h8ttjhu3d47z53yy47y": {
+    "user": "jdoe",
+    "timestamp": "2015-04-28 19:17:47 -0700"
+  }
 }
 ```
 
