@@ -2,7 +2,7 @@
 
 # vmpooler
 
-vmpooler provides configurable 'pools' of available (running) virtual machines.
+vmpooler provides configurable 'pools' of instantly-available (running) virtual machines.
 
 
 ## Usage
