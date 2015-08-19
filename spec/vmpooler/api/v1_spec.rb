@@ -27,42 +27,6 @@ describe Vmpooler::API::V1 do
       app.settings.set :redis, redis
     end
 
-    describe 'GET /token/:token' do
-      context '(auth not configured)' do
-        let(:config) { { auth: false } }
-
-        it 'returns a 404' do
-          get "#{prefix}/token/this"
-
-          expect_json(ok = false, http = 404)
-        end
-      end
-
-      context '(auth configured)' do
-        before do
-          allow(redis).to receive(:hgetall).and_return 'atoken'
-        end
-
-        let(:config) { { auth: true } }
-
-        it 'returns a 401 if not authed' do
-          get "#{prefix}/token/this"
-
-          expect_json(ok = false, http = 401)
-        end
-
-        it 'returns a token if authed' do
-          authorize 'admin', 's3cr3t'
-
-          get "#{prefix}/token/this"
-
-          expect(last_response.body).to include('"this": "atoken"')
-
-          expect_json(ok = true, http = 200)
-        end
-      end
-    end
-
     describe 'POST /token' do
       context '(auth not configured)' do
         let(:config) { { auth: false } }
@@ -93,6 +57,52 @@ describe Vmpooler::API::V1 do
           post "#{prefix}/token"
 
           expect(JSON.parse(last_response.body)['token'].length).to be(32)
+
+          expect_json(ok = true, http = 200)
+        end
+      end
+    end
+  end
+
+  describe '/token/:token' do
+    let(:redis)  { double('redis') }
+    let(:prefix) { '/api/v1' }
+
+    before do
+      app.settings.set :config, config
+      app.settings.set :redis, redis
+    end
+
+    describe 'GET /token/:token' do
+      context '(auth not configured)' do
+        let(:config) { { auth: false } }
+
+        it 'returns a 404' do
+          get "#{prefix}/token/this"
+
+          expect_json(ok = false, http = 404)
+        end
+      end
+
+      context '(auth configured)' do
+        before do
+          allow(redis).to receive(:hgetall).and_return 'atoken'
+        end
+
+        let(:config) { { auth: true } }
+
+        it 'returns a 401 if not authed' do
+          get "#{prefix}/token/this"
+
+          expect_json(ok = false, http = 401)
+        end
+
+        it 'returns a token if authed' do
+          authorize 'admin', 's3cr3t'
+
+          get "#{prefix}/token/this"
+
+          expect(last_response.body).to include('"this": "atoken"')
 
           expect_json(ok = true, http = 200)
         end
