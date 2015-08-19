@@ -162,6 +162,40 @@ module Vmpooler
       JSON.pretty_generate(result)
     end
 
+    get "#{api_prefix}/token/?" do
+      content_type :json
+
+      status 404
+      result = { 'ok' => false }
+
+      if Vmpooler::API.settings.config[:auth]
+        status 401
+
+        need_auth!
+
+        backend.keys('vmpooler__token__*').each do |key|
+          data = backend.hgetall(key)
+
+          if data['user'] == Rack::Auth::Basic::Request.new(request.env).username
+            token = key.split('__').last
+
+            result[token] ||= {}
+            result[token]['created'] = data['timestamp']
+
+            result['ok'] = true
+          end
+        end
+
+        if result['ok']
+          status 200
+        else
+          status 404
+        end
+      end
+
+      JSON.pretty_generate(result)
+    end
+
     get "#{api_prefix}/token/:token/?" do
       content_type :json
 
