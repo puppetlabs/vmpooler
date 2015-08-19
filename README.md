@@ -72,7 +72,7 @@ vmpooler provides a REST API for VM management.  See the [API documentation](API
 
 ### Dashboard
 
-A dashboard is provided to offer real-time statistics and historical graphs.  It looks like this in a large installation on a fairly busy day:
+A dashboard is provided to offer real-time statistics and historical graphs.  It looks like this:
 
 ![dashboard](https://raw.github.com/sschneid/vmpooler/gh-pages/img/screenshots/dashboard.png)
 
