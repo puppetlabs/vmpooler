@@ -217,6 +217,58 @@ $ curl -X DELETE --url vmpooler.company.com/vm/fq6qlpjlsskycq6
 }
 ```
 
+#### VM snapshots
+
+##### POST /vm/&lt;hostname&gt;/snapshot
+
+Create a snapshot of a running VM.
+
+````
+$ curl -X POST -H X-AUTH-TOKEN:a9znth9dn01t416hrguu56ze37t790bl --url vmpooler.company.com/vm/fq6qlpjlsskycq6/snapshot
+````
+````json
+{
+  "ok": true,
+  "fq6qlpjlsskycq6": {
+    "snapshot": "n4eb4kdtp7rwv4x158366vd9jhac8btq"
+  }
+}
+````
+
+Snapshotting a live VM can take a moment, but once the snapshot task completes it will be reflected in a `GET /vm/<hostname>` query:
+
+````
+$ curl --url vmpooler.company.com/vm/fq6qlpjlsskycq6
+````
+````json
+{
+  "ok": true,
+  "fq6qlpjlsskycq6": {
+    "template": "debian-7-x86_64",
+    "lifetime": 2,
+    "running": 0.08,
+    "state": "running",
+    "snapshots": [
+      "n4eb4kdtp7rwv4x158366vd9jhac8btq"
+    ],
+    "domain": "delivery.puppetlabs.net"
+  }
+}
+````
+
+##### POST /vm/&lt;hostname&gt;/snapshot/&lt;snapshot&gt;
+
+Revert a VM back to a snapshot.
+
+````
+$ curl X POST -H X-AUTH-TOKEN:a9znth9dn01t416hrguu56ze37t790bl --url vmpooler.company.com/vm/fq6qlpjlsskycq6/snapshot/n4eb4kdtp7rwv4x158366vd9jhac8btq
+````
+````json
+{
+  "ok": true
+}
+````
+
 #### Status and metrics
 
 ##### GET /status
