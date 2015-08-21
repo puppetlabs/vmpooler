@@ -11,7 +11,7 @@ Token-based authentication can be used when requesting or modifying VMs.  The `/
 Get a list of issued tokens.
 
 ```
-$ curl -u jdoe --url vmpooler.company.com/token
+$ curl -u jdoe --url vmpooler.company.com/api/v1/token
 Enter host password for user 'jdoe':
 ```
 ```json
@@ -28,7 +28,7 @@ Enter host password for user 'jdoe':
 Generate a new authentication token.
 
 ```
-$ curl -X POST -u jdoe --url vmpooler.company.com/token
+$ curl -X POST -u jdoe --url vmpooler.company.com/api/v1/token
 Enter host password for user 'jdoe':
 ```
 ```json
@@ -43,7 +43,7 @@ Enter host password for user 'jdoe':
 Get information about an existing token.
 
 ```
-$ curl -u jdoe --url vmpooler.company.com/token/utpg2i2xswor6h8ttjhu3d47z53yy47y
+$ curl -u jdoe --url vmpooler.company.com/api/v1/token/utpg2i2xswor6h8ttjhu3d47z53yy47y
 Enter host password for user 'jdoe':
 ```
 ```json
@@ -61,7 +61,7 @@ Enter host password for user 'jdoe':
 Delete an authentication token.
 
 ```
-$ curl -X DELETE -u jdoe --url vmpooler.company.com/token/utpg2i2xswor6h8ttjhu3d47z53yy47y
+$ curl -X DELETE -u jdoe --url vmpooler.company.com/api/v1/token/utpg2i2xswor6h8ttjhu3d47z53yy47y
 Enter host password for user 'jdoe':
 ```
 ```json
@@ -77,7 +77,7 @@ Enter host password for user 'jdoe':
 Retrieve a list of available VM pools.
 
 ```
-$ curl --url vmpooler.company.com/vm
+$ curl --url vmpooler.company.com/api/v1/vm
 ```
 ```json
 [
@@ -93,7 +93,7 @@ Useful for batch operations; post JSON (see format below), get back VMs.
 If an authentication store is configured, an authentication token supplied via the `X-AUTH-TOKEN` HTTP header will modify a VM's default lifetime.  See the provided YAML configuration example, [vmpooler.yaml.example](vmpooler.yaml.example), and the 'token operations' section above for more information.
 
 ```
-$ curl -d '{"debian-7-i386":"2","debian-7-x86_64":"1"}' --url vmpooler.company.com/vm
+$ curl -d '{"debian-7-i386":"2","debian-7-x86_64":"1"}' --url vmpooler.company.com/api/v1/vm
 ```
 ```json
 {
@@ -115,7 +115,7 @@ $ curl -d '{"debian-7-i386":"2","debian-7-x86_64":"1"}' --url vmpooler.company.c
 Check-out a VM or VMs.
 
 ```
-$ curl -d --url vmpooler.company.com/vm/debian-7-i386
+$ curl -d --url vmpooler.company.com/api/v1/vm/debian-7-i386
 ```
 ```json
 {
@@ -129,7 +129,7 @@ $ curl -d --url vmpooler.company.com/vm/debian-7-i386
 Multiple VMs can be requested by using multiple query parameters in the URL:
 
 ```
-$ curl -d --url vmpooler.company.com/vm/debian-7-i386+debian-7-i386+debian-7-x86_64
+$ curl -d --url vmpooler.company.com/api/v1/vm/debian-7-i386+debian-7-i386+debian-7-x86_64
 ```
 
 ```json
@@ -152,7 +152,7 @@ $ curl -d --url vmpooler.company.com/vm/debian-7-i386+debian-7-i386+debian-7-x86
 Query a checked-out VM.
 
 ```
-$ curl --url vmpooler.company.com/vm/pxpmtoonx7fiqg6
+$ curl --url vmpooler.company.com/api/v1/vm/pxpmtoonx7fiqg6
 ```
 ```json
 {
@@ -187,7 +187,7 @@ Any modifications can be verified using the [GET /vm/&lt;hostname&gt;](#get-vmho
 If an authentication store is configured, an authentication token is required (via the `X-AUTH-TOKEN` HTTP header) to access this route.  See the provided YAML configuration example, [vmpooler.yaml.example](vmpooler.yaml.example), and the 'token operations' section above for more information.
 
 ```
-$ curl -X PUT -d '{"lifetime":"2"}' --url vmpooler.company.com/vm/fq6qlpjlsskycq6
+$ curl -X PUT -d '{"lifetime":"2"}' --url vmpooler.company.com/api/v1/vm/fq6qlpjlsskycq6
 ```
 ```json
 {
@@ -196,7 +196,7 @@ $ curl -X PUT -d '{"lifetime":"2"}' --url vmpooler.company.com/vm/fq6qlpjlsskycq
 ```
 
 ```
-$ curl -X PUT -d '{"tags":{"department":"engineering","user":"jdoe"}}' --url vmpooler.company.com/vm/fq6qlpjlsskycq6
+$ curl -X PUT -d '{"tags":{"department":"engineering","user":"jdoe"}}' --url vmpooler.company.com/api/v1/vm/fq6qlpjlsskycq6
 ```
 ```json
 {
@@ -209,13 +209,65 @@ $ curl -X PUT -d '{"tags":{"department":"engineering","user":"jdoe"}}' --url vmp
 Schedule a checked-out VM for deletion.
 
 ```
-$ curl -X DELETE --url vmpooler.company.com/vm/fq6qlpjlsskycq6
+$ curl -X DELETE --url vmpooler.company.com/api/v1/vm/fq6qlpjlsskycq6
 ```
 ```json
 {
   "ok": true
 }
 ```
+
+#### VM snapshots
+
+##### POST /vm/&lt;hostname&gt;/snapshot
+
+Create a snapshot of a running VM.
+
+````
+$ curl -X POST -H X-AUTH-TOKEN:a9znth9dn01t416hrguu56ze37t790bl --url vmpooler.company.com/api/v1/vm/fq6qlpjlsskycq6/snapshot
+````
+````json
+{
+  "ok": true,
+  "fq6qlpjlsskycq6": {
+    "snapshot": "n4eb4kdtp7rwv4x158366vd9jhac8btq"
+  }
+}
+````
+
+Snapshotting a live VM can take a moment, but once the snapshot task completes it will be reflected in a `GET /vm/<hostname>` query:
+
+````
+$ curl --url vmpooler.company.com/api/v1/vm/fq6qlpjlsskycq6
+````
+````json
+{
+  "ok": true,
+  "fq6qlpjlsskycq6": {
+    "template": "debian-7-x86_64",
+    "lifetime": 2,
+    "running": 0.08,
+    "state": "running",
+    "snapshots": [
+      "n4eb4kdtp7rwv4x158366vd9jhac8btq"
+    ],
+    "domain": "delivery.puppetlabs.net"
+  }
+}
+````
+
+##### POST /vm/&lt;hostname&gt;/snapshot/&lt;snapshot&gt;
+
+Revert a VM back to a snapshot.
+
+````
+$ curl X POST -H X-AUTH-TOKEN:a9znth9dn01t416hrguu56ze37t790bl --url vmpooler.company.com/api/v1/vm/fq6qlpjlsskycq6/snapshot/n4eb4kdtp7rwv4x158366vd9jhac8btq
+````
+````json
+{
+  "ok": true
+}
+````
 
 #### Status and metrics
 
@@ -224,7 +276,7 @@ $ curl -X DELETE --url vmpooler.company.com/vm/fq6qlpjlsskycq6
 A "live" status endpoint, representing the current state of the service.
 
 ```
-$ curl --url vmpooler.company.com/status
+$ curl --url vmpooler.company.com/api/v1/status
 ```
 ```json
 {
@@ -282,7 +334,7 @@ Any omitted query parameter will default to now/today. A request without any
 parameters will result in the current day's summary.
 
 ```
-$ curl --url vmpooler.company.com/summary
+$ curl --url vmpooler.company.com/api/v1/summary
 ```
 ```json
 {
@@ -373,7 +425,7 @@ $ curl --url vmpooler.company.com/summary
 ```
 
 ```
-$ curl -G -d 'from=2015-03-10' -d 'to=2015-03-11' --url vmpooler.company.com/summary
+$ curl -G -d 'from=2015-03-10' -d 'to=2015-03-11' --url vmpooler.company.com/api/v1/summary
 ```
 ```json
 {
