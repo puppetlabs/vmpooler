@@ -49,7 +49,7 @@ describe Vmpooler::API::V1 do
 
         it 'returns a list of tokens if authed' do
           expect(redis).to receive(:keys).with('vmpooler__token__*').and_return(["vmpooler__token__abc"])
-          expect(redis).to receive(:hgetall).with('vmpooler__token__abc').and_return({"user" => "admin", "timestamp" => "now"})
+          expect(redis).to receive(:hgetall).with('vmpooler__token__abc').and_return({"user" => "admin", "created" => "now"})
 
           authorize 'admin', 's3cr3t'
 

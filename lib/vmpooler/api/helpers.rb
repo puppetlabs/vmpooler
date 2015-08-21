@@ -15,7 +15,11 @@ module Vmpooler
       end
 
       def validate_token(backend)
-        return if valid_token?(backend)
+        if valid_token?(backend)
+          backend.hset('vmpooler__token__' + request.env['HTTP_X_AUTH_TOKEN'], 'last', Time.now)
+
+          return true
+        end
 
         content_type :json
 

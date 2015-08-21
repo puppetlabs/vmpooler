@@ -20,10 +20,6 @@ module Vmpooler
       Vmpooler::API.settings.config[:pools]
     end
 
-    def has_valid_token?
-      valid_token?(backend)
-    end
-
     def need_auth!
       validate_auth(backend)
     end
@@ -180,7 +176,9 @@ module Vmpooler
             token = key.split('__').last
 
             result[token] ||= {}
-            result[token]['created'] = data['timestamp']
+
+            result[token]['created'] = data['created']
+            result[token]['last'] = data['last'] || 'never'
 
             result['ok'] = true
           end
@@ -255,7 +253,7 @@ module Vmpooler
         result['token'] = o[rand(25)] + (0...31).map { o[rand(o.length)] }.join
 
         backend.hset('vmpooler__token__' + result['token'], 'user', @auth.username)
-        backend.hset('vmpooler__token__' + result['token'], 'timestamp', Time.now)
+        backend.hset('vmpooler__token__' + result['token'], 'created', Time.now)
 
         status 200
         result['ok'] = true
@@ -307,7 +305,9 @@ module Vmpooler
               backend.hset('vmpooler__active__' + key, vm, Time.now)
               backend.hset('vmpooler__vm__' + vm, 'checkout', Time.now)
 
-              if Vmpooler::API.settings.config[:auth] and has_valid_token?
+              if Vmpooler::API.settings.config[:auth] and has_token?
+                validate_token(backend)
+
                 backend.hset('vmpooler__vm__' + vm, 'token:token', request.env['HTTP_X_AUTH_TOKEN'])
                 backend.hset('vmpooler__vm__' + vm, 'token:user',
                   backend.hget('vmpooler__token__' + request.env['HTTP_X_AUTH_TOKEN'], 'user')
@@ -352,17 +352,17 @@ module Vmpooler
       content_type :json
 
       result = {}
-      request = {}
+      payload = {}
 
       params[:template].split('+').each do |template|
-        request[template] ||= 0
-        request[template] = request[template] + 1
+        payload[template] ||= 0
+        payload[template] = payload[template] + 1
       end
 
       available = 1
 
-      request.keys.each do |template|
-        if backend.scard('vmpooler__ready__' + template) < request[template]
+      payload.keys.each do |template|
+        if backend.scard('vmpooler__ready__' + template) < payload[template]
           available = 0
         end
       end
@@ -381,6 +381,19 @@ module Vmpooler
             backend.sadd('vmpooler__running__' + template, vm)
             backend.hset('vmpooler__active__' + template, vm, Time.now)
             backend.hset('vmpooler__vm__' + vm, 'checkout', Time.now)
+
+            if Vmpooler::API.settings.config[:auth] and has_token?
+              validate_token(backend)
+
+              backend.hset('vmpooler__vm__' + vm, 'token:token', request.env['HTTP_X_AUTH_TOKEN'])
+              backend.hset('vmpooler__vm__' + vm, 'token:user',
+                backend.hget('vmpooler__token__' + request.env['HTTP_X_AUTH_TOKEN'], 'user')
+              )
+
+              if config['vm_lifetime_auth'].to_i > 0
+                backend.hset('vmpooler__vm__' + vm, 'lifetime', config['vm_lifetime_auth'].to_i)
+              end
+            end
 
             result[template] ||= {}
 
