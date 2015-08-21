@@ -204,6 +204,10 @@
 #     The number of waiting VMs to keep in a pool.
 #     (required)
 #
+#   - clone_target
+#     Per-pool option to override the global 'clone_target' cluster.
+#     (optional)
+#
 #   - timeout
 #     How long (in minutes) before marking a clone as 'failed' and retrying.
 #     This setting overrides any globally-configured timeout setting.
