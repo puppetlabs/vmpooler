@@ -295,8 +295,6 @@ module Vmpooler
         jdata.each do |key, val|
           result[key] ||= {}
 
-          result[key]['ok'] = true ##
-
           val.to_i.times do |_i|
             vm = backend.spop('vmpooler__ready__' + key)
 
@@ -320,8 +318,6 @@ module Vmpooler
 
               result[key] ||= {}
 
-              result[key]['ok'] = true ##
-
               if result[key]['hostname']
                 result[key]['hostname'] = [result[key]['hostname']] unless result[key]['hostname'].is_a?(Array)
                 result[key]['hostname'].push(vm)
@@ -329,8 +325,6 @@ module Vmpooler
                 result[key]['hostname'] = vm
               end
             else
-              result[key]['ok'] = false ##
-
               status 503
               result['ok'] = false
             end
@@ -373,8 +367,6 @@ module Vmpooler
         params[:template].split('+').each do |template|
           result[template] ||= {}
 
-          result[template]['ok'] = true ##
-
           vm = backend.spop('vmpooler__ready__' + template)
 
           unless vm.nil?
@@ -404,8 +396,6 @@ module Vmpooler
               result[template]['hostname'] = vm
             end
           else
-            result[template]['ok'] = false ##
-
             status 503
             result['ok'] = false
           end
