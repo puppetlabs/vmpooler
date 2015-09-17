@@ -35,10 +35,14 @@ describe 'Pool Manager' do
 
     context 'host is in pool' do
       let(:vm_finder) { double('vm_finder') }
+      let(:tcpsocket) { double('TCPSocket') }
 
       it 'calls move_pending_vm_to_ready' do
+        stub_const("TCPSocket", tcpsocket)
+
         allow(pool_helper).to receive(:find_vm).and_return(vm_finder)
         allow(vm_finder).to receive(:summary).and_return(nil)
+        allow(tcpsocket).to receive(:new).and_return(true)
 
         expect(vm_finder).to receive(:summary).once
         expect(redis).not_to receive(:hget).with(String, 'clone')
