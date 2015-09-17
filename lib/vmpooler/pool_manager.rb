@@ -35,11 +35,10 @@ module Vmpooler
           Timeout.timeout(5) do
             TCPSocket.new vm, 22
           end
+          move_pending_vm_to_ready(vm, pool, host)
         rescue
           fail_pending_vm(vm, pool, timeout)
         end
-
-        move_pending_vm_to_ready(vm, pool, host)
       else
         fail_pending_vm(vm, pool, timeout)
       end
