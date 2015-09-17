@@ -31,6 +31,14 @@ module Vmpooler
       host = $vsphere[pool].find_vm(vm)
 
       if host
+        begin
+          Timeout.timeout(5) do
+            TCPSocket.new vm, 22
+          end
+        rescue
+          fail_pending_vm(vm, pool, timeout)
+        end
+
         move_pending_vm_to_ready(vm, pool, host)
       else
         fail_pending_vm(vm, pool, timeout)
