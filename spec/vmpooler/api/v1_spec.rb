@@ -213,6 +213,7 @@ describe Vmpooler::API::V1 do
         expected = {
           ok: true,
           pool1: {
+            ok: true,
             hostname: 'abcdefghijklmnop'
           }
         }
@@ -228,9 +229,11 @@ describe Vmpooler::API::V1 do
         expected = {
           ok: true,
           pool1: {
+            ok: true,
             hostname: 'abcdefghijklmnop'
           },
           pool2: {
+            ok: true,
             hostname: 'qrstuvwxyz012345'
           }
         }
@@ -253,6 +256,7 @@ describe Vmpooler::API::V1 do
           expected = {
             ok: true,
             pool1: {
+              ok: true,
               hostname: 'abcdefghijklmnop'
             }
           }
@@ -276,6 +280,7 @@ describe Vmpooler::API::V1 do
           expected = {
             ok: true,
             pool1: {
+              ok: true,
               hostname: 'abcdefghijklmnop'
             }
           }
@@ -293,6 +298,7 @@ describe Vmpooler::API::V1 do
           expected = {
             ok: true,
             pool1: {
+              ok: true,
               hostname: 'abcdefghijklmnop'
             }
           }
