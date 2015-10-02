@@ -149,12 +149,6 @@ module Vmpooler
       if host
         queue_from, queue_to = 'running', 'completed'
 
-        # Check that VM is powered on
-        if (host.runtime) &&
-            (host.runtime.powerState != 'poweredOn')
-          move_vm_queue(pool, vm, queue_from, queue_to, 'appears to be powered off or dead')
-        end
-
         # Check that VM is within defined lifetime
         checkouttime = $redis.hget('vmpooler__active__' + pool, vm)
         if checkouttime
