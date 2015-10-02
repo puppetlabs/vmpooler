@@ -168,14 +168,14 @@ describe 'Pool Manager' do
     context 'valid host' do
       let(:vm_host) { double('vmhost') }
 
-      it 'moves vm when not poweredOn' do
+      it 'does not move vm when not poweredOn' do
         allow(pool_helper).to receive(:find_vm).and_return vm_host
         allow(vm_host).to receive(:runtime).and_return true
         allow(vm_host).to receive_message_chain(:runtime, :powerState).and_return 'poweredOff'
 
         expect(redis).to receive(:hget)
-        expect(redis).to receive(:smove)
-        expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' appears to be powered off or dead")
+        expect(redis).not_to receive(:smove)
+        expect(logger).not_to receive(:log).with('d', "[!] [#{pool}] '#{vm}' appears to be powered off or dead")
 
         subject._check_running_vm(vm, pool, timeout)
       end
