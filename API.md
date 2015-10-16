@@ -106,7 +106,8 @@ $ curl -d '{"debian-7-i386":"2","debian-7-x86_64":"1"}' --url vmpooler.company.c
   },
   "debian-7-x86_64": {
     "hostname": "y91qbrpbfj6d13q"
-  }
+  },
+  "domain": "company.com"
 }
 ```
 
@@ -122,7 +123,8 @@ $ curl -d --url vmpooler.company.com/api/v1/vm/debian-7-i386
   "ok": true,
   "debian-7-i386": {
     "hostname": "fq6qlpjlsskycq6"
-  }
+  },
+  "domain": "company.com"
 }
 ```
 
@@ -143,7 +145,8 @@ $ curl -d --url vmpooler.company.com/api/v1/vm/debian-7-i386+debian-7-i386+debia
   },
   "debian-7-x86_64": {
     "hostname": "zb91y9qbrbf6d3q"
-  }
+  },
+  "domain": "company.com"
 }
 ```
 
