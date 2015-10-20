@@ -33,7 +33,7 @@ module Vmpooler
     parsed_config[:config]['vm_checktime'] ||= 15
     parsed_config[:config]['vm_lifetime']  ||= 24
 
-    if parsed_config[:graphite]['server']
+    if parsed_config.has_key?(:graphite)
       parsed_config[:graphite]['prefix'] ||= 'vmpooler'
     end
 
