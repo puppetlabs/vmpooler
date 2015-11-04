@@ -127,18 +127,10 @@ describe Vmpooler::API::V1 do
           ]
         } }
 
-        it 'returns a 401 if not authed' do
-          get "#{prefix}/token/this"
-
-          expect_json(ok = false, http = 401)
-        end
-
-        it 'returns a token if authed' do
+        it 'returns a token' do
           expect(redis).to receive(:hgetall).with('vmpooler__token__this').and_return({'user' => 'admin'})
           expect(redis).to receive(:smembers).with('vmpooler__running__pool1').and_return(['vmhostname'])
           expect(redis).to receive(:hget).with('vmpooler__vm__vmhostname', 'token:token').and_return('this')
-
-          authorize 'admin', 's3cr3t'
 
           get "#{prefix}/token/this"
 

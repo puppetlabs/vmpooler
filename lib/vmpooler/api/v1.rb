@@ -201,10 +201,6 @@ module Vmpooler
       result = { 'ok' => false }
 
       if Vmpooler::API.settings.config[:auth]
-        status 401
-
-        need_auth!
-
         token = backend.hgetall('vmpooler__token__' + params[:token])
 
         if not token.nil? and not token.empty?
@@ -221,8 +217,6 @@ module Vmpooler
           end
 
           result = { 'ok' => true, params[:token] => token }
-        else
-          status 404
         end
       end
 
