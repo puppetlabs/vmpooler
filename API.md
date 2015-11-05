@@ -40,18 +40,24 @@ Enter host password for user 'jdoe':
 
 ##### GET /token/&lt;token&gt;
 
-Get information about an existing token.
+Get information about an existing token (including associated VMs).
 
 ```
-$ curl -u jdoe --url vmpooler.company.com/api/v1/token/utpg2i2xswor6h8ttjhu3d47z53yy47y
-Enter host password for user 'jdoe':
+$ curl --url vmpooler.company.com/api/v1/token/utpg2i2xswor6h8ttjhu3d47z53yy47y
 ```
 ```json
 {
   "ok": true,
   "utpg2i2xswor6h8ttjhu3d47z53yy47y": {
     "user": "jdoe",
-    "timestamp": "2015-04-28 19:17:47 -0700"
+    "created": "2015-04-28 19:17:47 -0700",
+    "last": "2015-11-04 12:28:37 -0700",
+    "vms": {
+      "running": [
+        "dqs4914g2wjyy5w",
+        "hul7ib0ssr0f4o0"
+      ]
+    }
   }
 }
 ```

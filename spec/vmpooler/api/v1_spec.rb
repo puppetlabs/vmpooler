@@ -120,24 +120,23 @@ describe Vmpooler::API::V1 do
       end
 
       context '(auth configured)' do
-        before do
-          allow(redis).to receive(:hgetall).and_return 'atoken'
-        end
+        let(:config) { {
+          auth: true,
+          pools: [
+            {'name' => 'pool1', 'size' => 5}
+          ]
+        } }
 
-        let(:config) { { auth: true } }
-
-        it 'returns a 401 if not authed' do
-          get "#{prefix}/token/this"
-
-          expect_json(ok = false, http = 401)
-        end
-
-        it 'returns a token if authed' do
-          authorize 'admin', 's3cr3t'
+        it 'returns a token' do
+          expect(redis).to receive(:hgetall).with('vmpooler__token__this').and_return({'user' => 'admin'})
+          expect(redis).to receive(:smembers).with('vmpooler__running__pool1').and_return(['vmhostname'])
+          expect(redis).to receive(:hget).with('vmpooler__vm__vmhostname', 'token:token').and_return('this')
 
           get "#{prefix}/token/this"
 
-          expect(last_response.body).to include('"this": "atoken"')
+          expect(JSON.parse(last_response.body)['ok']).to eq(true)
+          expect(JSON.parse(last_response.body)['this']['user']).to eq('admin')
+          expect(JSON.parse(last_response.body)['this']['vms']['running']).to include('vmhostname')
 
           expect_json(ok = true, http = 200)
         end
