@@ -188,6 +188,10 @@
 #     The name of the pool.
 #     (required)
 #
+#   - alias
+#     Other names this pool can be requested as.
+#     (optional)
+#
 #   - template
 #     The template or virtual machine target to spawn clones from.
 #     (required)
@@ -221,6 +225,7 @@
 
 :pools:
   - name: 'debian-7-i386'
+    alias: [ 'debian-7-32' ]
     template: 'Templates/debian-7-i386'
     folder: 'Pooled VMs/debian-7-i386'
     datastore: 'vmstorage'
@@ -228,6 +233,7 @@
     timeout: 15
     ready_ttl: 1440
   - name: 'debian-7-x86_64'
+    alias: [ 'debian-7-64', 'debian-7-amd64' ]
     template: 'Templates/debian-7-x86_64'
     folder: 'Pooled VMs/debian-7-x86_64'
     datastore: 'vmstorage'

@@ -28,6 +28,60 @@ module Vmpooler
       validate_token(backend)
     end
 
+    def alias_deref(hash)
+      newhash = {}
+
+      hash.each do |key, val|
+        if backend.exists('vmpooler__ready__' + key)
+          newhash[key] = val
+        else
+          if Vmpooler::API.settings.config[:alias][key]
+            newkey = Vmpooler::API.settings.config[:alias][key]
+            newhash[newkey] = val
+          end
+        end
+      end
+
+      newhash
+    end
+
+    def checkout_vm(template, result)
+      vm = backend.spop('vmpooler__ready__' + template)
+
+      unless vm.nil?
+        backend.sadd('vmpooler__running__' + template, vm)
+        backend.hset('vmpooler__active__' + template, vm, Time.now)
+        backend.hset('vmpooler__vm__' + vm, 'checkout', Time.now)
+
+        if Vmpooler::API.settings.config[:auth] and has_token?
+          validate_token(backend)
+
+          backend.hset('vmpooler__vm__' + vm, 'token:token', request.env['HTTP_X_AUTH_TOKEN'])
+          backend.hset('vmpooler__vm__' + vm, 'token:user',
+            backend.hget('vmpooler__token__' + request.env['HTTP_X_AUTH_TOKEN'], 'user')
+          )
+
+          if config['vm_lifetime_auth'].to_i > 0
+            backend.hset('vmpooler__vm__' + vm, 'lifetime', config['vm_lifetime_auth'].to_i)
+          end
+        end
+
+        result[template] ||= {}
+
+        if result[template]['hostname']
+          result[template]['hostname'] = [result[template]['hostname']] unless result[template]['hostname'].is_a?(Array)
+          result[template]['hostname'].push(vm)
+        else
+          result[template]['hostname'] = vm
+        end
+      else
+        status 503
+        result['ok'] = false
+      end
+
+      result
+    end
+
     get "#{api_prefix}/status/?" do
       content_type :json
 
@@ -277,11 +331,15 @@ module Vmpooler
     post "#{api_prefix}/vm/?" do
       content_type :json
 
-      result = {}
+      result = { 'ok' => false }
 
-      available = 1
+      jdata = alias_deref(JSON.parse(request.body.read))
 
-      jdata = JSON.parse(request.body.read)
+      if not jdata.nil? and not jdata.empty?
+        available = 1
+      else
+        status 404
+      end
 
       jdata.each do |key, val|
         if backend.scard('vmpooler__ready__' + key).to_i < val.to_i
@@ -293,46 +351,10 @@ module Vmpooler
         result['ok'] = true
 
         jdata.each do |key, val|
-          result[key] ||= {}
-
           val.to_i.times do |_i|
-            vm = backend.spop('vmpooler__ready__' + key)
-
-            unless vm.nil?
-              backend.sadd('vmpooler__running__' + key, vm)
-              backend.hset('vmpooler__active__' + key, vm, Time.now)
-              backend.hset('vmpooler__vm__' + vm, 'checkout', Time.now)
-
-              if Vmpooler::API.settings.config[:auth] and has_token?
-                validate_token(backend)
-
-                backend.hset('vmpooler__vm__' + vm, 'token:token', request.env['HTTP_X_AUTH_TOKEN'])
-                backend.hset('vmpooler__vm__' + vm, 'token:user',
-                  backend.hget('vmpooler__token__' + request.env['HTTP_X_AUTH_TOKEN'], 'user')
-                )
-
-                if config['vm_lifetime_auth'].to_i > 0
-                  backend.hset('vmpooler__vm__' + vm, 'lifetime', config['vm_lifetime_auth'].to_i)
-                end
-              end
-
-              result[key] ||= {}
-
-              if result[key]['hostname']
-                result[key]['hostname'] = [result[key]['hostname']] unless result[key]['hostname'].is_a?(Array)
-                result[key]['hostname'].push(vm)
-              else
-                result[key]['hostname'] = vm
-              end
-            else
-              status 503
-              result['ok'] = false
-            end
+            result = checkout_vm(key, result)
           end
         end
-      else
-        status 503
-        result['ok'] = false
       end
 
       if result['ok'] && config['domain']
@@ -345,7 +367,7 @@ module Vmpooler
     post "#{api_prefix}/vm/:template/?" do
       content_type :json
 
-      result = {}
+      result = { 'ok' => false }
       payload = {}
 
       params[:template].split('+').each do |template|
@@ -353,10 +375,16 @@ module Vmpooler
         payload[template] = payload[template] + 1
       end
 
-      available = 1
+      payload = alias_deref(payload)
 
-      payload.keys.each do |template|
-        if backend.scard('vmpooler__ready__' + template) < payload[template]
+      if not payload.nil? and not payload.empty?
+        available = 1
+      else
+        status 404
+      end
+
+      payload.each do |key, val|
+        if backend.scard('vmpooler__ready__' + key).to_i < val.to_i
           available = 0
         end
       end
@@ -364,45 +392,11 @@ module Vmpooler
       if (available == 1)
         result['ok'] = true
 
-        params[:template].split('+').each do |template|
-          result[template] ||= {}
-
-          vm = backend.spop('vmpooler__ready__' + template)
-
-          unless vm.nil?
-            backend.sadd('vmpooler__running__' + template, vm)
-            backend.hset('vmpooler__active__' + template, vm, Time.now)
-            backend.hset('vmpooler__vm__' + vm, 'checkout', Time.now)
-
-            if Vmpooler::API.settings.config[:auth] and has_token?
-              validate_token(backend)
-
-              backend.hset('vmpooler__vm__' + vm, 'token:token', request.env['HTTP_X_AUTH_TOKEN'])
-              backend.hset('vmpooler__vm__' + vm, 'token:user',
-                backend.hget('vmpooler__token__' + request.env['HTTP_X_AUTH_TOKEN'], 'user')
-              )
-
-              if config['vm_lifetime_auth'].to_i > 0
-                backend.hset('vmpooler__vm__' + vm, 'lifetime', config['vm_lifetime_auth'].to_i)
-              end
-            end
-
-            result[template] ||= {}
-
-            if result[template]['hostname']
-              result[template]['hostname'] = [result[template]['hostname']] unless result[template]['hostname'].is_a?(Array)
-              result[template]['hostname'].push(vm)
-            else
-              result[template]['hostname'] = vm
-            end
-          else
-            status 503
-            result['ok'] = false
+        payload.each do |key, val|
+          val.to_i.times do |_i|
+            result = checkout_vm(key, result)
           end
         end
-      else
-        status 503
-        result['ok'] = false
       end
 
       if result['ok'] && config['domain']
