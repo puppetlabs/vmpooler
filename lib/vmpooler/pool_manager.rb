@@ -197,13 +197,19 @@ module Vmpooler
         $redis.hset('vmpooler__vm__' + vm['hostname'], 'template', vm['template'])
 
         # Annotate with creation time, origin template, etc.
+        # Add extraconfig options that can be queried by vmtools
         configSpec = RbVmomi::VIM.VirtualMachineConfigSpec(
           annotation: JSON.pretty_generate(
               name: vm['hostname'],
               created_by: $config[:vsphere]['username'],
               base_template: vm['template'],
               creation_timestamp: Time.now.utc
-           )
+          ),
+          extraConfig: [
+              { key: 'guestinfo.hostname',
+                value: vm['hostname']
+              }
+          ]
         )
 
         # Choose a clone target
