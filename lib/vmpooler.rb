@@ -33,6 +33,20 @@ module Vmpooler
     parsed_config[:config]['vm_checktime'] ||= 15
     parsed_config[:config]['vm_lifetime']  ||= 24
 
+    # Create an index of pool aliases
+    parsed_config[:pools].each do |pool|
+      if pool['alias']
+        if pool['alias'].kind_of?(Array)
+          pool['alias'].each do |a|
+            parsed_config[:alias] ||= {}
+            parsed_config[:alias][a] = pool['name']
+          end
+        elsif pool['alias'].kind_of?(String)
+          parsed_config[:alias][pool['alias']] = pool['name']
+        end
+      end
+    end
+
     if parsed_config[:graphite]['server']
       parsed_config[:graphite]['prefix'] ||= 'vmpooler'
     end
