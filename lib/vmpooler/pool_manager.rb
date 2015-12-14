@@ -22,12 +22,6 @@ module Vmpooler
 
     # Check the state of a VM
     def check_pending_vm(vm, pool, timeout)
-      Thread.new do
-        _check_pending_vm(vm, pool, timeout)
-      end
-    end
-
-    def _check_pending_vm(vm, pool, timeout)
       host = $vsphere[pool].find_vm(vm)
 
       if host
@@ -78,72 +72,61 @@ module Vmpooler
     end
 
     def check_ready_vm(vm, pool, ttl)
-      Thread.new do
-        if ttl > 0
-          if (((Time.now - host.runtime.bootTime) / 60).to_s[/^\d+\.\d{1}/].to_f) > ttl
-            $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
+      if ttl > 0
+        if (((Time.now - host.runtime.bootTime) / 60).to_s[/^\d+\.\d{1}/].to_f) > ttl
+          $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
 
-            $logger.log('d', "[!] [#{pool}] '#{vm}' reached end of TTL after #{ttl} minutes, removed from 'ready' queue")
-          end
+          $logger.log('d', "[!] [#{pool}] '#{vm}' reached end of TTL after #{ttl} minutes, removed from 'ready' queue")
         end
+      end
 
-        check_stamp = $redis.hget('vmpooler__vm__' + vm, 'check')
+      check_stamp = $redis.hget('vmpooler__vm__' + vm, 'check')
 
-        if
-          (!check_stamp) ||
+      if (!check_stamp) ||
           (((Time.now - Time.parse(check_stamp)) / 60) > $config[:config]['vm_checktime'])
 
-          $redis.hset('vmpooler__vm__' + vm, 'check', Time.now)
+        $redis.hset('vmpooler__vm__' + vm, 'check', Time.now)
 
-          host = $vsphere[pool].find_vm(vm) ||
-                 $vsphere[pool].find_vm_heavy(vm)[vm]
+        host = $vsphere[pool].find_vm(vm) ||
+            $vsphere[pool].find_vm_heavy(vm)[vm]
 
-          if host
-            if
-              (host.runtime) &&
+        if host
+          if (host.runtime) &&
               (host.runtime.powerState) &&
               (host.runtime.powerState != 'poweredOn')
 
-              $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
+            $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
 
-              $logger.log('d', "[!] [#{pool}] '#{vm}' appears to be powered off, removed from 'ready' queue")
-            end
+            $logger.log('d', "[!] [#{pool}] '#{vm}' appears to be powered off, removed from 'ready' queue")
+          end
 
-            if
-              (host.summary.guest) &&
+          if (host.summary.guest) &&
               (host.summary.guest.hostName) &&
               (host.summary.guest.hostName != vm)
 
-              $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
+            $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
 
-              $logger.log('d', "[!] [#{pool}] '#{vm}' has mismatched hostname, removed from 'ready' queue")
-            end
-          else
-            $redis.srem('vmpooler__ready__' + pool, vm)
-
-            $logger.log('s', "[!] [#{pool}] '#{vm}' not found in vCenter inventory, removed from 'ready' queue")
+            $logger.log('d', "[!] [#{pool}] '#{vm}' has mismatched hostname, removed from 'ready' queue")
           end
+        else
+          $redis.srem('vmpooler__ready__' + pool, vm)
 
-          begin
-            Timeout.timeout(5) do
-              TCPSocket.new vm, 22
-            end
-          rescue
-            if $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
-              $logger.log('d', "[!] [#{pool}] '#{vm}' is unreachable, removed from 'ready' queue")
-            end
+          $logger.log('s', "[!] [#{pool}] '#{vm}' not found in vCenter inventory, removed from 'ready' queue")
+        end
+
+        begin
+          Timeout.timeout(5) do
+            TCPSocket.new vm, 22
+          end
+        rescue
+          if $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
+            $logger.log('d', "[!] [#{pool}] '#{vm}' is unreachable, removed from 'ready' queue")
           end
         end
       end
     end
 
     def check_running_vm(vm, pool, ttl)
-      Thread.new do
-        _check_running_vm(vm, pool, ttl)
-      end
-    end
-
-    def _check_running_vm(vm, pool, ttl)
       host = $vsphere[pool].find_vm(vm)
 
       if host
