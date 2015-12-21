@@ -33,6 +33,9 @@ module Vmpooler
     parsed_config[:config]['vm_checktime'] ||= 15
     parsed_config[:config]['vm_lifetime']  ||= 24
 
+    parsed_config[:config]['check_pending_port'] ||= 22
+    parsed_config[:config]['check_pending_timeout'] ||= 5
+
     # Create an index of pool aliases
     parsed_config[:pools].each do |pool|
       if pool['alias']
