@@ -33,16 +33,43 @@ describe 'Pool Manager' do
 
     end
 
-    context 'host is in pool' do
+    context 'host is in pool (defaults)' do
       let(:vm_finder) { double('vm_finder') }
       let(:tcpsocket) { double('TCPSocket') }
+      let(:config) { {config: {}} }
 
       it 'calls move_pending_vm_to_ready' do
         stub_const("TCPSocket", tcpsocket)
 
         allow(pool_helper).to receive(:find_vm).and_return(vm_finder)
         allow(vm_finder).to receive(:summary).and_return(nil)
-        allow(tcpsocket).to receive(:new).and_return(true)
+        # ensure the default port was used
+        allow(tcpsocket).to receive(:new).with(String, 22).and_return(true)
+
+        expect(vm_finder).to receive(:summary).once
+        expect(redis).not_to receive(:hget).with(String, 'clone')
+
+        subject._check_pending_vm(vm, pool, timeout)
+      end
+    end
+
+    context 'host is in pool (port config)' do
+      let(:vm_finder) { double('vm_finder') }
+      let(:tcpsocket) { double('TCPSocket') }
+      # port and port timeout are now configurable.
+      # update the config mock
+      let(:port_no) { 99 }
+      let(:config) { {config: {
+          'port'         => port_no,
+          'port_timeout' => 2}} }
+
+      it 'calls move_pending_vm_to_ready' do
+        stub_const("TCPSocket", tcpsocket)
+
+        allow(pool_helper).to receive(:find_vm).and_return(vm_finder)
+        allow(vm_finder).to receive(:summary).and_return(nil)
+        # ensure the port config made it to the TCPSocket call:
+        allow(tcpsocket).to receive(:new).with(String, port_no).and_return(true)
 
         expect(vm_finder).to receive(:summary).once
         expect(redis).not_to receive(:hget).with(String, 'clone')

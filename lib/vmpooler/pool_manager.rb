@@ -1,5 +1,12 @@
 module Vmpooler
   class PoolManager
+
+    # Defaults
+    # port number to verify pending VM is ready
+    DEFAULT_PORT_NO      = 22
+    # timeout, in seconds, when connecting to DEFAULT_PORT_NO
+    DEFAULT_PORT_TIMEOUT = 5
+
     def initialize(config, logger, redis, graphite=nil)
       $config = config
 
@@ -32,8 +39,8 @@ module Vmpooler
 
       if host
         begin
-          Timeout.timeout(5) do
-            TCPSocket.new vm, 22
+          Timeout.timeout($config[:config]['port_timeout'] || DEFAULT_PORT_TIMEOUT) do
+            TCPSocket.new vm, ($config[:config]['port'] || DEFAULT_PORT_NO)
           end
           move_pending_vm_to_ready(vm, pool, host)
         rescue

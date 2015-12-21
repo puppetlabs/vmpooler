@@ -161,6 +161,16 @@
 #
 #   - domain
 #     If set, returns a top-level 'domain' JSON key in POST requests
+#
+#   - port
+#     The port number used to verify a host is ready and available.
+#     (optional; default: 22)
+#
+#   - port_timeout
+#     How long (in seconds) to wait for connection to port before canceling.
+#     This is not used in marking a VM dead or stale.
+#     (optional; default: 5)
+#
 
 # Example:
 
@@ -176,6 +186,8 @@
     - 'created_by'
     - 'project'
   domain: 'company.com'
+  port: 22
+  port_timeout: 5
 
 # :pools:
 #
