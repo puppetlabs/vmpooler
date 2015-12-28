@@ -78,6 +78,9 @@ A dashboard is provided to offer real-time statistics and historical graphs.  It
 
 [Graphite](http://graphite.wikidot.com/) is required for historical data retrieval.  See the provided YAML configuration example, [vmpooler.yaml.example](vmpooler.yaml.example), for details.
 
+## Command-line Utility
+
+The [vmpooler_client.py](https://github.com/puppetlabs/vmpooler-client) CLI utility provides easy access to the vmpooler service. The tool is cross-platform and written in Python.
 
 ## Build status
 
