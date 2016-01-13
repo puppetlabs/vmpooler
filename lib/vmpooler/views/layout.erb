@@ -1,35 +1,47 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!DOCTYPE html PUBLIC '-//W3C//DTD XHTML 1.0 Transitional//EN' 'http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd'>
 
-<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<html xmlns='http://www.w3.org/1999/xhtml' xml:lang='en'>
 
 <head>
   <meta charset='utf-8'>
 
-  <link rel='stylesheet' type='text/css' href='/dashboard.css' />
+  <meta http-equiv='X-UA-Compatible' content='IE=edge'>
+  <meta name='viewport' content='width=device-width, initial-scale=1'>
 
-  <script type='text/javascript' src='http://code.jquery.com/jquery-latest.min.js'></script>
-  <script type='text/javascript' src='http://d3js.org/d3.v3.min.js'></script>
+  <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+  <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+  <!--[if lt IE 9]>
+    <script src='https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js'></script>
+    <script src='https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js'></script>
+  <![endif]-->
+
+  <link rel='stylesheet' href='/bootstrap.min.css'>
+  <link rel='stylesheet' href='/vmpooler.css'>
+
+  <script type='text/javascript' src='/lib/jquery.min.js'></script>
+  <script type='text/javascript' src='/lib/bootstrap.min.js'></script>
+  <script type='text/javascript' src='/lib/d3.min.js'></script>
 </head>
 
 <body>
 
-<div id='wrap'>
-<div id='content'>
+  <div id='loading' style='position: absolute; top: 0px; height: 100%; width: 100%; background-color: #fff; z-index: 1;'>
+    <div id='logo' style='position: relative; top: 50%; transform: translateY(-50%);'>
+      <center>
+        <img src='/img/logo.gif' />
 
-<div id='header'>
-  <embed src='/img/logo.gif' width='200px' height='150px' class='logo' />
+        <br />
 
-  <div class='text'><%= site_name %></div>
+        <div class='spinner'></div>
+      </center>
+    </div>
+  </div>
 
-  <div id='stats-vmpooler-numbers' class='module'></div>
-
-  <script src='/lib/stats-vmpooler-numbers.js'></script>
-</div>
+  <div class='container-fluid'>
 
 <%= yield %>
 
-</div>
-</div>
+  </div>
 
 </body>
 

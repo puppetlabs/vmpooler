@@ -1,21 +1,63 @@
-<!-- stats-vmpooler-running -->
+<!-- header -->
 
-<div class='label'>VMs running tests</div>
+<div id='header'>
+  <div class='row'>
+    <div id='logo' class='col-md-2'><embed src='/img/logo.gif' style='max-width: 100%; max-height: 100%' /></div>
+    <div id='site-name' class='col-md-10'><%= site_name %></div>
 
-<div id='stats-vmpooler-running' class='module'>
-  <div class='spinner'></div> Loading data...
+    <!-- dashboard-numbers -->
+
+    <div id='dashboard-numbers'></div>
+  </div>
 </div>
 
-<script src='/lib/stats-vmpooler-running.js'></script>
+<!-- dashboard-running -->
+
+<div class='row'>
+  <div class='col-md-10' style='padding-right: 10px'>
+    <div class='section_label'><b>VMS RUNNING TESTS</b> &nbsp; ( past hour )</div>
+  </div>
+  <div class='col-md-2'>
+    <div class='section_label'><b>LEGEND</b></div>
+  </div>
+</div>
+
+<div class='row'>
+  <div id='dashboard-running'></div>
+</div>
 
 <br />
 
-<!-- stats-vmpooler-pool -->
+<!-- dashboard-weekly -->
 
-<div class='label'>individual pool capacity / fullness status</div>
-
-<div id='stats-vmpooler-pool' class='module'>
-  <div class='spinner'></div> Loading data...
+<div class='row'>
+  <div class='col-md-4' style='padding-right: 10px'>
+    <div class='section_label'><b>VMS CLONED</b> &nbsp; ( by day, past week )</div>
+  </div>
+  <div class='col-md-4' style='padding-right: 10px'>
+    <div class='section_label'><b>AVG CLONE / BOOT TIME</b> &nbsp; ( by day, past week )</div>
+  </div>
+  <div class='col-md-4'>
+    <div class='section_label'><b>PLATFORM USAGE COUNT</b> &nbsp; ( past week )</div>
+  </div>
 </div>
 
-<script src='/lib/stats-vmpooler-pool.js'></script>
+<div class='row'>
+  <div id='dashboard-weekly' style='padding-left: 5px'></div>
+</div>
+
+<br />
+
+<!-- dashboard-pool -->
+
+<div class='row'>
+  <div class='col-md-12'>
+    <div class='section_label'><b>INDIVIDUAL POOL CAPACITY</b> &nbsp; ( "fullness" status, past hour )</div>
+  </div>
+</div>
+
+<div class='row'>
+  <div id='dashboard-pool'></div>
+</div>
+
+<script src='/lib/dashboard.js'></script>
