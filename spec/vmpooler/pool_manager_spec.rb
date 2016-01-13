@@ -36,13 +36,20 @@ describe 'Pool Manager' do
     context 'host is in pool' do
       let(:vm_finder) { double('vm_finder') }
       let(:tcpsocket) { double('TCPSocket') }
+      # port and port timeout are now configurable.
+      # update the config mock
+      let(:port_no) { 99 }
+      let(:config) { {config: {
+          'check_pending_port'    => port_no,
+          'check_pending_timeout' => 2}} }
 
       it 'calls move_pending_vm_to_ready' do
         stub_const("TCPSocket", tcpsocket)
 
         allow(pool_helper).to receive(:find_vm).and_return(vm_finder)
         allow(vm_finder).to receive(:summary).and_return(nil)
-        allow(tcpsocket).to receive(:new).and_return(true)
+        # ensure the port config made it to the TCPSocket call:
+        allow(tcpsocket).to receive(:new).with(String, port_no).and_return(true)
 
         expect(vm_finder).to receive(:summary).once
         expect(redis).not_to receive(:hget).with(String, 'clone')
@@ -50,6 +57,7 @@ describe 'Pool Manager' do
         subject._check_pending_vm(vm, pool, timeout)
       end
     end
+
   end
 
   describe '#move_vm_to_ready' do
