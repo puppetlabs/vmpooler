@@ -32,6 +32,7 @@ module Vmpooler
     parsed_config[:config]['task_limit']   ||= 10
     parsed_config[:config]['vm_checktime'] ||= 15
     parsed_config[:config]['vm_lifetime']  ||= 24
+    parsed_config[:config]['prefix']       ||= ''
 
     # Create an index of pool aliases
     parsed_config[:pools].each do |pool|
