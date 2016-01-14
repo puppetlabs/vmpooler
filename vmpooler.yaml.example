@@ -163,7 +163,9 @@
 #     If set, returns a top-level 'domain' JSON key in POST requests
 #
 #   - prefix
-#     If set, prefixes all created VMs with this string.
+#     If set, prefixes all created VMs with this string.  This should include
+#     a separator.
+#     (optional; default: '')
 
 # Example:
 
@@ -179,7 +181,7 @@
     - 'created_by'
     - 'project'
   domain: 'company.com'
-  prefix: ''
+  prefix: 'poolvm-'
 
 # :pools:
 #
