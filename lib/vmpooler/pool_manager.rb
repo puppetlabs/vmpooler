@@ -189,7 +189,7 @@ module Vmpooler
 
         # Generate a randomized hostname
         o = [('a'..'z'), ('0'..'9')].map(&:to_a).flatten
-        vm['hostname'] = o[rand(25)] + (0...14).map { o[rand(o.length)] }.join
+        vm['hostname'] = $config[:config]['prefix'] + o[rand(25)] + (0...14).map { o[rand(o.length)] }.join
 
         # Add VM to Redis inventory ('pending' pool)
         $redis.sadd('vmpooler__pending__' + vm['template'], vm['hostname'])
