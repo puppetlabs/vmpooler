@@ -226,6 +226,46 @@ $ curl -X DELETE --url vmpooler.company.com/api/v1/vm/fq6qlpjlsskycq6
 }
 ```
 
+#### Adding additional disk(s)
+
+##### POST /vm/&lt;hostname&gt;/disk/&lt;size&gt;
+
+Add an additional disk to a running VM.
+
+````
+$ curl -X POST -H X-AUTH-TOKEN:a9znth9dn01t416hrguu56ze37t790bl --url vmpooler.company.com/api/v1/vm/fq6qlpjlsskycq6/disk/8
+````
+````json
+{
+  "ok": true,
+  "fq6qlpjlsskycq6": {
+    "disk": "+8gb"
+  }
+}
+````
+
+Provisioning and attaching disks can take a moment, but once the task completes it will be reflected in a `GET /vm/<hostname>` query:
+
+````
+$ curl --url vmpooler.company.com/api/v1/vm/fq6qlpjlsskycq6
+````
+````json
+{
+  "ok": true,
+  "fq6qlpjlsskycq6": {
+    "template": "debian-7-x86_64",
+    "lifetime": 2,
+    "running": 0.08,
+    "state": "running",
+    "disk": [
+      "+8gb"
+    ],
+    "domain": "delivery.puppetlabs.net"
+  }
+}
+
+````
+
 #### VM snapshots
 
 ##### POST /vm/&lt;hostname&gt;/snapshot

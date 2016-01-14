@@ -299,6 +299,47 @@ module Vmpooler
       end
     end
 
+    def create_vm_disk(vm, disk_size)
+      Thread.new do
+        _create_vm_disk(vm, disk_size)
+      end
+    end
+
+    def _create_vm_disk(vm, disk_size)
+      host = $vsphere['disk_manager'].find_vm(vm) ||
+             $vsphere['disk_manager'].find_vm_heavy(vm)[vm]
+
+      if (host) && ((! disk_size.nil?) && (! disk_size.empty?) && (disk_size.to_i > 0))
+        $logger.log('s', "[ ] [disk_manager] '#{vm}' is attaching a #{disk_size}gb disk")
+
+        start = Time.now
+
+        template = $redis.hget('vmpooler__vm__' + vm, 'template')
+        datastore = nil
+
+        $config[:pools].each do |pool|
+          if pool['name'] == template
+            datastore = pool['datastore']
+          end
+        end
+
+        if ((! datastore.nil?) && (! datastore.empty?))
+          $vsphere['disk_manager'].add_disk(host, disk_size, datastore)
+
+          rdisks = $redis.hget('vmpooler__vm__' + vm, 'disk')
+          disks = rdisks ? rdisks.split(':') : []
+          disks.push("+#{disk_size}gb")
+          $redis.hset('vmpooler__vm__' + vm, 'disk', disks.join(':'))
+
+          finish = '%.2f' % (Time.now - start)
+
+          $logger.log('s', "[+] [disk_manager] '#{vm}' attached #{disk_size}gb disk in #{finish} seconds")
+        else
+          $logger.log('s', "[+] [disk_manager] '#{vm}' failed to attach disk")
+        end
+      end
+    end
+
     def create_vm_snapshot(vm, snapshot_name)
       Thread.new do
         _create_vm_snapshot(vm, snapshot_name)
@@ -309,7 +350,7 @@ module Vmpooler
       host = $vsphere['snapshot_manager'].find_vm(vm) ||
              $vsphere['snapshot_manager'].find_vm_heavy(vm)[vm]
 
-      if (host) && ((! snapshot_name.nil?) || (! snapshot_name.empty?))
+      if (host) && ((! snapshot_name.nil?) && (! snapshot_name.empty?))
         $logger.log('s', "[ ] [snapshot_manager] '#{vm}' is being snapshotted")
 
         start = Time.now
@@ -352,6 +393,32 @@ module Vmpooler
           finish = '%.2f' % (Time.now - start)
 
           $logger.log('s', "[<] [snapshot_manager] '#{vm}' reverted to snapshot in #{finish} seconds")
+        end
+      end
+    end
+
+    def check_disk_queue
+      $logger.log('d', "[*] [disk_manager] starting worker thread")
+
+      $vsphere['disk_manager'] ||= Vmpooler::VsphereHelper.new
+
+      $threads['disk_manager'] = Thread.new do
+        loop do
+          _check_disk_queue
+          sleep(5)
+        end
+      end
+    end
+
+    def _check_disk_queue
+      vm = $redis.spop('vmpooler__tasks__disk')
+
+      unless vm.nil?
+        begin
+          vm_name, disk_size = vm.split(':')
+          create_vm_disk(vm_name, disk_size)
+        rescue
+          $logger.log('s', "[!] [disk_manager] disk creation appears to have failed")
         end
       end
     end
@@ -544,6 +611,13 @@ module Vmpooler
       $redis.set('vmpooler__tasks__clone', 0)
 
       loop do
+        if ! $threads['disk_manager']
+          check_disk_queue
+        elsif ! $threads['disk_manager'].alive?
+          $logger.log('d', "[!] [disk_manager] worker thread died, restarting")
+          check_disk_queue
+        end
+
         if ! $threads['snapshot_manager']
           check_snapshot_queue
         elsif ! $threads['snapshot_manager'].alive?

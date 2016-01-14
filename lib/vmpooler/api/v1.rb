@@ -455,6 +455,10 @@ module Vmpooler
           end
         end
 
+        if rdata['disk']
+          result[params[:hostname]]['disk'] = rdata['disk'].split(':')
+        end
+
         if config['domain']
           result[params[:hostname]]['domain'] = config['domain']
         end
@@ -547,6 +551,29 @@ module Vmpooler
           status 200
           result['ok'] = true
         end
+      end
+
+      JSON.pretty_generate(result)
+    end
+
+    post "#{api_prefix}/vm/:hostname/disk/:size/?" do
+      content_type :json
+
+      need_token! if Vmpooler::API.settings.config[:auth]
+
+      status 404
+      result = { 'ok' => false }
+
+      params[:hostname] = hostname_shorten(params[:hostname], config['domain'])
+
+      if ((params[:size].to_i > 0 )and (backend.exists('vmpooler__vm__' + params[:hostname])))
+        result[params[:hostname]] = {}
+        result[params[:hostname]]['disk'] = "+#{params[:size]}gb"
+
+        backend.sadd('vmpooler__tasks__disk', params[:hostname] + ':' + params[:size])
+
+        status 202
+        result['ok'] = true
       end
 
       JSON.pretty_generate(result)
