@@ -42,9 +42,10 @@ module Vmpooler
     use Vmpooler::API::Reroute
     use Vmpooler::API::V1
 
-    def configure(config, redis, environment = :production)
+    def configure(config, redis, statsd, environment = :production)
       self.settings.set :config, config
       self.settings.set :redis, redis
+      self.settings.set :statsd, statsd
       self.settings.set :environment, environment
     end
 

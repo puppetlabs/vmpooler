@@ -17,7 +17,11 @@ end
 
 api = Thread.new {
   thr = Vmpooler::API.new
-  thr.helpers.configure(config, Vmpooler.new_redis(redis_host))
+  if statsd
+    thr.helpers.configure(config, Vmpooler.new_redis(redis_host), Vmpooler.new_statsd(statsd, statsd_port))
+  else
+    thr.helpers.configure(config, Vmpooler.new_redis(redis_host), statsd=nil)
+  end
   thr.helpers.execute!
 }
 

@@ -12,6 +12,16 @@ module Vmpooler
       Vmpooler::API.settings.redis
     end
 
+    def statsd
+      Vmpooler::API.settings.statsd
+    end
+
+    def statsd_prefix
+      if Vmpooler::API.settings.statsd
+        Vmpooler::API.settings.config[:statsd]['prefix']? Vmpooler::API.settings.config[:statsd]['prefix'] : 'vmpooler'
+      end
+    end
+
     def config
       Vmpooler::API.settings.config[:config]
     end
@@ -77,6 +87,12 @@ module Vmpooler
       else
         status 503
         result['ok'] = false
+      end
+
+      if result['ok']
+        statsd.increment(statsd_prefix + '.checkout_success.' + template, 1)
+      else
+        statsd.increment(statsd_prefix + '.checkout_fail.' + template, 1)
       end
 
       result
@@ -364,6 +380,10 @@ module Vmpooler
 
       if result['ok'] && config['domain']
         result['domain'] = config['domain']
+      end
+
+      if !result['ok']
+        statsd.increment(statsd_prefix + '.checkout_fail.' + key, 1)
       end
 
       JSON.pretty_generate(result)
