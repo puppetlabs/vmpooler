@@ -45,41 +45,55 @@ module Vmpooler
       newhash
     end
 
+    def fetch_single_vm(template)
+      backend.spop('vmpooler__ready__' + template)
+    end
+
+    def return_single_vm(template, vm)
+      backend.spush('vmpooler__ready__' + template, vm)
+    end
+
+    def account_for_starting_vm(template, vm)
+      backend.sadd('vmpooler__running__' + template, vm)
+      backend.hset('vmpooler__active__' + template, vm, Time.now)
+      backend.hset('vmpooler__vm__' + vm, 'checkout', Time.now)
+
+      if Vmpooler::API.settings.config[:auth] and has_token?
+        validate_token(backend)
+
+        backend.hset('vmpooler__vm__' + vm, 'token:token', request.env['HTTP_X_AUTH_TOKEN'])
+        backend.hset('vmpooler__vm__' + vm, 'token:user',
+          backend.hget('vmpooler__token__' + request.env['HTTP_X_AUTH_TOKEN'], 'user')
+        )
+
+        if config['vm_lifetime_auth'].to_i > 0
+          backend.hset('vmpooler__vm__' + vm, 'lifetime', config['vm_lifetime_auth'].to_i)
+        end
+      end
+    end
+
     def checkout_vm(template, result)
-      vm = backend.spop('vmpooler__ready__' + template)
+      vm = fetch_single_vm(template)
 
       unless vm.nil?
-        backend.sadd('vmpooler__running__' + template, vm)
-        backend.hset('vmpooler__active__' + template, vm, Time.now)
-        backend.hset('vmpooler__vm__' + vm, 'checkout', Time.now)
-
-        if Vmpooler::API.settings.config[:auth] and has_token?
-          validate_token(backend)
-
-          backend.hset('vmpooler__vm__' + vm, 'token:token', request.env['HTTP_X_AUTH_TOKEN'])
-          backend.hset('vmpooler__vm__' + vm, 'token:user',
-            backend.hget('vmpooler__token__' + request.env['HTTP_X_AUTH_TOKEN'], 'user')
-          )
-
-          if config['vm_lifetime_auth'].to_i > 0
-            backend.hset('vmpooler__vm__' + vm, 'lifetime', config['vm_lifetime_auth'].to_i)
-          end
-        end
-
-        result[template] ||= {}
-
-        if result[template]['hostname']
-          result[template]['hostname'] = [result[template]['hostname']] unless result[template]['hostname'].is_a?(Array)
-          result[template]['hostname'].push(vm)
-        else
-          result[template]['hostname'] = vm
-        end
+        account_for_starting_vm(template, vm)
+        update_result_hosts(result, template, vm)
       else
         status 503
         result['ok'] = false
       end
 
       result
+    end
+
+    def update_result_hosts(result, template, vm)
+      result[template] ||= {}
+      if result[template]['hostname']
+        result[template]['hostname'] = Array(result[template]['hostname'])
+        result[template]['hostname'].push(vm)
+      else
+        result[template]['hostname'] = vm
+      end
     end
 
     get "#{api_prefix}/status/?" do
@@ -335,35 +349,41 @@ module Vmpooler
 
     post "#{api_prefix}/vm/?" do
       content_type :json
-
       result = { 'ok' => false }
 
       jdata = alias_deref(JSON.parse(request.body.read))
 
       if not jdata.nil? and not jdata.empty?
-        available = 1
-      else
-        status 404
-      end
+        failed = false
+        vms = []
 
-      jdata.each do |key, val|
-        if backend.scard('vmpooler__ready__' + key).to_i < val.to_i
-          available = 0
-        end
-      end
-
-      if (available == 1)
-        result['ok'] = true
-
-        jdata.each do |key, val|
-          val.to_i.times do |_i|
-            result = checkout_vm(key, result)
+        jdata.each do |template, count|
+          count.to_i.times do |_i|
+            vm = fetch_single_vm(template)
+            if !vm
+              failed = true
+              break
+            else
+              vms << [ template, vm ]
+            end
           end
         end
-      end
 
-      if result['ok'] && config['domain']
-        result['domain'] = config['domain']
+        if failed
+          vms.each do |(template, vm)|
+            return_single_vm(template, vm)
+          end
+        else
+          vms.each do |(template, vm)|
+            account_for_starting_vm(template, vm)
+            update_result_hosts(result, template, vm)
+          end
+
+          result['ok'] = true
+          result['domain'] = config['domain'] if config['domain']
+        end
+      else
+        status 404
       end
 
       JSON.pretty_generate(result)
