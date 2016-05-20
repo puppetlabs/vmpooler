@@ -265,6 +265,32 @@ describe Vmpooler::API::V1 do
         expect_json(ok = true, http = 200)
       end
 
+      it 'fails when not all requested vms can be allocated' do
+        allow(redis).to receive(:spop).with('vmpooler__ready__pool1').and_return 'abcdefghijklmnop'
+        allow(redis).to receive(:spop).with('vmpooler__ready__pool2').and_return nil
+        allow(redis).to receive(:spush).with("vmpooler__ready__pool1", "abcdefghijklmnop")
+
+        post "#{prefix}/vm", '{"pool1":"1","pool2":"1"}'
+
+        expected = { ok: false }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+        expect_json(ok = false, http = 200) # which HTTP status code?
+      end
+
+      it 'returns any checked out vms when not all requested vms can be allocated' do
+        allow(redis).to receive(:spop).with('vmpooler__ready__pool1').and_return 'abcdefghijklmnop'
+        allow(redis).to receive(:spop).with('vmpooler__ready__pool2').and_return nil
+        expect(redis).to receive(:spush).with("vmpooler__ready__pool1", "abcdefghijklmnop")
+
+        post "#{prefix}/vm", '{"pool1":"1","pool2":"1"}'
+
+        expected = { ok: false }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+        expect_json(ok = false, http = 200) # which HTTP status code?
+      end
+
       context '(auth not configured)' do
         let(:config) { { auth: false } }
 
