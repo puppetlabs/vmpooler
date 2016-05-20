@@ -348,7 +348,7 @@ module Vmpooler
         vms = []
 
         jdata.each do |template, count|
-          val.to_i.times do |_i|
+          count.to_i.times do |_i|
             vm = fetch_single_vm(template)
             if !vm
               failed = true
@@ -366,7 +366,7 @@ module Vmpooler
         else
           vms.each do |(template, vm)|
             account_for_starting_vm(template, vm)
-            update_result_hosts(results, template, vm)
+            update_result_hosts(result, template, vm)
           end
 
           result['ok'] = true
