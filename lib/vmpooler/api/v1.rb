@@ -86,6 +86,16 @@ module Vmpooler
       result
     end
 
+    def update_result_hosts(result, template, vm)
+      result[template] ||= {}
+      if result[template]['hostname']
+        result[template]['hostname'] = Array(result[template]['hostname'])
+        result[template]['hostname'].push(vm)
+      else
+        result[template]['hostname'] = vm
+      end
+    end
+
     get "#{api_prefix}/status/?" do
       content_type :json
 
@@ -377,16 +387,6 @@ module Vmpooler
       end
 
       JSON.pretty_generate(result)
-    end
-
-    def update_result_hosts(result, template, vm)
-      result[template] ||= {}
-      if result[template]['hostname']
-        result[template]['hostname'] = Array(result[template]['hostname'])
-        result[template]['hostname'].push(vm)
-      else
-        result[template]['hostname'] = vm
-      end
     end
 
     post "#{api_prefix}/vm/:template/?" do
