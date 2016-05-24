@@ -348,12 +348,12 @@ module Vmpooler
     end
 
     post "#{api_prefix}/vm/?" do
+      jdata = alias_deref(JSON.parse(request.body.read))
+
       content_type :json
       result = { 'ok' => false }
 
-      jdata = alias_deref(JSON.parse(request.body.read))
-
-      if not jdata.nil? and not jdata.empty?
+      if jdata and !jdata.empty?
         failed = false
         vms = []
 
@@ -389,43 +389,54 @@ module Vmpooler
       JSON.pretty_generate(result)
     end
 
-    post "#{api_prefix}/vm/:template/?" do
-      content_type :json
-
-      result = { 'ok' => false }
+    def payload_from_template(template)
       payload = {}
 
       params[:template].split('+').each do |template|
         payload[template] ||= 0
-        payload[template] = payload[template] + 1
+        payload[template] += 1
       end
 
-      payload = alias_deref(payload)
+      payload
+    end
 
-      if not payload.nil? and not payload.empty?
-        available = 1
-      else
-        status 404
-      end
+    post "#{api_prefix}/vm/:template/?" do
+      payload = alias_deref(payload_from_template(params[:template]))
 
-      payload.each do |key, val|
-        if backend.scard('vmpooler__ready__' + key).to_i < val.to_i
-          available = 0
-        end
-      end
+      content_type :json
+      result = { 'ok' => false }
 
-      if (available == 1)
-        result['ok'] = true
+      if payload and !payload.empty?
+        failed = false
+        vms = []
 
-        payload.each do |key, val|
-          val.to_i.times do |_i|
-            result = checkout_vm(key, result)
+        payload.each do |template, count|
+          count.to_i.times do |_i|
+            vm = fetch_single_vm(template)
+            if !vm
+              failed = true
+              break
+            else
+              vms << [ template, vm ]
+            end
           end
         end
-      end
 
-      if result['ok'] && config['domain']
-        result['domain'] = config['domain']
+        if failed
+          vms.each do |(template, vm)|
+            return_single_vm(template, vm)
+          end
+        else
+          vms.each do |(template, vm)|
+            account_for_starting_vm(template, vm)
+            update_result_hosts(result, template, vm)
+          end
+
+          result['ok'] = true
+          result['domain'] = config['domain'] if config['domain']
+        end
+      else
+        status 404
       end
 
       JSON.pretty_generate(result)
