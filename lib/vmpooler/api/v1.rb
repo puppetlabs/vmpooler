@@ -96,6 +96,42 @@ module Vmpooler
       end
     end
 
+    def atomically_allocate_vms(payload)
+      return false unless payload and !payload.empty?
+
+      result = { 'ok' => false }
+      failed = false
+      vms = []
+
+      payload.each do |template, count|
+        count.to_i.times do |_i|
+          vm = fetch_single_vm(template)
+          if !vm
+            failed = true
+            break
+          else
+            vms << [ template, vm ]
+          end
+        end
+      end
+
+      if failed
+        vms.each do |(template, vm)|
+          return_single_vm(template, vm)
+        end
+      else
+        vms.each do |(template, vm)|
+          account_for_starting_vm(template, vm)
+          update_result_hosts(result, template, vm)
+        end
+
+        result['ok'] = true
+        result['domain'] = config['domain'] if config['domain']
+      end
+
+      result
+    end
+
     get "#{api_prefix}/status/?" do
       content_type :json
 
@@ -361,10 +397,10 @@ module Vmpooler
       JSON.pretty_generate(result)
     end
 
-    def payload_from_template(template)
+    def extract_templates_from_query_params(params)
       payload = {}
 
-      params[:template].split('+').each do |template|
+      params.split('+').each do |template|
         payload[template] ||= 0
         payload[template] += 1
       end
@@ -372,44 +408,8 @@ module Vmpooler
       payload
     end
 
-    def atomically_allocate_vms(payload)
-      return false unless payload and !payload.empty?
-
-      result = { 'ok' => false }
-      failed = false
-      vms = []
-
-      payload.each do |template, count|
-        count.to_i.times do |_i|
-          vm = fetch_single_vm(template)
-          if !vm
-            failed = true
-            break
-          else
-            vms << [ template, vm ]
-          end
-        end
-      end
-
-      if failed
-        vms.each do |(template, vm)|
-          return_single_vm(template, vm)
-        end
-      else
-        vms.each do |(template, vm)|
-          account_for_starting_vm(template, vm)
-          update_result_hosts(result, template, vm)
-        end
-
-        result['ok'] = true
-        result['domain'] = config['domain'] if config['domain']
-      end
-
-      result
-    end
-
     post "#{api_prefix}/vm/:template/?" do
-      payload = alias_deref(payload_from_template(params[:template]))
+      payload = alias_deref(extract_templates_from_query_params(params[:template]))
       content_type :json
       result = { 'ok' => false }
 
