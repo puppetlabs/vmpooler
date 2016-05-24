@@ -349,39 +349,11 @@ module Vmpooler
 
     post "#{api_prefix}/vm/?" do
       jdata = alias_deref(JSON.parse(request.body.read))
-
       content_type :json
       result = { 'ok' => false }
 
       if jdata and !jdata.empty?
-        failed = false
-        vms = []
-
-        jdata.each do |template, count|
-          count.to_i.times do |_i|
-            vm = fetch_single_vm(template)
-            if !vm
-              failed = true
-              break
-            else
-              vms << [ template, vm ]
-            end
-          end
-        end
-
-        if failed
-          vms.each do |(template, vm)|
-            return_single_vm(template, vm)
-          end
-        else
-          vms.each do |(template, vm)|
-            account_for_starting_vm(template, vm)
-            update_result_hosts(result, template, vm)
-          end
-
-          result['ok'] = true
-          result['domain'] = config['domain'] if config['domain']
-        end
+        result = atomically_allocate_vms(jdata)
       else
         status 404
       end
@@ -400,41 +372,49 @@ module Vmpooler
       payload
     end
 
+    def atomically_allocate_vms(payload)
+      return false unless payload and !payload.empty?
+
+      result = { 'ok' => false }
+      failed = false
+      vms = []
+
+      payload.each do |template, count|
+        count.to_i.times do |_i|
+          vm = fetch_single_vm(template)
+          if !vm
+            failed = true
+            break
+          else
+            vms << [ template, vm ]
+          end
+        end
+      end
+
+      if failed
+        vms.each do |(template, vm)|
+          return_single_vm(template, vm)
+        end
+      else
+        vms.each do |(template, vm)|
+          account_for_starting_vm(template, vm)
+          update_result_hosts(result, template, vm)
+        end
+
+        result['ok'] = true
+        result['domain'] = config['domain'] if config['domain']
+      end
+
+      result
+    end
+
     post "#{api_prefix}/vm/:template/?" do
       payload = alias_deref(payload_from_template(params[:template]))
-
       content_type :json
       result = { 'ok' => false }
 
       if payload and !payload.empty?
-        failed = false
-        vms = []
-
-        payload.each do |template, count|
-          count.to_i.times do |_i|
-            vm = fetch_single_vm(template)
-            if !vm
-              failed = true
-              break
-            else
-              vms << [ template, vm ]
-            end
-          end
-        end
-
-        if failed
-          vms.each do |(template, vm)|
-            return_single_vm(template, vm)
-          end
-        else
-          vms.each do |(template, vm)|
-            account_for_starting_vm(template, vm)
-            update_result_hosts(result, template, vm)
-          end
-
-          result['ok'] = true
-          result['domain'] = config['domain'] if config['domain']
-        end
+        result = atomically_allocate_vms(payload)
       else
         status 404
       end
