@@ -531,6 +531,120 @@ describe Vmpooler::API::V1 do
         expect_json(ok = true, http = 200)
       end
 
+      it 'returns multiple VMs even when multiple instances from the same pool are requested' do
+        post "#{prefix}/vm/pool1+pool1+pool2", ''
+
+        expected = {
+          ok: true,
+          pool1: {
+            hostname: [ 'abcdefghijklmnop', 'abcdefghijklmnop' ]
+          },
+          pool2: {
+            hostname: 'qrstuvwxyz012345'
+          }
+        }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+
+        expect_json(ok = true, http = 200)
+      end
+
+      it 'returns multiple VMs even when multiple instances from multiple pools are requested' do
+        post "#{prefix}/vm/pool1+pool1+pool2+pool2+pool2", ''
+
+        expected = {
+          ok: true,
+          pool1: {
+            hostname: [ 'abcdefghijklmnop', 'abcdefghijklmnop' ]
+          },
+          pool2: {
+            hostname: [ 'qrstuvwxyz012345', 'qrstuvwxyz012345', 'qrstuvwxyz012345' ]
+          }
+        }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+
+        expect_json(ok = true, http = 200)
+      end
+
+      it 'fails when not all requested vms can be allocated' do
+        allow(redis).to receive(:spop).with('vmpooler__ready__pool1').and_return 'abcdefghijklmnop'
+        allow(redis).to receive(:spop).with('vmpooler__ready__pool2').and_return nil
+        allow(redis).to receive(:spush).with("vmpooler__ready__pool1", "abcdefghijklmnop")
+
+        post "#{prefix}/vm/pool1+pool2", ''
+
+        expected = { ok: false }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+        expect_json(ok = false, http = 200) # which HTTP status code?
+      end
+
+      it 'returns any checked out vms to their pools when not all requested vms can be allocated' do
+        allow(redis).to receive(:spop).with('vmpooler__ready__pool1').and_return 'abcdefghijklmnop'
+        allow(redis).to receive(:spop).with('vmpooler__ready__pool2').and_return nil
+        expect(redis).to receive(:spush).with("vmpooler__ready__pool1", "abcdefghijklmnop")
+
+        post "#{prefix}/vm/pool1+pool2", ''
+
+        expected = { ok: false }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+        expect_json(ok = false, http = 200) # which HTTP status code?
+      end
+
+      it 'fails when not all requested vms can be allocated, when requesting multiple instances from a pool' do
+        allow(redis).to receive(:spop).with('vmpooler__ready__pool1').and_return 'abcdefghijklmnop'
+        allow(redis).to receive(:spop).with('vmpooler__ready__pool2').and_return nil
+        allow(redis).to receive(:spush).with("vmpooler__ready__pool1", "abcdefghijklmnop")
+
+        post "#{prefix}/vm/pool1+pool1+pool2", ''
+
+        expected = { ok: false }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+        expect_json(ok = false, http = 200) # which HTTP status code?
+      end
+
+      it 'returns any checked out vms to their pools when not all requested vms can be allocated, when requesting multiple instances from a pool' do
+        allow(redis).to receive(:spop).with('vmpooler__ready__pool1').and_return 'abcdefghijklmnop'
+        allow(redis).to receive(:spop).with('vmpooler__ready__pool2').and_return nil
+        expect(redis).to receive(:spush).with("vmpooler__ready__pool1", "abcdefghijklmnop").exactly(2).times
+
+        post "#{prefix}/vm/pool1+pool1+pool2", ''
+
+        expected = { ok: false }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+        expect_json(ok = false, http = 200) # which HTTP status code?
+      end
+
+      it 'fails when not all requested vms can be allocated, when requesting multiple instances from multiple pools' do
+        allow(redis).to receive(:spop).with('vmpooler__ready__pool1').and_return 'abcdefghijklmnop'
+        allow(redis).to receive(:spop).with('vmpooler__ready__pool2').and_return nil
+        allow(redis).to receive(:spush).with("vmpooler__ready__pool1", "abcdefghijklmnop")
+
+        post "#{prefix}/vm/pool1+pool1+pool2+pool2+pool2", ''
+
+        expected = { ok: false }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+        expect_json(ok = false, http = 200) # which HTTP status code?
+      end
+
+      it 'returns any checked out vms to their pools when not all requested vms can be allocated, when requesting multiple instances from multiple pools' do
+        allow(redis).to receive(:spop).with('vmpooler__ready__pool1').and_return 'abcdefghijklmnop'
+        allow(redis).to receive(:spop).with('vmpooler__ready__pool2').and_return nil
+        expect(redis).to receive(:spush).with("vmpooler__ready__pool1", "abcdefghijklmnop").exactly(2).times
+
+        post "#{prefix}/vm/pool1+pool1+pool2+pool2+pool2", ''
+
+        expected = { ok: false }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+        expect_json(ok = false, http = 200) # which HTTP status code?
+      end
+
       context '(auth not configured)' do
         let(:config) { { auth: false } }
 
