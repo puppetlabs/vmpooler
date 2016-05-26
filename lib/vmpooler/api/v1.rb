@@ -73,9 +73,7 @@ module Vmpooler
     end
 
     def checkout_vm(template, result)
-      vm = fetch_single_vm(template)
-
-      unless vm.nil?
+      if vm = fetch_single_vm(template)
         account_for_starting_vm(template, vm)
         update_result_hosts(result, template, vm)
       else
