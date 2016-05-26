@@ -304,7 +304,7 @@ describe Vmpooler::API::V1 do
       it 'fails when not all requested vms can be allocated' do
         allow(redis).to receive(:spop).with('vmpooler__ready__pool1').and_return 'abcdefghijklmnop'
         allow(redis).to receive(:spop).with('vmpooler__ready__pool2').and_return nil
-        allow(redis).to receive(:spush).with("vmpooler__ready__pool1", "abcdefghijklmnop")
+        allow(redis).to receive(:sadd).with("vmpooler__ready__pool1", "abcdefghijklmnop")
 
         post "#{prefix}/vm", '{"pool1":"1","pool2":"1"}'
 
@@ -317,7 +317,7 @@ describe Vmpooler::API::V1 do
       it 'returns any checked out vms to their pools when not all requested vms can be allocated' do
         allow(redis).to receive(:spop).with('vmpooler__ready__pool1').and_return 'abcdefghijklmnop'
         allow(redis).to receive(:spop).with('vmpooler__ready__pool2').and_return nil
-        expect(redis).to receive(:spush).with("vmpooler__ready__pool1", "abcdefghijklmnop")
+        expect(redis).to receive(:sadd).with("vmpooler__ready__pool1", "abcdefghijklmnop")
 
         post "#{prefix}/vm", '{"pool1":"1","pool2":"1"}'
 
@@ -330,7 +330,7 @@ describe Vmpooler::API::V1 do
       it 'fails when not all requested vms can be allocated, when requesting multiple instances from a pool' do
         allow(redis).to receive(:spop).with('vmpooler__ready__pool1').and_return 'abcdefghijklmnop'
         allow(redis).to receive(:spop).with('vmpooler__ready__pool2').and_return nil
-        allow(redis).to receive(:spush).with("vmpooler__ready__pool1", "abcdefghijklmnop")
+        allow(redis).to receive(:sadd).with("vmpooler__ready__pool1", "abcdefghijklmnop")
 
         post "#{prefix}/vm", '{"pool1":"2","pool2":"1"}'
 
@@ -343,7 +343,7 @@ describe Vmpooler::API::V1 do
       it 'returns any checked out vms to their pools when not all requested vms can be allocated, when requesting multiple instances from a pool' do
         allow(redis).to receive(:spop).with('vmpooler__ready__pool1').and_return 'abcdefghijklmnop'
         allow(redis).to receive(:spop).with('vmpooler__ready__pool2').and_return nil
-        expect(redis).to receive(:spush).with("vmpooler__ready__pool1", "abcdefghijklmnop").exactly(2).times
+        expect(redis).to receive(:sadd).with("vmpooler__ready__pool1", "abcdefghijklmnop").exactly(2).times
 
         post "#{prefix}/vm", '{"pool1":"2","pool2":"1"}'
 
@@ -356,7 +356,7 @@ describe Vmpooler::API::V1 do
       it 'fails when not all requested vms can be allocated, when requesting multiple instances from multiple pools' do
         allow(redis).to receive(:spop).with('vmpooler__ready__pool1').and_return 'abcdefghijklmnop'
         allow(redis).to receive(:spop).with('vmpooler__ready__pool2').and_return nil
-        allow(redis).to receive(:spush).with("vmpooler__ready__pool1", "abcdefghijklmnop")
+        allow(redis).to receive(:sadd).with("vmpooler__ready__pool1", "abcdefghijklmnop")
 
         post "#{prefix}/vm", '{"pool1":"2","pool2":"3"}'
 
@@ -369,7 +369,7 @@ describe Vmpooler::API::V1 do
       it 'returns any checked out vms to their pools when not all requested vms can be allocated, when requesting multiple instances from multiple pools' do
         allow(redis).to receive(:spop).with('vmpooler__ready__pool1').and_return 'abcdefghijklmnop'
         allow(redis).to receive(:spop).with('vmpooler__ready__pool2').and_return nil
-        expect(redis).to receive(:spush).with("vmpooler__ready__pool1", "abcdefghijklmnop").exactly(2).times
+        expect(redis).to receive(:sadd).with("vmpooler__ready__pool1", "abcdefghijklmnop").exactly(2).times
 
         post "#{prefix}/vm", '{"pool1":"2","pool2":"3"}'
 
@@ -570,7 +570,7 @@ describe Vmpooler::API::V1 do
       it 'fails when not all requested vms can be allocated' do
         allow(redis).to receive(:spop).with('vmpooler__ready__pool1').and_return 'abcdefghijklmnop'
         allow(redis).to receive(:spop).with('vmpooler__ready__pool2').and_return nil
-        allow(redis).to receive(:spush).with("vmpooler__ready__pool1", "abcdefghijklmnop")
+        allow(redis).to receive(:sadd).with("vmpooler__ready__pool1", "abcdefghijklmnop")
 
         post "#{prefix}/vm/pool1+pool2", ''
 
@@ -583,7 +583,7 @@ describe Vmpooler::API::V1 do
       it 'returns any checked out vms to their pools when not all requested vms can be allocated' do
         allow(redis).to receive(:spop).with('vmpooler__ready__pool1').and_return 'abcdefghijklmnop'
         allow(redis).to receive(:spop).with('vmpooler__ready__pool2').and_return nil
-        expect(redis).to receive(:spush).with("vmpooler__ready__pool1", "abcdefghijklmnop")
+        expect(redis).to receive(:sadd).with("vmpooler__ready__pool1", "abcdefghijklmnop")
 
         post "#{prefix}/vm/pool1+pool2", ''
 
@@ -596,7 +596,7 @@ describe Vmpooler::API::V1 do
       it 'fails when not all requested vms can be allocated, when requesting multiple instances from a pool' do
         allow(redis).to receive(:spop).with('vmpooler__ready__pool1').and_return 'abcdefghijklmnop'
         allow(redis).to receive(:spop).with('vmpooler__ready__pool2').and_return nil
-        allow(redis).to receive(:spush).with("vmpooler__ready__pool1", "abcdefghijklmnop")
+        allow(redis).to receive(:sadd).with("vmpooler__ready__pool1", "abcdefghijklmnop")
 
         post "#{prefix}/vm/pool1+pool1+pool2", ''
 
@@ -609,7 +609,7 @@ describe Vmpooler::API::V1 do
       it 'returns any checked out vms to their pools when not all requested vms can be allocated, when requesting multiple instances from a pool' do
         allow(redis).to receive(:spop).with('vmpooler__ready__pool1').and_return 'abcdefghijklmnop'
         allow(redis).to receive(:spop).with('vmpooler__ready__pool2').and_return nil
-        expect(redis).to receive(:spush).with("vmpooler__ready__pool1", "abcdefghijklmnop").exactly(2).times
+        expect(redis).to receive(:sadd).with("vmpooler__ready__pool1", "abcdefghijklmnop").exactly(2).times
 
         post "#{prefix}/vm/pool1+pool1+pool2", ''
 
@@ -622,7 +622,7 @@ describe Vmpooler::API::V1 do
       it 'fails when not all requested vms can be allocated, when requesting multiple instances from multiple pools' do
         allow(redis).to receive(:spop).with('vmpooler__ready__pool1').and_return 'abcdefghijklmnop'
         allow(redis).to receive(:spop).with('vmpooler__ready__pool2').and_return nil
-        allow(redis).to receive(:spush).with("vmpooler__ready__pool1", "abcdefghijklmnop")
+        allow(redis).to receive(:sadd).with("vmpooler__ready__pool1", "abcdefghijklmnop")
 
         post "#{prefix}/vm/pool1+pool1+pool2+pool2+pool2", ''
 
@@ -635,7 +635,7 @@ describe Vmpooler::API::V1 do
       it 'returns any checked out vms to their pools when not all requested vms can be allocated, when requesting multiple instances from multiple pools' do
         allow(redis).to receive(:spop).with('vmpooler__ready__pool1').and_return 'abcdefghijklmnop'
         allow(redis).to receive(:spop).with('vmpooler__ready__pool2').and_return nil
-        expect(redis).to receive(:spush).with("vmpooler__ready__pool1", "abcdefghijklmnop").exactly(2).times
+        expect(redis).to receive(:sadd).with("vmpooler__ready__pool1", "abcdefghijklmnop").exactly(2).times
 
         post "#{prefix}/vm/pool1+pool1+pool2+pool2+pool2", ''
 

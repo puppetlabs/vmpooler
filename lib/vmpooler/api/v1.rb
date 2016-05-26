@@ -50,7 +50,7 @@ module Vmpooler
     end
 
     def return_single_vm(template, vm)
-      backend.spush('vmpooler__ready__' + template, vm)
+      backend.sadd('vmpooler__ready__' + template, vm)
     end
 
     def account_for_starting_vm(template, vm)
