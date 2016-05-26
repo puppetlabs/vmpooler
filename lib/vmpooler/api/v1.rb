@@ -104,6 +104,7 @@ module Vmpooler
       if failed
         vms.each do |(template, vm)|
           return_single_vm(template, vm)
+          status 503
         end
       else
         vms.each do |(template, vm)|
