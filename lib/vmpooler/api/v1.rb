@@ -72,18 +72,6 @@ module Vmpooler
       end
     end
 
-    def checkout_vm(template, result)
-      if vm = fetch_single_vm(template)
-        account_for_starting_vm(template, vm)
-        update_result_hosts(result, template, vm)
-      else
-        status 503
-        result['ok'] = false
-      end
-
-      result
-    end
-
     def update_result_hosts(result, template, vm)
       result[template] ||= {}
       if result[template]['hostname']
