@@ -311,7 +311,7 @@ describe Vmpooler::API::V1 do
         expected = { ok: false }
 
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
-        expect_json(ok = false, http = 200) # which HTTP status code?
+        expect_json(ok = false, http = 200)
       end
 
       it 'returns any checked out vms to their pools when not all requested vms can be allocated' do
@@ -324,7 +324,7 @@ describe Vmpooler::API::V1 do
         expected = { ok: false }
 
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
-        expect_json(ok = false, http = 200) # which HTTP status code?
+        expect_json(ok = false, http = 200)
       end
 
       it 'fails when not all requested vms can be allocated, when requesting multiple instances from a pool' do
@@ -337,7 +337,7 @@ describe Vmpooler::API::V1 do
         expected = { ok: false }
 
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
-        expect_json(ok = false, http = 200) # which HTTP status code?
+        expect_json(ok = false, http = 200)
       end
 
       it 'returns any checked out vms to their pools when not all requested vms can be allocated, when requesting multiple instances from a pool' do
@@ -350,7 +350,7 @@ describe Vmpooler::API::V1 do
         expected = { ok: false }
 
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
-        expect_json(ok = false, http = 200) # which HTTP status code?
+        expect_json(ok = false, http = 200)
       end
 
       it 'fails when not all requested vms can be allocated, when requesting multiple instances from multiple pools' do
@@ -363,7 +363,7 @@ describe Vmpooler::API::V1 do
         expected = { ok: false }
 
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
-        expect_json(ok = false, http = 200) # which HTTP status code?
+        expect_json(ok = false, http = 200)
       end
 
       it 'returns any checked out vms to their pools when not all requested vms can be allocated, when requesting multiple instances from multiple pools' do
@@ -376,7 +376,7 @@ describe Vmpooler::API::V1 do
         expected = { ok: false }
 
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
-        expect_json(ok = false, http = 200) # which HTTP status code?
+        expect_json(ok = false, http = 200)
       end
 
       context '(auth not configured)' do
@@ -577,7 +577,7 @@ describe Vmpooler::API::V1 do
         expected = { ok: false }
 
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
-        expect_json(ok = false, http = 200) # which HTTP status code?
+        expect_json(ok = false, http = 200)
       end
 
       it 'returns any checked out vms to their pools when not all requested vms can be allocated' do
@@ -590,7 +590,7 @@ describe Vmpooler::API::V1 do
         expected = { ok: false }
 
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
-        expect_json(ok = false, http = 200) # which HTTP status code?
+        expect_json(ok = false, http = 200)
       end
 
       it 'fails when not all requested vms can be allocated, when requesting multiple instances from a pool' do
@@ -603,7 +603,7 @@ describe Vmpooler::API::V1 do
         expected = { ok: false }
 
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
-        expect_json(ok = false, http = 200) # which HTTP status code?
+        expect_json(ok = false, http = 200)
       end
 
       it 'returns any checked out vms to their pools when not all requested vms can be allocated, when requesting multiple instances from a pool' do
@@ -616,7 +616,7 @@ describe Vmpooler::API::V1 do
         expected = { ok: false }
 
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
-        expect_json(ok = false, http = 200) # which HTTP status code?
+        expect_json(ok = false, http = 200)
       end
 
       it 'fails when not all requested vms can be allocated, when requesting multiple instances from multiple pools' do
@@ -629,7 +629,7 @@ describe Vmpooler::API::V1 do
         expected = { ok: false }
 
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
-        expect_json(ok = false, http = 200) # which HTTP status code?
+        expect_json(ok = false, http = 200)
       end
 
       it 'returns any checked out vms to their pools when not all requested vms can be allocated, when requesting multiple instances from multiple pools' do
@@ -642,7 +642,7 @@ describe Vmpooler::API::V1 do
         expected = { ok: false }
 
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
-        expect_json(ok = false, http = 200) # which HTTP status code?
+        expect_json(ok = false, http = 200)
       end
 
       context '(auth not configured)' do
