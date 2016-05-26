@@ -239,7 +239,7 @@ describe Vmpooler::API::V1 do
         expect_json(ok = true, http = 200)
       end
 
-      it 'fails on nonexistant pools' do
+      it 'fails on nonexistent pools' do
         expect(redis).to receive(:exists).with("vmpooler__ready__poolpoolpool").and_return(false)
 
         post "#{prefix}/vm", '{"poolpoolpool":"1"}'
@@ -505,7 +505,7 @@ describe Vmpooler::API::V1 do
         expect_json(ok = true, http = 200)
       end
 
-      it 'fails on nonexistant pools' do
+      it 'fails on nonexistent pools' do
         expect(redis).to receive(:exists).with("vmpooler__ready__poolpoolpool").and_return(false)
 
         post "#{prefix}/vm/poolpoolpool", ''
