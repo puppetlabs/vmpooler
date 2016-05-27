@@ -56,18 +56,24 @@ describe Vmpooler::API::V1 do
         create_vm('testhost')
         put "#{prefix}/vm/testhost", '{"tags":{"tested_by":"rspec"}}'
         expect_json(ok = true, http = 200)
+
+        # TODO: test for tag presence
       end
 
       it 'skips empty tags' do
         create_vm('testhost')
         put "#{prefix}/vm/testhost", '{"tags":{"tested_by":""}}'
         expect_json(ok = true, http = 200)
+
+        # TODO: test for tag presence
       end
 
       it 'does not set tags if request body format is invalid' do
         create_vm('testhost')
         put "#{prefix}/vm/testhost", '{"tags":{"tested"}}'
         expect_json(ok = false, http = 400)
+
+        # TODO: ensure that tags were not set
       end
 
       context '(allowed_tags configured)' do
@@ -80,6 +86,8 @@ describe Vmpooler::API::V1 do
           put "#{prefix}/vm/testhost", '{"tags":{"created_by":"rspec","tested_by":"rspec"}}'
 
           expect_json(ok = false, http = 400)
+
+          # TODO: ensure that tag was not set
         end
       end
 
@@ -89,19 +97,24 @@ describe Vmpooler::API::V1 do
       #   } }
       #
       #   it 'correctly filters tags' do
-      #     expect(redis).to receive(:hset).with("vmpooler__vm__testhost", "tag:url", "foo.com")
+      #     app.settings.set :config, { :config => { tagfilter: { 'url' => '(.*)\/' } } }
       #
       #     put "#{prefix}/vm/testhost", '{"tags":{"url":"foo.com/something.html"}}'
-      #
       #     expect_json(ok = true, http = 200)
+      #
+      #     # expect(redis).to receive(:hset).with("vmpooler__vm__testhost", "tag:url", "foo.com")
+      #
+      #     # TODO: ensure that filtered tags were set
       #   end
       #
       #   it 'doesn\'t eat tags not matching filter' do
-      #     expect(redis).to receive(:hset).with("vmpooler__vm__testhost", "tag:url", "foo.com")
+      #     app.settings.set :config, { :config => { tagfilter: { 'url' => '(.*)\/' } } }
       #
       #     put "#{prefix}/vm/testhost", '{"tags":{"url":"foo.com"}}'
-      #
       #     expect_json(ok = true, http = 200)
+      #
+      #     # expect(redis).to receive(:hset).with("vmpooler__vm__testhost", "tag:url", "foo.com")
+      #     # TODO: ensure that filtered tags were set
       #   end
       # end
 
