@@ -53,7 +53,7 @@ describe Vmpooler::API::V1 do
     describe 'POST /vm/:template' do
       it 'returns a single VM' do
         clear_pool 'pool1'
-        create_vm 'pool1', 'abcdefghijklmnop'
+        create_ready_vm 'pool1', 'abcdefghijklmnop'
 
         post "#{prefix}/vm/pool1", ''
         expect_json(ok = true, http = 200)
@@ -70,7 +70,7 @@ describe Vmpooler::API::V1 do
 
       it 'returns a single VM for an alias' do
         clear_pool 'pool1'
-        create_vm 'pool1', 'abcdefghijklmnop'
+        create_ready_vm 'pool1', 'abcdefghijklmnop'
 
         post "#{prefix}/vm/poolone", ''
 
@@ -94,8 +94,8 @@ describe Vmpooler::API::V1 do
 
       it 'returns multiple VMs' do
         clear_pool 'pool1'
-        create_vm 'pool1', 'abcdefghijklmnop'
-        create_vm 'pool2', 'qrstuvwxyz012345'
+        create_ready_vm 'pool1', 'abcdefghijklmnop'
+        create_ready_vm 'pool2', 'qrstuvwxyz012345'
 
         post "#{prefix}/vm/pool1+pool2", ''
         expect_json(ok = true, http = 200)
@@ -118,7 +118,7 @@ describe Vmpooler::API::V1 do
           app.settings.set :config, auth: true
 
           clear_pool 'pool1'
-          create_vm 'pool1', 'abcdefghijklmnop'
+          create_ready_vm 'pool1', 'abcdefghijklmnop'
 
           post "#{prefix}/vm/pool1", '', {
             'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
@@ -141,7 +141,7 @@ describe Vmpooler::API::V1 do
           app.settings.set :config, auth: true
 
           clear_pool 'pool1'
-          create_vm 'pool1', 'abcdefghijklmnop'
+          create_ready_vm 'pool1', 'abcdefghijklmnop'
 
           post "#{prefix}/vm/pool1", '', {
             'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
@@ -163,7 +163,7 @@ describe Vmpooler::API::V1 do
         it 'does not extend VM lifetime if auth token is not provided' do
           app.settings.set :config, auth: true
           clear_pool 'pool1'
-          create_vm 'pool1', 'abcdefghijklmnop'
+          create_ready_vm 'pool1', 'abcdefghijklmnop'
 
           post "#{prefix}/vm/pool1", ''
 
