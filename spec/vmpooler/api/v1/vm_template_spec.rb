@@ -15,25 +15,6 @@ def redis
   @redis ||= Redis.new
 end
 
-def create_token(token, user, timestamp)
-  redis.hset("vmpooler__token__#{token}", 'user', user)
-  redis.hset("vmpooler__token__#{token}", 'created', timestamp)
-end
-
-def create_vm(template, name)
-  redis.sadd('vmpooler__ready__' + template, name)
-end
-
-def fetch_vm(vm)
-  redis.hgetall("vmpooler__vm__#{vm}")
-end
-
-def clear_pool(pool)
-  ['ready'].each do |state| # TODO add more states if desired
-    redis.del("vmpooler__#{state}__#{pool}")
-  end
-end
-
 describe Vmpooler::API::V1 do
   include Rack::Test::Methods
 

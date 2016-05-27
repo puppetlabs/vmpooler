@@ -15,20 +15,6 @@ def redis
   @redis ||= Redis.new
 end
 
-def create_token(token, user, timestamp)
-  redis.hset("vmpooler__token__#{token}", 'user', user)
-  redis.hset("vmpooler__token__#{token}", 'created', timestamp)
-end
-
-def get_token_data(token)
-  redis.hgetall("vmpooler__token__#{token}")
-end
-
-def token_exists?(token)
-  result = get_token_data
-  result && !result.empty?
-end
-
 describe Vmpooler::API::V1 do
   include Rack::Test::Methods
 
