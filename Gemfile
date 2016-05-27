@@ -6,6 +6,7 @@ gem 'rake', '>= 10.4'
 gem 'rbvmomi', '>= 1.8'
 gem 'redis', '>= 3.2'
 gem 'sinatra', '>= 1.4'
+gem 'net-ldap', '<= 0.12.1' # keep compatibility w/ jruby & mri-1.9.3
 
 # Test deps
 group :test do
