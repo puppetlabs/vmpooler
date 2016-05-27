@@ -49,7 +49,7 @@ module Vmpooler
       backend.spop('vmpooler__ready__' + template)
     end
 
-    def return_single_vm(template, vm)
+    def return_vm_to_ready_state(template, vm)
       backend.sadd('vmpooler__ready__' + template, vm)
     end
 
@@ -103,7 +103,7 @@ module Vmpooler
 
       if failed
         vms.each do |(template, vm)|
-          return_single_vm(template, vm)
+          return_vm_to_ready_state(template, vm)
           status 503
         end
       else
