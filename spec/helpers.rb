@@ -39,9 +39,3 @@ end
 def fetch_vm(vm)
   redis.hgetall("vmpooler__vm__#{vm}")
 end
-
-def clear_pool(pool)
-  ['ready'].each do |state| # TODO add more states if desired
-    redis.del("vmpooler__#{state}__#{pool}")
-  end
-end
