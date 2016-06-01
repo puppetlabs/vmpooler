@@ -220,78 +220,98 @@ describe Vmpooler::API::V1 do
       end
     end
 
-    # describe 'POST /vm/:hostname/snapshot' do
-    #   context '(auth not configured)' do
-    #     let(:config) { { auth: false } }
-    #
-    #     it 'creates a snapshot' do
-    #       expect(redis).to receive(:sadd)
-    #
-    #       post "#{prefix}/vm/testhost/snapshot"
-    #
-    #       expect(JSON.parse(last_response.body)['testhost']['snapshot'].length).to be(32)
-    #
-    #       expect_json(ok = true, http = 202)
-    #     end
-    #   end
-    #
-    #   context '(auth configured)' do
-    #     let(:config) { { auth: true } }
-    #
-    #     it 'returns a 401 if not authed' do
-    #       post "#{prefix}/vm/testhost/snapshot"
-    #
-    #       expect_json(ok = false, http = 401)
-    #     end
-    #
-    #     it 'creates a snapshot if authed' do
-    #       expect(redis).to receive(:sadd)
-    #
-    #       post "#{prefix}/vm/testhost/snapshot", "", {
-    #         'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
-    #       }
-    #
-    #       expect(JSON.parse(last_response.body)['testhost']['snapshot'].length).to be(32)
-    #
-    #       expect_json(ok = true, http = 202)
-    #     end
-    #   end
-    # end
-    #
-    # describe 'POST /vm/:hostname/snapshot/:snapshot' do
-    #   context '(auth not configured)' do
-    #     let(:config) { { auth: false } }
-    #
-    #     it 'reverts to a snapshot' do
-    #       expect(redis).to receive(:hget).with('vmpooler__vm__testhost', 'snapshot:testsnapshot').and_return(1)
-    #       expect(redis).to receive(:sadd)
-    #
-    #       post "#{prefix}/vm/testhost/snapshot/testsnapshot"
-    #
-    #       expect_json(ok = true, http = 202)
-    #     end
-    #   end
-    #
-    #   context '(auth configured)' do
-    #     let(:config) { { auth: true } }
-    #
-    #     it 'returns a 401 if not authed' do
-    #       post "#{prefix}/vm/testhost/snapshot"
-    #
-    #       expect_json(ok = false, http = 401)
-    #     end
-    #
-    #     it 'reverts to a snapshot if authed' do
-    #       expect(redis).to receive(:hget).with('vmpooler__vm__testhost', 'snapshot:testsnapshot').and_return(1)
-    #       expect(redis).to receive(:sadd)
-    #
-    #       post "#{prefix}/vm/testhost/snapshot/testsnapshot", "", {
-    #         'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
-    #       }
-    #
-    #       expect_json(ok = true, http = 202)
-    #     end
-    #   end
-    # end
+    describe 'POST /vm/:hostname/snapshot' do
+      context '(auth not configured)' do
+        it 'creates a snapshot' do
+          create_vm('testhost')
+          post "#{prefix}/vm/testhost/snapshot"
+          expect_json(ok = true, http = 202)
+          expect(JSON.parse(last_response.body)['testhost']['snapshot'].length).to be(32)
+        end
+      end
+
+      context '(auth configured)' do
+        before(:each) do
+          app.settings.set :config, auth: true
+        end
+
+        it 'returns a 401 if not authed' do
+          post "#{prefix}/vm/testhost/snapshot"
+          expect_json(ok = false, http = 401)
+          expect !has_vm_snapshot?('testhost')
+        end
+
+        it 'creates a snapshot if authed' do
+          create_vm('testhost')
+          snapshot_vm('testhost', 'testsnapshot')
+
+          post "#{prefix}/vm/testhost/snapshot", "", {
+            'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
+          }
+          expect_json(ok = true, http = 202)
+          expect(JSON.parse(last_response.body)['testhost']['snapshot'].length).to be(32)
+          expect has_vm_snapshot?('testhost')
+        end
+      end
+    end
+
+    describe 'POST /vm/:hostname/snapshot/:snapshot' do
+      context '(auth not configured)' do
+        it 'reverts to a snapshot' do
+          create_vm('testhost')
+          snapshot_vm('testhost', 'testsnapshot')
+
+          post "#{prefix}/vm/testhost/snapshot/testsnapshot"
+          expect_json(ok = true, http = 202)
+          expect vm_reverted_to_snapshot?('testhost', 'testsnapshot')
+        end
+
+        it 'fails if the specified snapshot does not exist' do
+          create_vm('testhost')
+
+          post "#{prefix}/vm/testhost/snapshot/testsnapshot", "", {
+            'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
+          }
+          expect_json(ok = false, http = 404)
+          expect !vm_reverted_to_snapshot?('testhost', 'testsnapshot')
+        end
+      end
+
+      context '(auth configured)' do
+        before(:each) do
+          app.settings.set :config, auth: true
+        end
+
+        it 'returns a 401 if not authed' do
+          create_vm('testhost')
+          snapshot_vm('testhost', 'testsnapshot')
+
+          post "#{prefix}/vm/testhost/snapshot/testsnapshot"
+          expect_json(ok = false, http = 401)
+          expect !vm_reverted_to_snapshot?('testhost', 'testsnapshot')
+        end
+
+        it 'fails if authed and the specified snapshot does not exist' do
+          create_vm('testhost')
+
+          post "#{prefix}/vm/testhost/snapshot/testsnapshot", "", {
+            'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
+          }
+          expect_json(ok = false, http = 404)
+          expect !vm_reverted_to_snapshot?('testhost', 'testsnapshot')
+        end
+
+        it 'reverts to a snapshot if authed' do
+          create_vm('testhost')
+          snapshot_vm('testhost', 'testsnapshot')
+
+          post "#{prefix}/vm/testhost/snapshot/testsnapshot", "", {
+            'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
+          }
+          expect_json(ok = true, http = 202)
+          expect vm_reverted_to_snapshot?('testhost', 'testsnapshot')
+        end
+      end
+    end
   end
 end

@@ -50,3 +50,22 @@ end
 def fetch_vm(vm)
   redis.hgetall("vmpooler__vm__#{vm}")
 end
+
+def snapshot_vm(vm, snapshot = '12345678901234567890123456789012')
+  redis.sadd('vmpooler__tasks__snapshot', "#{vm}:#{snapshot}")
+  redis.hset("vmpooler__vm__#{vm}", "snapshot:#{snapshot}", "1")
+end
+
+def has_vm_snapshot?(vm)
+  redis.smembers('vmpooler__tasks__snapshot').any? do |snapshot|
+    instance, sha = snapshot.split(':')
+    vm == instance
+  end
+end
+
+def vm_reverted_to_snapshot?(vm, snapshot = nil)
+  redis.smembers('vmpooler__tasks__snapshot-revert').any? do |action|
+    instance, sha = action.split(':')
+    instance == vm and (snapshot ? (sha == snapshot) : true)
+  end
+end
