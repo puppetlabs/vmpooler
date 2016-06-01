@@ -162,72 +162,64 @@ describe Vmpooler::API::V1 do
       end
     end
 
-    # describe 'DELETE /vm/:hostname' do
-    #   context '(auth not configured)' do
-    #     let(:config) { { auth: false } }
-    #
-    #     it 'does not delete a non-existant VM' do
-    #       expect(redis).to receive(:hgetall).and_return({})
-    #       expect(redis).not_to receive(:sadd)
-    #       expect(redis).not_to receive(:srem)
-    #
-    #       delete "#{prefix}/vm/testhost"
-    #
-    #       expect_json(ok = false, http = 404)
-    #     end
-    #
-    #     it 'deletes an existing VM' do
-    #       expect(redis).to receive(:hgetall).with('vmpooler__vm__testhost').and_return({"template" => "pool1"})
-    #       expect(redis).to receive(:srem).and_return(true)
-    #       expect(redis).to receive(:sadd)
-    #
-    #       delete "#{prefix}/vm/testhost"
-    #
-    #       expect_json(ok = true, http = 200)
-    #     end
-    #   end
-    #
-    #   context '(auth configured)' do
-    #     let(:config) { { auth: true } }
-    #
-    #     context '(checked-out without token)' do
-    #       it 'deletes a VM without supplying a token' do
-    #         expect(redis).to receive(:hgetall).with('vmpooler__vm__testhost').and_return({"template" => "pool1"})
-    #         expect(redis).to receive(:srem).and_return(true)
-    #         expect(redis).to receive(:sadd)
-    #
-    #         delete "#{prefix}/vm/testhost"
-    #
-    #         expect_json(ok = true, http = 200)
-    #       end
-    #     end
-    #
-    #     context '(checked-out with token)' do
-    #       it 'fails to delete a VM without supplying a token' do
-    #         expect(redis).to receive(:hgetall).with('vmpooler__vm__testhost').and_return({"template" => "pool1", "token:token" => "abcdefghijklmnopqrstuvwxyz012345"})
-    #         expect(redis).not_to receive(:sadd)
-    #         expect(redis).not_to receive(:srem)
-    #
-    #         delete "#{prefix}/vm/testhost"
-    #
-    #         expect_json(ok = false, http = 401)
-    #       end
-    #
-    #       it 'deletes a VM when token is supplied' do
-    #         expect(redis).to receive(:hgetall).with('vmpooler__vm__testhost').and_return({"template" => "pool1", "token:token" => "abcdefghijklmnopqrstuvwxyz012345"})
-    #         expect(redis).to receive(:srem).and_return(true)
-    #         expect(redis).to receive(:sadd)
-    #
-    #         delete "#{prefix}/vm/testhost", "", {
-    #           'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
-    #         }
-    #
-    #         expect_json(ok = true, http = 200)
-    #       end
-    #     end
-    #   end
-    # end
-    #
+    describe 'DELETE /vm/:hostname' do
+      context '(auth not configured)' do
+        it 'does not delete a non-existant VM' do
+          delete "#{prefix}/vm/testhost"
+          expect_json(ok = false, http = 404)
+        end
+
+        it 'deletes an existing VM' do
+          create_running_vm('pool1', 'testhost')
+          expect fetch_vm('testhost')
+
+          delete "#{prefix}/vm/testhost"
+          expect_json(ok = true, http = 200)
+          expect !fetch_vm('testhost')
+        end
+      end
+
+      context '(auth configured)' do
+        before(:each) do
+          app.settings.set :config, auth: true
+        end
+
+        context '(checked-out without token)' do
+          it 'deletes a VM without supplying a token' do
+            create_running_vm('pool1', 'testhost')
+            expect fetch_vm('testhost')
+
+            delete "#{prefix}/vm/testhost"
+            expect_json(ok = true, http = 200)
+            expect !fetch_vm('testhost')
+          end
+        end
+
+        context '(checked-out with token)' do
+          it 'fails to delete a VM without supplying a token' do
+            create_running_vm('pool1', 'testhost', 'abcdefghijklmnopqrstuvwxyz012345')
+            expect fetch_vm('testhost')
+
+            delete "#{prefix}/vm/testhost"
+            expect_json(ok = false, http = 401)
+            expect fetch_vm('testhost')
+          end
+
+          it 'deletes a VM when token is supplied' do
+            create_running_vm('pool1', 'testhost', 'abcdefghijklmnopqrstuvwxyz012345')
+            expect fetch_vm('testhost')
+
+            delete "#{prefix}/vm/testhost", "", {
+              'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
+            }
+            expect_json(ok = true, http = 200)
+
+            expect !fetch_vm('testhost')
+          end
+        end
+      end
+    end
+
     # describe 'POST /vm/:hostname/snapshot' do
     #   context '(auth not configured)' do
     #     let(:config) { { auth: false } }

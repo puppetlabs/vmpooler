@@ -28,12 +28,23 @@ def token_exists?(token)
   result && !result.empty?
 end
 
-def create_ready_vm(template, name)
+def create_ready_vm(template, name, token = nil)
+  create_vm(name, token)
   redis.sadd('vmpooler__ready__' + template, name)
+  redis.hset("vmpooler_vm_#{name}", "template", template)
 end
 
-def create_vm(name)
+def create_running_vm(template, name, token = nil)
+  create_vm(name, token)
+  redis.sadd('vmpooler__running__' + template, name)
+  redis.hset("vmpooler__vm__#{name}", "template", template)
+end
+
+def create_vm(name, token = nil)
   redis.hset("vmpooler__vm__#{name}", 'checkout', Time.now)
+  if token
+    redis.hset("vmpooler__vm__#{name}", 'token:token', token)
+  end
 end
 
 def fetch_vm(vm)
