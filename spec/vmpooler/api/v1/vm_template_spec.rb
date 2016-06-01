@@ -48,7 +48,6 @@ describe Vmpooler::API::V1 do
 
     describe 'POST /vm/:template' do
       it 'returns a single VM' do
-        clear_pool 'pool1'
         create_ready_vm 'pool1', 'abcdefghijklmnop'
 
         post "#{prefix}/vm/pool1", ''
@@ -65,7 +64,6 @@ describe Vmpooler::API::V1 do
       end
 
       it 'returns a single VM for an alias' do
-        clear_pool 'pool1'
         create_ready_vm 'pool1', 'abcdefghijklmnop'
 
         post "#{prefix}/vm/poolone", ''
@@ -82,14 +80,11 @@ describe Vmpooler::API::V1 do
       end
 
       it 'fails on nonexistant pools' do
-        clear_pool 'poolpoolpool'
-
         post "#{prefix}/vm/poolpoolpool", ''
         expect_json(ok = false, http = 404)
       end
 
       it 'returns multiple VMs' do
-        clear_pool 'pool1'
         create_ready_vm 'pool1', 'abcdefghijklmnop'
         create_ready_vm 'pool2', 'qrstuvwxyz012345'
 
@@ -113,7 +108,6 @@ describe Vmpooler::API::V1 do
         it 'does not extend VM lifetime if auth token is provided' do
           app.settings.set :config, auth: true
 
-          clear_pool 'pool1'
           create_ready_vm 'pool1', 'abcdefghijklmnop'
 
           post "#{prefix}/vm/pool1", '', {
@@ -136,7 +130,6 @@ describe Vmpooler::API::V1 do
         it 'extends VM lifetime if auth token is provided' do
           app.settings.set :config, auth: true
 
-          clear_pool 'pool1'
           create_ready_vm 'pool1', 'abcdefghijklmnop'
 
           post "#{prefix}/vm/pool1", '', {
@@ -158,7 +151,6 @@ describe Vmpooler::API::V1 do
 
         it 'does not extend VM lifetime if auth token is not provided' do
           app.settings.set :config, auth: true
-          clear_pool 'pool1'
           create_ready_vm 'pool1', 'abcdefghijklmnop'
 
           post "#{prefix}/vm/pool1", ''
