@@ -106,7 +106,7 @@ describe Vmpooler::API::V1 do
 
       context '(auth not configured)' do
         it 'does not extend VM lifetime if auth token is provided' do
-          app.settings.set :config, auth: true
+          app.settings.set :config, auth: false
 
           create_ready_vm 'pool1', 'abcdefghijklmnop'
 
@@ -123,6 +123,8 @@ describe Vmpooler::API::V1 do
           }
 
           expect(last_response.body).to eq(JSON.pretty_generate(expected))
+          vm = fetch_vm('abcdefghijklmnop')
+          expect(vm['lifetime']).to be_nil
         end
       end
 

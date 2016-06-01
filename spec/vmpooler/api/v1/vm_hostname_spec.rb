@@ -11,6 +11,10 @@ module Vmpooler
   end
 end
 
+def has_set_tag?(vm, tag, value)
+  value == redis.hget("vmpooler__vm__#{vm}", "tag:#{tag}")
+end
+
 describe Vmpooler::API::V1 do
   include Rack::Test::Methods
 
@@ -52,7 +56,7 @@ describe Vmpooler::API::V1 do
         put "#{prefix}/vm/testhost", '{"tags":{"tested_by":"rspec"}}'
         expect_json(ok = true, http = 200)
 
-        # TODO: test for tag presence
+        expect has_set_tag?('testhost', 'tested_by', 'rspec')
       end
 
       it 'skips empty tags' do
@@ -60,7 +64,7 @@ describe Vmpooler::API::V1 do
         put "#{prefix}/vm/testhost", '{"tags":{"tested_by":""}}'
         expect_json(ok = true, http = 200)
 
-        # TODO: test for tag presence
+        expect !has_set_tag?('testhost', 'tested_by', '')
       end
 
       it 'does not set tags if request body format is invalid' do
@@ -68,7 +72,7 @@ describe Vmpooler::API::V1 do
         put "#{prefix}/vm/testhost", '{"tags":{"tested"}}'
         expect_json(ok = false, http = 400)
 
-        # TODO: ensure that tags were not set
+        expect !has_set_tag?('testhost', 'tested', '')
       end
 
       context '(allowed_tags configured)' do
@@ -79,69 +83,83 @@ describe Vmpooler::API::V1 do
           create_vm('testhost')
 
           put "#{prefix}/vm/testhost", '{"tags":{"created_by":"rspec","tested_by":"rspec"}}'
-
           expect_json(ok = false, http = 400)
 
-          # TODO: ensure that tag was not set
+          expect !has_set_tag?('testhost', 'tested_by', 'rspec')
         end
       end
 
-      # context '(tagfilter configured)' do
-      #   let(:config) { {
-      #     tagfilter: { 'url' => '(.*)\/' },
-      #   } }
-      #
-      #   it 'correctly filters tags' do
-      #     app.settings.set :config, { :config => { tagfilter: { 'url' => '(.*)\/' } } }
-      #
-      #     put "#{prefix}/vm/testhost", '{"tags":{"url":"foo.com/something.html"}}'
-      #     expect_json(ok = true, http = 200)
-      #
-      #     # expect(redis).to receive(:hset).with("vmpooler__vm__testhost", "tag:url", "foo.com")
-      #
-      #     # TODO: ensure that filtered tags were set
-      #   end
-      #
-      #   it 'doesn\'t eat tags not matching filter' do
-      #     app.settings.set :config, { :config => { tagfilter: { 'url' => '(.*)\/' } } }
-      #
-      #     put "#{prefix}/vm/testhost", '{"tags":{"url":"foo.com"}}'
-      #     expect_json(ok = true, http = 200)
-      #
-      #     # expect(redis).to receive(:hset).with("vmpooler__vm__testhost", "tag:url", "foo.com")
-      #     # TODO: ensure that filtered tags were set
-      #   end
-      # end
+      context '(tagfilter configured)' do
+        let(:config) { {
+          tagfilter: { 'url' => '(.*)\/' },
+        } }
 
-      # context '(auth not configured)' do
-      #   it 'allows VM lifetime to be modified without a token' do
-      #     put "#{prefix}/vm/testhost", '{"lifetime":"1"}'
-      #     expect_json(ok = true, http = 200)
-      #   end
-      #
-      #   it 'does not allow a lifetime to be 0' do
-      #     put "#{prefix}/vm/testhost", '{"lifetime":"0"}'
-      #     expect_json(ok = false, http = 400)
-      #   end
-      # end
+        it 'correctly filters tags' do
+          create_vm('testhost')
 
-      # context '(auth configured)' do
-      #   let(:config) { { auth: true } }
-      #
-      #   it 'allows VM lifetime to be modified with a token' do
-      #     put "#{prefix}/vm/testhost", '{"lifetime":"1"}', {
-      #       'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
-      #     }
-      #
-      #     expect_json(ok = true, http = 200)
-      #   end
-      #
-      #   it 'does not allows VM lifetime to be modified without a token' do
-      #     put "#{prefix}/vm/testhost", '{"lifetime":"1"}'
-      #
-      #     expect_json(ok = false, http = 401)
-      #   end
-      # end
+          put "#{prefix}/vm/testhost", '{"tags":{"url":"foo.com/something.html"}}'
+          expect_json(ok = true, http = 200)
+
+          expect has_set_tag?('testhost', 'url', 'foo.com')
+        end
+
+        it "doesn't eat tags not matching filter" do
+          create_vm('testhost')
+          put "#{prefix}/vm/testhost", '{"tags":{"url":"foo.com"}}'
+          expect_json(ok = true, http = 200)
+
+          expect has_set_tag?('testhost', 'url', 'foo.com')
+        end
+      end
+
+      context '(auth not configured)' do
+        let(:config) { { auth: false } }
+
+        it 'allows VM lifetime to be modified without a token' do
+          create_vm('testhost')
+
+          put "#{prefix}/vm/testhost", '{"lifetime":"1"}'
+          expect_json(ok = true, http = 200)
+
+          vm = fetch_vm('testhost')
+          expect(vm['lifetime'].to_i).to eq(1)
+        end
+
+        it 'does not allow a lifetime to be 0' do
+          create_vm('testhost')
+
+          put "#{prefix}/vm/testhost", '{"lifetime":"0"}'
+          expect_json(ok = false, http = 400)
+
+          vm = fetch_vm('testhost')
+          expect(vm['lifetime']).to be_nil
+        end
+      end
+
+      context '(auth configured)' do
+        before(:each) do
+          app.settings.set :config, auth: true
+        end
+
+        it 'allows VM lifetime to be modified with a token' do
+          create_vm('testhost')
+
+          put "#{prefix}/vm/testhost", '{"lifetime":"1"}', {
+            'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
+          }
+          expect_json(ok = true, http = 200)
+
+          vm = fetch_vm('testhost')
+          expect(vm['lifetime'].to_i).to eq(1)
+        end
+
+        it 'does not allows VM lifetime to be modified without a token' do
+          create_vm('testhost')
+
+          put "#{prefix}/vm/testhost", '{"lifetime":"1"}'
+          expect_json(ok = false, http = 401)
+        end
+      end
     end
 
     # describe 'DELETE /vm/:hostname' do
