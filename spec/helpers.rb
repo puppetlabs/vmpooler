@@ -1,7 +1,8 @@
-def expect_json(
-  ok = true,
-  http = 200
-)
+def redis
+  @redis ||= Redis.new
+end
+
+def expect_json(ok = true, http = 200)
   expect(last_response.header['Content-Type']).to eq('application/json')
 
   if (ok == true) then

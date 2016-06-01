@@ -11,10 +11,6 @@ module Vmpooler
   end
 end
 
-def redis
-  @redis ||= Redis.new
-end
-
 describe Vmpooler::API::V1 do
   include Rack::Test::Methods
 
