@@ -51,7 +51,6 @@ describe Vmpooler::API::V1 do
     end
 
     describe 'PUT /vm/:hostname' do
-
       it 'allows tags to be set' do
         create_vm('testhost')
         put "#{prefix}/vm/testhost", '{"tags":{"tested_by":"rspec"}}'

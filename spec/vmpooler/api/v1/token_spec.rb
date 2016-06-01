@@ -25,6 +25,7 @@ describe Vmpooler::API::V1 do
   describe '/token' do
     let(:prefix) { '/api/v1' }
     let(:current_time) { Time.now }
+    let(:config) { { } }
 
     before do
       app.settings.set :config, config
