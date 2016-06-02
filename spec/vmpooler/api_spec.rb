@@ -79,19 +79,15 @@ describe Vmpooler::API do
           expect(last_response.body).to eq(JSON.pretty_generate(json_hash))
           expect(last_response.header['Content-Type']).to eq('application/json')
         end
-
       end
 
       context 'with history param' do
-        it 'returns JSON with null history when redis does not has values' do
-          allow(redis).to receive(:scard)
-          expect(redis).to receive(:scard).exactly(4).times
-
+        it 'returns JSON with zeroed history when redis does not have values' do
           get '/dashboard/stats/vmpooler/pool', :history => true
 
           json_hash = {
-              pool1: {size: 5, ready: nil, history: [nil]},
-              pool2: {size: 1, ready: nil, history: [nil]}
+              pool1: {size: 5, ready: 0, history: [0]},
+              pool2: {size: 1, ready: 0, history: [0]}
           }
 
           expect(last_response).to be_ok
