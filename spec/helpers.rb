@@ -1,5 +1,9 @@
 def redis
-  @redis ||= Redis.new
+  unless @redis
+    @redis = Redis.new
+    @redis.select(15) # let's use the highest numbered database available in a default install
+  end
+  @redis
 end
 
 def expect_json(ok = true, http = 200)
