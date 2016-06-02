@@ -116,54 +116,58 @@ describe Vmpooler::API do
       end
     end
 
-    # describe '/dashboard/stats/vmpooler/running' do
-    #   let(:config) { {
-    #       pools: [
-    #           {'name' => 'pool-1', 'size' => 5},
-    #           {'name' => 'pool-2', 'size' => 1},
-    #           {'name' => 'diffpool-1', 'size' => 3}
-    #       ],
-    #       graphite: {}
-    #   } }
-    #   let(:redis) { double('redis') }
-    #
-    #   before do
-    #     $config = config
-    #     app.settings.set :config, config
-    #     app.settings.set :redis, redis
-    #     app.settings.set :environment, :test
-    #   end
-    #
-    #   context 'without history param' do
-    #
-    #     it 'returns basic JSON' do
-    #       allow(redis).to receive(:scard)
-    #
-    #       expect(redis).to receive(:scard).exactly(3).times
-    #
-    #       get '/dashboard/stats/vmpooler/running'
-    #
-    #       json_hash = {pool: {running: 0}, diffpool: {running: 0}}
-    #
-    #       expect(last_response).to be_ok
-    #       expect(last_response.body).to eq(JSON.pretty_generate(json_hash))
-    #       expect(last_response.header['Content-Type']).to eq('application/json')
-    #     end
-    #
-    #     it 'adds major correctly' do
-    #       allow(redis).to receive(:scard).with('vmpooler__running__pool-1').and_return(3)
-    #       allow(redis).to receive(:scard).with('vmpooler__running__pool-2').and_return(5)
-    #       allow(redis).to receive(:scard).with('vmpooler__running__diffpool-1').and_return(2)
-    #
-    #       get '/dashboard/stats/vmpooler/running'
-    #
-    #       json_hash = {pool: {running: 8}, diffpool: {running: 2}}
-    #
-    #       expect(last_response).to be_ok
-    #       expect(last_response.body).to eq(JSON.pretty_generate(json_hash))
-    #       expect(last_response.header['Content-Type']).to eq('application/json')
-    #     end
-    #   end
-    # end
+    describe '/dashboard/stats/vmpooler/running' do
+      let(:config) { {
+          pools: [
+              {'name' => 'pool-1', 'size' => 5},
+              {'name' => 'pool-2', 'size' => 1},
+              {'name' => 'diffpool-1', 'size' => 3}
+          ],
+          graphite: {}
+      } }
+
+      before do
+        $config = config
+        app.settings.set :config, config
+        app.settings.set :redis, redis
+        app.settings.set :environment, :test
+      end
+
+      context 'without history param' do
+
+        it 'returns basic JSON' do
+          get '/dashboard/stats/vmpooler/running'
+
+          json_hash = {pool: {running: 0}, diffpool: {running: 0}}
+
+          expect(last_response).to be_ok
+          expect(last_response.body).to eq(JSON.pretty_generate(json_hash))
+          expect(last_response.header['Content-Type']).to eq('application/json')
+        end
+
+        it 'adds major correctly' do
+          create_running_vm('pool-1', 'vm1')
+          create_running_vm('pool-1', 'vm2')
+          create_running_vm('pool-1', 'vm3')
+
+          create_running_vm('pool-2', 'vm4')
+          create_running_vm('pool-2', 'vm5')
+          create_running_vm('pool-2', 'vm6')
+          create_running_vm('pool-2', 'vm7')
+          create_running_vm('pool-2', 'vm8')
+
+          create_running_vm('diffpool-1', 'vm9')
+          create_running_vm('diffpool-1', 'vm10')
+
+          get '/dashboard/stats/vmpooler/running'
+
+          json_hash = {pool: {running: 8}, diffpool: {running: 2}}
+
+          expect(last_response).to be_ok
+          expect(last_response.body).to eq(JSON.pretty_generate(json_hash))
+          expect(last_response.header['Content-Type']).to eq('application/json')
+        end
+      end
+    end
   end
 end
