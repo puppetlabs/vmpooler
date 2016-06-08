@@ -9,10 +9,19 @@ config = Vmpooler.config
 redis_host = config[:redis]['server']
 logger_file = config[:config]['logfile']
 graphite = config[:graphite]['server'] ? config[:graphite]['server'] : nil
+# statsd is an addition and my not be present in YAML configuration
+if config[:statsd]
+  statsd = config[:statsd]['server'] ? config[:statsd]['server'] : nil
+  statsd_port = config[:statsd]['port'] ? config[:statsd]['port'] : 8125
+end
 
 api = Thread.new {
   thr = Vmpooler::API.new
-  thr.helpers.configure(config, Vmpooler.new_redis(redis_host))
+  if statsd
+    thr.helpers.configure(config, Vmpooler.new_redis(redis_host), Vmpooler.new_statsd(statsd, statsd_port))
+  else
+    thr.helpers.configure(config, Vmpooler.new_redis(redis_host), statsd=nil)
+  end
   thr.helpers.execute!
 }
 
@@ -21,7 +30,8 @@ manager = Thread.new {
     config,
     Vmpooler.new_logger(logger_file),
     Vmpooler.new_redis(redis_host),
-    Vmpooler.new_graphite(graphite)
+    Vmpooler.new_graphite(graphite),
+    Vmpooler.new_statsd(statsd, statsd_port)
   ).execute!
 }
 
