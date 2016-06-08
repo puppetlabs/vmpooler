@@ -570,8 +570,8 @@ module Vmpooler
 
       begin
         if $statsd
-          $statsd.increment($config[:statsd]['prefix'] + '.ready.' + pool['name'], $redis.scard('vmpooler__ready__' + pool['name']))
-          $statsd.increment($config[:statsd]['prefix'] + '.running.' + pool['name'], $redis.scard('vmpooler__running__' + pool['name']))
+          $statsd.gauge($config[:statsd]['prefix'] + '.ready.' + pool['name'], $redis.scard('vmpooler__ready__' + pool['name']))
+          $statsd.gauge($config[:statsd]['prefix'] + '.running.' + pool['name'], $redis.scard('vmpooler__running__' + pool['name']))
         elsif $graphite
           $graphite.log($config[:graphite]['prefix'] + '.ready.' + pool['name'], $redis.scard('vmpooler__ready__' + pool['name']))
           $graphite.log($config[:graphite]['prefix'] + '.running.' + pool['name'], $redis.scard('vmpooler__running__' + pool['name']))

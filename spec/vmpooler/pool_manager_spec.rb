@@ -314,8 +314,8 @@ describe 'Pool Manager' do
         allow(redis).to receive(:scard).with('vmpooler__pending__pool1').and_return(0)
         allow(redis).to receive(:scard).with('vmpooler__running__pool1').and_return(5)
 
-        expect(statsd).to receive(:increment).with('vmpooler.ready.pool1', 1)
-        expect(statsd).to receive(:increment).with('vmpooler.running.pool1', 5)
+        expect(statsd).to receive(:gauge).with('vmpooler.ready.pool1', 1)
+        expect(statsd).to receive(:gauge).with('vmpooler.running.pool1', 5)
         subject._check_pool(config[:pools][0])
       end
 
@@ -323,9 +323,9 @@ describe 'Pool Manager' do
         allow(redis).to receive(:scard).with('vmpooler__running__pool1').and_return(1)
         allow(redis).to receive(:scard).with('vmpooler__ready__pool1').and_return(0)
         allow(redis).to receive(:scard).with('vmpooler__pending__pool1').and_return(0)
-        allow(statsd).to receive(:increment).with('vmpooler.running.pool1', 1)
+        allow(statsd).to receive(:gauge).with('vmpooler.running.pool1', 1)
 
-        expect(statsd).to receive(:increment).with('vmpooler.ready.pool1', 0)
+        expect(statsd).to receive(:gauge).with('vmpooler.ready.pool1', 0)
         subject._check_pool(config[:pools][0])
       end
     end
