@@ -88,7 +88,7 @@ module Vmpooler
   end
 
   def self.new_statsd(server, port)
-    if server.nil? or server.empty? or server.length == 0
+    if server.nil? || server.empty?
       nil
     else
       Statsd.new server, port

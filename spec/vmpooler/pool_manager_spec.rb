@@ -286,6 +286,17 @@ describe 'Pool Manager' do
         expect(graphite).to receive(:log).with('vmpooler.running.pool1', 5)
         subject._check_pool(config[:pools][0])
       end
+
+      it 'increments graphite when ready with 0 when pool empty and statsd disabled' do
+        allow(redis).to receive(:scard).with('vmpooler__ready__pool1').and_return(0)
+        allow(redis).to receive(:scard).with('vmpooler__cloning__pool1').and_return(0)
+        allow(redis).to receive(:scard).with('vmpooler__pending__pool1').and_return(0)
+        allow(redis).to receive(:scard).with('vmpooler__running__pool1').and_return(5)
+
+        expect(graphite).to receive(:log).with('vmpooler.ready.pool1', 0)
+        expect(graphite).to receive(:log).with('vmpooler.running.pool1', 5)
+        subject._check_pool(config[:pools][0])
+      end
     end
 
     context 'statsd' do
@@ -305,6 +316,16 @@ describe 'Pool Manager' do
 
         expect(statsd).to receive(:increment).with('vmpooler.ready.pool1', 1)
         expect(statsd).to receive(:increment).with('vmpooler.running.pool1', 5)
+        subject._check_pool(config[:pools][0])
+      end
+
+      it 'increments statsd ready with 0 when pool empty' do
+        allow(redis).to receive(:scard).with('vmpooler__running__pool1').and_return(1)
+        allow(redis).to receive(:scard).with('vmpooler__ready__pool1').and_return(0)
+        allow(redis).to receive(:scard).with('vmpooler__pending__pool1').and_return(0)
+        allow(statsd).to receive(:increment).with('vmpooler.running.pool1', 1)
+
+        expect(statsd).to receive(:increment).with('vmpooler.ready.pool1', 0)
         subject._check_pool(config[:pools][0])
       end
     end

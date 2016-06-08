@@ -1,17 +1,15 @@
 module Vmpooler
   class PoolManager
-    def initialize(config, logger, redis, graphite=nil, statsd=nil)
+    def initialize(config, logger, redis, graphite = nil, statsd = nil)
       $config = config
 
       # Load logger library
       $logger = logger
 
       # statsd and graphite are mutex in the context of vmpooler
-      unless statsd.nil?
+      if statsd
         $statsd = statsd
-      end
-
-      unless graphite.nil? || !statsd.nil?
+      elsif graphite
         $graphite = graphite
       end
 
@@ -263,8 +261,8 @@ module Vmpooler
         $redis.decr('vmpooler__tasks__clone')
 
         begin
-          $statsd.timing($config[:statsd]['prefix'] + ".clone.#{vm['template']}", finish) if defined? $statsd
-          $graphite.log($config[:graphite]['prefix'] + ".clone.#{vm['template']}", finish) if defined? $graphite
+          $statsd.timing($config[:statsd]['prefix'] + ".clone.#{vm['template']}", finish) if $statsd
+          $graphite.log($config[:graphite]['prefix'] + ".clone.#{vm['template']}", finish) if $graphite
         rescue
         end
       end
@@ -300,7 +298,7 @@ module Vmpooler
 
           $logger.log('s', "[-] [#{pool}] '#{vm}' destroyed in #{finish} seconds")
 
-          $graphite.log($config[:graphite]['prefix'] + ".destroy.#{pool}", finish) if defined? $graphite
+          $graphite.log($config[:graphite]['prefix'] + ".destroy.#{pool}", finish) if $graphite
         end
       end
     end
@@ -571,10 +569,10 @@ module Vmpooler
       total = $redis.scard('vmpooler__pending__' + pool['name']) + ready
 
       begin
-        if defined? $statsd
+        if $statsd
           $statsd.increment($config[:statsd]['prefix'] + '.ready.' + pool['name'], $redis.scard('vmpooler__ready__' + pool['name']))
           $statsd.increment($config[:statsd]['prefix'] + '.running.' + pool['name'], $redis.scard('vmpooler__running__' + pool['name']))
-        elsif defined? $graphite
+        elsif $graphite
           $graphite.log($config[:graphite]['prefix'] + '.ready.' + pool['name'], $redis.scard('vmpooler__ready__' + pool['name']))
           $graphite.log($config[:graphite]['prefix'] + '.running.' + pool['name'], $redis.scard('vmpooler__running__' + pool['name']))
         end

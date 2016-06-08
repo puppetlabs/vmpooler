@@ -18,7 +18,7 @@ module Vmpooler
 
     def statsd_prefix
       if Vmpooler::API.settings.statsd
-        Vmpooler::API.settings.config[:statsd]['prefix']? Vmpooler::API.settings.config[:statsd]['prefix'] : 'vmpooler'
+        Vmpooler::API.settings.config[:statsd]['prefix'] ? Vmpooler::API.settings.config[:statsd]['prefix'] : 'vmpooler'
       end
     end
 
@@ -393,9 +393,9 @@ module Vmpooler
       if jdata
         empty = jdata.delete('empty')
         invalid = jdata.delete('invalid')
-        statsd.increment(statsd_prefix + '.checkout.empty', empty) if !empty.nil?
-        statsd.increment(statsd_prefix + '.checkout.invalid', invalid) if !invalid.nil?
-        if !jdata.empty?
+        statsd.increment(statsd_prefix + '.checkout.empty', empty) if empty
+        statsd.increment(statsd_prefix + '.checkout.invalid', invalid) if invalid
+        unless jdata.empty?
           result = atomically_allocate_vms(jdata)
         else
           status 404
@@ -426,9 +426,9 @@ module Vmpooler
       if payload
         empty = payload.delete('empty')
         invalid = payload.delete('invalid')
-        statsd.increment(statsd_prefix + '.checkout.empty', empty) if !empty.nil?
-        statsd.increment(statsd_prefix + '.checkout.invalid', invalid) if !invalid.nil?
-        if !payload.empty?
+        statsd.increment(statsd_prefix + '.checkout.empty', empty) if empty
+        statsd.increment(statsd_prefix + '.checkout.invalid', invalid) if invalid
+        unless payload.empty?
           result = atomically_allocate_vms(payload)
         else
           status 404
