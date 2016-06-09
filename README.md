@@ -80,7 +80,8 @@ A dashboard is provided to offer real-time statistics and historical graphs.  It
 
 ## Command-line Utility
 
-The [vmpooler_client.py](https://github.com/puppetlabs/vmpooler-client) CLI utility provides easy access to the vmpooler service. The tool is cross-platform and written in Python.
+- The [vmpooler_client.py](https://github.com/puppetlabs/vmpooler-client) CLI utility provides easy access to the vmpooler service. The tool is cross-platform and written in Python.
+- [vmfloaty](https://github.com/briancain/vmfloaty) is a ruby based CLI tool and scripting library written in ruby.
 
 ## Build status
 
