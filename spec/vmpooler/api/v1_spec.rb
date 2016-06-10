@@ -180,6 +180,7 @@ describe Vmpooler::API::V1 do
 
   describe '/vm' do
     let(:redis)  { double('redis') }
+    let(:statsd)  { double('stats') }
     let(:prefix) { '/api/v1' }
     let(:config) { {
       config: {
@@ -190,20 +191,27 @@ describe Vmpooler::API::V1 do
         {'name' => 'pool1', 'size' => 5},
         {'name' => 'pool2', 'size' => 10}
       ],
-      alias: { 'poolone' => 'pool1' }
+      alias: { 'poolone' => 'pool1' },
+      statsd: { 'prefix' => 'vmpooler' }
     } }
 
     before do
       app.settings.set :config, config
       app.settings.set :redis, redis
+      app.settings.set :statsd, statsd
 
-      allow(redis).to receive(:exists).and_return '1'
+      allow(redis).to receive(:exists).with('vmpooler__token__abcdefghijklmnopqrstuvwxyz012345').and_return '1'
+      allow(redis).to receive(:exists).with('vmpooler__ready__pool1').and_return '1'
+      allow(redis).to receive(:exists).with('vmpooler__ready__pool2').and_return '1'
       allow(redis).to receive(:hget).with('vmpooler__token__abcdefghijklmnopqrstuvwxyz012345', 'user').and_return 'jdoe'
       allow(redis).to receive(:hset).and_return '1'
       allow(redis).to receive(:sadd).and_return '1'
       allow(redis).to receive(:scard).and_return '5'
       allow(redis).to receive(:spop).with('vmpooler__ready__pool1').and_return 'abcdefghijklmnop'
       allow(redis).to receive(:spop).with('vmpooler__ready__pool2').and_return 'qrstuvwxyz012345'
+      allow(statsd).to receive(:increment).with('vmpooler.checkout.success.pool1', 1)
+      allow(statsd).to receive(:increment).with('vmpooler.checkout.success.pool2', 1)
+      allow(statsd).to receive(:increment).with('vmpooler.checkout.fail.pool2', 1)
     end
 
     describe 'POST /vm' do
@@ -223,7 +231,7 @@ describe Vmpooler::API::V1 do
       end
 
       it 'returns a single VM for an alias' do
-        expect(redis).to receive(:exists).with("vmpooler__ready__poolone").and_return(false)
+        expect(redis).to receive(:exists).with("vmpooler__ready__pool1").and_return(1)
 
         post "#{prefix}/vm", '{"poolone":"1"}'
 
@@ -241,8 +249,18 @@ describe Vmpooler::API::V1 do
 
       it 'fails on nonexistent pools' do
         expect(redis).to receive(:exists).with("vmpooler__ready__poolpoolpool").and_return(false)
-
+        expect(redis).to receive(:exists).with("vmpooler__empty__poolpoolpool").and_return(false)
+        expect(statsd).to receive(:increment).with('vmpooler.checkout.invalid', 1)
         post "#{prefix}/vm", '{"poolpoolpool":"1"}'
+
+        expect_json(ok = false, http = 404)
+      end
+
+      it 'fails on empty pools' do
+        expect(redis).to receive(:exists).with("vmpooler__ready__emptypool").and_return(false)
+        expect(redis).to receive(:exists).with("vmpooler__empty__emptypool").and_return(true)
+        expect(statsd).to receive(:increment).with('vmpooler.checkout.empty', 1)
+        post "#{prefix}/vm", '{"emptypool":"1"}'
 
         expect_json(ok = false, http = 404)
       end
@@ -446,6 +464,7 @@ describe Vmpooler::API::V1 do
 
   describe '/vm/:template' do
     let(:redis)  { double('redis') }
+    let(:statsd)  { double('stats') }
     let(:prefix) { '/api/v1' }
     let(:config) { {
       config: {
@@ -456,20 +475,27 @@ describe Vmpooler::API::V1 do
         {'name' => 'pool1', 'size' => 5},
         {'name' => 'pool2', 'size' => 10}
       ],
-      alias: { 'poolone' => 'pool1' }
+      alias: { 'poolone' => 'pool1' },
+      statsd: { 'prefix' => 'vmpooler' }
     } }
 
     before do
       app.settings.set :config, config
       app.settings.set :redis, redis
+      app.settings.set :statsd, statsd
 
-      allow(redis).to receive(:exists).and_return '1'
+      allow(redis).to receive(:exists).with('vmpooler__token__abcdefghijklmnopqrstuvwxyz012345').and_return '1'
+      allow(redis).to receive(:exists).with('vmpooler__ready__pool1').and_return '1'
+      allow(redis).to receive(:exists).with('vmpooler__ready__pool2').and_return '1'
       allow(redis).to receive(:hget).with('vmpooler__token__abcdefghijklmnopqrstuvwxyz012345', 'user').and_return 'jdoe'
       allow(redis).to receive(:hset).and_return '1'
       allow(redis).to receive(:sadd).and_return '1'
       allow(redis).to receive(:scard).and_return '5'
       allow(redis).to receive(:spop).with('vmpooler__ready__pool1').and_return 'abcdefghijklmnop'
       allow(redis).to receive(:spop).with('vmpooler__ready__pool2').and_return 'qrstuvwxyz012345'
+      allow(statsd).to receive(:increment).with('vmpooler.checkout.success.pool1', 1)
+      allow(statsd).to receive(:increment).with('vmpooler.checkout.success.pool2', 1)
+      allow(statsd).to receive(:increment).with('vmpooler.checkout.fail.pool2', 1)
     end
 
     describe 'POST /vm/:template' do
@@ -489,7 +515,7 @@ describe Vmpooler::API::V1 do
       end
 
       it 'returns a single VM for an alias' do
-        expect(redis).to receive(:exists).with("vmpooler__ready__poolone").and_return(false)
+        expect(redis).to receive(:exists).with("vmpooler__ready__pool1").and_return(1)
 
         post "#{prefix}/vm/poolone", ''
 
@@ -507,8 +533,19 @@ describe Vmpooler::API::V1 do
 
       it 'fails on nonexistent pools' do
         expect(redis).to receive(:exists).with("vmpooler__ready__poolpoolpool").and_return(false)
+        expect(redis).to receive(:exists).with("vmpooler__empty__poolpoolpool").and_return(false)
+        expect(statsd).to receive(:increment).with('vmpooler.checkout.invalid', 1)
 
         post "#{prefix}/vm/poolpoolpool", ''
+
+        expect_json(ok = false, http = 404)
+      end
+
+      it 'fails on empty pools' do
+        expect(redis).to receive(:exists).with("vmpooler__ready__emptypool").and_return(false)
+        expect(redis).to receive(:exists).with("vmpooler__empty__emptypool").and_return(true)
+        expect(statsd).to receive(:increment).with('vmpooler.checkout.empty', 1)
+        post "#{prefix}/vm/emptypool", ''
 
         expect_json(ok = false, http = 404)
       end
