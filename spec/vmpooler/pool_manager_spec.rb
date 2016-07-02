@@ -13,7 +13,7 @@ describe 'Pool Manager' do
 
   subject { Vmpooler::PoolManager.new(config, logger, redis, graphite) }
 
-  describe '#_check_pending_vm' do
+  describe '#check_pending_vm' do
     let(:pool_helper) { double('pool') }
     let(:vsphere) { {pool => pool_helper} }
 
@@ -28,7 +28,7 @@ describe 'Pool Manager' do
         allow(pool_helper).to receive(:find_vm).and_return(nil)
         allow(redis).to receive(:hget)
         expect(redis).to receive(:hget).with(String, 'clone').once
-        subject._check_pending_vm(vm, pool, timeout)
+        subject.check_pending_vm(vm, pool, timeout)
       end
 
     end
@@ -47,7 +47,7 @@ describe 'Pool Manager' do
         expect(vm_finder).to receive(:summary).once
         expect(redis).not_to receive(:hget).with(String, 'clone')
 
-        subject._check_pending_vm(vm, pool, timeout)
+        subject.check_pending_vm(vm, pool, timeout)
       end
     end
   end
@@ -150,7 +150,7 @@ describe 'Pool Manager' do
     end
   end
 
-  describe '#_check_running_vm' do
+  describe '#check_running_vm' do
     let(:pool_helper) { double('pool') }
     let(:vsphere) { {pool => pool_helper} }
 
@@ -162,7 +162,7 @@ describe 'Pool Manager' do
     it 'does nothing with nil host' do
       allow(pool_helper).to receive(:find_vm).and_return(nil)
       expect(redis).not_to receive(:smove)
-      subject._check_running_vm(vm, pool, timeout)
+      subject.check_running_vm(vm, pool, timeout)
     end
 
     context 'valid host' do
@@ -177,7 +177,7 @@ describe 'Pool Manager' do
         expect(redis).not_to receive(:smove)
         expect(logger).not_to receive(:log).with('d', "[!] [#{pool}] '#{vm}' appears to be powered off or dead")
 
-        subject._check_running_vm(vm, pool, timeout)
+        subject.check_running_vm(vm, pool, timeout)
       end
 
       it 'moves vm when poweredOn, but past TTL' do
@@ -189,7 +189,7 @@ describe 'Pool Manager' do
         expect(redis).to receive(:smove)
         expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' reached end of TTL after #{timeout} hours")
 
-        subject._check_running_vm(vm, pool, timeout)
+        subject.check_running_vm(vm, pool, timeout)
       end
 
     end
