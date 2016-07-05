@@ -226,6 +226,14 @@
 #   - ready_ttl
 #     How long (in minutes) to keep VMs in 'ready' queues before destroying.
 #     (optional)
+#
+#   - vm_lifetime
+#     How long (in hours) to keep VMs in 'running' queues before destroying.
+#     (optional; default: '24')
+#
+#   - vm_lifetime_auth
+#     Same as vm_lifetime, but applied if a valid authentication token is
+#     included during the request.
 
 # Example:
 
@@ -246,4 +254,6 @@
     size: 5
     timeout: 15
     ready_ttl: 1440
+    vm_lifetime: 1
+    vm_lifetime_auth: 4
 

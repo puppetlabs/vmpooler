@@ -61,8 +61,8 @@ module Vmpooler
             backend.hget('vmpooler__token__' + request.env['HTTP_X_AUTH_TOKEN'], 'user')
           )
 
-          if config['vm_lifetime_auth'].to_i > 0
-            backend.hset('vmpooler__vm__' + vm, 'lifetime', config['vm_lifetime_auth'].to_i)
+          if (pool['vm_lifetime_auth'] || config['vm_lifetime_auth']).to_i > 0
+            backend.hset('vmpooler__vm__' + vm, 'lifetime', (pool['vm_lifetime_auth'] || config['vm_lifetime_auth']).to_i)
           end
         end
 
@@ -429,7 +429,7 @@ module Vmpooler
         result[params[:hostname]] = {}
 
         result[params[:hostname]]['template'] = rdata['template']
-        result[params[:hostname]]['lifetime'] = (rdata['lifetime'] || config['vm_lifetime']).to_i
+        result[params[:hostname]]['lifetime'] = (rdata['lifetime'] || pool['vm_lifetime'] || config['vm_lifetime']).to_i
 
         if rdata['destroy']
           result[params[:hostname]]['running'] = ((Time.parse(rdata['destroy']) - Time.parse(rdata['checkout'])) / 60 / 60).round(2)
