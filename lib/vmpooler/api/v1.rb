@@ -12,16 +12,6 @@ module Vmpooler
       Vmpooler::API.settings.redis
     end
 
-    def statsd
-      Vmpooler::API.settings.statsd
-    end
-
-    def statsd_prefix
-      if Vmpooler::API.settings.statsd
-        Vmpooler::API.settings.config[:statsd]['prefix'] ? Vmpooler::API.settings.config[:statsd]['prefix'] : 'vmpooler'
-      end
-    end
-
     def config
       Vmpooler::API.settings.config[:config]
     end
@@ -42,16 +32,13 @@ module Vmpooler
       newhash = {}
 
       hash.each do |key, val|
-        if Vmpooler::API.settings.config[:alias][key]
-          key = Vmpooler::API.settings.config[:alias][key]
-        end
-
         if backend.exists('vmpooler__ready__' + key)
           newhash[key] = val
-        elsif backend.exists('vmpooler__empty__' + key)
-          newhash['empty'] = (newhash['empty'] || 0) + val.to_i
         else
-          newhash['invalid'] = (newhash['invalid'] || 0) + val.to_i
+          if Vmpooler::API.settings.config[:alias][key]
+            newkey = Vmpooler::API.settings.config[:alias][key]
+            newhash[newkey] = val
+          end
         end
       end
 
@@ -107,10 +94,8 @@ module Vmpooler
           vm = fetch_single_vm(template)
           if !vm
             failed = true
-            statsd.increment(statsd_prefix + '.checkout.fail.' + template, 1)
             break
           else
-            statsd.increment(statsd_prefix + '.checkout.success.' + template, 1)
             vms << [ template, vm ]
           end
         end
@@ -390,16 +375,8 @@ module Vmpooler
       content_type :json
       result = { 'ok' => false }
 
-      if jdata
-        empty = jdata.delete('empty')
-        invalid = jdata.delete('invalid')
-        statsd.increment(statsd_prefix + '.checkout.empty', empty) if empty
-        statsd.increment(statsd_prefix + '.checkout.invalid', invalid) if invalid
-        unless jdata.empty?
-          result = atomically_allocate_vms(jdata)
-        else
-          status 404
-        end
+      if jdata and !jdata.empty?
+        result = atomically_allocate_vms(jdata)
       else
         status 404
       end
@@ -423,16 +400,8 @@ module Vmpooler
       content_type :json
       result = { 'ok' => false }
 
-      if payload
-        empty = payload.delete('empty')
-        invalid = payload.delete('invalid')
-        statsd.increment(statsd_prefix + '.checkout.empty', empty) if empty
-        statsd.increment(statsd_prefix + '.checkout.invalid', invalid) if invalid
-        unless payload.empty?
-          result = atomically_allocate_vms(payload)
-        else
-          status 404
-        end
+      if payload and !payload.empty?
+        result = atomically_allocate_vms(payload)
       else
         status 404
       end
