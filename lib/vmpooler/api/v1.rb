@@ -457,6 +457,15 @@ module Vmpooler
           result[params[:hostname]]['disk'] = rdata['disk'].split(':')
         end
 
+        # Look up IP address of the hostname
+        begin
+          ipAddress = TCPSocket.gethostbyname(params[:hostname])[3]
+        rescue
+          ipAddress = ""
+        end
+
+        result[params[:hostname]]['ip'] = ipAddress
+
         if config['domain']
           result[params[:hostname]]['domain'] = config['domain']
         end
