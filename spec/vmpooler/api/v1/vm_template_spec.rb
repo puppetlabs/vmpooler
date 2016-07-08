@@ -32,6 +32,7 @@ describe Vmpooler::API::V1 do
           {'name' => 'pool2', 'size' => 10}
         ],
         alias: { 'poolone' => 'pool1' },
+        pool_names: [ 'pool1', 'pool2', 'poolone' ]
       }
     }
 
@@ -84,6 +85,31 @@ describe Vmpooler::API::V1 do
         expect_json(ok = false, http = 404)
       end
 
+      it 'returns 503 for empty pool when aliases are not defined' do
+        Vmpooler::API.settings.config.delete(:alias)
+        Vmpooler::API.settings.config[:pool_names] = ['pool1', 'pool2']
+
+        create_ready_vm 'pool1', 'abcdefghijklmnop'
+        post "#{prefix}/vm/pool1"
+        post "#{prefix}/vm/pool1"
+
+        expected = { ok: false }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+        expect_json(ok = false, http = 503)
+      end
+
+      it 'returns 503 for empty pool referenced by alias' do
+        create_ready_vm 'pool1', 'abcdefghijklmnop'
+        post "#{prefix}/vm/poolone"
+        post "#{prefix}/vm/poolone"
+
+        expected = { ok: false }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+        expect_json(ok = false, http = 503)
+      end
+
       it 'returns multiple VMs' do
         create_ready_vm 'pool1', 'abcdefghijklmnop'
         create_ready_vm 'pool2', 'qrstuvwxyz012345'
@@ -102,6 +128,115 @@ describe Vmpooler::API::V1 do
         }
 
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
+      end
+
+      it 'returns multiple VMs even when multiple instances from multiple pools are requested' do
+        create_ready_vm 'pool1', '1abcdefghijklmnop'
+        create_ready_vm 'pool1', '2abcdefghijklmnop'
+
+        create_ready_vm 'pool2', '1qrstuvwxyz012345'
+        create_ready_vm 'pool2', '2qrstuvwxyz012345'
+        create_ready_vm 'pool2', '3qrstuvwxyz012345'
+
+        post "#{prefix}/vm/pool1+pool1+pool2+pool2+pool2", ''
+
+        expected = {
+          ok: true,
+          pool1: {
+            hostname: [ '1abcdefghijklmnop', '2abcdefghijklmnop' ]
+          },
+          pool2: {
+            hostname: [ '1qrstuvwxyz012345', '2qrstuvwxyz012345', '3qrstuvwxyz012345' ]
+          }
+        }
+
+        result = JSON.parse(last_response.body)
+        expect(result['ok']).to eq(true)
+        expect(result['pool1']['hostname']).to include('1abcdefghijklmnop', '2abcdefghijklmnop')
+        expect(result['pool2']['hostname']).to include('1qrstuvwxyz012345', '2qrstuvwxyz012345', '3qrstuvwxyz012345')
+        expect_json(ok = true, http = 200)
+      end
+
+      it 'fails when not all requested vms can be allocated' do
+        create_ready_vm 'pool1', 'abcdefghijklmnop'
+
+        post "#{prefix}/vm/pool1+pool2", ''
+
+        expected = { ok: false }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+        expect_json(ok = false, http = 503)
+      end
+
+      it 'returns any checked out vms to their pools when not all requested vms can be allocated' do
+        create_ready_vm 'pool1', 'abcdefghijklmnop'
+
+        post "#{prefix}/vm/pool1+pool2", ''
+
+        expected = { ok: false }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+        expect_json(ok = false, http = 503)
+
+        expect(pool_has_ready_vm?('pool1', 'abcdefghijklmnop')).to eq(true)
+      end
+
+      it 'fails when not all requested vms can be allocated, when requesting multiple instances from a pool' do
+        create_ready_vm 'pool1', 'abcdefghijklmnop'
+        create_ready_vm 'pool1', '0123456789012345'
+
+        allow(redis).to receive(:spop).with('vmpooler__ready__pool1').and_return 'abcdefghijklmnop'
+        allow(redis).to receive(:spop).with('vmpooler__ready__pool2').and_return nil
+        allow(redis).to receive(:sadd).with("vmpooler__ready__pool1", "abcdefghijklmnop")
+
+        post "#{prefix}/vm/pool1+pool1+pool2", ''
+
+        expected = { ok: false }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+        expect_json(ok = false, http = 503)
+      end
+
+      it 'returns any checked out vms to their pools when not all requested vms can be allocated, when requesting multiple instances from a pool' do
+        create_ready_vm 'pool1', 'abcdefghijklmnop'
+        create_ready_vm 'pool1', '0123456789012345'
+
+        post "#{prefix}/vm/pool1+pool1+pool2", ''
+
+        expected = { ok: false }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+        expect_json(ok = false, http = 503)
+
+        expect(pool_has_ready_vm?('pool1', 'abcdefghijklmnop')).to eq(true)
+        expect(pool_has_ready_vm?('pool1', '0123456789012345')).to eq(true)
+      end
+
+      it 'fails when not all requested vms can be allocated, when requesting multiple instances from multiple pools' do
+        create_ready_vm 'pool1', 'abcdefghijklmnop'
+        create_ready_vm 'pool2', '0123456789012345'
+
+        post "#{prefix}/vm/pool1+pool1+pool2+pool2+pool2", ''
+
+        expected = { ok: false }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+        expect_json(ok = false, http = 503)
+      end
+
+      it 'returns any checked out vms to their pools when not all requested vms can be allocated, when requesting multiple instances from multiple pools' do
+        create_ready_vm 'pool1', 'abcdefghijklmnop'
+        create_ready_vm 'pool2', '0123456789012345'
+
+        post "#{prefix}/vm/pool1+pool1+pool2+pool2+pool2", ''
+
+        expected = { ok: false }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+        expect_json(ok = false, http = 503)
+
+        expect(pool_has_ready_vm?('pool1', 'abcdefghijklmnop')).to eq(true)
+        expect(pool_has_ready_vm?('pool2', '0123456789012345')).to eq(true)
       end
 
       context '(auth not configured)' do

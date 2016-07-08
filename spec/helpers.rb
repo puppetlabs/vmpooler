@@ -35,6 +35,7 @@ end
 def create_ready_vm(template, name, token = nil)
   create_vm(name, token)
   redis.sadd("vmpooler__ready__#{template}", name)
+  # REMIND: should be __vm__?
   redis.hset("vmpooler_vm_#{name}", "template", template)
 end
 
@@ -72,4 +73,8 @@ def vm_reverted_to_snapshot?(vm, snapshot = nil)
     instance, sha = action.split(':')
     instance == vm and (snapshot ? (sha == snapshot) : true)
   end
+end
+
+def pool_has_ready_vm?(pool, vm)
+  !!redis.sismember('vmpooler__ready__' + pool, vm)
 end
