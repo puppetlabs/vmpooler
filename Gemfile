@@ -1,6 +1,6 @@
 source ENV['GEM_SOURCE'] || 'https://rubygems.org'
 
-gem 'json', '>= 1.8'
+gem 'json', '~> 1.8'
 gem 'rack', '>= 1.6'
 gem 'rake', '>= 10.4'
 gem 'rbvmomi', '>= 1.8'
