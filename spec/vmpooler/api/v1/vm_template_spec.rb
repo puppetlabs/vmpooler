@@ -185,10 +185,6 @@ describe Vmpooler::API::V1 do
         create_ready_vm 'pool1', 'abcdefghijklmnop'
         create_ready_vm 'pool1', '0123456789012345'
 
-        allow(redis).to receive(:spop).with('vmpooler__ready__pool1').and_return 'abcdefghijklmnop'
-        allow(redis).to receive(:spop).with('vmpooler__ready__pool2').and_return nil
-        allow(redis).to receive(:sadd).with("vmpooler__ready__pool1", "abcdefghijklmnop")
-
         post "#{prefix}/vm/pool1+pool1+pool2", ''
 
         expected = { ok: false }
