@@ -10,6 +10,10 @@ describe Vmpooler::API do
 
   describe 'Dashboard' do
 
+    before(:each) do
+      redis.flushdb
+    end
+
     context '/' do
       before { get '/' }
 
@@ -38,7 +42,6 @@ describe Vmpooler::API do
       it { expect(last_response.status).to eq(404) }
       it { expect(last_response.header['Content-Type']).to eq('application/json') }
       it { expect(last_response.body).to eq(JSON.pretty_generate({ok: false})) }
-
     end
 
     describe '/dashboard/stats/vmpooler/pool' do
@@ -49,7 +52,6 @@ describe Vmpooler::API do
           ],
           graphite: {}
       } }
-      let(:redis) { double('redis') }
 
       before do
         $config = config
@@ -59,13 +61,12 @@ describe Vmpooler::API do
       end
 
       context 'without history param' do
-
         it 'returns basic JSON' do
-          allow(redis).to receive(:scard)
-          allow(redis).to receive(:scard).with('vmpooler__ready__pool1').and_return(3)
-          allow(redis).to receive(:scard).with('vmpooler__ready__pool2').and_return(2)
-
-          expect(redis).to receive(:scard).twice
+          create_ready_vm('pool1', 'vm1')
+          create_ready_vm('pool1', 'vm2')
+          create_ready_vm('pool1', 'vm3')
+          create_ready_vm('pool2', 'vm4')
+          create_ready_vm('pool2', 'vm5')
 
           get '/dashboard/stats/vmpooler/pool'
 
@@ -78,19 +79,15 @@ describe Vmpooler::API do
           expect(last_response.body).to eq(JSON.pretty_generate(json_hash))
           expect(last_response.header['Content-Type']).to eq('application/json')
         end
-
       end
 
       context 'with history param' do
-        it 'returns JSON with null history when redis does not has values' do
-          allow(redis).to receive(:scard)
-          expect(redis).to receive(:scard).exactly(4).times
-
+        it 'returns JSON with zeroed history when redis does not have values' do
           get '/dashboard/stats/vmpooler/pool', :history => true
 
           json_hash = {
-              pool1: {size: 5, ready: nil, history: [nil]},
-              pool2: {size: 1, ready: nil, history: [nil]}
+              pool1: {size: 5, ready: 0, history: [0]},
+              pool2: {size: 1, ready: 0, history: [0]}
           }
 
           expect(last_response).to be_ok
@@ -99,10 +96,11 @@ describe Vmpooler::API do
         end
 
         it 'returns JSON with history when redis has values' do
-          allow(redis).to receive(:scard).with('vmpooler__ready__pool1').and_return(3)
-          allow(redis).to receive(:scard).with('vmpooler__ready__pool2').and_return(2)
-
-          expect(redis).to receive(:scard).exactly(4).times
+          create_ready_vm('pool1', 'vm1')
+          create_ready_vm('pool1', 'vm2')
+          create_ready_vm('pool1', 'vm3')
+          create_ready_vm('pool2', 'vm4')
+          create_ready_vm('pool2', 'vm5')
 
           get '/dashboard/stats/vmpooler/pool', :history => true
 
@@ -115,9 +113,7 @@ describe Vmpooler::API do
           expect(last_response.body).to eq(JSON.pretty_generate(json_hash))
           expect(last_response.header['Content-Type']).to eq('application/json')
         end
-
       end
-
     end
 
     describe '/dashboard/stats/vmpooler/running' do
@@ -129,7 +125,6 @@ describe Vmpooler::API do
           ],
           graphite: {}
       } }
-      let(:redis) { double('redis') }
 
       before do
         $config = config
@@ -141,10 +136,6 @@ describe Vmpooler::API do
       context 'without history param' do
 
         it 'returns basic JSON' do
-          allow(redis).to receive(:scard)
-
-          expect(redis).to receive(:scard).exactly(3).times
-
           get '/dashboard/stats/vmpooler/running'
 
           json_hash = {pool: {running: 0}, diffpool: {running: 0}}
@@ -155,9 +146,18 @@ describe Vmpooler::API do
         end
 
         it 'adds major correctly' do
-          allow(redis).to receive(:scard).with('vmpooler__running__pool-1').and_return(3)
-          allow(redis).to receive(:scard).with('vmpooler__running__pool-2').and_return(5)
-          allow(redis).to receive(:scard).with('vmpooler__running__diffpool-1').and_return(2)
+          create_running_vm('pool-1', 'vm1')
+          create_running_vm('pool-1', 'vm2')
+          create_running_vm('pool-1', 'vm3')
+
+          create_running_vm('pool-2', 'vm4')
+          create_running_vm('pool-2', 'vm5')
+          create_running_vm('pool-2', 'vm6')
+          create_running_vm('pool-2', 'vm7')
+          create_running_vm('pool-2', 'vm8')
+
+          create_running_vm('diffpool-1', 'vm9')
+          create_running_vm('diffpool-1', 'vm10')
 
           get '/dashboard/stats/vmpooler/running'
 
@@ -167,10 +167,7 @@ describe Vmpooler::API do
           expect(last_response.body).to eq(JSON.pretty_generate(json_hash))
           expect(last_response.header['Content-Type']).to eq('application/json')
         end
-
       end
     end
-
   end
-
 end

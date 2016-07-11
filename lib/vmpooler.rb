@@ -7,10 +7,10 @@ module Vmpooler
   require 'rbvmomi'
   require 'redis'
   require 'sinatra/base'
-  require "statsd-ruby"
   require 'time'
   require 'timeout'
   require 'yaml'
+  require 'set'
 
   %w( api graphite logger pool_manager vsphere_helper ).each do |lib|
     begin
@@ -36,28 +36,25 @@ module Vmpooler
     parsed_config[:config]['prefix']       ||= ''
 
     # Create an index of pool aliases
+    parsed_config[:pool_names] = Set.new
     parsed_config[:pools].each do |pool|
+      parsed_config[:pool_names] << pool['name']
       if pool['alias']
         if pool['alias'].kind_of?(Array)
           pool['alias'].each do |a|
             parsed_config[:alias] ||= {}
             parsed_config[:alias][a] = pool['name']
+            parsed_config[:pool_names] << a
           end
         elsif pool['alias'].kind_of?(String)
           parsed_config[:alias][pool['alias']] = pool['name']
+          parsed_config[:pool_names] << pool['alias']
         end
       end
     end
 
     if parsed_config[:graphite]['server']
       parsed_config[:graphite]['prefix'] ||= 'vmpooler'
-    end
-
-    # statsd is an addition and my not be present in YAML configuration
-    if parsed_config[:statsd]
-      if parsed_config[:statsd]['server']
-        parsed_config[:statsd]['prefix'] ||= 'vmpooler'
-      end
     end
 
     if parsed_config[:tagfilter]
@@ -84,14 +81,6 @@ module Vmpooler
       nil
     else
       Vmpooler::Graphite.new server
-    end
-  end
-
-  def self.new_statsd(server, port)
-    if server.nil? || server.empty?
-      nil
-    else
-      Statsd.new server, port
     end
   end
 

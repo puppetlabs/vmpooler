@@ -53,39 +53,10 @@
 :redis:
   server: 'redis.company.com'
 
-
-  # :statsd:
-  #
-  # This section contains the connection information required to store
-  # historical data via statsd.  This is mutually exclusive with graphite 
-  # and takes precedence.
-  #
-  # Available configuration parameters:
-  #
-  #   - server
-  #     The FQDN hostname of the statsd daemon.
-  #     (optional)
-  #
-  #   - prefix
-  #     The prefix to use while storing statsd data.
-  #     (optional; default: 'vmpooler')
-  #
-  #   - port
-  #     The UDP port to communicate with statsd daemon.
-  #     (optional; default: 8125)
-
-  # Example:
-
-  :statsd:
-    server: 'statsd.company.com'
-    prefix: 'vmpooler'
-    port: 8125
-
 # :graphite:
 #
 # This section contains the connection information required to store
-# historical data in an external Graphite database.  This is mutually exclusive
-# with statsd.
+# historical data in an external Graphite database.
 #
 # Available configuration parameters:
 #
