@@ -20,7 +20,7 @@ describe Vmpooler::API::V1 do
 
   describe '/vm/:template' do
     let(:prefix) { '/api/v1' }
-
+    let(:statsd) { double('stats', :increment => true) }
     let(:config) {
       {
         config: {
@@ -31,6 +31,7 @@ describe Vmpooler::API::V1 do
           {'name' => 'pool1', 'size' => 5},
           {'name' => 'pool2', 'size' => 10}
         ],
+        statsd: { 'prefix' => 'stats_prefix'},
         alias: { 'poolone' => 'pool1' },
         pool_names: [ 'pool1', 'pool2', 'poolone' ]
       }
@@ -43,6 +44,7 @@ describe Vmpooler::API::V1 do
 
       app.settings.set :config, config
       app.settings.set :redis, redis
+      app.settings.set :statsd, statsd
       app.settings.set :config, auth: false
       create_token('abcdefghijklmnopqrstuvwxyz012345', 'jdoe', current_time)
     end
