@@ -12,6 +12,16 @@ module Vmpooler
       Vmpooler::API.settings.redis
     end
 
+    def statsd
+      Vmpooler::API.settings.statsd
+    end
+
+    def statsd_prefix
+      if Vmpooler::API.settings.statsd
+        Vmpooler::API.settings.config[:statsd]['prefix'] ? Vmpooler::API.settings.config[:statsd]['prefix'] : 'vmpooler'
+      end
+    end
+
     def config
       Vmpooler::API.settings.config[:config]
     end
@@ -34,13 +44,11 @@ module Vmpooler
 
     def fetch_single_vm(template)
       vm = backend.spop('vmpooler__ready__' + template)
-
       return [vm, template] if vm
 
       aliases = Vmpooler::API.settings.config[:alias]
       if aliases && aliased_template = aliases[template]
         vm = backend.spop('vmpooler__ready__' + aliased_template)
-
         return [vm, aliased_template] if vm
       end
 
@@ -85,14 +93,16 @@ module Vmpooler
       failed = false
       vms = []
 
-      payload.each do |template, count|
+      payload.each do |requested, count|
         count.to_i.times do |_i|
-          vm, name = fetch_single_vm(template)
+          vm, name = fetch_single_vm(requested)
           if !vm
             failed = true
+            statsd.increment(statsd_prefix + '.checkout.empty.' + name, 1)
             break
           else
             vms << [ name, vm ]
+            statsd.increment(statsd_prefix + '.checkout.success.' + name, 1)
           end
         end
       end
@@ -372,8 +382,16 @@ module Vmpooler
 
       payload = JSON.parse(request.body.read)
 
-      if all_templates_valid?(payload)
-        result = atomically_allocate_vms(payload)
+      if payload
+        invalid = invalid_templates(payload)
+        if invalid.empty?
+          result = atomically_allocate_vms(payload)
+        else
+          invalid.each do |bad_template|
+            statsd.increment(statsd_prefix + '.checkout.invalid', bad_template)
+          end
+          status 404
+        end
       else
         status 404
       end
@@ -392,12 +410,12 @@ module Vmpooler
       payload
     end
 
-    def all_templates_valid?(payload)
-      return false unless payload
-
-      payload.keys.all? do |templates|
-        pool_exists?(templates)
+    def invalid_templates(payload)
+      invalid = []
+      payload.keys.each do |template|
+        invalid << template unless pool_exists?(template)
       end
+      invalid
     end
 
     post "#{api_prefix}/vm/:template/?" do
@@ -406,8 +424,16 @@ module Vmpooler
 
       payload = extract_templates_from_query_params(params[:template])
 
-      if all_templates_valid?(payload)
-        result = atomically_allocate_vms(payload)
+      if payload
+        invalid = invalid_templates(payload)
+        if invalid.empty?
+          result = atomically_allocate_vms(payload)
+        else
+          invalid.each do |bad_template|
+            statsd.increment(statsd_prefix + '.checkout.invalid', bad_template)
+          end
+          status 404
+        end
       else
         status 404
       end
