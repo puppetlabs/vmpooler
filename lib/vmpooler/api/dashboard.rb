@@ -65,7 +65,7 @@ module Vmpooler
           history ||= {}
 
           begin
-            buffer = open(graph_link('.qready.*&from=-1hour&format=json')).read
+            buffer = open(graph_link('.ready.*&from=-1hour&format=json')).read
             history = JSON.parse(buffer)
 
             history.each do |pool|
