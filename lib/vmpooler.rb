@@ -72,10 +72,10 @@ module Vmpooler
   end
 
   def self.new_metrics(params)
-    if config[:statsd]
-      Vmpooler::Statsd.new(config[:statsd])
-    elsif config[:graphite]
-      Vmpooler::Graphite.new(config[:graphite])
+    if params[:statsd]
+      Vmpooler::Statsd.new(params[:statsd])
+    elsif params[:graphite]
+      Vmpooler::Graphite.new(params[:graphite])
     else
       Vmpooler::DummyStatsd.new
     end
