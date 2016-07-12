@@ -98,7 +98,7 @@ module Vmpooler
           vm, name = fetch_single_vm(requested)
           if !vm
             failed = true
-            statsd.increment(statsd_prefix + '.checkout.empty.' + name, 1)
+            statsd.increment(statsd_prefix + '.checkout.empty.' + requested, 1)
             break
           else
             vms << [ name, vm ]
