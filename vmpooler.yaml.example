@@ -54,6 +54,32 @@
   server: 'redis.company.com'
 
 
+  # :graphs:
+  #
+  # This section contains the server and prefix information for a graphite-
+  # compatible web front-end where graphs may be viewed. This is used by the
+  # vmpooler dashboard to retrieve statistics and graphs for a given instance.
+  #
+  # NOTE: This is not the endpoint for publishing metrics data. See `graphite:`
+  #       and `statsd:` below.
+  #
+  # NOTE: If `graphs:` is not set, for legacy compatibility, `graphite:` will be
+  #       consulted for `server`/`prefix` information to use in locating a
+  #       graph server for our dashboard.  `graphs:` is recommended over
+  #       `graphite:`
+  #
+  #
+  # Available configuration parameters:
+  #
+  #
+  #   - server
+  #     The FQDN hostname of the statsd daemon.
+  #     (required)
+  #
+  #   - prefix
+  #     The prefix to use while storing statsd data.
+  #     (optional; default: 'vmpooler')
+
   # :statsd:
   #
   # This section contains the connection information required to store
