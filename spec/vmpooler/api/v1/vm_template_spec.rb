@@ -20,7 +20,7 @@ describe Vmpooler::API::V1 do
 
   describe '/vm/:template' do
     let(:prefix) { '/api/v1' }
-    let(:statsd) { Vmpooler::DummyStatsd.new }
+    let(:metrics) { Vmpooler::DummyStatsd.new }
     let(:config) {
       {
         config: {
@@ -44,7 +44,7 @@ describe Vmpooler::API::V1 do
 
       app.settings.set :config, config
       app.settings.set :redis, redis
-      app.settings.set :statsd, statsd
+      app.settings.set :metrics, metrics
       app.settings.set :config, auth: false
       create_token('abcdefghijklmnopqrstuvwxyz012345', 'jdoe', current_time)
     end

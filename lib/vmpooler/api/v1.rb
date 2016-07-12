@@ -12,8 +12,8 @@ module Vmpooler
       Vmpooler::API.settings.redis
     end
 
-    def statsd
-      Vmpooler::API.settings.statsd
+    def metrics
+      Vmpooler::API.settings.metrics
     end
 
     def config
@@ -92,11 +92,11 @@ module Vmpooler
           vm, name = fetch_single_vm(requested)
           if !vm
             failed = true
-            statsd.increment('checkout.empty.' + requested)
+            metrics.increment('checkout.empty.' + requested)
             break
           else
             vms << [ name, vm ]
-            statsd.increment('checkout.success.' + name)
+            metrics.increment('checkout.success.' + name)
           end
         end
       end
@@ -382,7 +382,7 @@ module Vmpooler
           result = atomically_allocate_vms(payload)
         else
           invalid.each do |bad_template|
-            statsd.increment('checkout.invalid.' + bad_template)
+            metrics.increment('checkout.invalid.' + bad_template)
           end
           status 404
         end
@@ -424,7 +424,7 @@ module Vmpooler
           result = atomically_allocate_vms(payload)
         else
           invalid.each do |bad_template|
-            statsd.increment('checkout.invalid.' + bad_template)
+            metrics.increment('checkout.invalid.' + bad_template)
           end
           status 404
         end
