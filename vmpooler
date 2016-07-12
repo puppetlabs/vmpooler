@@ -22,7 +22,7 @@ manager = Thread.new {
     config,
     Vmpooler.new_logger(logger_file),
     Vmpooler.new_redis(redis_host),
-    metrics)
+    metrics
   ).execute!
 }
 
