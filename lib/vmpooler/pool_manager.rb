@@ -289,7 +289,7 @@ module Vmpooler
           finish = '%.2f' % (Time.now - start)
 
           $logger.log('s', "[-] [#{pool}] '#{vm}' destroyed in #{finish} seconds")
-          $metrics.log("destroy.#{pool}", finish)
+          $metrics.timing("destroy.#{pool}", finish)
         end
       end
     end
