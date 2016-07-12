@@ -27,7 +27,7 @@ module Vmpooler
       return @graph_prefix if @graph_prefix
 
       if config[:graphs]
-        return false unless config[:graphs]['prefix']
+        return "vmpooler" unless config[:graphs]['prefix']
         @graph_prefix = config[:graphs]['prefix']
       elsif config[:graphite]
         return false unless config[:graphite]['prefix']
