@@ -58,13 +58,6 @@ module Vmpooler
       parsed_config[:graphite]['prefix'] ||= 'vmpooler'
     end
 
-    # statsd is an addition and my not be present in YAML configuration
-    if parsed_config[:statsd]
-      if parsed_config[:statsd]['server']
-        parsed_config[:statsd]['prefix'] ||= 'vmpooler'
-      end
-    end
-
     if parsed_config[:tagfilter]
       parsed_config[:tagfilter].keys.each do |tag|
         parsed_config[:tagfilter][tag] = Regexp.new(parsed_config[:tagfilter][tag])
