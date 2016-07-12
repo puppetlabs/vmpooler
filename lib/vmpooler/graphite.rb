@@ -5,13 +5,13 @@ module Vmpooler
     attr_reader :server, :port, :prefix
 
     def initialize(params = {})
-      if params[:server].nil? || params[:server].empty?
+      if params["server"].nil? || params["server"].empty?
         raise ArgumentError, "Graphite server is required. Config: #{params.inspect}"
       end
 
-      @server = params[:server]
-      @port   = params[:port]   || 2003
-      @prefix = params[:prefix] || "vmpooler"
+      @server = params["server"]
+      @port   = params["port"]   || 2003
+      @prefix = params["prefix"] || "vmpooler"
     end
 
     def increment(label)

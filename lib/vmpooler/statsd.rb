@@ -6,13 +6,13 @@ module Vmpooler
     attr_reader :server, :port, :prefix
 
     def initialize(params = {})
-      if params[:server].nil? || params[:server].empty?
+      if params["server"].nil? || params["server"].empty?
         raise ArgumentError, "Statsd server is required. Config: #{params.inspect}"
       end
 
-      host    = params[:server]
-      @port    = params[:port]   || 8125
-      @prefix = params[:prefix] || 'vmpooler'
+      host    = params["server"]
+      @port    = params["port"]   || 8125
+      @prefix = params["prefix"] || 'vmpooler'
       @server = Statsd.new(host, @port)
     end
 
