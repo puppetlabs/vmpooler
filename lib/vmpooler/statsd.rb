@@ -1,4 +1,5 @@
 require 'rubygems' unless defined?(Gem)
+require 'statsd-ruby'
 
 module Vmpooler
   class Statsd

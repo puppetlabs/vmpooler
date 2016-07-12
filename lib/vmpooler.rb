@@ -7,7 +7,6 @@ module Vmpooler
   require 'rbvmomi'
   require 'redis'
   require 'sinatra/base'
-  require "statsd-ruby"
   require 'time'
   require 'timeout'
   require 'yaml'
