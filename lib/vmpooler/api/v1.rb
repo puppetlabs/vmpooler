@@ -16,12 +16,6 @@ module Vmpooler
       Vmpooler::API.settings.statsd
     end
 
-    def statsd_prefix
-      if Vmpooler::API.settings.statsd
-        Vmpooler::API.settings.config[:statsd]['prefix'] ? Vmpooler::API.settings.config[:statsd]['prefix'] : 'vmpooler'
-      end
-    end
-
     def config
       Vmpooler::API.settings.config[:config]
     end
@@ -98,11 +92,11 @@ module Vmpooler
           vm, name = fetch_single_vm(requested)
           if !vm
             failed = true
-            statsd.increment(statsd_prefix + '.checkout.empty.' + requested, 1)
+            statsd.increment('checkout.empty.' + requested)
             break
           else
             vms << [ name, vm ]
-            statsd.increment(statsd_prefix + '.checkout.success.' + name, 1)
+            statsd.increment('checkout.success.' + name)
           end
         end
       end
@@ -388,7 +382,7 @@ module Vmpooler
           result = atomically_allocate_vms(payload)
         else
           invalid.each do |bad_template|
-            statsd.increment(statsd_prefix + '.checkout.invalid', bad_template)
+            statsd.increment('checkout.invalid.' + bad_template)
           end
           status 404
         end
@@ -430,7 +424,7 @@ module Vmpooler
           result = atomically_allocate_vms(payload)
         else
           invalid.each do |bad_template|
-            statsd.increment(statsd_prefix + '.checkout.invalid', bad_template)
+            statsd.increment('checkout.invalid.' + bad_template)
           end
           status 404
         end

@@ -92,12 +92,9 @@ module Vmpooler
     end
   end
 
-  def self.new_statsd(server, port)
-    if server.nil? || server.empty?
-      nil
-    else
-      Statsd.new server, port
-    end
+  def self.new_statsd(params)
+    return DummyStatsd.new unless params
+    Statsd.new params
   end
 
   def self.pools(conf)

@@ -20,7 +20,7 @@ describe Vmpooler::API::V1 do
 
   describe '/vm' do
     let(:prefix) { '/api/v1' }
-    let(:statsd) { double('stats', :increment => true) }
+    let(:statsd) { Vmpooler::DummyStatsd.new }
     let(:config) {
       {
         config: {
