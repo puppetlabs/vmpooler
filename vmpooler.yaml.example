@@ -57,21 +57,21 @@
   # :statsd:
   #
   # This section contains the connection information required to store
-  # historical data via statsd.  This is mutually exclusive with graphite 
+  # historical data via statsd.  This is mutually exclusive with graphite
   # and takes precedence.
   #
   # Available configuration parameters:
   #
   #   - server
   #     The FQDN hostname of the statsd daemon.
-  #     (optional)
+  #     (required)
   #
   #   - prefix
   #     The prefix to use while storing statsd data.
   #     (optional; default: 'vmpooler')
   #
   #   - port
-  #     The UDP port to communicate with statsd daemon.
+  #     The UDP port to communicate with the statsd daemon.
   #     (optional; default: 8125)
 
   # Example:
@@ -91,11 +91,15 @@
 #
 #   - server
 #     The FQDN hostname of the Graphite server.
-#     (optional)
+#     (required)
 #
 #   - prefix
 #     The prefix to use while storing Graphite data.
 #     (optional; default: 'vmpooler')
+#
+#   - port
+#     The TCP port to communicate with the graphite server.
+#     (optional; default: 2003)
 
 # Example:
 
@@ -275,4 +279,3 @@
     size: 5
     timeout: 15
     ready_ttl: 1440
-
