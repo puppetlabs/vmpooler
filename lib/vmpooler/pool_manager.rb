@@ -1,6 +1,6 @@
 module Vmpooler
   class PoolManager
-    def initialize(config, logger, redis, metrics = nil)
+    def initialize(config, logger, redis, metrics)
       $config = config
 
       # Load logger library

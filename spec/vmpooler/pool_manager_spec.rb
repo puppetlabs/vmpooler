@@ -23,14 +23,12 @@ describe 'Pool Manager' do
     end
 
     context 'host not in pool' do
-
       it 'calls fail_pending_vm' do
         allow(pool_helper).to receive(:find_vm).and_return(nil)
         allow(redis).to receive(:hget)
         expect(redis).to receive(:hget).with(String, 'clone').once
         subject._check_pending_vm(vm, pool, timeout)
       end
-
     end
 
     context 'host is in pool' do
@@ -58,7 +56,6 @@ describe 'Pool Manager' do
     end
 
     context 'a host without correct summary' do
-
       it 'does nothing when summary is nil' do
         allow(host).to receive(:summary).and_return nil
         subject.move_pending_vm_to_ready(vm, pool, host)
@@ -114,7 +111,6 @@ describe 'Pool Manager' do
 
         subject.move_pending_vm_to_ready(vm, pool, host)
       end
-
     end
   end
 
@@ -252,7 +248,7 @@ describe 'Pool Manager' do
   describe '#_stats_running_ready' do
     let(:pool_helper) { double('pool') }
     let(:vsphere) { {pool => pool_helper} }
-    let(:graphite) { Vmpooler::DummyStatsd.new }
+    let(:metrics) { Vmpooler::DummyStatsd.new }
     let(:config) { {
       config: { task_limit: 10 },
       pools: [ {'name' => 'pool1', 'size' => 5} ],
@@ -270,59 +266,28 @@ describe 'Pool Manager' do
       allow(redis).to receive(:get).with('vmpooler__empty__pool1').and_return(nil)
     end
 
-    context 'graphite' do
-      subject { Vmpooler::PoolManager.new(config, logger, redis, graphite) }
+    context 'metrics' do
+      subject { Vmpooler::PoolManager.new(config, logger, redis, metrics) }
 
-      it 'increments graphite when enabled and statsd disabled' do
+      it 'increments metrics' do
         allow(redis).to receive(:scard).with('vmpooler__ready__pool1').and_return(1)
         allow(redis).to receive(:scard).with('vmpooler__cloning__pool1').and_return(0)
         allow(redis).to receive(:scard).with('vmpooler__pending__pool1').and_return(0)
         allow(redis).to receive(:scard).with('vmpooler__running__pool1').and_return(5)
 
-        expect(graphite).to receive(:gauge).with('ready.pool1', 1)
-        expect(graphite).to receive(:gauge).with('running.pool1', 5)
+        expect(metrics).to receive(:gauge).with('ready.pool1', 1)
+        expect(metrics).to receive(:gauge).with('running.pool1', 5)
         subject._check_pool(config[:pools][0])
       end
 
-      it 'increments graphite when ready with 0 when pool empty and statsd disabled' do
+      it 'increments metrics when ready with 0 when pool empty' do
         allow(redis).to receive(:scard).with('vmpooler__ready__pool1').and_return(0)
         allow(redis).to receive(:scard).with('vmpooler__cloning__pool1').and_return(0)
         allow(redis).to receive(:scard).with('vmpooler__pending__pool1').and_return(0)
         allow(redis).to receive(:scard).with('vmpooler__running__pool1').and_return(5)
 
-        expect(graphite).to receive(:gauge).with('ready.pool1', 0)
-        expect(graphite).to receive(:gauge).with('running.pool1', 5)
-        subject._check_pool(config[:pools][0])
-      end
-    end
-
-    context 'statsd' do
-      let(:statsd) { Vmpooler::DummyStatsd.new }
-      let(:config) { {
-        config: { task_limit: 10 },
-        pools: [ {'name' => 'pool1', 'size' => 5} ],
-        statsd: { 'prefix' => 'vmpooler' }
-      } }
-      subject { Vmpooler::PoolManager.new(config, logger, redis, statsd) }
-
-      it 'increments statsd when configured' do
-        allow(redis).to receive(:scard).with('vmpooler__ready__pool1').and_return(1)
-        allow(redis).to receive(:scard).with('vmpooler__cloning__pool1').and_return(0)
-        allow(redis).to receive(:scard).with('vmpooler__pending__pool1').and_return(0)
-        allow(redis).to receive(:scard).with('vmpooler__running__pool1').and_return(5)
-
-        expect(statsd).to receive(:gauge).with('ready.pool1', 1)
-        expect(statsd).to receive(:gauge).with('running.pool1', 5)
-        subject._check_pool(config[:pools][0])
-      end
-
-      it 'increments statsd ready with 0 when pool empty' do
-        allow(redis).to receive(:scard).with('vmpooler__running__pool1').and_return(1)
-        allow(redis).to receive(:scard).with('vmpooler__ready__pool1').and_return(0)
-        allow(redis).to receive(:scard).with('vmpooler__pending__pool1').and_return(0)
-        allow(statsd).to receive(:gauge).with('running.pool1', 1)
-
-        expect(statsd).to receive(:gauge).with('ready.pool1', 0)
+        expect(metrics).to receive(:gauge).with('ready.pool1', 0)
+        expect(metrics).to receive(:gauge).with('running.pool1', 5)
         subject._check_pool(config[:pools][0])
       end
     end
@@ -395,5 +360,4 @@ describe 'Pool Manager' do
       subject._check_snapshot_queue
     end
   end
-
 end
