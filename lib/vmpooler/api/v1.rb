@@ -387,6 +387,7 @@ module Vmpooler
           status 404
         end
       else
+        metrics.increment('checkout.invalid.unknown')
         status 404
       end
 
@@ -429,6 +430,7 @@ module Vmpooler
           status 404
         end
       else
+        metrics.increment('checkout.invalid.unknown')
         status 404
       end
 
