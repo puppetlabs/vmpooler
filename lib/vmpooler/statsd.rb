@@ -13,7 +13,7 @@ module Vmpooler
       host    = params["server"]
       @port    = params["port"]   || 8125
       @prefix = params["prefix"] || 'vmpooler'
-      @server = Statsd.new(host, @port)
+      @server = ::Statsd.new(host, @port)
     end
 
     def increment(label)
