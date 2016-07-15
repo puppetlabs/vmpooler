@@ -53,20 +53,79 @@
 :redis:
   server: 'redis.company.com'
 
+
+  # :graphs:
+  #
+  # This section contains the server and prefix information for a graphite-
+  # compatible web front-end where graphs may be viewed. This is used by the
+  # vmpooler dashboard to retrieve statistics and graphs for a given instance.
+  #
+  # NOTE: This is not the endpoint for publishing metrics data. See `graphite:`
+  #       and `statsd:` below.
+  #
+  # NOTE: If `graphs:` is not set, for legacy compatibility, `graphite:` will be
+  #       consulted for `server`/`prefix` information to use in locating a
+  #       graph server for our dashboard.  `graphs:` is recommended over
+  #       `graphite:`
+  #
+  #
+  # Available configuration parameters:
+  #
+  #
+  #   - server
+  #     The FQDN hostname of the statsd daemon.
+  #     (required)
+  #
+  #   - prefix
+  #     The prefix to use while storing statsd data.
+  #     (optional; default: 'vmpooler')
+
+  # :statsd:
+  #
+  # This section contains the connection information required to store
+  # historical data via statsd.  This is mutually exclusive with graphite
+  # and takes precedence.
+  #
+  # Available configuration parameters:
+  #
+  #   - server
+  #     The FQDN hostname of the statsd daemon.
+  #     (required)
+  #
+  #   - prefix
+  #     The prefix to use while storing statsd data.
+  #     (optional; default: 'vmpooler')
+  #
+  #   - port
+  #     The UDP port to communicate with the statsd daemon.
+  #     (optional; default: 8125)
+
+  # Example:
+
+  :statsd:
+    server: 'statsd.company.com'
+    prefix: 'vmpooler'
+    port: 8125
+
 # :graphite:
 #
 # This section contains the connection information required to store
-# historical data in an external Graphite database.
+# historical data in an external Graphite database.  This is mutually exclusive
+# with statsd.
 #
 # Available configuration parameters:
 #
 #   - server
 #     The FQDN hostname of the Graphite server.
-#     (optional)
+#     (required)
 #
 #   - prefix
 #     The prefix to use while storing Graphite data.
 #     (optional; default: 'vmpooler')
+#
+#   - port
+#     The TCP port to communicate with the graphite server.
+#     (optional; default: 2003)
 
 # Example:
 
@@ -246,4 +305,3 @@
     size: 5
     timeout: 15
     ready_ttl: 1440
-

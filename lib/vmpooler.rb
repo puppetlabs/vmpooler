@@ -12,7 +12,7 @@ module Vmpooler
   require 'yaml'
   require 'set'
 
-  %w( api graphite logger pool_manager vsphere_helper ).each do |lib|
+  %w( api graphite logger pool_manager vsphere_helper statsd dummy_statsd ).each do |lib|
     begin
       require "vmpooler/#{lib}"
     rescue LoadError
@@ -53,10 +53,6 @@ module Vmpooler
       end
     end
 
-    if parsed_config[:graphite]['server']
-      parsed_config[:graphite]['prefix'] ||= 'vmpooler'
-    end
-
     if parsed_config[:tagfilter]
       parsed_config[:tagfilter].keys.each do |tag|
         parsed_config[:tagfilter][tag] = Regexp.new(parsed_config[:tagfilter][tag])
@@ -64,7 +60,6 @@ module Vmpooler
     end
 
     parsed_config[:uptime] = Time.now
-
     parsed_config
   end
 
@@ -76,11 +71,13 @@ module Vmpooler
     Vmpooler::Logger.new logfile
   end
 
-  def self.new_graphite(server)
-    if server.nil? or server.empty? or server.length == 0
-      nil
+  def self.new_metrics(params)
+    if params[:statsd]
+      Vmpooler::Statsd.new(params[:statsd])
+    elsif params[:graphite]
+      Vmpooler::Graphite.new(params[:graphite])
     else
-      Vmpooler::Graphite.new server
+      Vmpooler::DummyStatsd.new
     end
   end
 

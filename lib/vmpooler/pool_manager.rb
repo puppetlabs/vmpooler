@@ -1,14 +1,13 @@
 module Vmpooler
   class PoolManager
-    def initialize(config, logger, redis, graphite=nil)
+    def initialize(config, logger, redis, metrics)
       $config = config
 
       # Load logger library
       $logger = logger
 
-      unless graphite.nil?
-        $graphite = graphite
-      end
+      # metrics logging handle
+      $metrics = metrics
 
       # Connect to Redis
       $redis = redis
@@ -63,7 +62,7 @@ module Vmpooler
           (host.summary.guest.hostName == vm)
 
         begin
-          Socket.getaddrinfo(vm, nil)
+          Socket.getaddrinfo(vm, nil)  # WTF?
         rescue
         end
 
@@ -257,10 +256,7 @@ module Vmpooler
 
         $redis.decr('vmpooler__tasks__clone')
 
-        begin
-          $graphite.log($config[:graphite]['prefix'] + ".clone.#{vm['template']}", finish) if defined? $graphite
-        rescue
-        end
+        $metrics.timing("clone.#{vm['template']}", finish)
       end
     end
 
@@ -293,8 +289,7 @@ module Vmpooler
           finish = '%.2f' % (Time.now - start)
 
           $logger.log('s', "[-] [#{pool}] '#{vm}' destroyed in #{finish} seconds")
-
-          $graphite.log($config[:graphite]['prefix'] + ".destroy.#{pool}", finish) if defined? $graphite
+          $metrics.timing("destroy.#{pool}", finish)
         end
       end
     end
@@ -564,13 +559,8 @@ module Vmpooler
       ready = $redis.scard('vmpooler__ready__' + pool['name'])
       total = $redis.scard('vmpooler__pending__' + pool['name']) + ready
 
-      begin
-        if defined? $graphite
-          $graphite.log($config[:graphite]['prefix'] + '.ready.' + pool['name'], $redis.scard('vmpooler__ready__' + pool['name']))
-          $graphite.log($config[:graphite]['prefix'] + '.running.' + pool['name'], $redis.scard('vmpooler__running__' + pool['name']))
-        end
-      rescue
-      end
+      $metrics.gauge('ready.' + pool['name'], $redis.scard('vmpooler__ready__' + pool['name']))
+      $metrics.gauge('running.' + pool['name'], $redis.scard('vmpooler__running__' + pool['name']))
 
       if $redis.get('vmpooler__empty__' + pool['name'])
         unless ready == 0
