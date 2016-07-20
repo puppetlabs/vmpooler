@@ -26,10 +26,11 @@ describe Vmpooler::API::V1 do
         config: {
           'site_name' => 'test pooler',
           'vm_lifetime_auth' => 2,
+          'vm_lifetime' => 12,
         },
         pools: [
           {'name' => 'pool1', 'size' => 5},
-          {'name' => 'pool2', 'size' => 10}
+          {'name' => 'pool2', 'size' => 10, 'vm_lifetime' => 1, 'vm_lifetime_auth' => 4}
         ],
         statsd: { 'prefix' => 'stats_prefix'},
         alias: { 'poolone' => 'pool1' },
@@ -283,7 +284,29 @@ describe Vmpooler::API::V1 do
       end
 
       context '(auth configured)' do
-        it 'extends VM lifetime if auth token is provided' do
+        it 'extends VM lifetime to pool value if auth token is provided' do
+          app.settings.set :config, auth: true
+
+          create_ready_vm 'pool2', 'qrstuvwxyz012345'
+
+          post "#{prefix}/vm", '{"pool2":"1"}', {
+            'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
+          }
+          expect_json(ok = true, http = 200)
+
+          expected = {
+            ok: true,
+            pool2: {
+              hostname: 'qrstuvwxyz012345'
+            }
+          }
+          expect(last_response.body).to eq(JSON.pretty_generate(expected))
+
+          vm = fetch_vm('qrstuvwxyz012345')
+          expect(vm['lifetime'].to_i).to eq(4)
+        end
+
+        it 'extends VM lifetime to global value if auth token is provided' do
           app.settings.set :config, auth: true
 
           create_ready_vm 'pool1', 'abcdefghijklmnop'
@@ -323,6 +346,47 @@ describe Vmpooler::API::V1 do
           vm = fetch_vm('abcdefghijklmnop')
           expect(vm['lifetime']).to be_nil
         end
+      end
+    end
+    describe 'GET /vm/:hostname' do
+      it 'returns a single VM with pool lifetime' do
+        create_running_vm 'pool2', 'qrstuvwxyz012345'
+
+        get "#{prefix}/vm/qrstuvwxyz012345"
+        expect_json(ok = true, http = 200)
+
+        expected = {
+          ok: true,
+          qrstuvwxyz012345: {
+            template: 'pool2',
+            lifetime: 1,
+            running: 0.0,
+            state: 'running',
+            ip: ''
+          }
+        }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+      end
+
+      it 'returns a single VM with global lifetime' do
+        create_running_vm 'pool1', 'abcdefghijklmnop'
+
+        get "#{prefix}/vm/abcdefghijklmnop"
+        expect_json(ok = true, http = 200)
+
+        expected = {
+          ok: true,
+          abcdefghijklmnop: {
+            template: 'pool1',
+            lifetime: 12,
+            running: 0.0,
+            state: 'running',
+            ip: ''
+          }
+        }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
       end
     end
   end

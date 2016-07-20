@@ -36,7 +36,7 @@ def create_ready_vm(template, name, token = nil)
   create_vm(name, token)
   redis.sadd("vmpooler__ready__#{template}", name)
   # REMIND: should be __vm__?
-  redis.hset("vmpooler_vm_#{name}", "template", template)
+  redis.hset("vmpooler__vm__#{name}", "template", template)
 end
 
 def create_running_vm(template, name, token = nil)
