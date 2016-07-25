@@ -10,8 +10,9 @@ module Vmpooler
   require 'time'
   require 'timeout'
   require 'yaml'
+  require 'set'
 
-  %w( api graphite logger pool_manager vsphere_helper ).each do |lib|
+  %w( api graphite logger pool_manager vsphere_helper statsd dummy_statsd ).each do |lib|
     begin
       require "vmpooler/#{lib}"
     rescue LoadError
@@ -35,21 +36,21 @@ module Vmpooler
     parsed_config[:config]['prefix']       ||= ''
 
     # Create an index of pool aliases
+    parsed_config[:pool_names] = Set.new
     parsed_config[:pools].each do |pool|
+      parsed_config[:pool_names] << pool['name']
       if pool['alias']
         if pool['alias'].kind_of?(Array)
           pool['alias'].each do |a|
             parsed_config[:alias] ||= {}
             parsed_config[:alias][a] = pool['name']
+            parsed_config[:pool_names] << a
           end
         elsif pool['alias'].kind_of?(String)
           parsed_config[:alias][pool['alias']] = pool['name']
+          parsed_config[:pool_names] << pool['alias']
         end
       end
-    end
-
-    if parsed_config[:graphite]['server']
-      parsed_config[:graphite]['prefix'] ||= 'vmpooler'
     end
 
     if parsed_config[:tagfilter]
@@ -59,7 +60,6 @@ module Vmpooler
     end
 
     parsed_config[:uptime] = Time.now
-
     parsed_config
   end
 
@@ -71,11 +71,13 @@ module Vmpooler
     Vmpooler::Logger.new logfile
   end
 
-  def self.new_graphite(server)
-    if server.nil? or server.empty? or server.length == 0
-      nil
+  def self.new_metrics(params)
+    if params[:statsd]
+      Vmpooler::Statsd.new(params[:statsd])
+    elsif params[:graphite]
+      Vmpooler::Graphite.new(params[:graphite])
     else
-      Vmpooler::Graphite.new server
+      Vmpooler::DummyStatsd.new
     end
   end
 

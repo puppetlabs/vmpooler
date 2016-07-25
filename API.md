@@ -117,6 +117,8 @@ $ curl -d '{"debian-7-i386":"2","debian-7-x86_64":"1"}' --url vmpooler.company.c
 }
 ```
 
+**NOTE: Returns either all requested VMs or no VMs.**
+
 ##### POST /vm/&lt;pool&gt;
 
 Check-out a VM or VMs.
@@ -155,6 +157,8 @@ $ curl -d --url vmpooler.company.com/api/v1/vm/debian-7-i386+debian-7-i386+debia
   "domain": "company.com"
 }
 ```
+
+**NOTE: Returns either all requested VMs or no VMs.**
 
 ##### GET /vm/&lt;hostname&gt;
 

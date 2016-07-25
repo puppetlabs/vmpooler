@@ -4,14 +4,14 @@ require 'time'
 describe 'Pool Manager' do
   let(:logger) { double('logger') }
   let(:redis) { double('redis') }
+  let(:metrics) { Vmpooler::DummyStatsd.new }
   let(:config) { {} }
-  let(:graphite) { nil }
   let(:pool) { 'pool1' }
   let(:vm) { 'vm1' }
   let(:timeout) { 5 }
   let(:host) { double('host') }
 
-  subject { Vmpooler::PoolManager.new(config, logger, redis, graphite) }
+  subject { Vmpooler::PoolManager.new(config, logger, redis, metrics) }
 
   describe '#_check_pending_vm' do
     let(:pool_helper) { double('pool') }
@@ -23,14 +23,12 @@ describe 'Pool Manager' do
     end
 
     context 'host not in pool' do
-
       it 'calls fail_pending_vm' do
         allow(pool_helper).to receive(:find_vm).and_return(nil)
         allow(redis).to receive(:hget)
         expect(redis).to receive(:hget).with(String, 'clone').once
         subject._check_pending_vm(vm, pool, timeout)
       end
-
     end
 
     context 'host is in pool' do
@@ -58,7 +56,6 @@ describe 'Pool Manager' do
     end
 
     context 'a host without correct summary' do
-
       it 'does nothing when summary is nil' do
         allow(host).to receive(:summary).and_return nil
         subject.move_pending_vm_to_ready(vm, pool, host)
@@ -114,7 +111,6 @@ describe 'Pool Manager' do
 
         subject.move_pending_vm_to_ready(vm, pool, host)
       end
-
     end
   end
 
@@ -191,9 +187,7 @@ describe 'Pool Manager' do
 
         subject._check_running_vm(vm, pool, timeout)
       end
-
     end
-
   end
 
   describe '#move_running_to_completed' do
@@ -240,15 +234,62 @@ describe 'Pool Manager' do
     end
 
     context 'logging' do
-
       it 'logs empty pool' do
         allow(redis).to receive(:scard).with('vmpooler__pending__pool1').and_return(0)
         allow(redis).to receive(:scard).with('vmpooler__ready__pool1').and_return(0)
+        allow(redis).to receive(:scard).with('vmpooler__running__pool1').and_return(0)
 
         expect(logger).to receive(:log).with('s', "[!] [pool1] is empty")
         subject._check_pool(config[:pools][0])
       end
+    end
+  end
 
+  describe '#_stats_running_ready' do
+    let(:pool_helper) { double('pool') }
+    let(:vsphere) { {pool => pool_helper} }
+    let(:metrics) { Vmpooler::DummyStatsd.new }
+    let(:config) { {
+      config: { task_limit: 10 },
+      pools: [ {'name' => 'pool1', 'size' => 5} ],
+      graphite: { 'prefix' => 'vmpooler' }
+    } }
+
+    before do
+      expect(subject).not_to be_nil
+      $vsphere = vsphere
+      allow(logger).to receive(:log)
+      allow(pool_helper).to receive(:find_folder)
+      allow(redis).to receive(:smembers).and_return([])
+      allow(redis).to receive(:set)
+      allow(redis).to receive(:get).with('vmpooler__tasks__clone').and_return(0)
+      allow(redis).to receive(:get).with('vmpooler__empty__pool1').and_return(nil)
+    end
+
+    context 'metrics' do
+      subject { Vmpooler::PoolManager.new(config, logger, redis, metrics) }
+
+      it 'increments metrics' do
+        allow(redis).to receive(:scard).with('vmpooler__ready__pool1').and_return(1)
+        allow(redis).to receive(:scard).with('vmpooler__cloning__pool1').and_return(0)
+        allow(redis).to receive(:scard).with('vmpooler__pending__pool1').and_return(0)
+        allow(redis).to receive(:scard).with('vmpooler__running__pool1').and_return(5)
+
+        expect(metrics).to receive(:gauge).with('ready.pool1', 1)
+        expect(metrics).to receive(:gauge).with('running.pool1', 5)
+        subject._check_pool(config[:pools][0])
+      end
+
+      it 'increments metrics when ready with 0 when pool empty' do
+        allow(redis).to receive(:scard).with('vmpooler__ready__pool1').and_return(0)
+        allow(redis).to receive(:scard).with('vmpooler__cloning__pool1').and_return(0)
+        allow(redis).to receive(:scard).with('vmpooler__pending__pool1').and_return(0)
+        allow(redis).to receive(:scard).with('vmpooler__running__pool1').and_return(5)
+
+        expect(metrics).to receive(:gauge).with('ready.pool1', 0)
+        expect(metrics).to receive(:gauge).with('running.pool1', 5)
+        subject._check_pool(config[:pools][0])
+      end
     end
   end
 
@@ -319,5 +360,4 @@ describe 'Pool Manager' do
       subject._check_snapshot_queue
     end
   end
-
 end
