@@ -7,7 +7,7 @@ vmpooler provides configurable 'pools' of instantly-available (running) virtual 
 
 ## Usage
 
-At [Puppet Labs](http://puppetlabs.com) we run acceptance tests on thousands of disposable VMs every day.  Dynamic cloning of VM templates initially worked fine for this, but added several seconds to each test run and was unable to account for failed clone tasks.  By pushing these operations to a backend service, we were able to both speed up tests and eliminate test failures due to underlying infrastructure failures.
+At [Puppet, Inc.](http://puppet.com) we run acceptance tests on thousands of disposable VMs every day.  Dynamic cloning of VM templates initially worked fine for this, but added several seconds to each test run and was unable to account for failed clone tasks.  By pushing these operations to a backend service, we were able to both speed up tests and eliminate test failures due to underlying infrastructure failures.
 
 
 ## Installation
