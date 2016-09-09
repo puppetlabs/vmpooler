@@ -123,6 +123,7 @@ module Vmpooler
       content_type :json
 
       result = {
+        pools: {},
         status: {
           ok: true,
           message: 'Battle station fully armed and operational.'
@@ -136,7 +137,21 @@ module Vmpooler
 
       # Check for empty pools
       pools.each do |pool|
-        if backend.scard('vmpooler__ready__' + pool['name']).to_i == 0
+        # REMIND: move this out of the API and into the back-end
+        ready   = backend.scard('vmpooler__ready__' + pool['name']).to_i
+        running = backend.scard('vmpooler__running__' + pool['name']).to_i
+        pending = backend.scard('vmpooler__pending__' + pool['name']).to_i
+        max     = pool['size']
+
+        result[:pools][pool['name']] = {
+          ready:   ready,
+          running: running,
+          pending: pending,
+          max:     max
+        }
+
+        # for backwards compatibility, include separate "empty" stats in "status" block
+        if ready == 0
           result[:status][:empty] ||= []
           result[:status][:empty].push(pool['name'])
 
