@@ -119,6 +119,62 @@ module Vmpooler
       result
     end
 
+    # Provide run-time statistics
+    #
+    # Example:
+    #
+    # {
+    #   "boot": {
+    #     "duration": {
+    #       "average": 163.6,
+    #       "min": 65.49,
+    #       "max": 830.07,
+    #       "total": 247744.71000000002
+    #     },
+    #     "count": {
+    #       "total": 1514
+    #     }
+    #   },
+    #   "capacity": {
+    #     "current": 968,
+    #     "total": 975,
+    #     "percent": 99.3
+    #   },
+    #   "clone": {
+    #     "duration": {
+    #       "average": 17.0,
+    #       "min": 4.66,
+    #       "max": 637.96,
+    #       "total": 25634.15
+    #     },
+    #     "count": {
+    #       "total": 1507
+    #     }
+    #   },
+    #   "queue": {
+    #     "pending": 12,
+    #     "cloning": 0,
+    #     "booting": 12,
+    #     "ready": 968,
+    #     "running": 367,
+    #     "completed": 0,
+    #     "total": 1347
+    #   },
+    #   "pools": {
+    #     "ready": 100,
+    #     "running": 120,
+    #     "pending": 5,
+    #     "max": 250,
+    #   }
+    #   "status": {
+    #     "ok": true,
+    #     "message": "Battle station fully armed and operational.",
+    #     "empty": [ # NOTE: would not have 'ok: true' w/ "empty" pools
+    #       "redhat-7-x86_64",
+    #       "ubuntu-1404-i386"
+    #     ],
+    #     "uptime": 179585.9
+    # }
     get "#{api_prefix}/status/?" do
       content_type :json
 
