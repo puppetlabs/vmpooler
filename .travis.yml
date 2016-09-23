@@ -9,3 +9,12 @@ rvm:
   - 2.2.1
   - 2.2.2
   - jruby-1.7.8
+# This below is a temporary shim to bypass these bundler+jruby bugs:
+# 
+#   https://github.com/bundler/bundler/issues/4975
+#   https://github.com/bundler/bundler/issues/4984
+install:
+  - gem install bundler --version 1.12.5
+  - bundle _1.12.5_ install --jobs=3 --retry=3 --path=${BUNDLE_PATH:-vendor/bundle}
+script: 
+  - bundle _1.12.5_ exec rake
