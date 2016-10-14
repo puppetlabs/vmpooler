@@ -17,7 +17,7 @@ module Vmpooler
     end
 
     def add_disk(vm, size, datastore)
-      vsphere_connection_alive? @connection
+      ensure_connected @connection
 
       return false unless size.to_i > 0
 
@@ -67,14 +67,14 @@ module Vmpooler
     end
 
     def find_datastore(datastorename)
-      vsphere_connection_alive? @connection
+      ensure_connected @connection
 
       datacenter = @connection.serviceInstance.find_datacenter
       datacenter.find_datastore(datastorename)
     end
 
     def find_device(vm, deviceName)
-      vsphere_connection_alive? @connection
+      ensure_connected @connection
 
       vm.config.hardware.device.each do |device|
         return device if device.deviceInfo.label == deviceName
@@ -84,7 +84,7 @@ module Vmpooler
     end
 
     def find_disk_controller(vm)
-      vsphere_connection_alive? @connection
+      ensure_connected @connection
 
       devices = find_disk_devices(vm)
 
@@ -98,7 +98,7 @@ module Vmpooler
     end
 
     def find_disk_devices(vm)
-      vsphere_connection_alive? @connection
+      ensure_connected @connection
 
       devices = {}
 
@@ -126,7 +126,7 @@ module Vmpooler
     end
 
     def find_disk_unit_number(vm, controller)
-      vsphere_connection_alive? @connection
+      ensure_connected @connection
 
       used_unit_numbers = []
       available_unit_numbers = []
@@ -151,7 +151,7 @@ module Vmpooler
     end
 
     def find_folder(foldername)
-      vsphere_connection_alive? @connection
+      ensure_connected @connection
 
       datacenter = @connection.serviceInstance.find_datacenter
       base = datacenter.vmFolder
@@ -211,7 +211,7 @@ module Vmpooler
       (memory_usage.to_f / memory_size.to_f) * 100
     end
 
-    def vsphere_connection_alive?(connection)
+    def ensure_connected(connection)
       begin
         connection.serviceInstance.CurrentTime
       rescue
@@ -220,7 +220,7 @@ module Vmpooler
     end
 
     def find_least_used_host(cluster)
-      vsphere_connection_alive? @connection
+      ensure_connected @connection
 
       cluster_object = find_cluster(cluster)
       target_hosts = get_cluster_host_utilization(cluster_object)
@@ -243,7 +243,7 @@ module Vmpooler
     end
 
     def find_least_used_compatible_host(vm)
-      vsphere_connection_alive? @connection
+      ensure_connected @connection
 
       source_host = vm.summary.runtime.host
       model = get_host_cpu_arch_version(source_host)
@@ -257,7 +257,7 @@ module Vmpooler
     end
 
     def find_pool(poolname)
-      vsphere_connection_alive? @connection
+      ensure_connected @connection
 
       datacenter = @connection.serviceInstance.find_datacenter
       base = datacenter.hostFolder
@@ -286,13 +286,13 @@ module Vmpooler
     end
 
     def find_vm(vmname)
-      vsphere_connection_alive? @connection
+      ensure_connected @connection
 
       @connection.searchIndex.FindByDnsName(vmSearch: true, dnsName: vmname)
     end
 
     def find_vm_heavy(vmname)
-      vsphere_connection_alive? @connection
+      ensure_connected @connection
 
       vmname = vmname.is_a?(Array) ? vmname : [vmname]
       containerView = get_base_vm_container_from @connection
@@ -342,7 +342,7 @@ module Vmpooler
     end
 
     def find_vmdks(vmname, datastore)
-      vsphere_connection_alive? @connection
+      ensure_connected @connection
 
       disks = []
 
@@ -361,7 +361,7 @@ module Vmpooler
     end
 
     def get_base_vm_container_from(connection)
-      vsphere_connection_alive? @connection
+      ensure_connected @connection
 
       viewManager = connection.serviceContent.viewManager
       viewManager.CreateContainerView(
