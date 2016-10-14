@@ -55,6 +55,7 @@ module Vmpooler
 
     def account_for_starting_vm(template, vm)
       backend.sadd('vmpooler__running__' + template, vm)
+      backend.sadd('vmpooler__migrating__' + template, vm)
       backend.hset('vmpooler__active__' + template, vm, Time.now)
       backend.hset('vmpooler__vm__' + vm, 'checkout', Time.now)
 
