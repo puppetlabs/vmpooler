@@ -24,10 +24,10 @@ describe 'Pool Manager' do
 
     context 'host not in pool' do
       it 'calls fail_pending_vm' do
-        allow(pool_helper).to receive(:find_vm).and_return(nil)
+        allow(vsphere).to receive(:find_vm).and_return(nil)
         allow(redis).to receive(:hget)
         expect(redis).to receive(:hget).with(String, 'clone').once
-        subject._check_pending_vm(vm, pool, timeout)
+        subject._check_pending_vm(vm, pool, timeout, vsphere)
       end
     end
 
@@ -36,16 +36,14 @@ describe 'Pool Manager' do
       let(:tcpsocket) { double('TCPSocket') }
 
       it 'calls move_pending_vm_to_ready' do
-        stub_const("TCPSocket", tcpsocket)
-
-        allow(pool_helper).to receive(:find_vm).and_return(vm_finder)
+        allow(subject).to receive(:open_socket).and_return(true)
+        allow(vsphere).to receive(:find_vm).and_return(vm_finder)
         allow(vm_finder).to receive(:summary).and_return(nil)
-        allow(tcpsocket).to receive(:new).and_return(true)
 
         expect(vm_finder).to receive(:summary).once
         expect(redis).not_to receive(:hget).with(String, 'clone')
 
-        subject._check_pending_vm(vm, pool, timeout)
+        subject._check_pending_vm(vm, pool, timeout, vsphere)
       end
     end
   end
@@ -156,16 +154,16 @@ describe 'Pool Manager' do
     end
 
     it 'does nothing with nil host' do
-      allow(pool_helper).to receive(:find_vm).and_return(nil)
+      allow(vsphere).to receive(:find_vm).and_return(nil)
       expect(redis).not_to receive(:smove)
-      subject._check_running_vm(vm, pool, timeout)
+      subject._check_running_vm(vm, pool, timeout, vsphere)
     end
 
     context 'valid host' do
       let(:vm_host) { double('vmhost') }
 
       it 'does not move vm when not poweredOn' do
-        allow(pool_helper).to receive(:find_vm).and_return vm_host
+        allow(vsphere).to receive(:find_vm).and_return vm_host
         allow(vm_host).to receive(:runtime).and_return true
         allow(vm_host).to receive_message_chain(:runtime, :powerState).and_return 'poweredOff'
 
@@ -173,11 +171,11 @@ describe 'Pool Manager' do
         expect(redis).not_to receive(:smove)
         expect(logger).not_to receive(:log).with('d', "[!] [#{pool}] '#{vm}' appears to be powered off or dead")
 
-        subject._check_running_vm(vm, pool, timeout)
+        subject._check_running_vm(vm, pool, timeout, vsphere)
       end
 
       it 'moves vm when poweredOn, but past TTL' do
-        allow(pool_helper).to receive(:find_vm).and_return vm_host
+        allow(vsphere).to receive(:find_vm).and_return vm_host
         allow(vm_host).to receive(:runtime).and_return true
         allow(vm_host).to receive_message_chain(:runtime, :powerState).and_return 'poweredOn'
 
@@ -185,7 +183,7 @@ describe 'Pool Manager' do
         expect(redis).to receive(:smove)
         expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' reached end of TTL after #{timeout} hours")
 
-        subject._check_running_vm(vm, pool, timeout)
+        subject._check_running_vm(vm, pool, timeout, vsphere)
       end
     end
   end
@@ -228,6 +226,7 @@ describe 'Pool Manager' do
       allow(redis).to receive(:smembers).with('vmpooler__running__pool1').and_return([])
       allow(redis).to receive(:smembers).with('vmpooler__completed__pool1').and_return([])
       allow(redis).to receive(:smembers).with('vmpooler__discovered__pool1').and_return([])
+      allow(redis).to receive(:smembers).with('vmpooler__migrating__pool1').and_return([])
       allow(redis).to receive(:set)
       allow(redis).to receive(:get).with('vmpooler__tasks__clone').and_return(0)
       allow(redis).to receive(:get).with('vmpooler__empty__pool1').and_return(nil)
@@ -240,7 +239,7 @@ describe 'Pool Manager' do
         allow(redis).to receive(:scard).with('vmpooler__running__pool1').and_return(0)
 
         expect(logger).to receive(:log).with('s', "[!] [pool1] is empty")
-        subject._check_pool(config[:pools][0])
+        subject._check_pool(config[:pools][0], vsphere)
       end
     end
   end
@@ -277,7 +276,7 @@ describe 'Pool Manager' do
 
         expect(metrics).to receive(:gauge).with('ready.pool1', 1)
         expect(metrics).to receive(:gauge).with('running.pool1', 5)
-        subject._check_pool(config[:pools][0])
+        subject._check_pool(config[:pools][0], vsphere)
       end
 
       it 'increments metrics when ready with 0 when pool empty' do
@@ -288,7 +287,7 @@ describe 'Pool Manager' do
 
         expect(metrics).to receive(:gauge).with('ready.pool1', 0)
         expect(metrics).to receive(:gauge).with('running.pool1', 5)
-        subject._check_pool(config[:pools][0])
+        subject._check_pool(config[:pools][0], vsphere)
       end
     end
   end
@@ -307,13 +306,13 @@ describe 'Pool Manager' do
       let(:vm_host) { double('vmhost') }
 
       it 'creates a snapshot' do
-        expect(pool_helper).to receive(:find_vm).and_return vm_host
+        expect(vsphere).to receive(:find_vm).and_return vm_host
         expect(logger).to receive(:log)
         expect(vm_host).to receive_message_chain(:CreateSnapshot_Task, :wait_for_completion)
         expect(redis).to receive(:hset).with('vmpooler__vm__testvm', 'snapshot:testsnapshot', Time.now.to_s)
         expect(logger).to receive(:log)
 
-        subject._create_vm_snapshot('testvm', 'testsnapshot')
+        subject._create_vm_snapshot('testvm', 'testsnapshot', vsphere)
       end
     end
   end
@@ -333,13 +332,13 @@ describe 'Pool Manager' do
       let(:vm_snapshot) { double('vmsnapshot') }
 
       it 'reverts a snapshot' do
-        expect(pool_helper).to receive(:find_vm).and_return vm_host
-        expect(pool_helper).to receive(:find_snapshot).and_return vm_snapshot
+        expect(vsphere).to receive(:find_vm).and_return vm_host
+        expect(vsphere).to receive(:find_snapshot).and_return vm_snapshot
         expect(logger).to receive(:log)
         expect(vm_snapshot).to receive_message_chain(:RevertToSnapshot_Task, :wait_for_completion)
         expect(logger).to receive(:log)
 
-        subject._revert_vm_snapshot('testvm', 'testsnapshot')
+        subject._revert_vm_snapshot('testvm', 'testsnapshot', vsphere)
       end
     end
   end
@@ -357,7 +356,7 @@ describe 'Pool Manager' do
       expect(redis).to receive(:spop).with('vmpooler__tasks__snapshot')
       expect(redis).to receive(:spop).with('vmpooler__tasks__snapshot-revert')
 
-      subject._check_snapshot_queue
+      subject._check_snapshot_queue(vsphere)
     end
   end
 end

@@ -50,11 +50,21 @@ def create_pending_vm(template, name, token = nil)
   redis.hset("vmpooler__vm__#{name}", "template", template)
 end
 
-def create_vm(name, token = nil)
-  redis.hset("vmpooler__vm__#{name}", 'checkout', Time.now)
-  if token
-    redis.hset("vmpooler__vm__#{name}", 'token:token', token)
-  end
+def create_vm(name, token = nil, redis_handle = nil)
+  redis_db = redis_handle ? redis_handle : redis
+  redis_db.hset("vmpooler__vm__#{name}", 'checkout', Time.now)
+  redis_db.hset("vmpooler__vm__#{name}", 'token:token', token) if token
+end
+
+def create_migrating_vm(name, pool, redis_handle = nil)
+  redis_db = redis_handle ? redis_handle : redis
+  redis_db.hset("vmpooler__vm__#{name}", 'checkout', Time.now)
+  redis_db.sadd("vmpooler__migrating__#{pool}", name)
+end
+
+def add_vm_to_migration_set(name, redis_handle = nil)
+  redis_db = redis_handle ? redis_handle : redis
+  redis_db.sadd('vmpooler__migration', name)
 end
 
 def fetch_vm(vm)
