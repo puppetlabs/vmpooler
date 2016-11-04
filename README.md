@@ -83,6 +83,10 @@ A dashboard is provided to offer real-time statistics and historical graphs.  It
 - The [vmpooler_client.py](https://github.com/puppetlabs/vmpooler-client) CLI utility provides easy access to the vmpooler service. The tool is cross-platform and written in Python.
 - [vmfloaty](https://github.com/briancain/vmfloaty) is a ruby based CLI tool and scripting library written in ruby.
 
+## Vagrant plugin
+
+- [vagrant-vmpooler](https://github.com/briancain/vagrant-vmpooler) Use Vagrant to create and manage your vmpooler instances.
+
 ## Build status
 
 [![Build Status](https://travis-ci.org/puppetlabs/vmpooler.png?branch=master)](https://travis-ci.org/puppetlabs/vmpooler)
