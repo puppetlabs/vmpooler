@@ -6,14 +6,23 @@ module Vmpooler
     DISK_TYPE = 'thin'
     DISK_MODE = 'persistent'
 
-    def initialize(_vInfo = {})
-      config_file = File.expand_path('vmpooler.yaml')
-      vsphere = YAML.load_file(config_file)[:vsphere]
+    def initialize(credentials)
+      $credentials = credentials
+    end
 
-      @connection = RbVmomi::VIM.connect host: vsphere['server'],
-                                         user: vsphere['username'],
-                                         password: vsphere['password'],
-                                         insecure: true
+    def ensure_connected(connection, credentials)
+      begin
+        connection.serviceInstance.CurrentTime
+      rescue
+        connect_to_vsphere $credentials
+      end
+    end
+
+    def connect_to_vsphere(credentials)
+      @connection = RbVmomi::VIM.connect host: credentials['server'],
+                                         user: credentials['username'],
+                                         password: credentials['password'],
+                                         insecure: credentials['insecure'] || true
     end
 
     def add_disk(vm, size, datastore)
@@ -209,14 +218,6 @@ module Vmpooler
       memory_usage = host.summary.quickStats.overallMemoryUsage
       memory_size = host.summary.hardware.memorySize / 1024 / 1024
       (memory_usage.to_f / memory_size.to_f) * 100
-    end
-
-    def ensure_connected(connection)
-      begin
-        connection.serviceInstance.CurrentTime
-      rescue
-        initialize
-      end
     end
 
     def find_least_used_host(cluster)

@@ -26,14 +26,20 @@ module Vmpooler
       end
     end
 
+    def open_socket(host, domain=nil, timeout=5, port=22)
+      Timeout.timeout(timeout) do
+        target_host = vm
+        target_host = "#{vm}.#{domain}" if domain
+        TCPSocket.new target_host, port
+      end
+    end
+
     def _check_pending_vm(vm, pool, timeout)
       host = $vsphere[pool].find_vm(vm)
 
       if host
         begin
-          Timeout.timeout(5) do
-            TCPSocket.new vm, 22
-          end
+          open_socket vm, $config[:config]['domain'], timeout
           move_pending_vm_to_ready(vm, pool, host)
         rescue
           fail_pending_vm(vm, pool, timeout)
@@ -395,7 +401,7 @@ module Vmpooler
     def check_disk_queue
       $logger.log('d', "[*] [disk_manager] starting worker thread")
 
-      $vsphere['disk_manager'] ||= Vmpooler::VsphereHelper.new
+      $vsphere['disk_manager'] ||= Vmpooler::VsphereHelper.new $config[:vsphere]
 
       $threads['disk_manager'] = Thread.new do
         loop do
@@ -421,7 +427,7 @@ module Vmpooler
     def check_snapshot_queue
       $logger.log('d', "[*] [snapshot_manager] starting worker thread")
 
-      $vsphere['snapshot_manager'] ||= Vmpooler::VsphereHelper.new
+      $vsphere['snapshot_manager'] ||= Vmpooler::VsphereHelper.new $config[:vsphere]
 
       $threads['snapshot_manager'] = Thread.new do
         loop do
@@ -459,7 +465,7 @@ module Vmpooler
       $vsphere[pool].find_vm(vm) || $vsphere[pool].find_vm_heavy(vm)[vm]
     end
 
-    def migration_enabled?(migration_limit)
+    def migration_limit(migration_limit)
       # Returns migration_limit setting when enabled
       return false if migration_limit == 0 or not migration_limit
       migration_limit if migration_limit >= 1
@@ -476,7 +482,7 @@ module Vmpooler
       vm_object = find_vsphere_pool_vm(pool, vm)
       parent_host = vm_object.summary.runtime.host
       parent_host_name = parent_host.name
-      migration_limit = migration_enabled? $config[:config]['migration_limit']
+      migration_limit = migration_limit $config[:config]['migration_limit']
 
       if not migration_limit
         $logger.log('s', "[ ] [#{pool}] '#{vm}' is running on #{parent_host_name}")
@@ -507,7 +513,7 @@ module Vmpooler
     def check_pool(pool)
       $logger.log('d', "[*] [#{pool['name']}] starting worker thread")
 
-      $vsphere[pool['name']] ||= Vmpooler::VsphereHelper.new
+      $vsphere[pool['name']] ||= Vmpooler::VsphereHelper.new $config[:vsphere]
 
       $threads[pool['name']] = Thread.new do
         loop do
