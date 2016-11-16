@@ -26,29 +26,30 @@ module Vmpooler
       end
     end
 
-    def open_socket(host, domain=nil, timeout=5, port=22)
+    def open_socket(host, domain=nil, timeout=5, port=22, &block)
       Timeout.timeout(timeout) do
-        target_host = vm
-        target_host = "#{vm}.#{domain}" if domain
-        TCPSocket.new target_host, port
+        target_host = host
+        target_host = "#{host}.#{domain}" if domain
+        sock = TCPSocket.new target_host, port
+        begin
+          yield sock if block_given?
+        ensure
+          sock.close
+        end
       end
     end
 
     def _check_pending_vm(vm, pool, timeout, vsphere)
       host = vsphere.find_vm(vm)
 
-      if host
-        begin
-          Timeout.timeout(5) do
-            TCPSocket.new vm, 22
-          end
-          move_pending_vm_to_ready(vm, pool, host)
-        rescue
-          fail_pending_vm(vm, pool, timeout)
-        end
-      else
-        fail_pending_vm(vm, pool, timeout)
+      if ! host
+        fail_pending_vm(vm, pool, timeout, false)
+        return
       end
+      open_socket vm
+      move_pending_vm_to_ready(vm, pool, host)
+    rescue
+      fail_pending_vm(vm, pool, timeout)
     end
 
     def fail_pending_vm(vm, pool, timeout, exists=true)
@@ -137,12 +138,12 @@ module Vmpooler
           end
 
           begin
-            Timeout.timeout(5) do
-              TCPSocket.new vm, 22
-            end
+            open_socket vm
           rescue
             if $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
               $logger.log('d', "[!] [#{pool}] '#{vm}' is unreachable, removed from 'ready' queue")
+            else
+              $logger.log('d', "[!] [#{pool}] '#{vm}' is unreachable, and failed to remove from 'ready' queue")
             end
           end
         end
