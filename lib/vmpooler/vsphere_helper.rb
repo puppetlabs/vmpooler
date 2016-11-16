@@ -254,7 +254,8 @@ module Vmpooler
         host_usage = get_host_utilization(host, model)
         target_hosts << host_usage if host_usage
       end
-      target_hosts.sort[0][1]
+      target_host = target_hosts.sort[0][1]
+      [target_host, target_host.name]
     end
 
     def find_pool(poolname)
