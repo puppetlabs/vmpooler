@@ -478,7 +478,7 @@ module Vmpooler
 
     def migration_limit(migration_limit)
       # Returns migration_limit setting when enabled
-      return false if migration_limit == 0 or not migration_limit
+      return false if migration_limit == 0 || ! migration_limit
       migration_limit if migration_limit >= 1
     end
 
@@ -494,13 +494,15 @@ module Vmpooler
         vm_object = find_vsphere_pool_vm(pool, vm, vsphere)
         parent_host, parent_host_name = get_vm_host_info(vm_object)
         migration_limit = migration_limit $config[:config]['migration_limit']
+        migration_count = $redis.scard('vmpooler__migration')
 
-        if not migration_limit
+        if ! migration_limit
           $logger.log('s', "[ ] [#{pool}] '#{vm}' is running on #{parent_host_name}")
+          return
         else
-          migration_count = $redis.smembers('vmpooler__migration').size
           if migration_count >= migration_limit
             $logger.log('s', "[ ] [#{pool}] '#{vm}' is running on #{parent_host_name}. No migration will be evaluated since the migration_limit has been reached")
+            return
           else
             $redis.sadd('vmpooler__migration', vm)
             host, host_name = vsphere.find_least_used_compatible_host(vm_object)
@@ -585,7 +587,8 @@ module Vmpooler
       $redis.smembers("vmpooler__running__#{pool['name']}").each do |vm|
         if inventory[vm]
           begin
-            check_running_vm(vm, pool['name'], $redis.hget('vmpooler__vm__' + vm, 'lifetime') || $config[:config]['vm_lifetime'] || 12, vsphere)
+            vm_lifetime = $redis.hget('vmpooler__vm__' + vm, 'lifetime') || $config[:config]['vm_lifetime'] || 12
+            check_running_vm(vm, pool['name'], vm_lifetime, vsphere)
           rescue
           end
         end
@@ -605,7 +608,8 @@ module Vmpooler
       $redis.smembers("vmpooler__pending__#{pool['name']}").each do |vm|
         if inventory[vm]
           begin
-            check_pending_vm(vm, pool['name'], pool['timeout'] || $config[:config]['timeout'] || 15, vsphere)
+            pool_timeout = pool['timeout'] || $config[:config]['timeout'] || 15
+            check_pending_vm(vm, pool['name'], pool_timeout, vsphere)
           rescue
           end
         end
