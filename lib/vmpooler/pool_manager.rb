@@ -52,6 +52,11 @@ module Vmpooler
       fail_pending_vm(vm, pool, timeout)
     end
 
+    def remove_nonexistent_vm(vm, pool)
+      $redis.srem("vmpooler__pending__#{pool}", vm)
+      $logger.log('d', "[!] [#{pool}] '#{vm}' no longer exists. Removing from pending.")
+    end
+
     def fail_pending_vm(vm, pool, timeout, exists=true)
       clone_stamp = $redis.hget("vmpooler__vm__#{vm}", 'clone')
       return if ! clone_stamp
@@ -108,8 +113,7 @@ module Vmpooler
 
           $redis.hset('vmpooler__vm__' + vm, 'check', Time.now)
 
-          host = vsphere.find_vm(vm) ||
-                 vsphere.find_vm_heavy(vm)[vm]
+          host = vsphere.find_vm(vm)
 
           if host
             if
@@ -288,8 +292,7 @@ module Vmpooler
         # Auto-expire metadata key
         $redis.expire('vmpooler__vm__' + vm, ($config[:redis]['data_ttl'].to_i * 60 * 60))
 
-        host = vsphere.find_vm(vm) ||
-               vsphere.find_vm_heavy(vm)[vm]
+        host = vsphere.find_vm(vm)
 
         if host
           start = Time.now
@@ -319,8 +322,7 @@ module Vmpooler
     end
 
     def _create_vm_disk(vm, disk_size, vsphere)
-      host = vsphere.find_vm(vm) ||
-             vsphere.find_vm_heavy(vm)[vm]
+      host = vsphere.find_vm(vm)
 
       if (host) && ((! disk_size.nil?) && (! disk_size.empty?) && (disk_size.to_i > 0))
         $logger.log('s', "[ ] [disk_manager] '#{vm}' is attaching a #{disk_size}gb disk")
@@ -360,8 +362,7 @@ module Vmpooler
     end
 
     def _create_vm_snapshot(vm, snapshot_name, vsphere)
-      host = vsphere.find_vm(vm) ||
-             vsphere.find_vm_heavy(vm)[vm]
+      host = vsphere.find_vm(vm)
 
       if (host) && ((! snapshot_name.nil?) && (! snapshot_name.empty?))
         $logger.log('s', "[ ] [snapshot_manager] '#{vm}' is being snapshotted")
@@ -390,8 +391,7 @@ module Vmpooler
     end
 
     def _revert_vm_snapshot(vm, snapshot_name, vsphere)
-      host = vsphere.find_vm(vm) ||
-             vsphere.find_vm_heavy(vm)[vm]
+      host = vsphere.find_vm(vm)
 
       if host
         snapshot = vsphere.find_snapshot(host, snapshot_name)
@@ -473,10 +473,6 @@ module Vmpooler
       end
     end
 
-    def find_vsphere_pool_vm(pool, vm, vsphere)
-      vsphere.find_vm(vm) || vsphere.find_vm_heavy(vm)[vm]
-    end
-
     def migration_limit(migration_limit)
       # Returns migration_limit setting when enabled
       return false if migration_limit == 0 || ! migration_limit
@@ -492,7 +488,7 @@ module Vmpooler
     def _migrate_vm(vm, pool, vsphere)
       begin
         $redis.srem('vmpooler__migrating__' + pool, vm)
-        vm_object = find_vsphere_pool_vm(pool, vm, vsphere)
+        vm_object = vsphere.find_vm(vm)
         parent_host, parent_host_name = get_vm_host_info(vm_object)
         migration_limit = migration_limit $config[:config]['migration_limit']
         migration_count = $redis.scard('vmpooler__migration')
@@ -607,12 +603,14 @@ module Vmpooler
 
       # PENDING
       $redis.smembers("vmpooler__pending__#{pool['name']}").each do |vm|
+        pool_timeout = pool['timeout'] || $config[:config]['timeout'] || 15
         if inventory[vm]
           begin
-            pool_timeout = pool['timeout'] || $config[:config]['timeout'] || 15
             check_pending_vm(vm, pool['name'], pool_timeout, vsphere)
           rescue
           end
+        else
+          fail_pending_vm(vm, pool['name'], pool_timeout, false)
         end
       end
 

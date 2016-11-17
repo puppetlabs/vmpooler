@@ -40,7 +40,6 @@ describe 'Pool Manager' do
         create_migrating_vm vm['name'], pool, redis
         allow(vsphere).to receive(:find_vm).and_return(vm)
         allow(pooler).to receive(:get_vm_host_info).and_return([{'name' => 'host1'}, 'host1'])
-        expect(vsphere).to receive(:find_vm).with(vm['name'])
       end
 
       it 'logs VM host when migration is disabled' do

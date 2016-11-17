@@ -26,7 +26,6 @@ describe 'Pool Manager' do
       it 'calls fail_pending_vm' do
         allow(vsphere).to receive(:find_vm).and_return(nil)
         allow(redis).to receive(:hget)
-        expect(redis).to receive(:hget).with(String, 'clone').once
         subject._check_pending_vm(vm, pool, timeout, vsphere)
       end
     end

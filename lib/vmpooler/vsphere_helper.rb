@@ -289,6 +289,11 @@ module Vmpooler
 
     def find_vm(vmname)
       ensure_connected @connection, $credentials
+      find_vm_light(vmname) || find_vm_heavy(vmname)[vmname]
+    end
+
+    def find_vm_light(vmname)
+      ensure_connected @connection, $credentials
 
       @connection.searchIndex.FindByDnsName(vmSearch: true, dnsName: vmname)
     end
