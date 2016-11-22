@@ -225,6 +225,13 @@
 #     If set, prefixes all created VMs with this string.  This should include
 #     a separator.
 #     (optional; default: '')
+#
+#   - migration_limit
+#     When set to any value greater than 0 enable VM migration at checkout.
+#     When enabled this capability will evaluate a VM for migration when it is requested
+#     in an effort to maintain a more even distribution of load across compute resources.
+#     The migration_limit ensures that no more than n migrations will be evaluated at any one time
+#     and greatly reduces the possibilty of VMs ending up bunched together on a particular host.
 
 # Example:
 

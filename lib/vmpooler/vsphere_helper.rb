@@ -6,22 +6,27 @@ module Vmpooler
     DISK_TYPE = 'thin'
     DISK_MODE = 'persistent'
 
-    def initialize(_vInfo = {})
-      config_file = File.expand_path('vmpooler.yaml')
-      vsphere = YAML.load_file(config_file)[:vsphere]
+    def initialize(credentials)
+      $credentials = credentials
+    end
 
-      @connection = RbVmomi::VIM.connect host: vsphere['server'],
-                                         user: vsphere['username'],
-                                         password: vsphere['password'],
-                                         insecure: true
+    def ensure_connected(connection, credentials)
+      begin
+        connection.serviceInstance.CurrentTime
+      rescue
+        connect_to_vsphere $credentials
+      end
+    end
+
+    def connect_to_vsphere(credentials)
+      @connection = RbVmomi::VIM.connect host: credentials['server'],
+                                         user: credentials['username'],
+                                         password: credentials['password'],
+                                         insecure: credentials['insecure'] || true
     end
 
     def add_disk(vm, size, datastore)
-      begin
-        @connection.serviceInstance.CurrentTime
-      rescue
-        initialize
-      end
+      ensure_connected @connection, $credentials
 
       return false unless size.to_i > 0
 
@@ -71,22 +76,14 @@ module Vmpooler
     end
 
     def find_datastore(datastorename)
-      begin
-        @connection.serviceInstance.CurrentTime
-      rescue
-        initialize
-      end
+      ensure_connected @connection, $credentials
 
       datacenter = @connection.serviceInstance.find_datacenter
       datacenter.find_datastore(datastorename)
     end
 
     def find_device(vm, deviceName)
-      begin
-        @connection.serviceInstance.CurrentTime
-      rescue
-        initialize
-      end
+      ensure_connected @connection, $credentials
 
       vm.config.hardware.device.each do |device|
         return device if device.deviceInfo.label == deviceName
@@ -96,11 +93,7 @@ module Vmpooler
     end
 
     def find_disk_controller(vm)
-      begin
-        @connection.serviceInstance.CurrentTime
-      rescue
-        initialize
-      end
+      ensure_connected @connection, $credentials
 
       devices = find_disk_devices(vm)
 
@@ -114,11 +107,7 @@ module Vmpooler
     end
 
     def find_disk_devices(vm)
-      begin
-        @connection.serviceInstance.CurrentTime
-      rescue
-        initialize
-      end
+      ensure_connected @connection, $credentials
 
       devices = {}
 
@@ -146,11 +135,7 @@ module Vmpooler
     end
 
     def find_disk_unit_number(vm, controller)
-      begin
-        @connection.serviceInstance.CurrentTime
-      rescue
-        initialize
-      end
+      ensure_connected @connection, $credentials
 
       used_unit_numbers = []
       available_unit_numbers = []
@@ -175,11 +160,7 @@ module Vmpooler
     end
 
     def find_folder(foldername)
-      begin
-        @connection.serviceInstance.CurrentTime
-      rescue
-        initialize
-      end
+      ensure_connected @connection, $credentials
 
       datacenter = @connection.serviceInstance.find_datacenter
       base = datacenter.vmFolder
@@ -196,39 +177,89 @@ module Vmpooler
       base
     end
 
+    # Returns an array containing cumulative CPU and memory utilization of a host, and its object reference
+    # Params:
+    # +model+:: CPU arch version to match on
+    # +limit+:: Hard limit for CPU or memory utilization beyond which a host is excluded for deployments
+    def get_host_utilization(host, model=nil, limit=90)
+      if model
+        return nil unless host_has_cpu_model? host, model
+      end
+      return nil if host.runtime.inMaintenanceMode
+      return nil unless host.overallStatus == 'green'
+
+      cpu_utilization = cpu_utilization_for host
+      memory_utilization = memory_utilization_for host
+
+      return nil if cpu_utilization > limit
+      return nil if memory_utilization > limit
+
+      [ cpu_utilization + memory_utilization, host ]
+    end
+
+    def host_has_cpu_model?(host, model)
+       get_host_cpu_arch_version(host) == model
+    end
+
+    def get_host_cpu_arch_version(host)
+      cpu_model = host.hardware.cpuPkg[0].description
+      cpu_model_parts = cpu_model.split()
+      arch_version = cpu_model_parts[4]
+      arch_version
+    end
+
+    def cpu_utilization_for(host)
+      cpu_usage = host.summary.quickStats.overallCpuUsage
+      cpu_size = host.summary.hardware.cpuMhz * host.summary.hardware.numCpuCores
+      (cpu_usage.to_f / cpu_size.to_f) * 100
+    end
+
+    def memory_utilization_for(host)
+      memory_usage = host.summary.quickStats.overallMemoryUsage
+      memory_size = host.summary.hardware.memorySize / 1024 / 1024
+      (memory_usage.to_f / memory_size.to_f) * 100
+    end
+
     def find_least_used_host(cluster)
-      begin
-        @connection.serviceInstance.CurrentTime
-      rescue
-        initialize
-      end
+      ensure_connected @connection, $credentials
 
-      hosts = {}
-      hosts_sort = {}
+      cluster_object = find_cluster(cluster)
+      target_hosts = get_cluster_host_utilization(cluster_object)
+      least_used_host = target_hosts.sort[0][1]
+      least_used_host
+    end
 
+    def find_cluster(cluster)
       datacenter = @connection.serviceInstance.find_datacenter
-      datacenter.hostFolder.children.each do |folder|
-        next unless folder.name == cluster
-        folder.host.each do |host|
-          if
-            (host.overallStatus == 'green') &&
-            (!host.runtime.inMaintenanceMode)
+      datacenter.hostFolder.children.find { |cluster_object| cluster_object.name == cluster }
+    end
 
-            hosts[host.name] = host
-            hosts_sort[host.name] = host.vm.length
-          end
-        end
+    def get_cluster_host_utilization(cluster)
+      cluster_hosts = []
+      cluster.host.each do |host|
+        host_usage = get_host_utilization(host)
+        cluster_hosts << host_usage if host_usage
       end
+      cluster_hosts
+    end
 
-      hosts[hosts_sort.sort_by { |_k, v| v }[0][0]]
+    def find_least_used_compatible_host(vm)
+      ensure_connected @connection, $credentials
+
+      source_host = vm.summary.runtime.host
+      model = get_host_cpu_arch_version(source_host)
+      cluster = source_host.parent
+      target_hosts = []
+      cluster.host.each do |host|
+        host_usage = get_host_utilization(host, model)
+        target_hosts << host_usage if host_usage
+      end
+      target_host = target_hosts.sort[0][1]
+      [target_host, target_host.name]
     end
 
     def find_pool(poolname)
-      begin
-        @connection.serviceInstance.CurrentTime
-      rescue
-        initialize
-      end
+      ensure_connected @connection, $credentials
 
       datacenter = @connection.serviceInstance.find_datacenter
       base = datacenter.hostFolder
@@ -257,21 +288,18 @@ module Vmpooler
     end
 
     def find_vm(vmname)
-      begin
-        @connection.serviceInstance.CurrentTime
-      rescue
-        initialize
-      end
+      ensure_connected @connection, $credentials
+      find_vm_light(vmname) || find_vm_heavy(vmname)[vmname]
+    end
+
+    def find_vm_light(vmname)
+      ensure_connected @connection, $credentials
 
       @connection.searchIndex.FindByDnsName(vmSearch: true, dnsName: vmname)
     end
 
     def find_vm_heavy(vmname)
-      begin
-        @connection.serviceInstance.CurrentTime
-      rescue
-        initialize
-      end
+      ensure_connected @connection, $credentials
 
       vmname = vmname.is_a?(Array) ? vmname : [vmname]
       containerView = get_base_vm_container_from @connection
@@ -321,11 +349,7 @@ module Vmpooler
     end
 
     def find_vmdks(vmname, datastore)
-      begin
-        connection.serviceInstance.CurrentTime
-      rescue
-        initialize
-      end
+      ensure_connected @connection, $credentials
 
       disks = []
 
@@ -344,11 +368,7 @@ module Vmpooler
     end
 
     def get_base_vm_container_from(connection)
-      begin
-        connection.serviceInstance.CurrentTime
-      rescue
-        initialize
-      end
+      ensure_connected @connection, $credentials
 
       viewManager = connection.serviceContent.viewManager
       viewManager.CreateContainerView(
@@ -370,6 +390,11 @@ module Vmpooler
       end
 
       snapshot
+    end
+
+    def migrate_vm_host(vm, host)
+      relospec = RbVmomi::VIM.VirtualMachineRelocateSpec(host: host)
+      vm.RelocateVM_Task(spec: relospec).wait_for_completion
     end
 
     def close

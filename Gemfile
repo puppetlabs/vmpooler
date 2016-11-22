@@ -16,6 +16,7 @@ gem 'statsd-ruby', '>= 1.3.0', :require => 'statsd'
 
 # Test deps
 group :test do
+  gem 'mock_redis', '>= 0.17.0'
   gem 'rack-test', '>= 0.6'
   gem 'rspec', '>= 3.2'
   gem 'simplecov', '>= 0.11.2'
