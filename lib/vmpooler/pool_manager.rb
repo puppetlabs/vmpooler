@@ -506,7 +506,7 @@ module Vmpooler
             if host == parent_host
               $logger.log('s', "[ ] [#{pool}] No migration required for '#{vm}' running on #{parent_host_name}")
             else
-              finish = migrate_vm_and_record_timing(vm_object, vm, host, vsphere)
+              finish = migrate_vm_and_record_timing(vm_object, vm, pool, host, parent_host_name, host_name, vsphere)
               $logger.log('s', "[>] [#{pool}] '#{vm}' migrated from #{parent_host_name} to #{host_name} in #{finish} seconds")
             end
             remove_vmpooler_migration_vm(pool, vm)
@@ -531,11 +531,13 @@ module Vmpooler
       end
     end
 
-    def migrate_vm_and_record_timing(vm_object, vm_name, host, vsphere)
+    def migrate_vm_and_record_timing(vm_object, vm_name, pool, host, source_host_name, dest_host_name, vsphere)
       start = Time.now
       vsphere.migrate_vm_host(vm_object, host)
       finish = '%.2f' % (Time.now - start)
-      $metrics.timing("migrate.#{vm_name}", finish)
+      $metrics.timing("migrate.#{pool}", finish)
+      $metrics.increment("migrate_from.#{source_host_name}")
+      $metrics.increment("migrate_to.#{dest_host_name}")
       checkout_to_migration = '%.2f' % (Time.now - Time.parse($redis.hget("vmpooler__vm__#{vm_name}", 'checkout')))
       $redis.hset("vmpooler__vm__#{vm_name}", 'migration_time', finish)
       $redis.hset("vmpooler__vm__#{vm_name}", 'checkout_to_migration', checkout_to_migration)
