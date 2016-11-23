@@ -6,16 +6,16 @@ module Vmpooler
     DISK_TYPE = 'thin'
     DISK_MODE = 'persistent'
 
-    def initialize(credentials)
+    def initialize(credentials, metrics)
       $credentials = credentials
+      $metrics = metrics
     end
 
     def ensure_connected(connection, credentials)
-      begin
-        connection.serviceInstance.CurrentTime
-      rescue
-        connect_to_vsphere $credentials
-      end
+      connection.serviceInstance.CurrentTime
+    rescue
+      $metrics.increment("connect.open")
+      connect_to_vsphere $credentials
     end
 
     def connect_to_vsphere(credentials)
