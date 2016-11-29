@@ -232,6 +232,17 @@
 #     in an effort to maintain a more even distribution of load across compute resources.
 #     The migration_limit ensures that no more than n migrations will be evaluated at any one time
 #     and greatly reduces the possibilty of VMs ending up bunched together on a particular host.
+#
+#  - max_tries
+#    Set the max number of times a connection should retry in vsphere helper.
+#    This optional setting allows a user to dial in retry limits to
+#    suit your environment.
+#
+#  - retry_factor
+#    When retrying, each attempt sleeps for the try count * retry_factor.
+#    Increase this number to lengthen the delay between retry attempts.
+#    This is particularly useful for instances with a large number of pools
+#    to prevent a thundering herd when retrying connections.
 
 # Example:
 
