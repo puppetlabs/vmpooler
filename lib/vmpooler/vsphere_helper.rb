@@ -6,8 +6,9 @@ module Vmpooler
     DISK_TYPE = 'thin'
     DISK_MODE = 'persistent'
 
-    def initialize(credentials, metrics)
-      $credentials = credentials
+    def initialize(config, metrics)
+      $credentials = config[:vsphere]
+      $conf = config[:config]
       $metrics = metrics
     end
 
@@ -19,10 +20,22 @@ module Vmpooler
     end
 
     def connect_to_vsphere(credentials)
-      @connection = RbVmomi::VIM.connect host: credentials['server'],
-                                         user: credentials['username'],
-                                         password: credentials['password'],
-                                         insecure: credentials['insecure'] || true
+      max_tries = $conf['max_tries'] || 3
+      retry_factor = $conf['retry_factor'] || 10
+      try = 1
+      begin
+        @connection = RbVmomi::VIM.connect host: credentials['server'],
+                                           user: credentials['username'],
+                                           password: credentials['password'],
+                                           insecure: credentials['insecure'] || true
+        $metrics.increment("connect.open")
+      rescue => err
+        try += 1
+        $metrics.increment("connect.fail")
+        raise err if try == max_tries
+        sleep(try * retry_factor)
+        retry
+      end
     end
 
     def add_disk(vm, size, datastore)
