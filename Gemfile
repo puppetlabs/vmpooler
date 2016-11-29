@@ -6,6 +6,7 @@ else
   gem 'json', '>= 1.8'
 end
 
+gem 'puma', '>= 3.6.0'
 gem 'rack', '>= 1.6'
 gem 'rake', '>= 10.4'
 gem 'rbvmomi', '>= 1.8'
