@@ -271,6 +271,7 @@ module Vmpooler
           rescue => err
             $logger.log('s', "[!] [#{vm['template']}] '#{vm['hostname']}' clone failed with an error: #{err}")
             $redis.srem('vmpooler__pending__' + vm['template'], vm['hostname'])
+            raise
           end
 
           $redis.decr('vmpooler__tasks__clone')
@@ -278,6 +279,7 @@ module Vmpooler
           $metrics.timing("clone.#{vm['template']}", finish)
         rescue => err
           $logger.log('s', "[!] [#{vm['template']}] '#{vm['hostname']}' failed while preparing to clone with an error: #{err}")
+          raise
         end
       end
     end
@@ -579,7 +581,8 @@ module Vmpooler
 
           inventory[vm['name']] = 1
         end
-      rescue
+      rescue => err
+        $logger.log('s', "[!] [#{pool['name']}] _check_pool failed with an error while inspecting inventory: #{err}")
       end
 
       # RUNNING
@@ -588,7 +591,8 @@ module Vmpooler
           begin
             vm_lifetime = $redis.hget('vmpooler__vm__' + vm, 'lifetime') || $config[:config]['vm_lifetime'] || 12
             check_running_vm(vm, pool['name'], vm_lifetime, vsphere)
-          rescue
+          rescue => err
+            $logger.log('d', "[!] [#{pool['name']}] _check_pool with an error while evaluating running VMs: #{err}")
           end
         end
       end
@@ -598,7 +602,8 @@ module Vmpooler
         if inventory[vm]
           begin
             check_ready_vm(vm, pool['name'], pool['ready_ttl'] || 0, vsphere)
-          rescue
+          rescue => err
+            $logger.log('d', "[!] [#{pool['name']}] _check_pool failed with an error while evaluating ready VMs: #{err}")
           end
         end
       end
@@ -609,7 +614,8 @@ module Vmpooler
         if inventory[vm]
           begin
             check_pending_vm(vm, pool['name'], pool_timeout, vsphere)
-          rescue
+          rescue => err
+            $logger.log('d', "[!] [#{pool['name']}] _check_pool failed with an error while evaluating pending VMs: #{err}")
           end
         else
           fail_pending_vm(vm, pool['name'], pool_timeout, false)
@@ -621,11 +627,11 @@ module Vmpooler
         if inventory[vm]
           begin
             destroy_vm(vm, pool['name'], vsphere)
-          rescue
-            $logger.log('s', "[!] [#{pool['name']}] '#{vm}' destroy appears to have failed")
+          rescue => err
             $redis.srem("vmpooler__completed__#{pool['name']}", vm)
             $redis.hdel("vmpooler__active__#{pool['name']}", vm)
             $redis.del("vmpooler__vm__#{vm}")
+            $logger.log('d', "[!] [#{pool['name']}] _check_pool failed with an error while evaluating completed VMs: #{err}")
           end
         else
           $logger.log('s', "[!] [#{pool['name']}] '#{vm}' not found in inventory, removed from 'completed' queue")
@@ -636,17 +642,21 @@ module Vmpooler
       end
 
       # DISCOVERED
-      $redis.smembers("vmpooler__discovered__#{pool['name']}").each do |vm|
-        %w(pending ready running completed).each do |queue|
-          if $redis.sismember("vmpooler__#{queue}__#{pool['name']}", vm)
-            $logger.log('d', "[!] [#{pool['name']}] '#{vm}' found in '#{queue}', removed from 'discovered' queue")
-            $redis.srem("vmpooler__discovered__#{pool['name']}", vm)
+      begin
+        $redis.smembers("vmpooler__discovered__#{pool['name']}").each do |vm|
+          %w(pending ready running completed).each do |queue|
+            if $redis.sismember("vmpooler__#{queue}__#{pool['name']}", vm)
+              $logger.log('d', "[!] [#{pool['name']}] '#{vm}' found in '#{queue}', removed from 'discovered' queue")
+              $redis.srem("vmpooler__discovered__#{pool['name']}", vm)
+            end
+          end
+
+          if $redis.sismember("vmpooler__discovered__#{pool['name']}", vm)
+            $redis.smove("vmpooler__discovered__#{pool['name']}", "vmpooler__completed__#{pool['name']}", vm)
           end
         end
-
-        if $redis.sismember("vmpooler__discovered__#{pool['name']}", vm)
-          $redis.smove("vmpooler__discovered__#{pool['name']}", "vmpooler__completed__#{pool['name']}", vm)
-        end
+      rescue => err
+        $logger.log('d', "[!] [#{pool['name']}] _check_pool failed with an error while evaluating discovered VMs: #{err}")
       end
 
       # MIGRATIONS
@@ -694,10 +704,14 @@ module Vmpooler
             rescue => err
               $logger.log('s', "[!] [#{pool['name']}] clone failed during check_pool with an error: #{err}")
               $redis.decr('vmpooler__tasks__clone')
+              raise
             end
           end
         end
       end
+    rescue => err
+      $logger.log('d', "[!] [#{pool['name']}] _check_pool failed with an error: #{err}")
+      raise
     end
 
     def execute!
