@@ -628,7 +628,6 @@ module Vmpooler
           begin
             destroy_vm(vm, pool['name'], vsphere)
           rescue => err
-            $logger.log('s', "[!] [#{pool['name']}] '#{vm}' destroy appears to have failed")
             $redis.srem("vmpooler__completed__#{pool['name']}", vm)
             $redis.hdel("vmpooler__active__#{pool['name']}", vm)
             $redis.del("vmpooler__vm__#{vm}")
