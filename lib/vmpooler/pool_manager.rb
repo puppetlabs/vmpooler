@@ -705,6 +705,8 @@ module Vmpooler
 
       # Clear out the tasks manager, as we don't know about any tasks at this point
       $redis.set('vmpooler__tasks__clone', 0)
+      # Clear out vmpooler__migrations since stale entries may be left after a restart
+      $redis.del('vmpooler__migration')
 
       loop do
         if ! $threads['disk_manager']
