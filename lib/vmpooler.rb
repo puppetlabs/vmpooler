@@ -21,11 +21,18 @@ module Vmpooler
   end
 
   def self.config(filepath='vmpooler.yaml')
-    # Load the configuration file
-    config_file = File.expand_path(filepath)
-    parsed_config = YAML.load_file(config_file)
+    parsed_config = {}
 
-    # Set some defaults
+    if ENV['VMPOOLER_CONFIG']
+      # Load configuration from ENV
+      parsed_config = YAML.load(ENV['VMPOOLER_CONFIG'])
+    else
+      # Load the configuration file from disk
+      config_file = File.expand_path(filepath)
+      parsed_config = YAML.load_file(config_file)
+    end
+
+    # Set some configuration defaults
     parsed_config[:redis]             ||= {}
     parsed_config[:redis]['server']   ||= 'localhost'
     parsed_config[:redis]['data_ttl'] ||= 168
