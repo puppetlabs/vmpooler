@@ -65,11 +65,6 @@ A [Dockerfile](Dockerfile) is included in this repository to allow running vmpoo
 docker build -t vmpooler . && docker run -e VMPOOLER_CONFIG -p 80:4567 -it vmpooler
 ```
 
-### Template set-up
-
-Template set-up is left as an exercise to the reader.  Somehow, either via PXE, embedded bootstrap scripts, or some other method -- clones of VM templates need to be able to set their hostname, register themselves in your DNS, and be resolvable by the vmpooler application after completing the clone task and booting up.
-
-
 ## API and Dashboard
 
 vmpooler provides an API and web front-end (dashboard) on port `:4567`.  See the provided YAML configuration example, [vmpooler.yaml.example](vmpooler.yaml.example), to specify an alternative port to listen on.
