@@ -57,6 +57,14 @@ The following YAML configuration sets up two pools, `debian-7-i386` and `debian-
 
 See the provided YAML configuration example, [vmpooler.yaml.example](vmpooler.yaml.example), for additional configuration options and parameters.
 
+### Running via Docker
+
+A [Dockerfile](Dockerfile) is included in this repository to allow running vmpooler inside a Docker container.  A `vmpooler.yaml` configuration file can be embedded in the current working directory, or specified inline in a `VMPOOLER_CONFIG` environment variable.  To build and run:
+
+```
+docker build -t vmpooler . && docker run -e VMPOOLER_CONFIG -p 80:4567 -it vmpooler
+```
+
 ### Template set-up
 
 Template set-up is left as an exercise to the reader.  Somehow, either via PXE, embedded bootstrap scripts, or some other method -- clones of VM templates need to be able to set their hostname, register themselves in your DNS, and be resolvable by the vmpooler application after completing the clone task and booting up.
