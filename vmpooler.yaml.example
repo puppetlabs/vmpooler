@@ -137,8 +137,22 @@
 # This section contains information related to authenticating users
 # for token operations.
 #
-# Currently the only supported provider is LDAP; the following parameters
-# will all be under an ':ldap:' subsection (see example below).
+# Supported Auth Providers:
+#   - Dummy
+#   - LDAP
+#
+# - Dummy Auth Provider
+# The Dummy Authentication provider should only be used during development or testing
+# If the Username and Password are different then validation succeeds
+# If the Username and Password are the same then validation fails
+#
+# Example:
+# :auth:
+#   provider: 'dummy'
+#
+# - LDAP Auth Provider
+# The LDAP Authentication provider will validate usernames and passwords against an
+# existing LDAP service
 #
 # Available configuration parameters:
 #
@@ -154,8 +168,15 @@
 #
 #   - user_object
 #     The LDAP object-type used to designate a user object.
-
+#
 # Example:
+# :auth:
+#   provider: 'ldap'
+#   :ldap:
+#     host: 'localhost'
+#     port: 389
+#     base: 'ou=users,dc=company,dc=com'
+#     user_object: 'uid'
 
 :auth:
   provider: 'ldap'
