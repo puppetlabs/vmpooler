@@ -1,0 +1,404 @@
+---
+# TODO KILL ME
+:vsphere:
+  server: '127.0.0.1'
+  username: 'vmpooler'
+  password: 'swimsw1msw!m'
+
+
+:backingservice:
+# :backingservice:
+#
+# This section contains the backing services for VMs and Pools
+# The currently supported backing services are:
+# - vsphere
+# - dummy
+
+# :vsphere:
+#
+# This section contains the server hostname and authentication credentials
+# needed for vmpooler to connect to VMware vSphere.
+#
+# Available configuration parameters:
+#
+#   - server
+#     The FQDN hostname of the VMware vSphere server.
+#     (required)
+#
+#   - username
+#     The username used to authenticate VMware vSphere.
+#     (required)
+#
+#   - password
+#     The password used to authenticate VMware vSphere.
+#     (required)
+
+# Example:
+
+  :vsphere:
+    server: '127.0.0.1'
+    username: 'vmpooler'
+    password: 'swimsw1msw!m'
+
+# :dummy:
+#
+# The dummy backing service is a simple text file service that can be used
+# to test vmpooler operations in a development or test environment
+#
+# Available configuration parameters:
+#
+#   - filename
+#     The filename used to store the backing text file
+#     (required)
+
+# Example:
+
+  :dummy:
+    filename: 'C:/source/vmpooler/dummy-backing.yaml'
+
+# :redis:
+#
+# This section contains the server hostname and authentication credentials
+# needed for vmpooler to connect to Redis.
+#
+# Available configuration parameters:
+#
+#   - server
+#     The FQDN hostname of the Redis server.
+#     (optional; default: 'localhost')
+#
+#   - username
+#     The username used to authenticate Redis.
+#     (optional)
+#
+#   - password
+#     The password used to authenticate Redis.
+#     (optional)
+#
+#   - data_ttl
+#     How long (in hours) to retain metadata in Redis after VM destruction.
+#     (optional; default: '168')
+
+# Example:
+
+:redis:
+  server: 'localhost'
+
+
+  # :graphs:
+  #
+  # This section contains the server and prefix information for a graphite-
+  # compatible web front-end where graphs may be viewed. This is used by the
+  # vmpooler dashboard to retrieve statistics and graphs for a given instance.
+  #
+  # NOTE: This is not the endpoint for publishing metrics data. See `graphite:`
+  #       and `statsd:` below.
+  #
+  # NOTE: If `graphs:` is not set, for legacy compatibility, `graphite:` will be
+  #       consulted for `server`/`prefix` information to use in locating a
+  #       graph server for our dashboard.  `graphs:` is recommended over
+  #       `graphite:`
+  #
+  #
+  # Available configuration parameters:
+  #
+  #
+  #   - server
+  #     The FQDN hostname of the statsd daemon.
+  #     (required)
+  #
+  #   - prefix
+  #     The prefix to use while storing statsd data.
+  #     (optional; default: 'vmpooler')
+
+  # :statsd:
+  #
+  # This section contains the connection information required to store
+  # historical data via statsd.  This is mutually exclusive with graphite
+  # and takes precedence.
+  #
+  # Available configuration parameters:
+  #
+  #   - server
+  #     The FQDN hostname of the statsd daemon.
+  #     (required)
+  #
+  #   - prefix
+  #     The prefix to use while storing statsd data.
+  #     (optional; default: 'vmpooler')
+  #
+  #   - port
+  #     The UDP port to communicate with the statsd daemon.
+  #     (optional; default: 8125)
+
+  # Example:
+
+  :statsd:
+    server: 'localhost'
+    prefix: 'vmpooler'
+    port: 8125
+
+# :graphite:
+#
+# This section contains the connection information required to store
+# historical data in an external Graphite database.  This is mutually exclusive
+# with statsd.
+#
+# Available configuration parameters:
+#
+#   - server
+#     The FQDN hostname of the Graphite server.
+#     (required)
+#
+#   - prefix
+#     The prefix to use while storing Graphite data.
+#     (optional; default: 'vmpooler')
+#
+#   - port
+#     The TCP port to communicate with the graphite server.
+#     (optional; default: 2003)
+
+# Example:
+
+:graphite:
+  server: 'graphite.company.com'
+
+# :auth:
+#
+# This section contains information related to authenticating users
+# for token operations.
+#
+# Supported Auth Providers:
+#   - Dummy
+#   - LDAP
+#
+# - Dummy Auth Provider
+# The Dummy Authentication provider should only be used during development or testing
+# If the Username and Password are different then validation succeeds
+# If the Username and Password are the same then validation fails
+#
+# Example:
+# :auth:
+#   provider: 'dummy'
+#
+# - LDAP Auth Provider
+# The LDAP Authentication provider will validate usernames and passwords against an
+# existing LDAP service
+#
+# Available configuration parameters:
+#
+#   - host
+#     The FQDN hostname of the LDAP server.
+#
+#   - port
+#     The port used to connect to the LDAP service.
+#     (optional; default: '389')
+#
+#   - base
+#     The base DN used for LDAP searches.
+#
+#   - user_object
+#     The LDAP object-type used to designate a user object.
+#
+# Example:
+# :auth:
+#   provider: 'ldap'
+#   :ldap:
+#     host: 'localhost'
+#     port: 389
+#     base: 'ou=users,dc=company,dc=com'
+#     user_object: 'uid'
+
+:auth:
+  provider: 'dummy'
+
+# :tagfilter:
+#
+# Filter tags by regular expression.
+
+# Example:
+#
+# This example demonstrates discarding everything after a '/' character for
+# the 'url' tag, transforming 'foo.com/something.html' to 'foo.com'.
+
+:tagfilter:
+  url: '(.*)\/'
+
+# :config:
+#
+# This section contains global configuration information.
+#
+# Available configuration parameters:
+#
+#   - site_name
+#     The name of your deployment.
+#     (optional; default: 'vmpooler')
+#
+#   - logfile
+#     The path to vmpooler's log file.
+#     (optional; default: '/var/log/vmpooler.log')
+#
+#   - clone_target TODO
+#     The target cluster VMs are cloned into (host with least VMs chosen)
+#     (optional; default: same cluster/host as origin template)
+#
+#   - task_limit TODO
+#     The number of concurrent VMware vSphere tasks to perform.
+#     (optional; default: '10')
+#
+#   - timeout
+#     How long (in minutes) before marking a clone as 'failed' and retrying.
+#     (optional; default: '15')
+#
+#   - vm_checktime
+#     How often (in minutes) to check the sanity of VMs in 'ready' queues.
+#     (optional; default: '15')
+#
+#   - vm_lifetime
+#     How long (in hours) to keep VMs in 'running' queues before destroying.
+#     (optional; default: '24')
+#
+#   - vm_lifetime_auth
+#     Same as vm_lifetime, but applied if a valid authentication token is
+#     included during the request.
+#
+#   - allowed_tags
+#     If set, restricts tags to those specified in this array.
+#
+#   - domain
+#     If set, returns a top-level 'domain' JSON key in POST requests
+#
+#   - prefix
+#     If set, prefixes all created VMs with this string.  This should include
+#     a separator.
+#     (optional; default: '')
+#
+#   - migration_limit
+#     When set to any value greater than 0 enable VM migration at checkout.
+#     When enabled this capability will evaluate a VM for migration when it is requested
+#     in an effort to maintain a more even distribution of load across compute resources.
+#     The migration_limit ensures that no more than n migrations will be evaluated at any one time
+#     and greatly reduces the possibilty of VMs ending up bunched together on a particular host.
+
+# Example:
+
+:config:
+  site_name: 'vmpooler'
+  logfile: 'c:/temp/vmpooler.log'
+  task_limit: 10
+  timeout: 15
+  vm_checktime: 15
+  vm_lifetime: 12
+  vm_lifetime_auth: 24
+  # allowed_tags:
+  #   - 'created_by'
+  #   - 'project'
+  domain: 'company.com'
+  prefix: 'poolvm-'
+
+# :pools:
+#
+# This section contains a list of virtual machine 'pools' for vmpooler to
+# create and maintain.
+#
+# Available configuration parameters (per-pool):
+#
+#   - name
+#     The name of the pool.
+#     (required)
+#
+#   - alias
+#     Other names this pool can be requested as.
+#     (optional)
+#
+#   - backingservice
+#     The backing service which will be used to provision this pool.  Default is vsphere
+#     (optional)
+#
+#   - timeout
+#     How long (in minutes) before marking a clone as 'failed' and retrying.
+#     This setting overrides any globally-configured timeout setting.
+#     (optional; default: '15')
+#
+#   - ready_ttl
+#     How long (in minutes) to keep VMs in 'ready' queues before destroying.
+#     (optional)
+#
+#   - template
+#     The template or virtual machine target to spawn clones from.
+#     (required)
+#
+#   - size
+#     The number of waiting VMs to keep in a pool.
+#     (required)
+
+#   VSphere Backing Service configuration Options
+#
+#   - folder
+#     The vSphere 'folder' destination for spawned clones.
+#     (required)
+#
+#   - datastore
+#     The vSphere 'datastore' destination for spawned clones.
+#     (required)
+#
+#   - clone_target
+#     Per-pool option to override the global 'clone_target' cluster.
+#     (optional)
+#
+
+# Example:
+
+:pools:
+  # - name: 'debian-7-i386'
+  #   alias: [ 'debian-7-32' ]
+  #   template: 'Templates/debian-7-i386'
+  #   folder: 'Pooled VMs/debian-7-i386'
+  #   datastore: 'vmstorage'
+  #   size: 2
+  #   timeout: 15
+  #   ready_ttl: 1440
+
+  # - name: 'debian-7-x86_64'
+  #   alias: [ 'debian-7-64', 'debian-7-amd64' ]
+  #   template: 'Templates/debian-7-x86_64'
+  #   folder: 'Pooled VMs/debian-7-x86_64'
+  #   datastore: 'vmstorage'
+  #   size: 2
+  #   timeout: 15
+  #   ready_ttl: 1440
+
+  - name: 'debian-7-i386'
+    template: 'test1'
+    backingservice: dummy
+    size: 5
+    timeout: 15
+    ready_ttl: 1440
+  
+  - name: 'debian-7-x86_64'
+    template: 'test1'
+    backingservice: dummy
+    size: 5
+    timeout: 15
+    ready_ttl: 1440
+
+  - name: 'win-2008r2-x86_64'
+    template: 'test1'
+    backingservice: dummy
+    size: 5
+    timeout: 15
+    ready_ttl: 1440
+
+  - name: 'win-2016-x86_64'
+    template: 'test1'
+    backingservice: dummy
+    size: 5
+    timeout: 15
+    ready_ttl: 1440
+
+  - name: 'win-2012r2-x86_64'
+    template: 'test1'
+    backingservice: dummy
+    size: 5
+    timeout: 15
+    ready_ttl: 1440
