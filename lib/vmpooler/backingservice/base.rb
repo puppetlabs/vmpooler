@@ -5,6 +5,13 @@ module Vmpooler
         # These defs must be overidden in child classes
 
         def initialize(options)
+          @options = options
+        end
+
+        # returns
+        #   [String] Name of the backing service
+        def name
+          'base'
         end
 
         #def validate_config(config)
@@ -15,7 +22,7 @@ module Vmpooler
         #  pool : hashtable from config file
         # returns
         #   hashtable
-        #     name : name of the device
+        #     name : name of the device   <---- TODO is this all?
         def vms_in_pool(pool)
           fail "#{self.class.name} does not implement vms_in_pool"
         end
@@ -51,6 +58,7 @@ module Vmpooler
         # returns
         #   nil if it doesn't exist
         #   Hastable of the VM
+        #    [String] name       = Name of the VM
         #    [String] hostname   = Name reported by Vmware tools (host.summary.guest.hostName)
         #    [String] template   = This is the name of template exposed by the API.  It must _match_ the poolname
         #    [String] poolname   = Name of the pool the VM is located
@@ -93,7 +101,7 @@ module Vmpooler
         # returns
         #   result: boolean
         def vm_exists?(vm)
-          fail "#{self.class.name} does not implement vm_exists?"
+          !get_vm(vm).nil?
         end
 
       end
