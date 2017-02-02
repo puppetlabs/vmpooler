@@ -70,10 +70,11 @@ module Vmpooler
         end
 
         # inputs
-        #   pool: string
+        #   pool : hashtable from config file
+        #   new_vmname : string      Name the new VM should use
         # returns
-        #   vm name: string
-        def create_vm(pool)
+        #   Hashtable of the VM as per get_vm
+        def create_vm(pool,new_vmname)
           fail "#{self.class.name} does not implement create_vm"
         end
 
