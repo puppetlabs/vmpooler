@@ -9,40 +9,41 @@ describe 'Pool Manager' do
   let(:pool) { 'pool1' }
   let(:vm) { 'vm1' }
   let(:timeout) { 5 }
-  let(:host) { double('host') }
+  let(:host) {
+    fake_vm = {}
+    fake_vm['name'] = 'vm1'
+    fake_vm['hostname'] = 'vm1'
+    fake_vm['template'] = 'pool1'
+    fake_vm['boottime'] = Time.now
+    fake_vm['powerstate'] = 'PoweredOn'
+
+    fake_vm
+  }
 
   subject { Vmpooler::PoolManager.new(config, logger, redis, metrics) }
 
   describe '#_check_pending_vm' do
-    let(:pool_helper) { double('pool') }
-    let(:vsphere) { {pool => pool_helper} }
+    let(:backingservice) { double('backingservice') }
 
     before do
       expect(subject).not_to be_nil
-      $vsphere = vsphere
     end
 
     context 'host not in pool' do
       it 'calls fail_pending_vm' do
-        allow(vsphere).to receive(:find_vm).and_return(nil)
+        allow(backingservice).to receive(:get_vm).and_return(nil)
         allow(redis).to receive(:hget)
-        subject._check_pending_vm(vm, pool, timeout, vsphere)
+        subject._check_pending_vm(vm, pool, timeout, backingservice)
       end
     end
 
-    context 'host is in pool' do
-      let(:vm_finder) { double('vm_finder') }
-      let(:tcpsocket) { double('TCPSocket') }
-
+    context 'host is in pool and ready' do
       it 'calls move_pending_vm_to_ready' do
-        allow(subject).to receive(:open_socket).and_return(true)
-        allow(vsphere).to receive(:find_vm).and_return(vm_finder)
-        allow(vm_finder).to receive(:summary).and_return(nil)
+        allow(backingservice).to receive(:get_vm).with(vm).and_return(host)
+        allow(backingservice).to receive(:is_vm_ready?).with(vm,pool,Integer).and_return(true)
+        allow(subject).to receive(:move_pending_vm_to_ready)
 
-        expect(vm_finder).to receive(:summary).once
-        expect(redis).not_to receive(:hget).with(String, 'clone')
-
-        subject._check_pending_vm(vm, pool, timeout, vsphere)
+        subject._check_pending_vm(vm, pool, timeout, backingservice)
       end
     end
   end
@@ -53,38 +54,21 @@ describe 'Pool Manager' do
     end
 
     context 'a host without correct summary' do
-      it 'does nothing when summary is nil' do
-        allow(host).to receive(:summary).and_return nil
-        subject.move_pending_vm_to_ready(vm, pool, host)
-      end
-
-      it 'does nothing when guest is nil' do
-        allow(host).to receive(:summary).and_return true
-        allow(host).to receive_message_chain(:summary, :guest).and_return nil
-        subject.move_pending_vm_to_ready(vm, pool, host)
-      end
-
       it 'does nothing when hostName is nil' do
-        allow(host).to receive(:summary).and_return true
-        allow(host).to receive_message_chain(:summary, :guest).and_return true
-        allow(host).to receive_message_chain(:summary, :guest, :hostName).and_return nil
+        host['hostname'] = nil
+
         subject.move_pending_vm_to_ready(vm, pool, host)
       end
 
       it 'does nothing when hostName does not match vm' do
-        allow(host).to receive(:summary).and_return true
-        allow(host).to receive_message_chain(:summary, :guest).and_return true
-        allow(host).to receive_message_chain(:summary, :guest, :hostName).and_return 'adifferentvm'
+        host['hostname'] = 'adifferentvm'
+
         subject.move_pending_vm_to_ready(vm, pool, host)
       end
     end
 
     context 'a host with proper summary' do
       before do
-        allow(host).to receive(:summary).and_return true
-        allow(host).to receive_message_chain(:summary, :guest).and_return true
-        allow(host).to receive_message_chain(:summary, :guest, :hostName).and_return vm
-
         allow(redis).to receive(:hget)
         allow(redis).to receive(:smove)
         allow(redis).to receive(:hset)
@@ -145,24 +129,24 @@ describe 'Pool Manager' do
 
   describe '#_check_running_vm' do
     let(:pool_helper) { double('pool') }
-    let(:vsphere) { {pool => pool_helper} }
+    let(:backingservice) { {pool => pool_helper} }
 
     before do
       expect(subject).not_to be_nil
-      $vsphere = vsphere
+      $backingservice = backingservice
     end
 
     it 'does nothing with nil host' do
-      allow(vsphere).to receive(:find_vm).and_return(nil)
+      allow(backingservice).to receive(:get_vm).and_return(nil)
       expect(redis).not_to receive(:smove)
-      subject._check_running_vm(vm, pool, timeout, vsphere)
+      subject._check_running_vm(vm, pool, timeout, backingservice)
     end
 
     context 'valid host' do
       let(:vm_host) { double('vmhost') }
 
       it 'does not move vm when not poweredOn' do
-        allow(vsphere).to receive(:find_vm).and_return vm_host
+        allow(backingservice).to receive(:get_vm).and_return vm_host
         allow(vm_host).to receive(:runtime).and_return true
         allow(vm_host).to receive_message_chain(:runtime, :powerState).and_return 'poweredOff'
 
@@ -170,11 +154,11 @@ describe 'Pool Manager' do
         expect(redis).not_to receive(:smove)
         expect(logger).not_to receive(:log).with('d', "[!] [#{pool}] '#{vm}' appears to be powered off or dead")
 
-        subject._check_running_vm(vm, pool, timeout, vsphere)
+        subject._check_running_vm(vm, pool, timeout, backingservice)
       end
 
       it 'moves vm when poweredOn, but past TTL' do
-        allow(vsphere).to receive(:find_vm).and_return vm_host
+        allow(backingservice).to receive(:get_vm).and_return vm_host
         allow(vm_host).to receive(:runtime).and_return true
         allow(vm_host).to receive_message_chain(:runtime, :powerState).and_return 'poweredOn'
 
@@ -182,7 +166,7 @@ describe 'Pool Manager' do
         expect(redis).to receive(:smove)
         expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' reached end of TTL after #{timeout} hours")
 
-        subject._check_running_vm(vm, pool, timeout, vsphere)
+        subject._check_running_vm(vm, pool, timeout, backingservice)
       end
     end
   end
@@ -209,7 +193,7 @@ describe 'Pool Manager' do
 
   describe '#_check_pool' do
     let(:pool_helper) { double('pool') }
-    let(:vsphere) { {pool => pool_helper} }
+    let(:backingservice) { {pool => pool_helper} }
     let(:config) { {
       config: { task_limit: 10 },
       pools: [ {'name' => 'pool1', 'size' => 5} ]
@@ -217,7 +201,7 @@ describe 'Pool Manager' do
 
     before do
       expect(subject).not_to be_nil
-      $vsphere = vsphere
+      $backingservice = backingservice
       allow(logger).to receive(:log)
       allow(pool_helper).to receive(:find_folder)
       allow(redis).to receive(:smembers).with('vmpooler__pending__pool1').and_return([])
@@ -238,14 +222,14 @@ describe 'Pool Manager' do
         allow(redis).to receive(:scard).with('vmpooler__running__pool1').and_return(0)
 
         expect(logger).to receive(:log).with('s', "[!] [pool1] is empty")
-        subject._check_pool(config[:pools][0], vsphere)
+        subject._check_pool(config[:pools][0], backingservice)
       end
     end
   end
 
   describe '#_stats_running_ready' do
     let(:pool_helper) { double('pool') }
-    let(:vsphere) { {pool => pool_helper} }
+    let(:backingservice) { {pool => pool_helper} }
     let(:metrics) { Vmpooler::DummyStatsd.new }
     let(:config) { {
       config: { task_limit: 10 },
@@ -255,7 +239,7 @@ describe 'Pool Manager' do
 
     before do
       expect(subject).not_to be_nil
-      $vsphere = vsphere
+      $backingservice = backingservice
       allow(logger).to receive(:log)
       allow(pool_helper).to receive(:find_folder)
       allow(redis).to receive(:smembers).and_return([])
@@ -275,7 +259,7 @@ describe 'Pool Manager' do
 
         expect(metrics).to receive(:gauge).with('ready.pool1', 1)
         expect(metrics).to receive(:gauge).with('running.pool1', 5)
-        subject._check_pool(config[:pools][0], vsphere)
+        subject._check_pool(config[:pools][0], backingservice)
       end
 
       it 'increments metrics when ready with 0 when pool empty' do
@@ -286,76 +270,8 @@ describe 'Pool Manager' do
 
         expect(metrics).to receive(:gauge).with('ready.pool1', 0)
         expect(metrics).to receive(:gauge).with('running.pool1', 5)
-        subject._check_pool(config[:pools][0], vsphere)
+        subject._check_pool(config[:pools][0], backingservice)
       end
-    end
-  end
-
-  describe '#_create_vm_snapshot' do
-    let(:snapshot_manager) { 'snapshot_manager' }
-    let(:pool_helper) { double('snapshot_manager') }
-    let(:vsphere) { {snapshot_manager => pool_helper} }
-
-    before do
-      expect(subject).not_to be_nil
-      $vsphere = vsphere
-    end
-
-    context '(valid host)' do
-      let(:vm_host) { double('vmhost') }
-
-      it 'creates a snapshot' do
-        expect(vsphere).to receive(:find_vm).and_return vm_host
-        expect(logger).to receive(:log)
-        expect(vm_host).to receive_message_chain(:CreateSnapshot_Task, :wait_for_completion)
-        expect(redis).to receive(:hset).with('vmpooler__vm__testvm', 'snapshot:testsnapshot', Time.now.to_s)
-        expect(logger).to receive(:log)
-
-        subject._create_vm_snapshot('testvm', 'testsnapshot', vsphere)
-      end
-    end
-  end
-
-  describe '#_revert_vm_snapshot' do
-    let(:snapshot_manager) { 'snapshot_manager' }
-    let(:pool_helper) { double('snapshot_manager') }
-    let(:vsphere) { {snapshot_manager => pool_helper} }
-
-    before do
-      expect(subject).not_to be_nil
-      $vsphere = vsphere
-    end
-
-    context '(valid host)' do
-      let(:vm_host) { double('vmhost') }
-      let(:vm_snapshot) { double('vmsnapshot') }
-
-      it 'reverts a snapshot' do
-        expect(vsphere).to receive(:find_vm).and_return vm_host
-        expect(vsphere).to receive(:find_snapshot).and_return vm_snapshot
-        expect(logger).to receive(:log)
-        expect(vm_snapshot).to receive_message_chain(:RevertToSnapshot_Task, :wait_for_completion)
-        expect(logger).to receive(:log)
-
-        subject._revert_vm_snapshot('testvm', 'testsnapshot', vsphere)
-      end
-    end
-  end
-
-  describe '#_check_snapshot_queue' do
-    let(:pool_helper) { double('pool') }
-    let(:vsphere) { {pool => pool_helper} }
-
-    before do
-      expect(subject).not_to be_nil
-      $vsphere = vsphere
-    end
-
-    it 'checks appropriate redis queues' do
-      expect(redis).to receive(:spop).with('vmpooler__tasks__snapshot')
-      expect(redis).to receive(:spop).with('vmpooler__tasks__snapshot-revert')
-
-      subject._check_snapshot_queue(vsphere)
     end
   end
 end
