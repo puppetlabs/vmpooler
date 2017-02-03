@@ -1,7 +1,7 @@
 require 'spec_helper'
 require 'time'
 
-describe 'Pool Manager' do
+describe 'Vmpooler::PoolManager' do
   let(:logger) { double('logger') }
   let(:redis) { double('redis') }
   let(:metrics) { Vmpooler::DummyStatsd.new }
@@ -22,6 +22,39 @@ describe 'Pool Manager' do
 
   subject { Vmpooler::PoolManager.new(config, logger, redis, metrics) }
 
+  describe '#check_pending_vm' do
+    let(:backingservice) { double('backingservice') }
+
+    before do
+      expect(subject).not_to be_nil
+    end
+
+    it 'calls _check_pending_vm' do
+      expect(Thread).to receive(:new).and_yield
+      expect(subject).to receive(:_check_pending_vm).with(vm,pool,timeout,backingservice)
+
+      subject.check_pending_vm(vm, pool, timeout, backingservice)
+    end
+
+    it 'calls fail_pending_vm if an error is raised' do
+      expect(Thread).to receive(:new).and_yield
+      allow(logger).to receive(:log)
+      expect(subject).to receive(:_check_pending_vm).with(vm,pool,timeout,backingservice).and_raise('an_error')
+      expect(subject).to receive(:fail_pending_vm).with(vm, pool, timeout)
+
+      expect{subject.check_pending_vm(vm, pool, timeout, backingservice)}.to raise_error(/an_error/)
+    end
+
+    it 'logs a message if an error is raised' do
+      expect(Thread).to receive(:new).and_yield
+      expect(logger).to receive(:log)
+      expect(subject).to receive(:_check_pending_vm).with(vm,pool,timeout,backingservice).and_raise('an_error')
+      allow(subject).to receive(:fail_pending_vm).with(vm, pool, timeout)
+
+      expect{subject.check_pending_vm(vm, pool, timeout, backingservice)}.to raise_error(/an_error/)
+    end
+  end
+
   describe '#_check_pending_vm' do
     let(:backingservice) { double('backingservice') }
 
@@ -29,7 +62,7 @@ describe 'Pool Manager' do
       expect(subject).not_to be_nil
     end
 
-    context 'host not in pool' do
+    context 'VM does not exist' do
       it 'calls fail_pending_vm' do
         allow(backingservice).to receive(:get_vm).and_return(nil)
         allow(redis).to receive(:hget)
@@ -37,7 +70,7 @@ describe 'Pool Manager' do
       end
     end
 
-    context 'host is in pool and ready' do
+    context 'VM is in pool and ready' do
       it 'calls move_pending_vm_to_ready' do
         allow(backingservice).to receive(:get_vm).with(vm).and_return(host)
         allow(backingservice).to receive(:is_vm_ready?).with(vm,pool,Integer).and_return(true)
@@ -46,6 +79,93 @@ describe 'Pool Manager' do
         subject._check_pending_vm(vm, pool, timeout, backingservice)
       end
     end
+
+    context 'VM is in pool but not ready' do
+      it 'raises an error' do
+        allow(backingservice).to receive(:get_vm).with(vm).and_return(host)
+        allow(backingservice).to receive(:is_vm_ready?).with(vm,pool,Integer).and_return(false)
+        allow(subject).to receive(:move_pending_vm_to_ready)
+
+        expect{subject._check_pending_vm(vm, pool, timeout, backingservice)}.to raise_error(/VM is not ready/)
+      end
+    end
+  end
+
+  describe '#remove_nonexistent_vm' do
+    before do
+      expect(subject).not_to be_nil
+    end
+
+    it 'removes VM from pending in redis' do
+      allow(logger).to receive(:log)
+      expect(redis).to receive(:srem).with("vmpooler__pending__#{pool}", vm)
+
+      subject.remove_nonexistent_vm(vm, pool)
+    end
+
+    it 'logs msg' do
+      allow(redis).to receive(:srem)
+      expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' no longer exists. Removing from pending.")
+
+      subject.remove_nonexistent_vm(vm, pool)
+    end
+  end
+
+  describe '#fail_pending_vm' do
+    before do
+      expect(subject).not_to be_nil
+      allow(logger).to receive(:log)
+    end
+
+    it 'takes no action if VM is not cloning' do
+      expect(redis).to receive(:hget).with("vmpooler__vm__#{vm}", 'clone').and_return(nil)
+
+      expect(subject.fail_pending_vm(vm, pool, timeout)).to eq(true)
+    end
+
+    it 'takes no action if VM is within timeout' do
+      expect(redis).to receive(:hget).with("vmpooler__vm__#{vm}", 'clone').and_return(Time.now.to_s)
+
+      expect(subject.fail_pending_vm(vm, pool, timeout)).to eq(true)
+    end
+
+    it 'moves VM to completed queue if VM has exceeded timeout and exists' do
+      expect(redis).to receive(:hget).with("vmpooler__vm__#{vm}", 'clone').and_return(Date.new(2001,1,1).to_s)
+      expect(redis).to receive(:smove).with("vmpooler__pending__#{pool}", "vmpooler__completed__#{pool}", vm)
+
+      expect(subject.fail_pending_vm(vm, pool, timeout,true)).to eq(true)
+    end
+
+    it 'logs message if VM has exceeded timeout and exists' do
+      expect(redis).to receive(:hget).with("vmpooler__vm__#{vm}", 'clone').and_return(Date.new(2001,1,1).to_s)
+      allow(redis).to receive(:smove)
+      expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes")
+
+      expect(subject.fail_pending_vm(vm, pool, timeout,true)).to eq(true)
+    end
+
+    it 'calls remove_nonexistent_vm if VM has exceeded timeout and does not exist' do
+      expect(redis).to receive(:hget).with("vmpooler__vm__#{vm}", 'clone').and_return(Date.new(2001,1,1).to_s)
+      expect(subject).to receive(:remove_nonexistent_vm).with(vm, pool)
+
+      expect(subject.fail_pending_vm(vm, pool, timeout,false)).to eq(true)
+    end
+
+    it 'returns false and swallows error if an error is raised' do
+      expect(redis).to receive(:hget).with("vmpooler__vm__#{vm}", 'clone').and_return('iamnotparsable_asdate')
+      expect(subject.fail_pending_vm(vm, pool, timeout,true)).to eq(false)
+    end
+
+    it 'logs message if an error is raised' do
+      expect(redis).to receive(:hget).with("vmpooler__vm__#{vm}", 'clone').and_return('iamnotparsable_asdate')
+      expect(logger).to receive(:log).with('d', String)
+
+      subject.fail_pending_vm(vm, pool, timeout,true)
+    end
+  end
+
+  describe 'move_pending_vm_to_ready' do
+    fail 'todo'
   end
 
   describe '#move_vm_to_ready' do
