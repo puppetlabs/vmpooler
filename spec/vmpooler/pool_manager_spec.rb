@@ -165,7 +165,68 @@ describe 'Vmpooler::PoolManager' do
   end
 
   describe 'move_pending_vm_to_ready' do
-    fail 'todo'
+    before do
+      expect(subject).not_to be_nil
+      allow(logger).to receive(:log)
+      allow(Socket).to receive(:getaddrinfo)
+    end
+
+    context 'when hostname does not match VM name' do
+      it 'should not take any action' do
+        expect(logger).to receive(:log).exactly(0).times
+        expect(Socket).to receive(:getaddrinfo).exactly(0).times
+
+        bad_host = host
+        bad_host['hostname'] = 'different_name'
+
+        subject.move_pending_vm_to_ready(vm, pool, bad_host)
+      end
+    end
+
+    context 'when hostname matches VM name' do
+      it 'should use the pool in smove' do
+        allow(redis).to receive(:hget)
+        allow(redis).to receive(:hset)
+        expect(redis).to receive(:smove).with("vmpooler__pending__#{pool}", "vmpooler__ready__#{pool}", vm)
+
+        subject.move_pending_vm_to_ready(vm, pool, host)
+      end
+
+      it 'should log a message' do
+        allow(redis).to receive(:hget)
+        allow(redis).to receive(:hset)
+        allow(redis).to receive(:smove)
+        expect(logger).to receive(:log).with('s', "[>] [#{pool}] '#{vm}' moved from 'pending' to 'ready' queue")
+
+        subject.move_pending_vm_to_ready(vm, pool, host)
+      end
+
+      it 'should use clone start time to determine boot timespan' do
+        allow(redis).to receive(:smove)
+        expect(redis).to receive(:hget).with("vmpooler__vm__#{vm}", 'clone').and_return(Time.now.to_s)
+        expect(redis).to receive(:hset).with(String,pool + ':' + vm,String)
+
+        subject.move_pending_vm_to_ready(vm, pool, host)
+      end
+
+      it 'should not determine boot timespan if clone start time not set' do
+        allow(redis).to receive(:smove)
+        expect(redis).to receive(:hget).with("vmpooler__vm__#{vm}", 'clone').and_return(nil)
+        expect(redis).to receive(:hset).with(String,pool + ':' + vm,String).exactly(0).times
+
+        subject.move_pending_vm_to_ready(vm, pool, host)
+      end
+
+      it 'should raise error if clone start time is not parsable' do
+        expect(redis).to receive(:hget).with("vmpooler__vm__#{vm}", 'clone').and_return('iamnotparsable_asdate')
+
+        expect{subject.move_pending_vm_to_ready(vm, pool, host)}.to raise_error(/iamnotparsable_asdate/)
+      end
+    end
+  end
+
+  describe '#check_ready_vm' do
+    fail "todo"
   end
 
   describe '#move_vm_to_ready' do
