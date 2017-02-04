@@ -1,4 +1,19 @@
 ---
+# TODO KILL ME
+:vsphere:
+  server: '127.0.0.1'
+  username: 'vmpooler'
+  password: 'swimsw1msw!m'
+
+
+:backingservice:
+# :backingservice:
+#
+# This section contains the backing services for VMs and Pools
+# The currently supported backing services are:
+# - vsphere
+# - dummy
+
 # :vsphere:
 #
 # This section contains the server hostname and authentication credentials
@@ -20,10 +35,37 @@
 
 # Example:
 
-:vsphere:
-  server: 'vsphere.company.com'
-  username: 'vmpooler'
-  password: 'swimsw1msw!m'
+  :vsphere:
+    server: '127.0.0.1'
+    username: 'vmpooler'
+    password: 'swimsw1msw!m'
+
+# :dummy:
+#
+# The dummy backing service is a simple text file service that can be used
+# to test vmpooler operations in a development or test environment
+#
+# Available configuration parameters:
+#
+#   - filename
+#     The filename used to store the backing text file
+
+# Example:
+
+  :dummy:
+    filename: 'C:/source/vmpooler/dummy-backing.yaml'
+
+    # createvm_max_time: 30
+    # createvm_fail_percent: 5
+    # migratevm_couldmove_percent: 25
+    # migratevm_max_time: 10
+    # migratevm_fail_percent: 5
+    # vmready_fail_percent: 5
+    # destroyvm_max_shutdown_time: 10
+    # destroyvm_fail_percent: 50
+    # destroyvm_max_time: 10
+    # getvm_poweroff_percent: 10
+    # getvm_rename_percent: 10
 
 # :redis:
 #
@@ -51,7 +93,7 @@
 # Example:
 
 :redis:
-  server: 'redis.company.com'
+  server: 'localhost'
 
 
   # :graphs:
@@ -103,7 +145,7 @@
   # Example:
 
   :statsd:
-    server: 'statsd.company.com'
+    server: 'localhost'
     prefix: 'vmpooler'
     port: 8125
 
@@ -179,12 +221,7 @@
 #     user_object: 'uid'
 
 :auth:
-  provider: 'ldap'
-  :ldap:
-    host: 'ldap.company.com'
-    port: 389
-    base: 'ou=users,dc=company,dc=com'
-    user_object: 'uid'
+  provider: 'dummy'
 
 # :tagfilter:
 #
@@ -212,11 +249,11 @@
 #     The path to vmpooler's log file.
 #     (optional; default: '/var/log/vmpooler.log')
 #
-#   - clone_target
+#   - clone_target TODO
 #     The target cluster VMs are cloned into (host with least VMs chosen)
 #     (optional; default: same cluster/host as origin template)
 #
-#   - task_limit
+#   - task_limit TODO
 #     The number of concurrent VMware vSphere tasks to perform.
 #     (optional; default: '10')
 #
@@ -253,33 +290,23 @@
 #     in an effort to maintain a more even distribution of load across compute resources.
 #     The migration_limit ensures that no more than n migrations will be evaluated at any one time
 #     and greatly reduces the possibilty of VMs ending up bunched together on a particular host.
-#
-#  - max_tries
-#    Set the max number of times a connection should retry in vsphere helper.
-#    This optional setting allows a user to dial in retry limits to
-#    suit your environment.
-#
-#  - retry_factor
-#    When retrying, each attempt sleeps for the try count * retry_factor.
-#    Increase this number to lengthen the delay between retry attempts.
-#    This is particularly useful for instances with a large number of pools
-#    to prevent a thundering herd when retrying connections.
 
 # Example:
 
 :config:
   site_name: 'vmpooler'
-  logfile: '/var/log/vmpooler.log'
+  logfile: 'c:/temp/vmpooler.log'
   task_limit: 10
   timeout: 15
   vm_checktime: 15
   vm_lifetime: 12
   vm_lifetime_auth: 24
-  allowed_tags:
-    - 'created_by'
-    - 'project'
+  # allowed_tags:
+  #   - 'created_by'
+  #   - 'project'
   domain: 'company.com'
   prefix: 'poolvm-'
+  migration_limit: 5
 
 # :pools:
 #
@@ -296,24 +323,8 @@
 #     Other names this pool can be requested as.
 #     (optional)
 #
-#   - template
-#     The template or virtual machine target to spawn clones from.
-#     (required)
-#
-#   - folder
-#     The vSphere 'folder' destination for spawned clones.
-#     (required)
-#
-#   - datastore
-#     The vSphere 'datastore' destination for spawned clones.
-#     (required)
-#
-#   - size
-#     The number of waiting VMs to keep in a pool.
-#     (required)
-#
-#   - clone_target
-#     Per-pool option to override the global 'clone_target' cluster.
+#   - backingservice
+#     The backing service which will be used to provision this pool.  Default is vsphere
 #     (optional)
 #
 #   - timeout
@@ -324,23 +335,84 @@
 #   - ready_ttl
 #     How long (in minutes) to keep VMs in 'ready' queues before destroying.
 #     (optional)
+#
+#   - template
+#     The template or virtual machine target to spawn clones from.
+#     (required)
+#
+#   - size
+#     The number of waiting VMs to keep in a pool.
+#     (required)
+
+#   VSphere Backing Service configuration Options
+#
+#   - folder
+#     The vSphere 'folder' destination for spawned clones.
+#     (required)
+#
+#   - datastore
+#     The vSphere 'datastore' destination for spawned clones.
+#     (required)
+#
+#   - clone_target
+#     Per-pool option to override the global 'clone_target' cluster.
+#     (optional)
+#
 
 # Example:
 
 :pools:
+  # VSPHERE
+  # - name: 'debian-7-i386'
+  #   alias: [ 'debian-7-32' ]
+  #   template: 'Templates/debian-7-i386'
+  #   folder: 'Pooled VMs/debian-7-i386'
+  #   datastore: 'vmstorage'
+  #   size: 5
+  #   timeout: 15
+  #   ready_ttl: 1440
+
+  # - name: 'debian-7-x86_64'
+  #   alias: [ 'debian-7-64', 'debian-7-amd64' ]
+  #   template: 'Templates/debian-7-x86_64'
+  #   folder: 'Pooled VMs/debian-7-x86_64'
+  #   datastore: 'vmstorage'
+  #   size: 2
+  #   timeout: 15
+  #   ready_ttl: 1440
+
+  # DUMMY
   - name: 'debian-7-i386'
-    alias: [ 'debian-7-32' ]
-    template: 'Templates/debian-7-i386'
-    folder: 'Pooled VMs/debian-7-i386'
-    datastore: 'vmstorage'
-    size: 5
+    template: 'test1'
+    backingservice: dummy
+    size: 1
     timeout: 15
     ready_ttl: 1440
+  
   - name: 'debian-7-x86_64'
-    alias: [ 'debian-7-64', 'debian-7-amd64' ]
-    template: 'Templates/debian-7-x86_64'
-    folder: 'Pooled VMs/debian-7-x86_64'
-    datastore: 'vmstorage'
-    size: 5
+    template: 'test1'
+    backingservice: dummy
+    size: 1
     timeout: 15
     ready_ttl: 1440
+
+  # - name: 'win-2008r2-x86_64'
+  #   template: 'test1'
+  #   backingservice: dummy
+  #   size: 5
+  #   timeout: 15
+  #   ready_ttl: 1440
+
+  # - name: 'win-2016-x86_64'
+  #   template: 'test1'
+  #   backingservice: dummy
+  #   size: 5
+  #   timeout: 15
+  #   ready_ttl: 1440
+
+  # - name: 'win-2012r2-x86_64'
+  #   template: 'test1'
+  #   backingservice: dummy
+  #   size: 5
+  #   timeout: 15
+  #   ready_ttl: 1440

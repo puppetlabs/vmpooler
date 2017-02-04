@@ -12,7 +12,7 @@ module Vmpooler
   require 'yaml'
   require 'set'
 
-  %w( api graphite logger pool_manager vsphere_helper statsd dummy_statsd ).each do |lib|
+  %w( api graphite logger pool_manager vsphere_helper statsd dummy_statsd backingservice ).each do |lib|
     begin
       require "vmpooler/#{lib}"
     rescue LoadError
@@ -21,7 +21,7 @@ module Vmpooler
   end
 
   def self.config(filepath='vmpooler.yaml')
-    parsed_config = {}
+  parsed_config = {}
 
     if ENV['VMPOOLER_CONFIG']
       # Load configuration from ENV

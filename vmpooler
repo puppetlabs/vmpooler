@@ -5,7 +5,7 @@ $LOAD_PATH.unshift(File.dirname(__FILE__))
 require 'rubygems' unless defined?(Gem)
 require 'lib/vmpooler'
 
-config = Vmpooler.config
+config = Vmpooler.config(ENV['VMPOOLER_CONFIG'] || 'vmpooler.yaml')
 redis_host = config[:redis]['server']
 logger_file = config[:config]['logfile']
 
@@ -25,5 +25,12 @@ manager = Thread.new {
     metrics
   ).execute!
 }
+
+if ENV['VMPOOLER_DEBUG']
+  trap("INT") {
+    puts "Shutting down."
+    [api, manager].each { |t| t.exit }
+  }
+end
 
 [api, manager].each { |t| t.join }
