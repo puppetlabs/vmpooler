@@ -9,7 +9,7 @@ describe 'Vmpooler::PoolManager' do
   let(:pool) { 'pool1' }
   let(:vm) { 'vm1' }
   let(:timeout) { 5 }
-  let(:host) {
+  let(:default_host) {
     fake_vm = {}
     fake_vm['name'] = 'vm1'
     fake_vm['hostname'] = 'vm1'
@@ -19,6 +19,8 @@ describe 'Vmpooler::PoolManager' do
 
     fake_vm
   }
+  let(:host) { default_host }
+  let(:max_int) { 4611686018427387903 } # A really big integer (64bit)
 
   subject { Vmpooler::PoolManager.new(config, logger, redis, metrics) }
 
@@ -226,8 +228,156 @@ describe 'Vmpooler::PoolManager' do
   end
 
   describe '#check_ready_vm' do
-    fail "todo"
+    let(:backingservice) { double('backingservice') }
+    let (:ttl) { 5 }
+
+    before do
+      expect(subject).not_to be_nil
+    end
+
+    it 'calls _check_pending_vm' do
+      expect(Thread).to receive(:new).and_yield
+      expect(subject).to receive(:_check_ready_vm).with(vm, pool, ttl, backingservice)
+
+      subject.check_ready_vm(vm, pool, ttl, backingservice)
+    end
+
+    it 'logs a message if an error is raised' do
+      expect(Thread).to receive(:new).and_yield
+      expect(subject).to receive(:_check_ready_vm).with(vm, pool, ttl, backingservice).and_raise('an_error')
+      expect(logger).to receive(:log).with('s', "[!] [#{pool}] '#{vm}' failed while checking a ready vm : an_error")
+
+      expect{subject.check_ready_vm(vm, pool, ttl, backingservice)}.to raise_error(/an_error/)
+    end
   end
+
+
+
+
+
+  describe '#_check_ready_vm' do
+    let(:backingservice) { double('backingservice') }
+    let (:ttl) { 5 }
+
+    let(:config) {
+      config = {
+        'config': {}
+      }
+      # Use the configuration defaults
+      config[:config]['vm_checktime'] = 15
+
+      config
+    }
+
+    before do
+      expect(subject).not_to be_nil
+      allow(backingservice).to receive(:get_vm).and_return(host)
+      allow(logger).to receive(:log)
+    end
+
+    context 'a VM that does not need to be checked' do
+      it 'should do nothing' do
+        allow(redis).to receive(:hget).with("vmpooler__vm__#{vm}", 'check').and_return(Time.now.to_s)
+
+        subject._check_ready_vm(vm, pool, ttl, backingservice)
+      end
+    end
+
+    context 'a VM that does not exist' do
+      it 'should log a message' do
+        allow(backingservice).to receive(:get_vm).and_return(nil)
+        allow(redis).to receive(:srem)
+        expect(logger).to receive(:log).with('s', "[!] [#{pool}] '#{vm}' not found in inventory for pool #{pool}, removed from 'ready' queue")
+
+        subject._check_ready_vm(vm, pool, ttl, backingservice)
+      end
+
+      it 'should remove the VM from the ready queue' do
+        allow(backingservice).to receive(:get_vm).and_return(nil)
+        allow(redis).to receive(:srem).with("vmpooler__ready__#{pool}", vm)
+
+        subject._check_ready_vm(vm, pool, ttl, backingservice)
+      end
+    end
+
+    context 'an old VM' do
+      let (:host) {
+        fake_vm = default_host
+        fake_vm['boottime'] = Time.new(2001,1,1)
+        fake_vm
+      }
+
+      context 'with a TTL of zero' do
+        it 'should do nothing' do
+          #allow(backingservice).to receive(:get_vm).and_return(host)
+          allow(redis).to receive(:hget).with("vmpooler__vm__#{vm}", 'check').and_return(Time.now.to_s)
+
+          subject._check_ready_vm(vm, pool, 0, backingservice)
+        end
+      end
+
+      context 'with a TTL longer than the VM lifetime' do
+        it 'should do nothing' do
+         # allow(backingservice).to receive(:get_vm).and_return(host)
+          allow(redis).to receive(:hget).with("vmpooler__vm__#{vm}", 'check').and_return(Time.now.to_s)
+
+          subject._check_ready_vm(vm, pool, max_int, backingservice)
+        end
+      end
+
+      context 'with a TTL shorter than the VM lifetime' do
+        it 'should move the VM to the completed queue' do
+          #allow(backingservice).to receive(:get_vm).and_return(host)
+          allow(redis).to receive(:hget).with("vmpooler__vm__#{vm}", 'check').and_return(Time.now.to_s)
+          expect(redis).to receive(:smove).with("vmpooler__ready__#{pool}", "vmpooler__completed__#{pool}", vm)
+
+          subject._check_ready_vm(vm, pool, 1, backingservice)
+        end
+
+        it 'should log a message' do
+          #allow(backingservice).to receive(:get_vm).and_return(host)
+          allow(redis).to receive(:smove)
+          expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' reached end of TTL after #{ttl} minutes, removed from 'ready' queue")
+
+          subject._check_ready_vm(vm, pool, ttl, backingservice)
+        end
+      end
+    end
+
+    context 'a VM that has not previously been checked' do
+      before do
+        allow(redis).to receive(:hget).with("vmpooler__vm__#{vm}", 'check').and_return(nil)
+      end
+
+      it 'sets the last check time' do
+        expect(redis).to receive(:hset).with("vmpooler__vm__#{vm}", 'check', Time)
+        allow(backingservice).to receive(:is_vm_ready?).and_return(true)
+
+        subject._check_ready_vm(vm, pool, ttl, backingservice)
+      end
+
+    end
+
+    # TODO Need to test everything inside the check if statement
+
+  end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   describe '#move_vm_to_ready' do
     before do
