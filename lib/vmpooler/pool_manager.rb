@@ -125,6 +125,7 @@ module Vmpooler
           $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
 
           $logger.log('d', "[!] [#{pool}] '#{vm}' reached end of TTL after #{ttl} minutes, removed from 'ready' queue")
+          return
         end
       end
 
