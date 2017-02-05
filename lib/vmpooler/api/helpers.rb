@@ -56,6 +56,8 @@ module Vmpooler
 
       def authenticate(auth, username_str, password_str)
         case auth['provider']
+          when 'dummy'
+            return (username_str != password_str)
           when 'ldap'
             require 'rubygems'
             require 'net/ldap'
