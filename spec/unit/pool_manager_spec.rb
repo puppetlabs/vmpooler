@@ -1,5 +1,6 @@
 require 'spec_helper'
 require 'time'
+require 'mock_redis'
 
 describe 'Pool Manager' do
   let(:logger) { double('logger') }
