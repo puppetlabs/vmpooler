@@ -382,6 +382,22 @@ EOT
     end
   end
 
+  describe '#check_running_vm' do
+    let(:vsphere) { double('vsphere') }
+    let (:ttl) { 5 }
+
+    before do
+      expect(subject).not_to be_nil
+    end
+
+    it 'calls _check_running_vm' do
+      expect(Thread).to receive(:new).and_yield
+      expect(subject).to receive(:_check_running_vm).with(vm, pool, ttl, vsphere)
+
+      subject.check_running_vm(vm, pool, ttl, vsphere)
+    end
+  end
+
   describe '#_check_running_vm' do
     let(:pool_helper) { double('pool') }
     let(:vsphere) { {pool => pool_helper} }
@@ -391,10 +407,15 @@ EOT
       $vsphere = vsphere
     end
 
-    it 'does nothing with nil host' do
+    before(:each) do
+      create_running_vm(pool,vm)
+    end
+
+    it 'does nothing with a missing VM' do
       allow(vsphere).to receive(:find_vm).and_return(nil)
-      expect(redis).not_to receive(:smove)
+      expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
       subject._check_running_vm(vm, pool, timeout, vsphere)
+      expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
     end
 
     context 'valid host' do
@@ -404,24 +425,35 @@ EOT
         allow(vsphere).to receive(:find_vm).and_return vm_host
         allow(vm_host).to receive(:runtime).and_return true
         allow(vm_host).to receive_message_chain(:runtime, :powerState).and_return 'poweredOff'
-
-        expect(redis).to receive(:hget)
-        expect(redis).not_to receive(:smove)
         expect(logger).not_to receive(:log).with('d', "[!] [#{pool}] '#{vm}' appears to be powered off or dead")
-
+        expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
         subject._check_running_vm(vm, pool, timeout, vsphere)
+        expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
       end
 
-      it 'moves vm when poweredOn, but past TTL' do
+      it 'should not move VM if it has no checkout time' do
         allow(vsphere).to receive(:find_vm).and_return vm_host
-        allow(vm_host).to receive(:runtime).and_return true
-        allow(vm_host).to receive_message_chain(:runtime, :powerState).and_return 'poweredOn'
+        expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
+        subject._check_running_vm(vm, pool, 0, vsphere)
+        expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
+      end
 
-        expect(redis).to receive(:hget).with('vmpooler__active__pool1', 'vm1').and_return((Time.now - timeout*60*60).to_s)
-        expect(redis).to receive(:smove)
-        expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' reached end of TTL after #{timeout} hours")
+      it 'should not move VM if TTL is zero' do
+        allow(vsphere).to receive(:find_vm).and_return vm_host
+        redis.hset("vmpooler__active__#{pool}", vm,(Time.now - timeout*60*60).to_s)
+        expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
+        subject._check_running_vm(vm, pool, 0, vsphere)
+        expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
+      end
 
+      it 'should move VM when past TTL' do
+        allow(vsphere).to receive(:find_vm).and_return vm_host
+        redis.hset("vmpooler__active__#{pool}", vm,(Time.now - timeout*60*60).to_s)
+        expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
+        expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(false)
         subject._check_running_vm(vm, pool, timeout, vsphere)
+        expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(false)
+        expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
       end
     end
   end
