@@ -120,6 +120,26 @@ describe 'Pool Manager' do
     end
   end
 
+  describe '#remove_nonexistent_vm' do
+    before do
+      expect(subject).not_to be_nil
+    end
+
+    it 'removes VM from pending in redis' do
+      create_pending_vm(pool,vm)
+
+      expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(true)
+      subject.remove_nonexistent_vm(vm, pool)
+      expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(false)
+    end
+
+    it 'logs msg' do
+      expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' no longer exists. Removing from pending.")
+
+      subject.remove_nonexistent_vm(vm, pool)
+    end
+  end
+
   describe '#move_vm_to_ready' do
     before do
       expect(subject).not_to be_nil
