@@ -782,6 +782,144 @@ EOT
     end
   end
 
+  describe "#destroy_vm" do
+    let (:vsphere) { double('vsphere') }
+
+    let(:config) {
+      YAML.load(<<-EOT
+---
+:redis:
+  data_ttl: 168
+EOT
+      )
+    }
+
+    before do
+      expect(subject).not_to be_nil
+    end
+
+    before(:each) do
+      expect(Thread).to receive(:new).and_yield
+
+      create_completed_vm(vm,pool,true)
+    end
+
+    context 'when redis data_ttl is not specified in the configuration' do
+      let(:config) {
+        YAML.load(<<-EOT
+---
+:redis:
+  "key": "value"
+EOT
+      )
+      }
+
+      before(:each) do
+        expect(vsphere).to receive(:find_vm).and_return(nil)
+      end
+
+      it 'should call redis expire with 0' do
+        expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to_not be_nil
+        subject.destroy_vm(vm,pool,vsphere)
+        expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to be_nil
+      end
+    end
+
+    context 'when there is no redis section in the configuration' do
+      let(:config) {}
+      
+      it 'should raise an error' do
+        expect{ subject.destroy_vm(vm,pool,vsphere) }.to raise_error(NoMethodError)
+      end
+    end
+
+    context 'when a VM does not exist' do
+      before(:each) do
+        expect(vsphere).to receive(:find_vm).and_return(nil)
+      end
+
+      it 'should not call any vsphere methods' do
+        subject.destroy_vm(vm,pool,vsphere)
+      end
+    end
+
+    context 'when a VM exists' do
+      let (:destroy_task) { double('destroy_task') }
+      let (:poweroff_task) { double('poweroff_task') }
+
+      before(:each) do
+        expect(vsphere).to receive(:find_vm).and_return(host)
+        allow(host).to receive(:runtime).and_return(true)
+      end
+
+      context 'and an error occurs during destroy' do
+        before(:each) do
+          allow(host).to receive_message_chain(:runtime, :powerState).and_return('poweredOff')
+          expect(host).to receive(:Destroy_Task).and_return(destroy_task)
+          expect(destroy_task).to receive(:wait_for_completion).and_raise(RuntimeError,'DestroyFailure')
+          expect(metrics).to receive(:timing).exactly(0).times
+        end
+
+        it 'should raise an error in the thread' do
+          expect { subject.destroy_vm(vm,pool,vsphere) }.to raise_error(/DestroyFailure/)
+        end
+      end
+
+      context 'and an error occurs during power off' do
+        before(:each) do
+          allow(host).to receive_message_chain(:runtime, :powerState).and_return('poweredOn')
+          expect(host).to receive(:PowerOffVM_Task).and_return(poweroff_task)
+          expect(poweroff_task).to receive(:wait_for_completion).and_raise(RuntimeError,'PowerOffFailure')
+          expect(logger).to receive(:log).with('d', "[ ] [#{pool}] '#{vm}' is being shut down")
+          expect(metrics).to receive(:timing).exactly(0).times
+        end
+
+        it 'should raise an error in the thread' do
+          expect { subject.destroy_vm(vm,pool,vsphere) }.to raise_error(/PowerOffFailure/)
+        end
+      end
+
+      context 'and is powered off' do
+        before(:each) do
+          allow(host).to receive_message_chain(:runtime, :powerState).and_return('poweredOff')
+          expect(host).to receive(:Destroy_Task).and_return(destroy_task)
+          expect(destroy_task).to receive(:wait_for_completion)
+          expect(metrics).to receive(:timing).with("destroy.#{pool}", /0/)
+        end
+
+        it 'should log a message the VM was destroyed' do
+          expect(logger).to receive(:log).with('s', /\[-\] \[#{pool}\] '#{vm}' destroyed in [0-9.]+ seconds/)
+          subject.destroy_vm(vm,pool,vsphere)
+        end
+      end
+
+      context 'and is powered on' do
+        before(:each) do
+          allow(host).to receive_message_chain(:runtime, :powerState).and_return('poweredOn')
+          expect(host).to receive(:Destroy_Task).and_return(destroy_task)
+          expect(host).to receive(:PowerOffVM_Task).and_return(poweroff_task)
+          expect(poweroff_task).to receive(:wait_for_completion)
+          expect(destroy_task).to receive(:wait_for_completion)
+          expect(metrics).to receive(:timing).with("destroy.#{pool}", /0/)
+        end
+
+        it 'should log a message the VM is being shutdown' do
+          expect(logger).to receive(:log).with('d', "[ ] [#{pool}] '#{vm}' is being shut down")
+          allow(logger).to receive(:log)
+
+          subject.destroy_vm(vm,pool,vsphere)
+        end
+
+        it 'should log a message the VM was destroyed' do
+         expect(logger).to receive(:log).with('s', /\[-\] \[#{pool}\] '#{vm}' destroyed in [0-9.]+ seconds/)
+          allow(logger).to receive(:log)
+
+          subject.destroy_vm(vm,pool,vsphere)
+        end
+      end
+    end
+  end
+
   describe '#_check_pool' do
     let(:pool_helper) { double('pool') }
     let(:vsphere) { {pool => pool_helper} }
