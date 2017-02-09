@@ -14,6 +14,21 @@ describe 'Pool Manager' do
 
   subject { Vmpooler::PoolManager.new(config, logger, redis, metrics) }
 
+  describe '#check_pending_vm' do
+    let(:vsphere) { double('vsphere') }
+
+    before do
+      expect(subject).not_to be_nil
+    end
+
+    it 'calls _check_pending_vm' do
+      expect(Thread).to receive(:new).and_yield
+      expect(subject).to receive(:_check_pending_vm).with(vm,pool,timeout,vsphere)
+
+      subject.check_pending_vm(vm, pool, timeout, vsphere)
+    end
+  end
+
   describe '#_check_pending_vm' do
     let(:pool_helper) { double('pool') }
     let(:vsphere) { {pool => pool_helper} }
