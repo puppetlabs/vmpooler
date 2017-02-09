@@ -1,3 +1,7 @@
 .ruby-version
 Gemfile.lock
+Gemfile.local
 vendor
+vmpooler.yaml
+.bundle
+coverage
