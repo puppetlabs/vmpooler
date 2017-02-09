@@ -257,6 +257,131 @@ describe 'Pool Manager' do
     end
   end
 
+  describe '#check_ready_vm' do
+    let(:vsphere) { double('vsphere') }
+    let(:ttl) { 0 }
+
+    let(:config) {
+      YAML.load(<<-EOT
+---
+:config:
+  vm_checktime: 15
+
+EOT
+      )
+    }
+
+    before(:each) do
+      expect(Thread).to receive(:new).and_yield
+      create_ready_vm(pool,vm)
+    end
+
+    it 'should raise an error if a TTL above zero is specified' do
+      expect { subject.check_ready_vm(vm,pool,5,vsphere) }.to raise_error(NameError) # This is an implementation bug
+    end
+
+    context 'a VM that does not need to be checked' do
+      it 'should do nothing' do
+        redis.hset("vmpooler__vm__#{vm}", 'check',Time.now.to_s)
+        subject.check_ready_vm(vm, pool, ttl, vsphere)
+      end
+    end
+
+    context 'a VM that does not exist' do
+      before do
+        allow(vsphere).to receive(:find_vm).and_return(nil)
+      end
+
+      it 'should set the current check timestamp' do
+        allow(subject).to receive(:open_socket)
+        expect(redis.hget("vmpooler__vm__#{vm}", 'check')).to be_nil
+        subject.check_ready_vm(vm, pool, ttl, vsphere)
+        expect(redis.hget("vmpooler__vm__#{vm}", 'check')).to_not be_nil
+      end
+
+      it 'should log a message' do
+        expect(logger).to receive(:log).with('s', "[!] [#{pool}] '#{vm}' not found in vCenter inventory, removed from 'ready' queue")
+        allow(subject).to receive(:open_socket)
+        subject.check_ready_vm(vm, pool, ttl, vsphere)
+      end
+
+      it 'should remove the VM from the ready queue' do
+        allow(subject).to receive(:open_socket)
+        expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(true)
+        subject.check_ready_vm(vm, pool, ttl, vsphere)
+        expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(false)
+      end
+    end
+
+    context 'a VM that needs to be checked' do
+      before(:each) do
+        redis.hset("vmpooler__vm__#{vm}", 'check',Date.new(2001,1,1).to_s)
+
+        allow(host).to receive(:summary).and_return( double('summary') )
+        allow(host).to receive_message_chain(:summary, :guest).and_return( double('guest') )
+        allow(host).to receive_message_chain(:summary, :guest, :hostName).and_return (vm)
+        
+        allow(vsphere).to receive(:find_vm).and_return(host)
+      end
+
+      context 'and is ready' do
+        before(:each) do
+          allow(host).to receive(:runtime).and_return( double('runtime') )
+          allow(host).to receive_message_chain(:runtime, :powerState).and_return('poweredOn')
+          allow(host).to receive_message_chain(:summary, :guest, :hostName).and_return (vm)
+          allow(subject).to receive(:open_socket).with(vm).and_return(nil)
+        end
+
+        it 'should only set the next check interval' do
+          subject.check_ready_vm(vm, pool, ttl, vsphere)
+        end
+      end
+
+      context 'but turned off and name mismatch' do
+        before(:each) do
+          allow(host).to receive(:runtime).and_return( double('runtime') )
+          allow(host).to receive_message_chain(:runtime, :powerState).and_return('poweredOff')
+          allow(host).to receive_message_chain(:summary, :guest, :hostName).and_return ('')
+          allow(subject).to receive(:open_socket).with(vm).and_raise(SocketError,'getaddrinfo: No such host is known')
+        end
+
+        it 'should move the VM to the completed queue multiple times' do
+          # There is an implementation bug which attempts the move multiple times
+          expect(redis).to receive(:smove).with("vmpooler__ready__#{pool}", "vmpooler__completed__#{pool}", vm).at_least(2).times
+
+          subject.check_ready_vm(vm, pool, ttl, vsphere)
+        end
+
+        it 'should move the VM to the completed queue' do
+          expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(true)
+          expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(false)
+          subject.check_ready_vm(vm, pool, ttl, vsphere)
+          expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(false)
+          expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
+        end
+
+        it 'should log messages about being powered off, name mismatch and removed from ready queue' do
+          expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' appears to be powered off, removed from 'ready' queue")
+          expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' has mismatched hostname, removed from 'ready' queue")
+
+         # There is an implementation bug which attempts the move multiple times however
+         # as the VM is no longer in the ready queue, redis also throws an error
+         expect(logger).to receive(:log).with("d", "[!] [#{pool}] '#{vm}' is unreachable, and failed to remove from 'ready' queue")
+
+          subject.check_ready_vm(vm, pool, ttl, vsphere)
+        end
+
+        it 'should log a message if it fails to move queues' do
+          expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' appears to be powered off, removed from 'ready' queue")
+          expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' has mismatched hostname, removed from 'ready' queue")
+          expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' is unreachable, and failed to remove from 'ready' queue")
+
+          subject.check_ready_vm(vm, pool, ttl, vsphere)
+        end
+      end
+    end
+  end
+
   describe '#_check_running_vm' do
     let(:pool_helper) { double('pool') }
     let(:vsphere) { {pool => pool_helper} }
