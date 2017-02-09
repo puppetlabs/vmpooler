@@ -140,6 +140,58 @@ describe 'Pool Manager' do
     end
   end
 
+ describe '#fail_pending_vm' do
+    before do
+      expect(subject).not_to be_nil
+    end
+
+    before(:each) do
+      create_pending_vm(pool,vm)
+    end
+
+    it 'takes no action if VM is not cloning' do
+      expect(subject.fail_pending_vm(vm, pool, timeout)).to eq(nil)
+      expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(true)
+    end
+
+    it 'takes no action if VM is within timeout' do
+      redis.hset("vmpooler__vm__#{vm}", 'clone',Time.now.to_s)
+      expect(subject.fail_pending_vm(vm, pool, timeout)).to eq(nil)
+      expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(true)
+    end
+
+    it 'moves VM to completed queue if VM has exceeded timeout and exists' do
+      redis.hset("vmpooler__vm__#{vm}", 'clone',Date.new(2001,1,1).to_s)
+      expect(subject.fail_pending_vm(vm, pool, timeout,true)).to eq(nil)
+      expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(false)
+      expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
+    end
+
+    it 'logs message if VM has exceeded timeout and exists' do
+      redis.hset("vmpooler__vm__#{vm}", 'clone',Date.new(2001,1,1).to_s)
+      expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes")
+      expect(subject.fail_pending_vm(vm, pool, timeout,true)).to eq(nil)
+    end
+
+    it 'calls remove_nonexistent_vm if VM has exceeded timeout and does not exist' do
+      redis.hset("vmpooler__vm__#{vm}", 'clone',Date.new(2001,1,1).to_s)
+      expect(subject).to receive(:remove_nonexistent_vm).with(vm, pool)
+      expect(subject.fail_pending_vm(vm, pool, timeout,false)).to eq(nil)
+    end
+
+    it 'swallows error if an error is raised' do
+      redis.hset("vmpooler__vm__#{vm}", 'clone','iamnotparsable_asdate')
+      expect(subject.fail_pending_vm(vm, pool, timeout,true)).to eq(nil)
+    end
+
+    it 'logs message if an error is raised' do
+      redis.hset("vmpooler__vm__#{vm}", 'clone','iamnotparsable_asdate')
+      expect(logger).to receive(:log).with('d', String)
+
+      subject.fail_pending_vm(vm, pool, timeout,true)
+    end
+  end
+  
   describe '#move_vm_to_ready' do
     before do
       expect(subject).not_to be_nil
@@ -201,38 +253,6 @@ describe 'Pool Manager' do
 
         subject.move_pending_vm_to_ready(vm, pool, host)
       end
-    end
-  end
-
-  describe '#fail_pending_vm' do
-    before do
-      expect(subject).not_to be_nil
-    end
-
-    context 'does not have a clone stamp' do
-      it 'has no side effects' do
-        allow(redis).to receive(:hget)
-        subject.fail_pending_vm(vm, pool, timeout)
-      end
-    end
-
-    context 'has valid clone stamp' do
-      it 'does nothing when less than timeout' do
-        allow(redis).to receive(:hget).with(String, 'clone').and_return Time.now.to_s
-        subject.fail_pending_vm(vm, pool, timeout)
-      end
-
-      it 'moves vm to completed when over timeout' do
-        allow(redis).to receive(:hget).with(String, 'clone').and_return '2005-01-1'
-        allow(redis).to receive(:smove).with(String, String, String)
-        allow(logger).to receive(:log).with(String, String)
-
-        expect(redis).to receive(:smove).with(String, String, vm)
-        expect(logger).to receive(:log).with('d', String)
-
-        subject.fail_pending_vm(vm, pool, timeout)
-      end
-
     end
   end
 
