@@ -11,6 +11,7 @@ describe 'Pool Manager' do
   let(:vm) { 'vm1' }
   let(:timeout) { 5 }
   let(:host) { double('host') }
+  let(:token) { 'token1234'}
 
   subject { Vmpooler::PoolManager.new(config, logger, redis, metrics) }
 
@@ -455,6 +456,44 @@ EOT
         expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(false)
         expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
       end
+    end
+  end
+
+  describe '#move_vm_queue' do
+    let(:queue_from) { 'pending' }
+    let(:queue_to) { 'completed' }
+    let(:message) { 'message' }
+
+    before do
+      expect(subject).not_to be_nil
+    end
+
+    before(:each) do
+      create_pending_vm(pool, vm, token)
+    end
+
+    it 'VM should be in the "from queue" before the move' do
+      expect(redis.sismember("vmpooler__#{queue_from}__#{pool}",vm))
+    end
+
+    it 'VM should not be in the "from queue" after the move' do
+      subject.move_vm_queue(pool, vm, queue_from, queue_to, message)
+      expect(!redis.sismember("vmpooler__#{queue_from}__#{pool}",vm))
+    end
+
+    it 'VM should not be in the "to queue" before the move' do
+      expect(!redis.sismember("vmpooler__#{queue_to}__#{pool}",vm))
+    end
+
+    it 'VM should be in the "to queue" after the move' do
+      subject.move_vm_queue(pool, vm, queue_from, queue_to, message)
+      expect(redis.sismember("vmpooler__#{queue_to}__#{pool}",vm))
+    end
+
+    it 'should log a message' do
+      allow(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' #{message}")
+
+      subject.move_vm_queue(pool, vm, queue_from, queue_to, message)
     end
   end
 
