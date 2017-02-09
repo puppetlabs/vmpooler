@@ -192,66 +192,67 @@ describe 'Pool Manager' do
     end
   end
   
-  describe '#move_vm_to_ready' do
+  describe '#move_pending_vm_to_ready' do
     before do
       expect(subject).not_to be_nil
+      allow(Socket).to receive(:getaddrinfo)
     end
 
-    context 'a host without correct summary' do
-      it 'does nothing when summary is nil' do
-        allow(host).to receive(:summary).and_return nil
-        subject.move_pending_vm_to_ready(vm, pool, host)
-      end
+    before(:each) do
+      create_pending_vm(pool,vm)
+    end
 
-      it 'does nothing when guest is nil' do
-        allow(host).to receive(:summary).and_return true
-        allow(host).to receive_message_chain(:summary, :guest).and_return nil
-        subject.move_pending_vm_to_ready(vm, pool, host)
-      end
+    context 'when hostname does not match VM name' do
+      it 'should not take any action' do
+        expect(logger).to receive(:log).exactly(0).times
+        expect(Socket).to receive(:getaddrinfo).exactly(0).times
 
-      it 'does nothing when hostName is nil' do
-        allow(host).to receive(:summary).and_return true
-        allow(host).to receive_message_chain(:summary, :guest).and_return true
-        allow(host).to receive_message_chain(:summary, :guest, :hostName).and_return nil
-        subject.move_pending_vm_to_ready(vm, pool, host)
-      end
+        allow(host).to receive(:summary).and_return( double('summary') )
+        allow(host).to receive_message_chain(:summary, :guest).and_return( double('guest') )
+        allow(host).to receive_message_chain(:summary, :guest, :hostName).and_return ('different_name')
 
-      it 'does nothing when hostName does not match vm' do
-        allow(host).to receive(:summary).and_return true
-        allow(host).to receive_message_chain(:summary, :guest).and_return true
-        allow(host).to receive_message_chain(:summary, :guest, :hostName).and_return 'adifferentvm'
         subject.move_pending_vm_to_ready(vm, pool, host)
       end
     end
 
-    context 'a host with proper summary' do
+    context 'when hostname matches VM name' do
       before do
-        allow(host).to receive(:summary).and_return true
-        allow(host).to receive_message_chain(:summary, :guest).and_return true
-        allow(host).to receive_message_chain(:summary, :guest, :hostName).and_return vm
-
-        allow(redis).to receive(:hget)
-        allow(redis).to receive(:smove)
-        allow(redis).to receive(:hset)
-        allow(logger).to receive(:log)
+        allow(host).to receive(:summary).and_return( double('summary') )
+        allow(host).to receive_message_chain(:summary, :guest).and_return( double('guest') )
+        allow(host).to receive_message_chain(:summary, :guest, :hostName).and_return (vm)
       end
 
-      it 'moves vm to ready' do
-        allow(redis).to receive(:hget).with(String, 'clone').and_return Time.now.to_s
+      it 'should move the VM from pending to ready pool' do
+        expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(true)
+        expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(false)
+        subject.move_pending_vm_to_ready(vm, pool, host)
+        expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(false)
+        expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(true)
+      end
 
-        expect(redis).to receive(:smove).with(String, String, vm)
-        expect(redis).to receive(:hset).with(String, String, String)
-        expect(logger).to receive(:log).with('s', String)
+      it 'should log a message' do
+        expect(logger).to receive(:log).with('s', "[>] [#{pool}] '#{vm}' moved to 'ready' queue")
 
         subject.move_pending_vm_to_ready(vm, pool, host)
       end
 
-      it 'sets finish to nil when clone_time is nil' do
-        expect(redis).to receive(:smove).with(String, String, vm)
-        expect(redis).to receive(:hset).with(String, String, nil)
-        expect(logger).to receive(:log).with('s', String)
-
+      it 'should set the boot time in redis' do
+        redis.hset("vmpooler__vm__#{vm}", 'clone',Time.now.to_s)
+        expect(redis.hget('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm)).to be_nil
         subject.move_pending_vm_to_ready(vm, pool, host)
+        expect(redis.hget('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm)).to_not be_nil
+        # TODO Should we inspect the value to see if it's valid?
+      end
+
+      it 'should not determine boot timespan if clone start time not set' do
+        expect(redis.hget('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm)).to be_nil
+        subject.move_pending_vm_to_ready(vm, pool, host)
+        expect(redis.hget('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm)).to eq("") # Possible implementation bug here. Should still be nil here
+      end
+
+      it 'should raise error if clone start time is not parsable' do
+        redis.hset("vmpooler__vm__#{vm}", 'clone','iamnotparsable_asdate')
+        expect{subject.move_pending_vm_to_ready(vm, pool, host)}.to raise_error(/iamnotparsable_asdate/)
       end
     end
   end
