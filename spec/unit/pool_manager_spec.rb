@@ -86,33 +86,34 @@ describe 'Pool Manager' do
   end
 
   describe '#_check_pending_vm' do
-    let(:pool_helper) { double('pool') }
-    let(:vsphere) { {pool => pool_helper} }
+    let(:vsphere) { double('vsphere') }
 
     before do
       expect(subject).not_to be_nil
-      $vsphere = vsphere
     end
 
-    context 'host not in pool' do
+    context 'host does not exist or not in pool' do
       it 'calls fail_pending_vm' do
-        allow(vsphere).to receive(:find_vm).and_return(nil)
-        allow(redis).to receive(:hget)
+        expect(vsphere).to receive(:find_vm).and_return(nil)
+        expect(subject).to receive(:fail_pending_vm).with(vm, pool, timeout, false) 
+
         subject._check_pending_vm(vm, pool, timeout, vsphere)
       end
     end
 
     context 'host is in pool' do
-      let(:vm_finder) { double('vm_finder') }
-      let(:tcpsocket) { double('TCPSocket') }
+      it 'calls move_pending_vm_to_ready if host is ready' do
+        expect(vsphere).to receive(:find_vm).and_return(host)
+        expect(subject).to receive(:open_socket).and_return(nil)
+        expect(subject).to receive(:move_pending_vm_to_ready).with(vm, pool, host)
 
-      it 'calls move_pending_vm_to_ready' do
-        allow(subject).to receive(:open_socket).and_return(true)
-        allow(vsphere).to receive(:find_vm).and_return(vm_finder)
-        allow(vm_finder).to receive(:summary).and_return(nil)
+        subject._check_pending_vm(vm, pool, timeout, vsphere)
+      end
 
-        expect(vm_finder).to receive(:summary).once
-        expect(redis).not_to receive(:hget).with(String, 'clone')
+      it 'calls fail_pending_vm if an error is raised' do
+        expect(vsphere).to receive(:find_vm).and_return(host)
+        expect(subject).to receive(:open_socket).and_raise(SocketError,'getaddrinfo: No such host is known')
+        expect(subject).to receive(:fail_pending_vm).with(vm, pool, timeout)
 
         subject._check_pending_vm(vm, pool, timeout, vsphere)
       end
