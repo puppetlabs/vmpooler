@@ -29,6 +29,62 @@ describe 'Pool Manager' do
     end
   end
 
+  describe '#open_socket' do
+    let(:TCPSocket) { double('tcpsocket') }
+    let(:socket) { double('tcpsocket') }
+    let(:hostname) { 'host' }
+    let(:domain) { 'domain.local'}
+    let(:default_socket) { 22 }
+
+    before do
+      expect(subject).not_to be_nil
+      allow(socket).to receive(:close)
+    end
+
+    it 'opens socket with defaults' do
+      expect(TCPSocket).to receive(:new).with(hostname,default_socket).and_return(socket)
+
+      expect(subject.open_socket(hostname)).to eq(nil)
+    end
+
+    it 'yields the socket if a block is given' do
+      expect(TCPSocket).to receive(:new).with(hostname,default_socket).and_return(socket)
+
+      expect{ |socket| subject.open_socket(hostname,nil,nil,default_socket,&socket) }.to yield_control.exactly(1).times 
+    end
+
+    it 'closes the opened socket' do
+      expect(TCPSocket).to receive(:new).with(hostname,default_socket).and_return(socket)
+      expect(socket).to receive(:close)
+
+      expect(subject.open_socket(hostname)).to eq(nil)
+    end
+
+    it 'opens a specific socket' do
+      expect(TCPSocket).to receive(:new).with(hostname,80).and_return(socket)
+
+      expect(subject.open_socket(hostname,nil,nil,80)).to eq(nil)
+    end
+
+    it 'uses a specific domain with the hostname' do
+      expect(TCPSocket).to receive(:new).with("#{hostname}.#{domain}",default_socket).and_return(socket)
+
+      expect(subject.open_socket(hostname,domain)).to eq(nil)
+    end
+
+    it 'raises error if host is not resolvable' do
+      expect(TCPSocket).to receive(:new).with(hostname,default_socket).and_raise(SocketError,'getaddrinfo: No such host is known')
+
+      expect { subject.open_socket(hostname,nil,1) }.to raise_error(SocketError)
+    end
+
+    it 'raises error if socket is not listening' do
+      expect(TCPSocket).to receive(:new).with(hostname,default_socket).and_raise(SocketError,'No connection could be made because the target machine actively refused it')
+
+      expect { subject.open_socket(hostname,nil,1) }.to raise_error(SocketError)
+    end
+  end
+
   describe '#_check_pending_vm' do
     let(:pool_helper) { double('pool') }
     let(:vsphere) { {pool => pool_helper} }
