@@ -399,12 +399,10 @@ EOT
   end
 
   describe '#_check_running_vm' do
-    let(:pool_helper) { double('pool') }
-    let(:vsphere) { {pool => pool_helper} }
+    let(:vsphere) { double('vsphere') }
 
     before do
       expect(subject).not_to be_nil
-      $vsphere = vsphere
     end
 
     before(:each) do
@@ -421,7 +419,9 @@ EOT
     context 'valid host' do
       let(:vm_host) { double('vmhost') }
 
-      it 'does not move vm when not poweredOn' do
+     it 'should not move VM when not poweredOn' do
+        # I'm not sure this test is useful.  There is no codepath
+        # in _check_running_vm that looks at Power State
         allow(vsphere).to receive(:find_vm).and_return vm_host
         allow(vm_host).to receive(:runtime).and_return true
         allow(vm_host).to receive_message_chain(:runtime, :powerState).and_return 'poweredOff'
