@@ -2,6 +2,13 @@ require 'spec_helper'
 require 'time'
 require 'mock_redis'
 
+# Custom RSpec :Matchers
+
+# Match a Hashtable['name'] is an expected value
+RSpec::Matchers.define :a_pool_with_name_of do |value|
+  match { |actual| actual['name'] == value }
+end
+
 describe 'Pool Manager' do
   let(:logger) { MockLogger.new }
   let(:redis) { MockRedis.new }
@@ -933,6 +940,192 @@ EOT
       expect(parent_host).to receive(:name).and_return('vmhostname')
 
       expect(subject.get_vm_host_info(vm_object)).to eq([parent_host,'vmhostname'])
+    end
+  end
+
+  describe "#execute!" do
+    let(:threads) {{}}
+
+    let(:config) {
+      YAML.load(<<-EOT
+---
+:pools:
+  - name: #{pool}
+EOT
+      )
+    }
+
+    let(:thread) { double('thread') }
+
+    before do
+      expect(subject).not_to be_nil
+    end
+
+    context 'on startup' do
+      before(:each) do
+        allow(subject).to receive(:check_disk_queue)
+        allow(subject).to receive(:check_snapshot_queue)
+        allow(subject).to receive(:check_pool)
+        expect(logger).to receive(:log).with('d', 'starting vmpooler')
+      end
+
+      it 'should set clone tasks to zero' do
+        redis.set('vmpooler__tasks__clone', 1)
+        subject.execute!(1,0)
+        expect(redis.get('vmpooler__tasks__clone')).to eq('0')
+      end
+
+      it 'should clear migration tasks' do
+        redis.set('vmpooler__migration', 1)
+        subject.execute!(1,0)
+        expect(redis.get('vmpooler__migration')).to be_nil
+      end
+
+      it 'should run the check_disk_queue method' do
+        expect(subject).to receive(:check_disk_queue)
+
+        subject.execute!(1,0)
+      end
+
+      it 'should run the check_snapshot_queue method' do
+        expect(subject).to receive(:check_snapshot_queue)
+
+        subject.execute!(1,0)
+      end
+
+      it 'should check the pools in the config' do
+        expect(subject).to receive(:check_pool).with(a_pool_with_name_of(pool))
+
+        subject.execute!(1,0)
+      end
+    end
+
+    context 'with dead disk_manager thread' do
+      before(:each) do
+        allow(subject).to receive(:check_snapshot_queue)
+        allow(subject).to receive(:check_pool)
+        expect(logger).to receive(:log).with('d', 'starting vmpooler')
+      end
+
+      after(:each) do
+        # Reset the global variable - Note this is a code smell
+        $threads = nil
+      end
+
+      it 'should run the check_disk_queue method and log a message' do
+        expect(thread).to receive(:alive?).and_return(false)
+        expect(subject).to receive(:check_disk_queue)
+        expect(logger).to receive(:log).with('d', "[!] [disk_manager] worker thread died, restarting")
+        $threads['disk_manager'] = thread
+
+        subject.execute!(1,0)
+      end
+    end
+
+    context 'with dead snapshot_manager thread' do
+      before(:each) do
+        allow(subject).to receive(:check_disk_queue)
+        allow(subject).to receive(:check_pool)
+        expect(logger).to receive(:log).with('d', 'starting vmpooler')
+      end
+
+      after(:each) do
+        # Reset the global variable - Note this is a code smell
+        $threads = nil
+      end
+
+      it 'should run the check_snapshot_queue method and log a message' do
+        expect(thread).to receive(:alive?).and_return(false)
+        expect(subject).to receive(:check_snapshot_queue)
+        expect(logger).to receive(:log).with('d', "[!] [snapshot_manager] worker thread died, restarting")
+        $threads['snapshot_manager'] = thread
+
+        subject.execute!(1,0)
+      end
+    end
+
+    context 'with dead pool thread' do
+      before(:each) do
+        allow(subject).to receive(:check_disk_queue)
+        allow(subject).to receive(:check_snapshot_queue)
+        expect(logger).to receive(:log).with('d', 'starting vmpooler')
+      end
+
+      after(:each) do
+        # Reset the global variable - Note this is a code smell
+        $threads = nil
+      end
+
+      it 'should run the check_pool method and log a message' do
+        expect(thread).to receive(:alive?).and_return(false)
+        expect(subject).to receive(:check_pool).with(a_pool_with_name_of(pool))
+        expect(logger).to receive(:log).with('d', "[!] [#{pool}] worker thread died, restarting")
+        $threads[pool] = thread
+
+        subject.execute!(1,0)
+      end
+    end
+
+    context 'delays between loops' do
+      let(:maxloop) { 2 }
+      let(:loop_delay) { 1 }
+      # Note a maxloop of zero can not be tested as it never terminates
+      before(:each) do
+  
+        allow(subject).to receive(:check_disk_queue)
+        allow(subject).to receive(:check_snapshot_queue)
+        allow(subject).to receive(:check_pool)
+      end
+
+      it 'when a non-default loop delay is specified' do
+        start_time = Time.now
+        subject.execute!(maxloop,loop_delay)
+        finish_time = Time.now
+
+        # Use a generous delta to take into account various CPU load etc.
+        expect(finish_time - start_time).to be_within(0.75).of(maxloop * loop_delay)
+      end
+    end
+
+    context 'loops specified number of times (5)' do
+      let(:maxloop) { 5 }
+      # Note a maxloop of zero can not be tested as it never terminates
+      before(:each) do
+        end
+
+      after(:each) do
+        # Reset the global variable - Note this is a code smell
+        $threads = nil
+      end
+
+      it 'should run startup tasks only once' do
+        allow(subject).to receive(:check_disk_queue)
+        allow(subject).to receive(:check_snapshot_queue)
+        allow(subject).to receive(:check_pool)
+
+        subject.execute!(maxloop,0)
+      end
+
+      it 'should run per thread tasks 5 times when threads are not remembered' do
+        expect(subject).to receive(:check_disk_queue).exactly(maxloop).times
+        expect(subject).to receive(:check_snapshot_queue).exactly(maxloop).times
+        expect(subject).to receive(:check_pool).exactly(maxloop).times
+
+        subject.execute!(maxloop,0)
+      end
+
+      it 'should not run per thread tasks when threads are alive' do
+        expect(subject).to receive(:check_disk_queue).exactly(0).times
+        expect(subject).to receive(:check_snapshot_queue).exactly(0).times
+        expect(subject).to receive(:check_pool).exactly(0).times
+
+        allow(thread).to receive(:alive?).and_return(true)
+        $threads[pool] = thread
+        $threads['disk_manager'] = thread
+        $threads['snapshot_manager'] = thread
+
+        subject.execute!(maxloop,0)
+      end
     end
   end
 

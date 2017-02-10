@@ -714,7 +714,7 @@ module Vmpooler
       raise
     end
 
-    def execute!
+   def execute!(maxloop = 0, loop_delay = 1)
       $logger.log('d', 'starting vmpooler')
 
       # Clear out the tasks manager, as we don't know about any tasks at this point
@@ -722,6 +722,7 @@ module Vmpooler
       # Clear out vmpooler__migrations since stale entries may be left after a restart
       $redis.del('vmpooler__migration')
 
+      loop_count = 1
       loop do
         if ! $threads['disk_manager']
           check_disk_queue
@@ -746,7 +747,12 @@ module Vmpooler
           end
         end
 
-        sleep(1)
+        sleep(loop_delay)
+
+        unless maxloop.zero?
+          break if loop_count >= maxloop
+          loop_count = loop_count + 1
+        end
       end
     end
   end
