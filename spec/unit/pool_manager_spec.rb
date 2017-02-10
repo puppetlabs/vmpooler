@@ -1129,6 +1129,114 @@ EOT
     end
   end
 
+ describe "#check_pool" do
+    let(:threads) {{}}
+    let(:vsphere) {{}}
+
+    let(:config) {
+      YAML.load(<<-EOT
+---
+:pools:
+  - name: #{pool}
+EOT
+      )
+    }
+
+    let(:thread) { double('thread') }
+    let(:pool_object) { config[:pools][0] }
+
+    before do
+      expect(subject).not_to be_nil
+      expect(Thread).to receive(:new).and_yield
+    end
+
+    context 'on startup' do
+      before(:each) do
+        # Note the Vmpooler::VsphereHelper is not mocked
+        allow(subject).to receive(:_check_pool)        
+        expect(logger).to receive(:log).with('d', "[*] [#{pool}] starting worker thread")
+      end
+
+      after(:each) do
+        # Reset the global variable - Note this is a code smell
+        $threads = nil
+        $vsphere = nil
+      end
+
+      it 'should log a message the worker thread is starting' do
+        subject.check_pool(pool_object,1,0)
+      end
+
+      it 'should populate the vsphere global variable' do
+        subject.check_pool(pool_object,1,0)
+
+        expect($vsphere[pool]).to_not be_nil 
+      end
+
+      it 'should populate the threads global variable' do
+        subject.check_pool(pool_object,1,0)
+
+        # Unable to test for nil as the Thread is mocked
+        expect($threads.keys.include?(pool))
+      end
+    end
+
+    context 'delays between loops' do
+      let(:maxloop) { 2 }
+      let(:loop_delay) { 1 }
+      # Note a maxloop of zero can not be tested as it never terminates
+
+      before(:each) do
+        allow(logger).to receive(:log)
+        # Note the Vmpooler::VsphereHelper is not mocked
+        allow(subject).to receive(:_check_pool)        
+      end
+
+      after(:each) do
+        # Reset the global variable - Note this is a code smell
+        $threads = nil
+        $vsphere = nil
+      end
+
+      it 'when a non-default loop delay is specified' do
+        start_time = Time.now
+        subject.check_pool(pool_object,maxloop,loop_delay)
+        finish_time = Time.now
+
+        # Use a generous delta to take into account various CPU load etc.
+        expect(finish_time - start_time).to be_within(0.75).of(maxloop * loop_delay)
+      end
+    end
+
+    context 'loops specified number of times (5)' do
+      let(:maxloop) { 5 }
+      # Note a maxloop of zero can not be tested as it never terminates
+      before(:each) do
+        allow(logger).to receive(:log)
+        # Note the Vmpooler::VsphereHelper is not mocked
+        allow(subject).to receive(:_check_pool)        
+      end
+
+      after(:each) do
+        # Reset the global variable - Note this is a code smell
+        $threads = nil
+        $vsphere = nil
+      end
+
+      it 'should run startup tasks only once' do
+        expect(logger).to receive(:log).with('d', "[*] [#{pool}] starting worker thread")
+
+        subject.check_pool(pool_object,maxloop,0)
+      end
+
+      it 'should run per thread tasks 5 times' do
+        expect(subject).to receive(:_check_pool).exactly(maxloop).times
+
+        subject.check_pool(pool_object,maxloop,0)
+      end
+    end
+  end
+
   describe '#_check_pool' do
     let(:pool_helper) { double('pool') }
     let(:vsphere) { {pool => pool_helper} }

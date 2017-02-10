@@ -546,15 +546,21 @@ module Vmpooler
       finish
     end
 
-    def check_pool(pool)
+    def check_pool(pool,maxloop = 0, loop_delay = 5)
       $logger.log('d', "[*] [#{pool['name']}] starting worker thread")
 
       $vsphere[pool['name']] ||= Vmpooler::VsphereHelper.new $config, $metrics
 
       $threads[pool['name']] = Thread.new do
+        loop_count = 1
         loop do
           _check_pool(pool, $vsphere[pool['name']])
-          sleep(5)
+          sleep(loop_delay)
+
+          unless maxloop.zero?
+            break if loop_count >= maxloop
+            loop_count = loop_count + 1
+          end
         end
       end
     end
