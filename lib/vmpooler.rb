@@ -32,6 +32,19 @@ module Vmpooler
       parsed_config = YAML.load_file(config_file)
     end
 
+    # Bail out if someone attempts to start vmpooler with dummy authentication
+    # without enbaling debug mode.
+    if parsed_config[:auth]['provider'] == 'dummy'
+      unless ENV['VMPOOLER_DEBUG']
+        warning = [
+          "Dummy authentication should not be used outside of debug mode",
+          "please set environment variable VMPOOLER_DEBUG to 'true' if you want to use dummy authentication",
+        ]
+
+        raise warning.join(";\s")
+      end
+    end
+
     # Set some configuration defaults
     parsed_config[:redis]             ||= {}
     parsed_config[:redis]['server']   ||= 'localhost'
