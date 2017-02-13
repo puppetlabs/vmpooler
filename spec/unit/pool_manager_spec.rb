@@ -1761,54 +1761,6 @@ EOT
     end
   end
 
-  describe '#_stats_running_ready' do
-    let(:pool_helper) { double('pool') }
-    let(:vsphere) { {pool => pool_helper} }
-    let(:metrics) { Vmpooler::DummyStatsd.new }
-    let(:config) { {
-      config: { task_limit: 10 },
-      pools: [ {'name' => 'pool1', 'size' => 5} ],
-      graphite: { 'prefix' => 'vmpooler' }
-    } }
-
-    before do
-      expect(subject).not_to be_nil
-      $vsphere = vsphere
-      allow(logger).to receive(:log)
-      allow(pool_helper).to receive(:find_folder)
-      allow(redis).to receive(:smembers).and_return([])
-      allow(redis).to receive(:set)
-      allow(redis).to receive(:get).with('vmpooler__tasks__clone').and_return(0)
-      allow(redis).to receive(:get).with('vmpooler__empty__pool1').and_return(nil)
-    end
-
-    context 'metrics' do
-      subject { Vmpooler::PoolManager.new(config, logger, redis, metrics) }
-
-      it 'increments metrics' do
-        allow(redis).to receive(:scard).with('vmpooler__ready__pool1').and_return(1)
-        allow(redis).to receive(:scard).with('vmpooler__cloning__pool1').and_return(0)
-        allow(redis).to receive(:scard).with('vmpooler__pending__pool1').and_return(0)
-        allow(redis).to receive(:scard).with('vmpooler__running__pool1').and_return(5)
-
-        expect(metrics).to receive(:gauge).with('ready.pool1', 1)
-        expect(metrics).to receive(:gauge).with('running.pool1', 5)
-        subject._check_pool(config[:pools][0], vsphere)
-      end
-
-      it 'increments metrics when ready with 0 when pool empty' do
-        allow(redis).to receive(:scard).with('vmpooler__ready__pool1').and_return(0)
-        allow(redis).to receive(:scard).with('vmpooler__cloning__pool1').and_return(0)
-        allow(redis).to receive(:scard).with('vmpooler__pending__pool1').and_return(0)
-        allow(redis).to receive(:scard).with('vmpooler__running__pool1').and_return(5)
-
-        expect(metrics).to receive(:gauge).with('ready.pool1', 0)
-        expect(metrics).to receive(:gauge).with('running.pool1', 5)
-        subject._check_pool(config[:pools][0], vsphere)
-      end
-    end
-  end
-
   describe '#_create_vm_snapshot' do
     let(:snapshot_manager) { 'snapshot_manager' }
     let(:pool_helper) { double('snapshot_manager') }
