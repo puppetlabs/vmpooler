@@ -3,8 +3,8 @@ require 'time'
 require 'mock_redis'
 
 describe 'Pool Manager' do
-  let(:logger) { double('logger') }
-  let(:redis) { double('redis') }
+  let(:logger) { MockLogger.new }
+  let(:redis) { MockRedis.new }
   let(:metrics) { Vmpooler::DummyStatsd.new }
   let(:config) { {} }
   let(:pool) { 'pool1' }
