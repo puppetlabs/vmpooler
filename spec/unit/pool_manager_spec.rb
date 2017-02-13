@@ -504,26 +504,6 @@ EOT
     end
   end
 
-  describe '#move_running_to_completed' do
-    before do
-      expect(subject).not_to be_nil
-    end
-
-    it 'uses the pool in smove' do
-      allow(redis).to receive(:smove).with(String, String, String)
-      allow(logger).to receive(:log)
-      expect(redis).to receive(:smove).with('vmpooler__running__p1', 'vmpooler__completed__p1', 'vm1')
-      subject.move_vm_queue('p1', 'vm1', 'running', 'completed', 'msg')
-    end
-
-    it 'logs msg' do
-      allow(redis).to receive(:smove)
-      allow(logger).to receive(:log)
-      expect(logger).to receive(:log).with('d', "[!] [p1] 'vm1' a msg here")
-      subject.move_vm_queue('p1', 'vm1', 'running', 'completed', 'a msg here')
-    end
-  end
-
   describe '#clone_vm' do
     before do
       expect(subject).not_to be_nil
