@@ -955,6 +955,21 @@ EOT
     end
   end
 
+  describe '#migrate_vm' do
+    let(:vsphere) { double('vsphere') }
+
+    before do
+      expect(subject).not_to be_nil
+    end
+
+    it 'calls _migrate_vm' do
+      expect(Thread).to receive(:new).and_yield
+      expect(subject).to receive(:_migrate_vm).with(vm, pool, vsphere)
+
+      subject.migrate_vm(vm, pool, vsphere)
+    end
+  end
+
   describe "#get_vm_host_info" do
     before do
       expect(subject).not_to be_nil
