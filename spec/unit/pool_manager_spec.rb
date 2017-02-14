@@ -955,6 +955,28 @@ EOT
     end
   end
 
+  describe '#migration_limit' do
+    # This is a little confusing.  Is this supposed to return a boolean
+    # or integer type?
+    [false,0].each do |testvalue|
+      it "should return false for an input of #{testvalue}" do
+        expect(subject.migration_limit(testvalue)).to eq(false)
+      end
+    end
+
+    [1,32768].each do |testvalue|
+      it "should return #{testvalue} for an input of #{testvalue}" do
+        expect(subject.migration_limit(testvalue)).to eq(testvalue)
+      end
+    end
+
+    [-1,-32768].each do |testvalue|
+      it "should return nil for an input of #{testvalue}" do
+        expect(subject.migration_limit(testvalue)).to be_nil
+      end
+    end
+  end
+
   describe '#migrate_vm' do
     let(:vsphere) { double('vsphere') }
 
