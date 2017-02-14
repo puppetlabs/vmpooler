@@ -907,6 +907,22 @@ EOT
     end
   end
 
+  describe '#create_vm_disk' do
+    let(:vsphere) { double('vsphere') }
+    let(:disk_size) { 15 }
+
+    before do
+      expect(subject).not_to be_nil
+    end
+
+    it 'calls _create_vm_disk' do
+      expect(Thread).to receive(:new).and_yield
+      expect(subject).to receive(:_create_vm_disk).with(vm, disk_size, vsphere)
+
+      subject.create_vm_disk(vm, disk_size, vsphere)
+    end
+  end
+
   describe "#get_vm_host_info" do
     before do
       expect(subject).not_to be_nil
