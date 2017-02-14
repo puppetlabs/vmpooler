@@ -923,6 +923,22 @@ EOT
     end
   end
 
+  describe '#create_vm_snapshot' do
+    let(:vsphere) { double('vsphere') }
+    let(:snapshot_name) { 'snapshot' }
+
+    before do
+      expect(subject).not_to be_nil
+    end
+
+    it 'calls _create_vm_snapshot' do
+      expect(Thread).to receive(:new).and_yield
+      expect(subject).to receive(:_create_vm_snapshot).with(vm, snapshot_name, vsphere)
+
+      subject.create_vm_snapshot(vm, snapshot_name, vsphere)
+    end
+  end
+
   describe "#get_vm_host_info" do
     before do
       expect(subject).not_to be_nil
