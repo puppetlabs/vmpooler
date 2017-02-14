@@ -1302,6 +1302,25 @@ EOT
     end
   end
 
+  describe '#remove_vmpooler_migration_vm' do
+    before do
+      expect(subject).not_to be_nil
+    end
+
+    it 'should remove the migration from redis' do
+      redis.sadd('vmpooler__migration', vm)
+      expect(redis.sismember('vmpooler__migration',vm)).to be(true)
+      subject.remove_vmpooler_migration_vm(pool, vm)
+      expect(redis.sismember('vmpooler__migration',vm)).to be(false)
+    end
+
+    it 'should log a message and swallow an error if one occurs' do
+      expect(redis).to receive(:srem).and_raise(RuntimeError,'MockError')
+      expect(logger).to receive(:log).with('s', "[x] [#{pool}] '#{vm}' removal from vmpooler__migration failed with an error: MockError")
+      subject.remove_vmpooler_migration_vm(pool, vm)
+    end
+  end
+
   describe '#_check_pool' do
     # Default test fixtures will consist of;
     #   - Empty Redis dataset
