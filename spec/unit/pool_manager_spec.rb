@@ -1321,6 +1321,50 @@ EOT
     end
   end
 
+  describe '#migrate_vm_and_record_timing' do
+    let(:vsphere) { double('vsphere') }
+    let(:vm_object) { double('vm_object') }
+    let(:source_host_name) { 'source_host' }
+    let(:dest_host_name) { 'dest_host' }
+
+    before do
+      expect(subject).not_to be_nil
+    end
+
+    before(:each) do
+      create_vm(vm,token)
+      expect(vsphere).to receive(:migrate_vm_host).with(vm_object, host)
+    end
+
+    it 'should return the elapsed time for the migration' do
+      result = subject.migrate_vm_and_record_timing(vm_object, vm, pool, host, source_host_name, dest_host_name, vsphere)
+      expect(result).to match(/0\.[\d]+/)
+    end
+
+    it 'should add timing metric' do
+      expect(metrics).to receive(:timing).with("migrate.#{pool}",String)
+      subject.migrate_vm_and_record_timing(vm_object, vm, pool, host, source_host_name, dest_host_name, vsphere)
+    end
+
+    it 'should increment from_host and to_host metric' do
+      expect(metrics).to receive(:increment).with("migrate_from.#{source_host_name}")
+      expect(metrics).to receive(:increment).with("migrate_to.#{dest_host_name}")
+      subject.migrate_vm_and_record_timing(vm_object, vm, pool, host, source_host_name, dest_host_name, vsphere)
+    end
+
+    it 'should set migration_time metric in redis' do
+      expect(redis.hget("vmpooler__vm__#{vm}", 'migration_time')).to be_nil
+      subject.migrate_vm_and_record_timing(vm_object, vm, pool, host, source_host_name, dest_host_name, vsphere)
+      expect(redis.hget("vmpooler__vm__#{vm}", 'migration_time')).to match(/0\.[\d]+/)
+    end
+
+    it 'should set checkout_to_migration metric in redis' do
+      expect(redis.hget("vmpooler__vm__#{vm}", 'checkout_to_migration')).to be_nil
+      subject.migrate_vm_and_record_timing(vm_object, vm, pool, host, source_host_name, dest_host_name, vsphere)
+      expect(redis.hget("vmpooler__vm__#{vm}", 'checkout_to_migration')).to match(/0\.[\d]+/)
+    end
+  end
+
   describe '#_check_pool' do
     # Default test fixtures will consist of;
     #   - Empty Redis dataset
