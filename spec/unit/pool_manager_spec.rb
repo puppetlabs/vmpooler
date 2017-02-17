@@ -1095,6 +1095,46 @@ EOT
     end
   end
 
+  describe '#_revert_vm_snapshot' do
+    let(:vsphere) { double('vsphere') }
+    let(:snapshot_name) { 'snapshot1' }
+    let(:snapshot_object) { double('snapshot_object') }
+
+    before do
+      expect(subject).not_to be_nil
+    end
+
+    before(:each) do
+      allow(vsphere).to receive(:find_vm).with(vm).and_return(host)
+      allow(snapshot_object).to receive_message_chain(:RevertToSnapshot_Task, :wait_for_completion)
+      allow(vsphere).to receive(:find_snapshot).with(host,snapshot_name).and_return(snapshot_object)
+    end
+
+    it 'should not do anything if the VM does not exist' do
+      expect(vsphere).to receive(:find_vm).with(vm).and_return(nil)
+      expect(logger).to receive(:log).exactly(0).times
+      subject._revert_vm_snapshot(vm, snapshot_name, vsphere)
+    end
+
+    it 'should not do anything if the snapshot name is nil' do
+      expect(logger).to receive(:log).exactly(0).times
+      expect(vsphere).to receive(:find_snapshot).with(host,nil).and_return nil
+      subject._revert_vm_snapshot(vm, nil, vsphere)
+    end
+
+    it 'should not do anything if the snapshot name is empty string' do
+      expect(logger).to receive(:log).exactly(0).times
+      expect(vsphere).to receive(:find_snapshot).with(host,'').and_return nil
+      subject._revert_vm_snapshot(vm, '', vsphere)
+    end
+
+    it 'should invoke vSphere to revert the VM to the snapshot' do
+      expect(logger).to receive(:log).with('s', "[ ] [snapshot_manager] '#{vm}' is being reverted to snapshot '#{snapshot_name}'")
+      expect(logger).to receive(:log).with('s', /\[\<\] \[snapshot_manager\] '#{vm}' reverted to snapshot in 0\.[\d]+ seconds/)
+      subject._revert_vm_snapshot(vm, snapshot_name, vsphere)
+    end
+  end
+
   describe '#check_disk_queue' do
     let(:threads) {[]}
 
@@ -2291,32 +2331,6 @@ EOT
 
           subject._check_pool(pool_object,vsphere)
         end
-      end
-    end
-  end
-
-  describe '#_revert_vm_snapshot' do
-    let(:snapshot_manager) { 'snapshot_manager' }
-    let(:pool_helper) { double('snapshot_manager') }
-    let(:vsphere) { {snapshot_manager => pool_helper} }
-
-    before do
-      expect(subject).not_to be_nil
-      $vsphere = vsphere
-    end
-
-    context '(valid host)' do
-      let(:vm_host) { double('vmhost') }
-      let(:vm_snapshot) { double('vmsnapshot') }
-
-      it 'reverts a snapshot' do
-        expect(vsphere).to receive(:find_vm).and_return vm_host
-        expect(vsphere).to receive(:find_snapshot).and_return vm_snapshot
-        expect(logger).to receive(:log)
-        expect(vm_snapshot).to receive_message_chain(:RevertToSnapshot_Task, :wait_for_completion)
-        expect(logger).to receive(:log)
-
-        subject._revert_vm_snapshot('testvm', 'testsnapshot', vsphere)
       end
     end
   end
