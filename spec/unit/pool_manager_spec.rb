@@ -1034,6 +1034,51 @@ EOT
     end
   end
 
+  describe '#_create_vm_snapshot' do
+    let(:vsphere) { double('vsphere') }
+    let(:snapshot_name) { 'snapshot1' }
+    let(:snapshot_task) { double('snapshot_task') }
+
+    before do
+      expect(subject).not_to be_nil
+    end
+
+    before(:each) do
+      allow(vsphere).to receive(:find_vm).with(vm).and_return(host)
+      allow(snapshot_task).to receive(:wait_for_completion).and_return(nil)
+      allow(host).to receive(:CreateSnapshot_Task).with({:name=>snapshot_name, :description=>"vmpooler", :memory=>true, :quiesce=>true}).and_return(snapshot_task)
+      create_running_vm(pool,vm,token)
+    end
+
+    it 'should not do anything if the VM does not exist' do
+      expect(vsphere).to receive(:find_vm).with(vm).and_return(nil)
+      expect(logger).to receive(:log).exactly(0).times
+      subject._create_vm_snapshot(vm, snapshot_name, vsphere)
+    end
+
+    it 'should not do anything if the snapshot name is nil' do
+      expect(logger).to receive(:log).exactly(0).times
+      subject._create_vm_snapshot(vm, nil, vsphere)
+    end
+
+    it 'should not do anything if the snapshot name is empty string' do
+      expect(logger).to receive(:log).exactly(0).times
+      subject._create_vm_snapshot(vm, '', vsphere)
+    end
+
+    it 'should invoke vSphere to snapshot the VM' do
+      expect(logger).to receive(:log).with('s', "[ ] [snapshot_manager] '#{vm}' is being snapshotted")
+      expect(logger).to receive(:log).with('s', /\[\+\] \[snapshot_manager\] '#{vm}' snapshot created in 0.[\d]+ seconds/)
+      subject._create_vm_snapshot(vm, snapshot_name, vsphere)
+    end
+
+    it 'should add snapshot redis information' do
+      expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to be_nil
+      subject._create_vm_snapshot(vm, snapshot_name, vsphere)
+      expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to_not be_nil
+    end
+  end
+
   describe '#revert_vm_snapshot' do
     let(:vsphere) { double('vsphere') }
     let(:snapshot_name) { 'snapshot' }
@@ -2246,31 +2291,6 @@ EOT
 
           subject._check_pool(pool_object,vsphere)
         end
-      end
-    end
-  end
-
-  describe '#_create_vm_snapshot' do
-    let(:snapshot_manager) { 'snapshot_manager' }
-    let(:pool_helper) { double('snapshot_manager') }
-    let(:vsphere) { {snapshot_manager => pool_helper} }
-
-    before do
-      expect(subject).not_to be_nil
-      $vsphere = vsphere
-    end
-
-    context '(valid host)' do
-      let(:vm_host) { double('vmhost') }
-
-      it 'creates a snapshot' do
-        expect(vsphere).to receive(:find_vm).and_return vm_host
-        expect(logger).to receive(:log)
-        expect(vm_host).to receive_message_chain(:CreateSnapshot_Task, :wait_for_completion)
-        expect(redis).to receive(:hset).with('vmpooler__vm__testvm', 'snapshot:testsnapshot', Time.now.to_s)
-        expect(logger).to receive(:log)
-
-        subject._create_vm_snapshot('testvm', 'testsnapshot', vsphere)
       end
     end
   end
