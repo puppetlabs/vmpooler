@@ -1021,6 +1021,45 @@ EOT
     end
   end
 
+  describe '#_check_disk_queue' do
+    let(:vsphere) { double('vsphere') }
+
+    before do
+      expect(subject).not_to be_nil
+    end
+
+    context 'when no VMs in the queue' do
+      it 'should not call create_vm_disk' do
+        expect(subject).to receive(:create_vm_disk).exactly(0).times
+        subject._check_disk_queue(vsphere)
+      end
+    end
+
+    context 'when multiple VMs in the queue' do
+      before(:each) do
+        disk_task_vm('vm1',1)
+        disk_task_vm('vm2',2)
+        disk_task_vm('vm3',3)
+      end
+
+      it 'should call create_vm_disk once' do
+        expect(subject).to receive(:create_vm_disk).exactly(1).times
+        subject._check_disk_queue(vsphere)
+      end
+
+      it 'should snapshot the first VM in the queue' do
+        expect(subject).to receive(:create_vm_disk).with('vm1','1',vsphere)
+        subject._check_disk_queue(vsphere)
+      end
+
+      it 'should log an error if one occurs' do
+        expect(subject).to receive(:create_vm_disk).and_raise(RuntimeError,'MockError')
+        expect(logger).to receive(:log).with('s', "[!] [disk_manager] disk creation appears to have failed")
+        subject._check_disk_queue(vsphere)
+      end
+    end
+  end
+
   describe '#check_snapshot_queue' do
     let(:threads) {[]}
 
