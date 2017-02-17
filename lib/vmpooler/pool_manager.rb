@@ -443,15 +443,21 @@ module Vmpooler
       end
     end
 
-    def check_snapshot_queue
+    def check_snapshot_queue(maxloop = 0, loop_delay = 5)
       $logger.log('d', "[*] [snapshot_manager] starting worker thread")
 
       $vsphere['snapshot_manager'] ||= Vmpooler::VsphereHelper.new $config, $metrics
 
       $threads['snapshot_manager'] = Thread.new do
+        loop_count = 1
         loop do
           _check_snapshot_queue $vsphere['snapshot_manager']
-          sleep(5)
+          sleep(loop_delay)
+
+          unless maxloop.zero?
+            break if loop_count >= maxloop
+            loop_count = loop_count + 1
+          end
         end
       end
     end
