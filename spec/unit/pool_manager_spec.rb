@@ -1418,6 +1418,162 @@ EOT
     end
   end
 
+  describe "#_migrate_vm" do
+    let(:vsphere) { double('vsphere') }
+    let(:vm_parent_hostname) { 'parent1' }
+    let(:config) {
+      YAML.load(<<-EOT
+---
+:config:
+  migration_limit: 5
+:pools:
+  - name: #{pool}
+EOT
+      )
+    }
+
+    before do
+      expect(subject).not_to be_nil
+    end
+
+    context 'when an error occurs' do
+      it 'should log an error message and attempt to remove from vmpooler_migration queue' do
+        expect(vsphere).to receive(:find_vm).with(vm).and_raise(RuntimeError,'MockError')
+        expect(logger).to receive(:log).with('s', "[x] [#{pool}] '#{vm}' migration failed with an error: MockError")
+        expect(subject).to receive(:remove_vmpooler_migration_vm)
+        subject._migrate_vm(vm, pool, vsphere)
+      end
+    end
+
+    context 'when VM does not exist' do
+      it 'should log an error message when VM does not exist' do
+        expect(vsphere).to receive(:find_vm).with(vm).and_return(nil)
+        # This test is quite fragile.  Should refactor the code to make this scenario easier to detect
+        expect(logger).to receive(:log).with('s', "[x] [#{pool}] '#{vm}' migration failed with an error: undefined method `summary' for nil:NilClass")
+        subject._migrate_vm(vm, pool, vsphere)
+      end
+    end
+
+    context 'when VM exists but migration is disabled' do
+      before(:each) do
+        expect(vsphere).to receive(:find_vm).with(vm).and_return(host)
+        allow(subject).to receive(:get_vm_host_info).with(host).and_return([{'name' => vm_parent_hostname}, vm_parent_hostname])
+        create_migrating_vm(vm, pool)
+      end
+
+      [-1,-32768,false,0].each do |testvalue|
+        it "should not migrate a VM if the migration limit is #{testvalue}" do
+          config[:config]['migration_limit'] = testvalue
+          expect(logger).to receive(:log).with('s', "[ ] [#{pool}] '#{vm}' is running on #{vm_parent_hostname}")
+          subject._migrate_vm(vm, pool, vsphere)
+        end
+
+        it "should remove the VM from vmpooler__migrating queue in redis if the migration limit is #{testvalue}" do
+          redis.sadd("vmpooler__migrating__#{pool}", vm)
+          config[:config]['migration_limit'] = testvalue
+
+          expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_truthy
+          subject._migrate_vm(vm, pool, vsphere)
+          expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_falsey
+        end
+      end
+    end
+
+    context 'when VM exists but migration limit is reached' do
+      before(:each) do
+        expect(vsphere).to receive(:find_vm).with(vm).and_return(host)
+        allow(subject).to receive(:get_vm_host_info).with(host).and_return([{'name' => vm_parent_hostname}, vm_parent_hostname])
+
+        create_migrating_vm(vm, pool)
+        redis.sadd('vmpooler__migration', 'fakevm1')
+        redis.sadd('vmpooler__migration', 'fakevm2')
+        redis.sadd('vmpooler__migration', 'fakevm3')
+        redis.sadd('vmpooler__migration', 'fakevm4')
+        redis.sadd('vmpooler__migration', 'fakevm5')
+      end
+
+      it "should not migrate a VM if the migration limit is reached" do
+        expect(logger).to receive(:log).with('s',"[ ] [#{pool}] '#{vm}' is running on #{vm_parent_hostname}. No migration will be evaluated since the migration_limit has been reached")
+        subject._migrate_vm(vm, pool, vsphere)
+      end
+
+      it "should remove the VM from vmpooler__migrating queue in redis if the migration limit is reached" do
+        expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_truthy
+        subject._migrate_vm(vm, pool, vsphere)
+        expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_falsey
+      end
+    end
+
+    context 'when VM exists but migration limit is not yet reached' do
+      before(:each) do
+        expect(vsphere).to receive(:find_vm).with(vm).and_return(host)
+        allow(subject).to receive(:get_vm_host_info).with(host).and_return([{'name' => vm_parent_hostname}, vm_parent_hostname])
+
+        create_migrating_vm(vm, pool)
+        redis.sadd('vmpooler__migration', 'fakevm1')
+        redis.sadd('vmpooler__migration', 'fakevm2')
+      end
+
+      context 'and host to migrate to is the same as the current host' do
+        before(:each) do
+          expect(vsphere).to receive(:find_least_used_compatible_host).with(host).and_return([{'name' => vm_parent_hostname}, vm_parent_hostname])
+        end
+
+        it "should not migrate the VM" do
+          expect(logger).to receive(:log).with('s', "[ ] [#{pool}] No migration required for '#{vm}' running on #{vm_parent_hostname}")
+          subject._migrate_vm(vm, pool, vsphere)
+        end
+
+        it "should remove the VM from vmpooler__migrating queue in redis" do
+          expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_truthy
+          subject._migrate_vm(vm, pool, vsphere)
+          expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_falsey
+        end
+
+        it "should not change the vmpooler_migration queue count" do
+          before_count = redis.scard('vmpooler__migration')
+          subject._migrate_vm(vm, pool, vsphere)
+          expect(redis.scard('vmpooler__migration')).to eq(before_count)
+        end
+
+        it "should call remove_vmpooler_migration_vm" do
+          expect(subject).to receive(:remove_vmpooler_migration_vm)
+          subject._migrate_vm(vm, pool, vsphere)
+        end
+      end
+
+      context 'and host to migrate to different to the current host' do
+        let(:vm_new_hostname) { 'new_hostname' }
+        before(:each) do
+          expect(vsphere).to receive(:find_least_used_compatible_host).with(host).and_return([{'name' => vm_new_hostname}, vm_new_hostname])
+          expect(subject).to receive(:migrate_vm_and_record_timing).with(host, vm, pool, Object, vm_parent_hostname, vm_new_hostname, vsphere).and_return('1.00')
+        end
+
+        it "should migrate the VM" do
+          expect(logger).to receive(:log).with('s', "[>] [#{pool}] '#{vm}' migrated from #{vm_parent_hostname} to #{vm_new_hostname} in 1.00 seconds")
+          subject._migrate_vm(vm, pool, vsphere)
+        end
+
+        it "should remove the VM from vmpooler__migrating queue in redis" do
+          expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_truthy
+          subject._migrate_vm(vm, pool, vsphere)
+          expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_falsey
+        end
+
+        it "should not change the vmpooler_migration queue count" do
+          before_count = redis.scard('vmpooler__migration')
+          subject._migrate_vm(vm, pool, vsphere)
+          expect(redis.scard('vmpooler__migration')).to eq(before_count)
+        end
+
+        it "should call remove_vmpooler_migration_vm" do
+          expect(subject).to receive(:remove_vmpooler_migration_vm)
+          subject._migrate_vm(vm, pool, vsphere)
+        end
+      end
+    end
+  end
+
   describe "#get_vm_host_info" do
     before do
       expect(subject).not_to be_nil
