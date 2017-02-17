@@ -412,15 +412,20 @@ module Vmpooler
       end
     end
 
-    def check_disk_queue
+    def check_disk_queue(maxloop = 0, loop_delay = 5)
       $logger.log('d', "[*] [disk_manager] starting worker thread")
 
       $vsphere['disk_manager'] ||= Vmpooler::VsphereHelper.new $config, $metrics
-
       $threads['disk_manager'] = Thread.new do
+        loop_count = 1
         loop do
           _check_disk_queue $vsphere['disk_manager']
-          sleep(5)
+          sleep(loop_delay)
+
+          unless maxloop.zero?
+            break if loop_count >= maxloop
+            loop_count = loop_count + 1
+          end
         end
       end
     end

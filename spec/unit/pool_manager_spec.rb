@@ -955,6 +955,72 @@ EOT
     end
   end
 
+  describe '#check_disk_queue' do
+    let(:threads) {[]}
+
+    before(:each) do
+      expect(Thread).to receive(:new).and_yield
+      allow(subject).to receive(:_check_disk_queue)
+    end
+
+    it 'should log the disk manager is starting' do
+      expect(logger).to receive(:log).with('d', "[*] [disk_manager] starting worker thread")
+
+      expect($threads.count).to be(0)
+      subject.check_disk_queue(1,0)
+      expect($threads.count).to be(1)
+    end
+
+    it 'should add the manager to the global thread list' do
+      # Note - Ruby core types are not necessarily thread safe
+      expect($threads.count).to be(0)
+      subject.check_disk_queue(1,0)
+      expect($threads.count).to be(1)
+    end
+
+    it 'should call _check_disk_queue' do
+      expect(subject).to receive(:_check_disk_queue).with(Vmpooler::VsphereHelper)
+
+      subject.check_disk_queue(1,0)
+    end
+
+    context 'delays between loops' do
+      let(:maxloop) { 2 }
+      let(:loop_delay) { 1 }
+      # Note a maxloop of zero can not be tested as it never terminates
+
+      it 'defaults to 5 second loop delay' do
+        expect(subject).to receive(:sleep).with(5).exactly(maxloop).times
+        subject.check_disk_queue(maxloop)
+      end
+
+      it 'when a non-default loop delay is specified' do
+        start_time = Time.now
+        subject.check_disk_queue(maxloop,loop_delay)
+        finish_time = Time.now
+
+        # Use a generous delta to take into account various CPU load etc.
+        expect(finish_time - start_time).to be_within(0.75).of(maxloop * loop_delay)
+      end
+    end
+
+    context 'loops specified number of times (5)' do
+      let(:maxloop) { 5 }
+      # Note a maxloop of zero can not be tested as it never terminates
+
+      after(:each) do
+        # Reset the global variable - Note this is a code smell
+        $threads = nil
+      end
+
+      it 'should call _check_disk_queue 5 times' do
+        expect(subject).to receive(:_check_disk_queue).with(Vmpooler::VsphereHelper).exactly(maxloop).times
+
+        subject.check_disk_queue(maxloop,0)
+      end
+    end
+  end
+
   describe '#migration_limit' do
     # This is a little confusing.  Is this supposed to return a boolean
     # or integer type?
