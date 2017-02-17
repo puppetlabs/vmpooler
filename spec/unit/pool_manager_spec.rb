@@ -1087,6 +1087,81 @@ EOT
     end
   end
 
+  describe '#_check_snapshot_queue' do
+    let(:vsphere) { double('vsphere') }
+
+    before do
+      expect(subject).not_to be_nil
+    end
+
+    context 'vmpooler__tasks__snapshot queue' do
+      context 'when no VMs in the queue' do
+        it 'should not call create_vm_snapshot' do
+          expect(subject).to receive(:create_vm_snapshot).exactly(0).times
+          subject._check_snapshot_queue(vsphere)
+        end
+      end
+
+      context 'when multiple VMs in the queue' do
+        before(:each) do
+          snapshot_vm('vm1','snapshot1')
+          snapshot_vm('vm2','snapshot2')
+          snapshot_vm('vm3','snapshot3')
+        end
+
+        it 'should call create_vm_snapshot once' do
+          expect(subject).to receive(:create_vm_snapshot).exactly(1).times
+          subject._check_snapshot_queue(vsphere)
+        end
+
+        it 'should snapshot the first VM in the queue' do
+          expect(subject).to receive(:create_vm_snapshot).with('vm1','snapshot1',vsphere)
+          subject._check_snapshot_queue(vsphere)
+        end
+
+        it 'should log an error if one occurs' do
+          expect(subject).to receive(:create_vm_snapshot).and_raise(RuntimeError,'MockError')
+          expect(logger).to receive(:log).with('s', "[!] [snapshot_manager] snapshot appears to have failed")
+          subject._check_snapshot_queue(vsphere)
+        end
+      end
+    end
+
+    context 'revert_vm_snapshot queue' do
+      context 'when no VMs in the queue' do
+        it 'should not call revert_vm_snapshot' do
+          expect(subject).to receive(:revert_vm_snapshot).exactly(0).times
+          subject._check_snapshot_queue(vsphere)
+        end
+      end
+
+      context 'when multiple VMs in the queue' do
+        before(:each) do
+          snapshot_revert_vm('vm1','snapshot1')
+          snapshot_revert_vm('vm2','snapshot2')
+          snapshot_revert_vm('vm3','snapshot3')
+        end
+
+        it 'should call revert_vm_snapshot once' do
+          expect(subject).to receive(:revert_vm_snapshot).exactly(1).times
+          subject._check_snapshot_queue(vsphere)
+        end
+
+        it 'should revert snapshot the first VM in the queue' do
+          expect(subject).to receive(:revert_vm_snapshot).with('vm1','snapshot1',vsphere)
+          subject._check_snapshot_queue(vsphere)
+        end
+
+        it 'should log an error if one occurs' do
+          expect(subject).to receive(:revert_vm_snapshot).and_raise(RuntimeError,'MockError')
+          expect(logger).to receive(:log).with('s', "[!] [snapshot_manager] snapshot revert appears to have failed")
+          subject._check_snapshot_queue(vsphere)
+        end
+      end
+    end
+  end
+
+
   describe '#migration_limit' do
     # This is a little confusing.  Is this supposed to return a boolean
     # or integer type?
