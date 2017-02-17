@@ -923,6 +923,101 @@ EOT
     end
   end
 
+  describe "#_create_vm_disk" do
+    let(:vsphere) { double('vsphere') }
+    let(:disk_size) { '15' }
+    let(:datastore) { 'datastore0'}
+    let(:config) {
+      YAML.load(<<-EOT
+---
+:pools:
+  - name: #{pool}
+    datastore: '#{datastore}'
+EOT
+      )
+    }
+
+    before do
+      expect(subject).not_to be_nil
+    end
+
+    before(:each) do
+      allow(vsphere).to receive(:find_vm).with(vm).and_return(host)
+      create_running_vm(pool,vm,token)
+    end
+
+    it 'should not do anything if the VM does not exist' do
+      expect(vsphere).to receive(:find_vm).with(vm).and_return(nil)
+      expect(logger).to receive(:log).exactly(0).times
+      subject._create_vm_disk(vm, disk_size, vsphere)
+    end
+
+    it 'should not do anything if the disk size is nil' do
+      expect(logger).to receive(:log).exactly(0).times
+      subject._create_vm_disk(vm, nil, vsphere)
+    end
+
+    it 'should not do anything if the disk size is empty string' do
+      expect(logger).to receive(:log).exactly(0).times
+      subject._create_vm_disk(vm, '', vsphere)
+    end
+
+    it 'should not do anything if the disk size is less than 1' do
+      expect(logger).to receive(:log).exactly(0).times
+      subject._create_vm_disk(vm, '0', vsphere)
+    end
+
+    it 'should not do anything if the disk size cannot be converted to an integer' do
+      expect(logger).to receive(:log).exactly(0).times
+      subject._create_vm_disk(vm, 'abc123', vsphere)
+    end
+
+    it 'should raise an error if the disk size is a Fixnum' do
+      expect(logger).to receive(:log).exactly(0).times
+      expect{ subject._create_vm_disk(vm, 10, vsphere) }.to raise_error(NoMethodError,/empty?/)
+    end
+
+    it 'should not do anything if the datastore for pool is nil' do
+      expect(logger).to receive(:log).with('s', "[ ] [disk_manager] '#{vm}' is attaching a #{disk_size}gb disk")
+      expect(logger).to receive(:log).with('s', "[+] [disk_manager] '#{vm}' failed to attach disk")
+      config[:pools][0]['datastore'] = nil
+
+      subject._create_vm_disk(vm, disk_size, vsphere)
+    end
+
+    it 'should not do anything if the datastore for pool is empty' do
+      expect(logger).to receive(:log).with('s', "[ ] [disk_manager] '#{vm}' is attaching a #{disk_size}gb disk")
+      expect(logger).to receive(:log).with('s', "[+] [disk_manager] '#{vm}' failed to attach disk")
+      config[:pools][0]['datastore'] = ''
+
+      subject._create_vm_disk(vm, disk_size, vsphere)
+    end
+
+    it 'should attach the disk' do
+      expect(logger).to receive(:log).with('s', "[ ] [disk_manager] '#{vm}' is attaching a #{disk_size}gb disk")
+      expect(logger).to receive(:log).with('s', /\[\+\] \[disk_manager\] '#{vm}' attached #{disk_size}gb disk in 0.[\d]+ seconds/)
+      expect(vsphere).to receive(:add_disk).with(host,disk_size,datastore)
+
+      subject._create_vm_disk(vm, disk_size, vsphere)
+    end
+
+    it 'should update redis information when attaching the first disk' do
+      expect(vsphere).to receive(:add_disk).with(host,disk_size,datastore)
+
+      subject._create_vm_disk(vm, disk_size, vsphere)
+      expect(redis.hget("vmpooler__vm__#{vm}", 'disk')).to eq("+#{disk_size}gb")
+    end
+
+    it 'should update redis information when attaching the additional disks' do
+      expect(vsphere).to receive(:add_disk).with(host,disk_size,datastore)
+      initial_disks = '+10gb:+20gb'
+      redis.hset("vmpooler__vm__#{vm}", 'disk', initial_disks)
+
+      subject._create_vm_disk(vm, disk_size, vsphere)
+      expect(redis.hget("vmpooler__vm__#{vm}", 'disk')).to eq("#{initial_disks}:+#{disk_size}gb")
+    end
+  end
+
   describe '#create_vm_snapshot' do
     let(:vsphere) { double('vsphere') }
     let(:snapshot_name) { 'snapshot' }
