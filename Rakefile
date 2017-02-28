@@ -1,5 +1,7 @@
 require 'rspec/core/rake_task'
-require 'rubocop/rake_task'
+
+rubocop_available = Gem::Specification::find_all_by_name('rubocop').any?
+require 'rubocop/rake_task' if rubocop_available
 
 desc 'Run rspec tests with coloring.'
 RSpec::Core::RakeTask.new(:test) do |t|
@@ -13,9 +15,11 @@ RSpec::Core::RakeTask.new(:junit) do |t|
   t.pattern    = 'spec/'
 end
 
-desc 'Run RuboCop'
-RuboCop::RakeTask.new(:rubocop) do |task|
-  task.options << '--display-cop-names'
+if rubocop_available
+  desc 'Run RuboCop'
+  RuboCop::RakeTask.new(:rubocop) do |task|
+    task.options << '--display-cop-names'
+  end
 end
 
 task :default => [:test]
