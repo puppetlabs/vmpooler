@@ -505,13 +505,7 @@ EOT
   end
 
   describe '#clone_vm' do
-    before do
-      expect(subject).not_to be_nil
-    end
-
-    before(:each) do
-      expect(Thread).to receive(:new).and_yield
-    end
+    let(:vsphere) { double('vsphere') }
 
     let(:config) {
       YAML.load(<<-EOT
@@ -520,9 +514,41 @@ EOT
   prefix: "prefix"
 :vsphere:
   username: "vcenter_user"
+:pools:
+  - name: #{pool}
 EOT
       )
     }
+    let (:pool_object) { config[:pools][0] }
+
+    before do
+      expect(subject).not_to be_nil
+    end
+
+    it 'calls _clone_vm' do
+      expect(Thread).to receive(:new).and_yield
+      expect(subject).to receive(:_clone_vm).with(pool_object,vsphere)
+
+      subject.clone_vm(pool_object,vsphere)
+    end
+
+    it 'logs a message if an error is raised' do
+      expect(Thread).to receive(:new).and_yield
+      expect(logger).to receive(:log)
+      expect(subject).to receive(:_clone_vm).with(pool_object,vsphere).and_raise('an_error')
+
+      expect{subject.clone_vm(pool_object,vsphere)}.to raise_error(/an_error/)
+    end
+  end
+
+  describe '#_clone_vm' do
+    before do
+      expect(subject).not_to be_nil
+    end
+
+    before(:each) do
+      #expect(Thread).to receive(:new).and_yield
+    end
 
     let (:folder) { 'vmfolder' }
     let (:folder_object) { double('folder_object') }
@@ -530,34 +556,47 @@ EOT
     let (:template) { "template/#{template_name}" }
     let (:datastore) { 'datastore' }
     let (:target) { 'clone_target' }
+
+    let(:config) {
+      YAML.load(<<-EOT
+---
+:config:
+  prefix: "prefix"
+:vsphere:
+  username: "vcenter_user"
+:pools:
+  - name: #{pool}
+    template: '#{template}'
+    folder: '#{folder}'
+    datastore: '#{datastore}'
+    clone_target: '#{target}'
+EOT
+      )
+    }
+
     let (:vsphere) { double('vsphere') }
     let (:template_folder_object) { double('template_folder_object') }
     let (:template_vm_object) { double('template_vm_object') }
     let (:clone_task) { double('clone_task') }
+    let (:pool_object) { config[:pools][0] }
 
     context 'no template specified' do
-      it 'should raise an error' do
-  
-        expect{subject.clone_vm(nil,folder,datastore,target,vsphere)}.to raise_error(/Please provide a full path to the template/)
+      before(:each) do
+        pool_object['template'] = nil
       end
 
-      it 'should log a message' do
-        expect(logger).to receive(:log).with('s', "[!] [] '' failed while preparing to clone with an error: Please provide a full path to the template")
-
-        expect{subject.clone_vm(nil,folder,datastore,target,vsphere)}.to raise_error(RuntimeError)
+      it 'should raise an error' do
+        expect{subject._clone_vm(pool_object,vsphere)}.to raise_error(/Please provide a full path to the template/)
       end
     end
 
     context 'a template with no forward slash in the string' do
-      it 'should raise an error' do
-  
-        expect{subject.clone_vm('vm1',folder,datastore,target,vsphere)}.to raise_error(/Please provide a full path to the template/)
+      before(:each) do
+        pool_object['template'] = template_name
       end
 
-      it 'should log a message' do
-        expect(logger).to receive(:log).with('s', "[!] [] '' failed while preparing to clone with an error: Please provide a full path to the template")
-
-        expect{subject.clone_vm('vm1',folder,datastore,target,vsphere)}.to raise_error(RuntimeError)
+      it 'should raise an error' do
+        expect{subject._clone_vm(pool_object,vsphere)}.to raise_error(/Please provide a full path to the template/)
       end
     end
 
@@ -571,9 +610,9 @@ EOT
     context "Template name does not match pool name (Implementation Bug)" do
       let (:template_name) { 'template_vm' }
 
-      # The implementaion of clone_vm incorrectly uses the VM Template name instead of the pool name.  The VM Template represents the
+      # The implementaion of _clone_vm incorrectly uses the VM Template name instead of the pool name.  The VM Template represents the
       # name of the VM to clone in vSphere whereas pool is the name of the pool in Pooler.  The tests below document the behaviour of
-      # clone_vm if the Template and Pool name differ.  It is expected that these test will fail once this bug is removed.
+      # _clone_vm if the Template and Pool name differ.  It is expected that these test will fail once this bug is removed.
 
       context 'a valid template' do
         before(:each) do
@@ -595,7 +634,7 @@ EOT
             expect(logger).to receive(:log).at_least(:once)
             expect(redis.scard("vmpooler__pending__#{pool}")).to eq(0)
 
-            subject.clone_vm(template,folder,datastore,target,vsphere)
+            subject._clone_vm(pool_object,vsphere)
 
             expect(redis.scard("vmpooler__pending__#{template_name}")).to eq(1)
             # Get the new VM Name from the pending pool queue as it should be the only entry
@@ -610,14 +649,14 @@ EOT
             expect(logger).to receive(:log).with('d',/\[ \] \[#{template_name}\] '(.+)' is being cloned from '#{template_name}'/)
             allow(logger).to receive(:log)
 
-            subject.clone_vm(template,folder,datastore,target,vsphere)
+            subject._clone_vm(pool_object,vsphere)
           end
 
           it 'should log a message that it completed being cloned' do
             expect(logger).to receive(:log).with('s',/\[\+\] \[#{template_name}\] '(.+)' cloned from '#{template_name}' in [0-9.]+ seconds/)
             allow(logger).to receive(:log)
 
-            subject.clone_vm(template,folder,datastore,target,vsphere)
+            subject._clone_vm(pool_object,vsphere)
           end
         end
 
@@ -639,7 +678,7 @@ EOT
 
           it 'should raise an error within the Thread' do
             expect(logger).to receive(:log).at_least(:once)
-            expect{subject.clone_vm(template,folder,datastore,target,vsphere)}.to raise_error(/SomeError/)
+            expect{subject._clone_vm(pool_object,vsphere)}.to raise_error(/SomeError/)
           end
 
           it 'should log a message that is being cloned from a template' do
@@ -648,19 +687,18 @@ EOT
 
             # Swallow the error
             begin
-              subject.clone_vm(template,folder,datastore,target,vsphere)
+              subject._clone_vm(pool_object,vsphere)
             rescue
             end
           end
 
           it 'should log messages that the clone failed' do
             expect(logger).to receive(:log).with('s', /\[!\] \[#{template_name}\] '(.+)' clone failed with an error: SomeError/)
-            expect(logger).to receive(:log).with('s', /\[!\] \[#{template_name}\] '(.+)' failed while preparing to clone with an error: SomeError/)
             allow(logger).to receive(:log)
 
             # Swallow the error
             begin
-              subject.clone_vm(template,folder,datastore,target,vsphere)
+              subject._clone_vm(pool_object,vsphere)
             rescue
             end
           end
@@ -688,7 +726,7 @@ EOT
           expect(logger).to receive(:log).at_least(:once)
           expect(redis.scard("vmpooler__pending__#{pool}")).to eq(0)
 
-          subject.clone_vm(template,folder,datastore,target,vsphere)
+          subject._clone_vm(pool_object,vsphere)
 
           expect(redis.scard("vmpooler__pending__#{pool}")).to eq(1)
           # Get the new VM Name from the pending pool queue as it should be the only entry
@@ -703,7 +741,7 @@ EOT
           redis.incr('vmpooler__tasks__clone')
           redis.incr('vmpooler__tasks__clone')
           expect(redis.get('vmpooler__tasks__clone')).to eq('2')
-          subject.clone_vm(template,folder,datastore,target,vsphere)
+          subject._clone_vm(pool_object,vsphere)
           expect(redis.get('vmpooler__tasks__clone')).to eq('1')
         end
 
@@ -711,14 +749,14 @@ EOT
           expect(logger).to receive(:log).with('d',/\[ \] \[#{pool}\] '(.+)' is being cloned from '#{template_name}'/)
           allow(logger).to receive(:log)
 
-          subject.clone_vm(template,folder,datastore,target,vsphere)
+          subject._clone_vm(pool_object,vsphere)
         end
 
         it 'should log a message that it completed being cloned' do
           expect(logger).to receive(:log).with('s',/\[\+\] \[#{pool}\] '(.+)' cloned from '#{template_name}' in [0-9.]+ seconds/)
           allow(logger).to receive(:log)
 
-          subject.clone_vm(template,folder,datastore,target,vsphere)
+          subject._clone_vm(pool_object,vsphere)
         end
       end
 
@@ -740,7 +778,7 @@ EOT
 
         it 'should raise an error within the Thread' do
           expect(logger).to receive(:log).at_least(:once)
-          expect{subject.clone_vm(template,folder,datastore,target,vsphere)}.to raise_error(/SomeError/)
+          expect{subject._clone_vm(pool_object,vsphere)}.to raise_error(/SomeError/)
         end
 
         it 'should log a message that is being cloned from a template' do
@@ -749,19 +787,18 @@ EOT
 
           # Swallow the error
           begin
-            subject.clone_vm(template,folder,datastore,target,vsphere)
+            subject._clone_vm(pool_object,vsphere)
           rescue
           end
         end
 
         it 'should log messages that the clone failed' do
           expect(logger).to receive(:log).with('s', /\[!\] \[#{pool}\] '(.+)' clone failed with an error: SomeError/)
-          expect(logger).to receive(:log).with('s', /\[!\] \[#{pool}\] '(.+)' failed while preparing to clone with an error: SomeError/)
           allow(logger).to receive(:log)
 
           # Swallow the error
           begin
-            subject.clone_vm(template,folder,datastore,target,vsphere)
+            subject._clone_vm(pool_object,vsphere)
           rescue
           end
         end
