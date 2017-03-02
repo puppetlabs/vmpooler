@@ -6,6 +6,28 @@ def redis
   @redis
 end
 
+# Mock an object which is result from Vmpooler::VsphereHelper.find_folder(foldername)
+class MockFindFolder
+  attr_reader :childEntity
+
+  def initialize(vmlist = [])
+    # Generate an array of hashes
+    @childEntity = vmlist.map do |vm|
+      vm_object = {}
+      vm_object['name'] = vm
+
+      vm_object
+    end
+  end
+end
+
+# Mock an object which represents a Logger.  This stops the proliferation
+# of allow(logger).to .... expectations in tests.
+class MockLogger
+  def log(_level, string)
+  end
+end
+
 def expect_json(ok = true, http = 200)
   expect(last_response.header['Content-Type']).to eq('application/json')
 
@@ -56,6 +78,18 @@ def create_vm(name, token = nil, redis_handle = nil)
   redis_db.hset("vmpooler__vm__#{name}", 'token:token', token) if token
 end
 
+def create_completed_vm(name, pool, active = false, redis_handle = nil)
+  redis_db = redis_handle ? redis_handle : redis
+  redis_db.sadd("vmpooler__completed__#{pool}", name)
+  redis_db.hset("vmpooler__vm__#{name}", 'checkout', Time.now)
+  redis_db.hset("vmpooler__active__#{pool}", name, Time.now) if active
+end
+
+def create_discovered_vm(name, pool, redis_handle = nil)
+  redis_db = redis_handle ? redis_handle : redis
+  redis_db.sadd("vmpooler__discovered__#{pool}", name)
+end
+
 def create_migrating_vm(name, pool, redis_handle = nil)
   redis_db = redis_handle ? redis_handle : redis
   redis_db.hset("vmpooler__vm__#{name}", 'checkout', Time.now)
@@ -71,9 +105,18 @@ def fetch_vm(vm)
   redis.hgetall("vmpooler__vm__#{vm}")
 end
 
+def snapshot_revert_vm(vm, snapshot = '12345678901234567890123456789012')
+  redis.sadd('vmpooler__tasks__snapshot-revert', "#{vm}:#{snapshot}")
+  redis.hset("vmpooler__vm__#{vm}", "snapshot:#{snapshot}", "1")
+end
+
 def snapshot_vm(vm, snapshot = '12345678901234567890123456789012')
   redis.sadd('vmpooler__tasks__snapshot', "#{vm}:#{snapshot}")
   redis.hset("vmpooler__vm__#{vm}", "snapshot:#{snapshot}", "1")
+end
+
+def disk_task_vm(vm, disk_size = '10')
+  redis.sadd('vmpooler__tasks__disk', "#{vm}:#{disk_size}")
 end
 
 def has_vm_snapshot?(vm)
