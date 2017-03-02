@@ -12,7 +12,7 @@ module Vmpooler
   require 'yaml'
   require 'set'
 
-  %w(api graphite logger pool_manager vsphere_helper statsd dummy_statsd).each do |lib|
+  %w(api graphite logger pool_manager vsphere_helper statsd dummy_statsd providers).each do |lib|
     begin
       require "vmpooler/#{lib}"
     rescue LoadError
