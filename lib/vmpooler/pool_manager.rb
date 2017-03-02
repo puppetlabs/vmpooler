@@ -102,6 +102,7 @@ module Vmpooler
             $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
 
             $logger.log('d', "[!] [#{pool}] '#{vm}' reached end of TTL after #{ttl} minutes, removed from 'ready' queue")
+            return
           end
         end
 
@@ -124,6 +125,7 @@ module Vmpooler
               $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
 
               $logger.log('d', "[!] [#{pool}] '#{vm}' appears to be powered off, removed from 'ready' queue")
+              return
             end
 
             if
@@ -134,6 +136,7 @@ module Vmpooler
               $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
 
               $logger.log('d', "[!] [#{pool}] '#{vm}' has mismatched hostname, removed from 'ready' queue")
+              return
             end
           else
             $redis.srem('vmpooler__ready__' + pool, vm)
@@ -149,6 +152,7 @@ module Vmpooler
             else
               $logger.log('d', "[!] [#{pool}] '#{vm}' is unreachable, and failed to remove from 'ready' queue")
             end
+            return
           end
         end
       end

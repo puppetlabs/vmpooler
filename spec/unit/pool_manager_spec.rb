@@ -345,7 +345,7 @@ EOT
         end
       end
 
-      context 'but turned off and name mismatch' do
+      context 'is turned off, a name mismatch and not available via TCP' do
         before(:each) do
           allow(host).to receive(:runtime).and_return( double('runtime') )
           allow(host).to receive_message_chain(:runtime, :powerState).and_return('poweredOff')
@@ -353,14 +353,13 @@ EOT
           allow(subject).to receive(:open_socket).with(vm).and_raise(SocketError,'getaddrinfo: No such host is known')
         end
 
-        it 'should move the VM to the completed queue multiple times' do
-          # There is an implementation bug which attempts the move multiple times
-          expect(redis).to receive(:smove).with("vmpooler__ready__#{pool}", "vmpooler__completed__#{pool}", vm).at_least(2).times
+        it 'should move the VM to the completed queue' do
+          expect(redis).to receive(:smove).with("vmpooler__ready__#{pool}", "vmpooler__completed__#{pool}", vm)
 
           subject.check_ready_vm(vm, pool, ttl, vsphere)
         end
 
-        it 'should move the VM to the completed queue' do
+        it 'should move the VM to the completed queue in Redis' do
           expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(true)
           expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(false)
           subject.check_ready_vm(vm, pool, ttl, vsphere)
@@ -368,21 +367,66 @@ EOT
           expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
         end
 
-        it 'should log messages about being powered off, name mismatch and removed from ready queue' do
+        it 'should log messages about being powered off' do
           expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' appears to be powered off, removed from 'ready' queue")
-          expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' has mismatched hostname, removed from 'ready' queue")
 
-         # There is an implementation bug which attempts the move multiple times however
-         # as the VM is no longer in the ready queue, redis also throws an error
-         expect(logger).to receive(:log).with("d", "[!] [#{pool}] '#{vm}' is unreachable, and failed to remove from 'ready' queue")
+          subject.check_ready_vm(vm, pool, ttl, vsphere)
+        end
+      end
+
+      context 'is turned on, a name mismatch and not available via TCP' do
+        before(:each) do
+          allow(host).to receive(:runtime).and_return( double('runtime') )
+          allow(host).to receive_message_chain(:runtime, :powerState).and_return('poweredOn')
+          allow(host).to receive_message_chain(:summary, :guest, :hostName).and_return ('')
+          allow(subject).to receive(:open_socket).with(vm).and_raise(SocketError,'getaddrinfo: No such host is known')
+        end
+
+        it 'should move the VM to the completed queue' do
+          expect(redis).to receive(:smove).with("vmpooler__ready__#{pool}", "vmpooler__completed__#{pool}", vm)
 
           subject.check_ready_vm(vm, pool, ttl, vsphere)
         end
 
-        it 'should log a message if it fails to move queues' do
-          expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' appears to be powered off, removed from 'ready' queue")
+        it 'should move the VM to the completed queue in Redis' do
+          expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(true)
+          expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(false)
+          subject.check_ready_vm(vm, pool, ttl, vsphere)
+          expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(false)
+          expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
+        end
+
+        it 'should log messages about being misnamed' do
           expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' has mismatched hostname, removed from 'ready' queue")
-          expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' is unreachable, and failed to remove from 'ready' queue")
+
+          subject.check_ready_vm(vm, pool, ttl, vsphere)
+        end
+      end
+
+      context 'is turned on, with correct name and not available via TCP' do
+        before(:each) do
+          allow(host).to receive(:runtime).and_return( double('runtime') )
+          allow(host).to receive_message_chain(:runtime, :powerState).and_return('poweredOn')
+          allow(host).to receive_message_chain(:summary, :guest, :hostName).and_return (vm)
+          allow(subject).to receive(:open_socket).with(vm).and_raise(SocketError,'getaddrinfo: No such host is known')
+        end
+
+        it 'should move the VM to the completed queue' do
+          expect(redis).to receive(:smove).with("vmpooler__ready__#{pool}", "vmpooler__completed__#{pool}", vm)
+
+          subject.check_ready_vm(vm, pool, ttl, vsphere)
+        end
+
+        it 'should move the VM to the completed queue in Redis' do
+          expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(true)
+          expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(false)
+          subject.check_ready_vm(vm, pool, ttl, vsphere)
+          expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(false)
+          expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
+        end
+
+        it 'should log messages about being unreachable' do
+          expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' is unreachable, removed from 'ready' queue")
 
           subject.check_ready_vm(vm, pool, ttl, vsphere)
         end
