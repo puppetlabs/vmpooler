@@ -12,17 +12,17 @@ module Vmpooler
       # Connect to Redis
       $redis = redis
 
-      # vSphere object
-      $vsphere = {}
+      # VM Provider objects
+      $providers = {}
 
       # Our thread-tracker object
       $threads = {}
     end
 
     # Check the state of a VM
-    def check_pending_vm(vm, pool, timeout, vsphere)
+    def check_pending_vm(vm, pool, timeout, provider)
       Thread.new do
-        _check_pending_vm(vm, pool, timeout, vsphere)
+        _check_pending_vm(vm, pool, timeout, provider)
       end
     end
 
@@ -39,8 +39,8 @@ module Vmpooler
       end
     end
 
-    def _check_pending_vm(vm, pool, timeout, vsphere)
-      host = vsphere.find_vm(vm)
+    def _check_pending_vm(vm, pool, timeout, provider)
+      host = provider.find_vm(vm)
 
       if ! host
         fail_pending_vm(vm, pool, timeout, false)
@@ -95,7 +95,7 @@ module Vmpooler
       end
     end
 
-    def check_ready_vm(vm, pool, ttl, vsphere)
+    def check_ready_vm(vm, pool, ttl, provider)
       Thread.new do
         if ttl > 0
           if (((Time.now - host.runtime.bootTime) / 60).to_s[/^\d+\.\d{1}/].to_f) > ttl
@@ -114,7 +114,7 @@ module Vmpooler
 
           $redis.hset('vmpooler__vm__' + vm, 'check', Time.now)
 
-          host = vsphere.find_vm(vm)
+          host = provider.find_vm(vm)
 
           if host
             if
@@ -158,14 +158,14 @@ module Vmpooler
       end
     end
 
-    def check_running_vm(vm, pool, ttl, vsphere)
+    def check_running_vm(vm, pool, ttl, provider)
       Thread.new do
-        _check_running_vm(vm, pool, ttl, vsphere)
+        _check_running_vm(vm, pool, ttl, provider)
       end
     end
 
-    def _check_running_vm(vm, pool, ttl, vsphere)
-      host = vsphere.find_vm(vm)
+    def _check_running_vm(vm, pool, ttl, provider)
+      host = provider.find_vm(vm)
 
       if host
         queue_from, queue_to = 'running', 'completed'
@@ -189,10 +189,10 @@ module Vmpooler
     end
 
     # Clone a VM
-    def clone_vm(pool, vsphere)
+    def clone_vm(pool, provider)
       Thread.new do
         begin
-          _clone_vm(pool, vsphere)
+          _clone_vm(pool, provider)
         rescue => err
           $logger.log('s', "[!] [#{pool['name']}] failed while cloning VM with an error: #{err}")
           raise
@@ -200,7 +200,7 @@ module Vmpooler
       end
     end
 
-    def _clone_vm(pool, vsphere)
+    def _clone_vm(pool, provider)
       template = pool['template']
       folder = pool['folder']
       datastore = pool['datastore']
@@ -213,7 +213,7 @@ module Vmpooler
       end
 
       if templatefolders
-        vm[vm['template']] = vsphere.find_folder(templatefolders.join('/')).find(vm['template'])
+        vm[vm['template']] = provider.find_folder(templatefolders.join('/')).find(vm['template'])
       else
         fail 'Please provide a full path to the template'
       end
@@ -249,14 +249,14 @@ module Vmpooler
 
       # Choose a clone target
       if target
-        $clone_target = vsphere.find_least_used_host(target)
+        $clone_target = provider.find_least_used_host(target)
       elsif $config[:config]['clone_target']
-        $clone_target = vsphere.find_least_used_host($config[:config]['clone_target'])
+        $clone_target = provider.find_least_used_host($config[:config]['clone_target'])
       end
 
       # Put the VM in the specified folder and resource pool
       relocateSpec = RbVmomi::VIM.VirtualMachineRelocateSpec(
-        datastore: vsphere.find_datastore(datastore),
+        datastore: provider.find_datastore(datastore),
         host: $clone_target,
         diskMoveType: :moveChildMostDiskBacking
       )
@@ -275,7 +275,7 @@ module Vmpooler
       begin
         start = Time.now
         vm[vm['template']].CloneVM_Task(
-          folder: vsphere.find_folder(folder),
+          folder: provider.find_folder(folder),
           name: vm['hostname'],
           spec: spec
         ).wait_for_completion
@@ -297,7 +297,7 @@ module Vmpooler
     end
 
     # Destroy a VM
-    def destroy_vm(vm, pool, vsphere)
+    def destroy_vm(vm, pool, provider)
       Thread.new do
         $redis.srem('vmpooler__completed__' + pool, vm)
         $redis.hdel('vmpooler__active__' + pool, vm)
@@ -306,7 +306,7 @@ module Vmpooler
         # Auto-expire metadata key
         $redis.expire('vmpooler__vm__' + vm, ($config[:redis]['data_ttl'].to_i * 60 * 60))
 
-        host = vsphere.find_vm(vm)
+        host = provider.find_vm(vm)
 
         if host
           start = Time.now
@@ -329,14 +329,14 @@ module Vmpooler
       end
     end
 
-    def create_vm_disk(vm, disk_size, vsphere)
+    def create_vm_disk(vm, disk_size, provider)
       Thread.new do
-        _create_vm_disk(vm, disk_size, vsphere)
+        _create_vm_disk(vm, disk_size, provider)
       end
     end
 
-    def _create_vm_disk(vm, disk_size, vsphere)
-      host = vsphere.find_vm(vm)
+    def _create_vm_disk(vm, disk_size, provider)
+      host = provider.find_vm(vm)
 
       if (host) && ((! disk_size.nil?) && (! disk_size.empty?) && (disk_size.to_i > 0))
         $logger.log('s', "[ ] [disk_manager] '#{vm}' is attaching a #{disk_size}gb disk")
@@ -353,7 +353,7 @@ module Vmpooler
         end
 
         if ((! datastore.nil?) && (! datastore.empty?))
-          vsphere.add_disk(host, disk_size, datastore)
+          provider.add_disk(host, disk_size, datastore)
 
           rdisks = $redis.hget('vmpooler__vm__' + vm, 'disk')
           disks = rdisks ? rdisks.split(':') : []
@@ -369,14 +369,14 @@ module Vmpooler
       end
     end
 
-    def create_vm_snapshot(vm, snapshot_name, vsphere)
+    def create_vm_snapshot(vm, snapshot_name, provider)
       Thread.new do
-        _create_vm_snapshot(vm, snapshot_name, vsphere)
+        _create_vm_snapshot(vm, snapshot_name, provider)
       end
     end
 
-    def _create_vm_snapshot(vm, snapshot_name, vsphere)
-      host = vsphere.find_vm(vm)
+    def _create_vm_snapshot(vm, snapshot_name, provider)
+      host = provider.find_vm(vm)
 
       if (host) && ((! snapshot_name.nil?) && (! snapshot_name.empty?))
         $logger.log('s', "[ ] [snapshot_manager] '#{vm}' is being snapshotted")
@@ -398,17 +398,17 @@ module Vmpooler
       end
     end
 
-    def revert_vm_snapshot(vm, snapshot_name, vsphere)
+    def revert_vm_snapshot(vm, snapshot_name, provider)
       Thread.new do
-        _revert_vm_snapshot(vm, snapshot_name, vsphere)
+        _revert_vm_snapshot(vm, snapshot_name, provider)
       end
     end
 
-    def _revert_vm_snapshot(vm, snapshot_name, vsphere)
-      host = vsphere.find_vm(vm)
+    def _revert_vm_snapshot(vm, snapshot_name, provider)
+      host = provider.find_vm(vm)
 
       if host
-        snapshot = vsphere.find_snapshot(host, snapshot_name)
+        snapshot = provider.find_snapshot(host, snapshot_name)
 
         if snapshot
           $logger.log('s', "[ ] [snapshot_manager] '#{vm}' is being reverted to snapshot '#{snapshot_name}'")
@@ -427,11 +427,11 @@ module Vmpooler
     def check_disk_queue(maxloop = 0, loop_delay = 5)
       $logger.log('d', "[*] [disk_manager] starting worker thread")
 
-      $vsphere['disk_manager'] ||= Vmpooler::VsphereHelper.new $config, $metrics
+      $providers['disk_manager'] ||= Vmpooler::VsphereHelper.new $config, $metrics
       $threads['disk_manager'] = Thread.new do
         loop_count = 1
         loop do
-          _check_disk_queue $vsphere['disk_manager']
+          _check_disk_queue $providers['disk_manager']
           sleep(loop_delay)
 
           unless maxloop.zero?
@@ -442,13 +442,13 @@ module Vmpooler
       end
     end
 
-    def _check_disk_queue(vsphere)
+    def _check_disk_queue(provider)
       vm = $redis.spop('vmpooler__tasks__disk')
 
       unless vm.nil?
         begin
           vm_name, disk_size = vm.split(':')
-          create_vm_disk(vm_name, disk_size, vsphere)
+          create_vm_disk(vm_name, disk_size, provider)
         rescue
           $logger.log('s', "[!] [disk_manager] disk creation appears to have failed")
         end
@@ -458,12 +458,12 @@ module Vmpooler
     def check_snapshot_queue(maxloop = 0, loop_delay = 5)
       $logger.log('d', "[*] [snapshot_manager] starting worker thread")
 
-      $vsphere['snapshot_manager'] ||= Vmpooler::VsphereHelper.new $config, $metrics
+      $providers['snapshot_manager'] ||= Vmpooler::VsphereHelper.new $config, $metrics
 
       $threads['snapshot_manager'] = Thread.new do
         loop_count = 1
         loop do
-          _check_snapshot_queue $vsphere['snapshot_manager']
+          _check_snapshot_queue $providers['snapshot_manager']
           sleep(loop_delay)
 
           unless maxloop.zero?
@@ -474,13 +474,13 @@ module Vmpooler
       end
     end
 
-    def _check_snapshot_queue(vsphere)
+    def _check_snapshot_queue(provider)
       vm = $redis.spop('vmpooler__tasks__snapshot')
 
       unless vm.nil?
         begin
           vm_name, snapshot_name = vm.split(':')
-          create_vm_snapshot(vm_name, snapshot_name, vsphere)
+          create_vm_snapshot(vm_name, snapshot_name, provider)
         rescue
           $logger.log('s', "[!] [snapshot_manager] snapshot appears to have failed")
         end
@@ -491,7 +491,7 @@ module Vmpooler
       unless vm.nil?
         begin
           vm_name, snapshot_name = vm.split(':')
-          revert_vm_snapshot(vm_name, snapshot_name, vsphere)
+          revert_vm_snapshot(vm_name, snapshot_name, provider)
         rescue
           $logger.log('s', "[!] [snapshot_manager] snapshot revert appears to have failed")
         end
@@ -504,16 +504,16 @@ module Vmpooler
       migration_limit if migration_limit >= 1
     end
 
-    def migrate_vm(vm, pool, vsphere)
+    def migrate_vm(vm, pool, provider)
       Thread.new do
-        _migrate_vm(vm, pool, vsphere)
+        _migrate_vm(vm, pool, provider)
       end
     end
 
-    def _migrate_vm(vm, pool, vsphere)
+    def _migrate_vm(vm, pool, provider)
       begin
         $redis.srem('vmpooler__migrating__' + pool, vm)
-        vm_object = vsphere.find_vm(vm)
+        vm_object = provider.find_vm(vm)
         parent_host, parent_host_name = get_vm_host_info(vm_object)
         migration_limit = migration_limit $config[:config]['migration_limit']
         migration_count = $redis.scard('vmpooler__migration')
@@ -527,11 +527,11 @@ module Vmpooler
             return
           else
             $redis.sadd('vmpooler__migration', vm)
-            host, host_name = vsphere.find_least_used_compatible_host(vm_object)
+            host, host_name = provider.find_least_used_compatible_host(vm_object)
             if host == parent_host
               $logger.log('s', "[ ] [#{pool}] No migration required for '#{vm}' running on #{parent_host_name}")
             else
-              finish = migrate_vm_and_record_timing(vm_object, vm, pool, host, parent_host_name, host_name, vsphere)
+              finish = migrate_vm_and_record_timing(vm_object, vm, pool, host, parent_host_name, host_name, provider)
               $logger.log('s', "[>] [#{pool}] '#{vm}' migrated from #{parent_host_name} to #{host_name} in #{finish} seconds")
             end
             remove_vmpooler_migration_vm(pool, vm)
@@ -556,9 +556,9 @@ module Vmpooler
       end
     end
 
-    def migrate_vm_and_record_timing(vm_object, vm_name, pool, host, source_host_name, dest_host_name, vsphere)
+    def migrate_vm_and_record_timing(vm_object, vm_name, pool, host, source_host_name, dest_host_name, provider)
       start = Time.now
-      vsphere.migrate_vm_host(vm_object, host)
+      provider.migrate_vm_host(vm_object, host)
       finish = '%.2f' % (Time.now - start)
       $metrics.timing("migrate.#{pool}", finish)
       $metrics.increment("migrate_from.#{source_host_name}")
@@ -572,12 +572,12 @@ module Vmpooler
     def check_pool(pool, maxloop = 0, loop_delay = 5)
       $logger.log('d', "[*] [#{pool['name']}] starting worker thread")
 
-      $vsphere[pool['name']] ||= Vmpooler::VsphereHelper.new $config, $metrics
+      $providers[pool['name']] ||= Vmpooler::VsphereHelper.new $config, $metrics
 
       $threads[pool['name']] = Thread.new do
         loop_count = 1
         loop do
-          _check_pool(pool, $vsphere[pool['name']])
+          _check_pool(pool, $providers[pool['name']])
           sleep(loop_delay)
 
           unless maxloop.zero?
@@ -588,11 +588,11 @@ module Vmpooler
       end
     end
 
-    def _check_pool(pool, vsphere)
+    def _check_pool(pool, provider)
       # INVENTORY
       inventory = {}
       begin
-        base = vsphere.find_folder(pool['folder'])
+        base = provider.find_folder(pool['folder'])
 
         base.childEntity.each do |vm|
           if
@@ -619,7 +619,7 @@ module Vmpooler
         if inventory[vm]
           begin
             vm_lifetime = $redis.hget('vmpooler__vm__' + vm, 'lifetime') || $config[:config]['vm_lifetime'] || 12
-            check_running_vm(vm, pool['name'], vm_lifetime, vsphere)
+            check_running_vm(vm, pool['name'], vm_lifetime, provider)
           rescue => err
             $logger.log('d', "[!] [#{pool['name']}] _check_pool with an error while evaluating running VMs: #{err}")
           end
@@ -630,7 +630,7 @@ module Vmpooler
       $redis.smembers("vmpooler__ready__#{pool['name']}").each do |vm|
         if inventory[vm]
           begin
-            check_ready_vm(vm, pool['name'], pool['ready_ttl'] || 0, vsphere)
+            check_ready_vm(vm, pool['name'], pool['ready_ttl'] || 0, provider)
           rescue => err
             $logger.log('d', "[!] [#{pool['name']}] _check_pool failed with an error while evaluating ready VMs: #{err}")
           end
@@ -642,7 +642,7 @@ module Vmpooler
         pool_timeout = pool['timeout'] || $config[:config]['timeout'] || 15
         if inventory[vm]
           begin
-            check_pending_vm(vm, pool['name'], pool_timeout, vsphere)
+            check_pending_vm(vm, pool['name'], pool_timeout, provider)
           rescue => err
             $logger.log('d', "[!] [#{pool['name']}] _check_pool failed with an error while evaluating pending VMs: #{err}")
           end
@@ -655,7 +655,7 @@ module Vmpooler
       $redis.smembers("vmpooler__completed__#{pool['name']}").each do |vm|
         if inventory[vm]
           begin
-            destroy_vm(vm, pool['name'], vsphere)
+            destroy_vm(vm, pool['name'], provider)
           rescue => err
             $redis.srem("vmpooler__completed__#{pool['name']}", vm)
             $redis.hdel("vmpooler__active__#{pool['name']}", vm)
@@ -692,7 +692,7 @@ module Vmpooler
       $redis.smembers("vmpooler__migrating__#{pool['name']}").each do |vm|
         if inventory[vm]
           begin
-            migrate_vm(vm, pool['name'], vsphere)
+            migrate_vm(vm, pool['name'], provider)
           rescue => err
             $logger.log('s', "[x] [#{pool['name']}] '#{vm}' failed to migrate: #{err}")
           end
@@ -722,7 +722,7 @@ module Vmpooler
           if $redis.get('vmpooler__tasks__clone').to_i < $config[:config]['task_limit'].to_i
             begin
               $redis.incr('vmpooler__tasks__clone')
-              clone_vm(pool, vsphere)
+              clone_vm(pool, provider)
             rescue => err
               $logger.log('s', "[!] [#{pool['name']}] clone failed during check_pool with an error: #{err}")
               $redis.decr('vmpooler__tasks__clone')
