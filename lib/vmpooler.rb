@@ -12,7 +12,7 @@ module Vmpooler
   require 'yaml'
   require 'set'
 
-  %w( api graphite logger pool_manager vsphere_helper statsd dummy_statsd ).each do |lib|
+  %w(api graphite logger pool_manager vsphere_helper statsd dummy_statsd).each do |lib|
     begin
       require "vmpooler/#{lib}"
     rescue LoadError
@@ -20,12 +20,12 @@ module Vmpooler
     end
   end
 
-  def self.config(filepath='vmpooler.yaml')
+  def self.config(filepath = 'vmpooler.yaml')
     parsed_config = {}
 
     if ENV['VMPOOLER_CONFIG']
       # Load configuration from ENV
-      parsed_config = YAML.load(ENV['VMPOOLER_CONFIG'])
+      parsed_config = YAML.safe_load(ENV['VMPOOLER_CONFIG'])
     else
       # Load the configuration file from disk
       config_file = File.expand_path(filepath)
@@ -37,8 +37,8 @@ module Vmpooler
     if parsed_config[:auth]['provider'] == 'dummy'
       unless ENV['VMPOOLER_DEBUG']
         warning = [
-          "Dummy authentication should not be used outside of debug mode",
-          "please set environment variable VMPOOLER_DEBUG to 'true' if you want to use dummy authentication",
+          'Dummy authentication should not be used outside of debug mode',
+          'please set environment variable VMPOOLER_DEBUG to \'true\' if you want to use dummy authentication'
         ]
 
         raise warning.join(";\s")
@@ -60,13 +60,13 @@ module Vmpooler
     parsed_config[:pools].each do |pool|
       parsed_config[:pool_names] << pool['name']
       if pool['alias']
-        if pool['alias'].kind_of?(Array)
+        if pool['alias'].is_a?(Array)
           pool['alias'].each do |a|
             parsed_config[:alias] ||= {}
             parsed_config[:alias][a] = pool['name']
             parsed_config[:pool_names] << a
           end
-        elsif pool['alias'].kind_of?(String)
+        elsif pool['alias'].is_a?(String)
           parsed_config[:alias][pool['alias']] = pool['name']
           parsed_config[:pool_names] << pool['alias']
         end
@@ -83,7 +83,7 @@ module Vmpooler
     parsed_config
   end
 
-  def self.new_redis(host='localhost')
+  def self.new_redis(host = 'localhost')
     Redis.new(host: host)
   end
 
