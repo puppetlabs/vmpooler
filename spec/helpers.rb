@@ -90,17 +90,6 @@ def create_discovered_vm(name, pool, redis_handle = nil)
   redis_db.sadd("vmpooler__discovered__#{pool}", name)
 end
 
-def create_migrating_vm(name, pool, redis_handle = nil)
-  redis_db = redis_handle ? redis_handle : redis
-  redis_db.hset("vmpooler__vm__#{name}", 'checkout', Time.now)
-  redis_db.sadd("vmpooler__migrating__#{pool}", name)
-end
-
-def add_vm_to_migration_set(name, redis_handle = nil)
-  redis_db = redis_handle ? redis_handle : redis
-  redis_db.sadd('vmpooler__migration', name)
-end
-
 def fetch_vm(vm)
   redis.hgetall("vmpooler__vm__#{vm}")
 end
