@@ -1461,216 +1461,6 @@ EOT
     end
   end
 
-
-  describe '#migration_limit' do
-    # This is a little confusing.  Is this supposed to return a boolean
-    # or integer type?
-    [false,0].each do |testvalue|
-      it "should return false for an input of #{testvalue}" do
-        expect(subject.migration_limit(testvalue)).to eq(false)
-      end
-    end
-
-    [1,32768].each do |testvalue|
-      it "should return #{testvalue} for an input of #{testvalue}" do
-        expect(subject.migration_limit(testvalue)).to eq(testvalue)
-      end
-    end
-
-    [-1,-32768].each do |testvalue|
-      it "should return nil for an input of #{testvalue}" do
-        expect(subject.migration_limit(testvalue)).to be_nil
-      end
-    end
-  end
-
-  describe '#migrate_vm' do
-    let(:vsphere) { double('vsphere') }
-
-    before do
-      expect(subject).not_to be_nil
-    end
-
-    it 'calls _migrate_vm' do
-      expect(Thread).to receive(:new).and_yield
-      expect(subject).to receive(:_migrate_vm).with(vm, pool, vsphere)
-
-      subject.migrate_vm(vm, pool, vsphere)
-    end
-  end
-
-  describe "#_migrate_vm" do
-    let(:vsphere) { double('vsphere') }
-    let(:vm_parent_hostname) { 'parent1' }
-    let(:config) {
-      YAML.load(<<-EOT
----
-:config:
-  migration_limit: 5
-:pools:
-  - name: #{pool}
-EOT
-      )
-    }
-
-    before do
-      expect(subject).not_to be_nil
-    end
-
-    context 'when an error occurs' do
-      it 'should log an error message and attempt to remove from vmpooler_migration queue' do
-        expect(vsphere).to receive(:find_vm).with(vm).and_raise(RuntimeError,'MockError')
-        expect(logger).to receive(:log).with('s', "[x] [#{pool}] '#{vm}' migration failed with an error: MockError")
-        expect(subject).to receive(:remove_vmpooler_migration_vm)
-        subject._migrate_vm(vm, pool, vsphere)
-      end
-    end
-
-    context 'when VM does not exist' do
-      it 'should log an error message when VM does not exist' do
-        expect(vsphere).to receive(:find_vm).with(vm).and_return(nil)
-        # This test is quite fragile.  Should refactor the code to make this scenario easier to detect
-        expect(logger).to receive(:log).with('s', "[x] [#{pool}] '#{vm}' migration failed with an error: undefined method `summary' for nil:NilClass")
-        subject._migrate_vm(vm, pool, vsphere)
-      end
-    end
-
-    context 'when VM exists but migration is disabled' do
-      before(:each) do
-        expect(vsphere).to receive(:find_vm).with(vm).and_return(host)
-        allow(subject).to receive(:get_vm_host_info).with(host).and_return([{'name' => vm_parent_hostname}, vm_parent_hostname])
-        create_migrating_vm(vm, pool)
-      end
-
-      [-1,-32768,false,0].each do |testvalue|
-        it "should not migrate a VM if the migration limit is #{testvalue}" do
-          config[:config]['migration_limit'] = testvalue
-          expect(logger).to receive(:log).with('s', "[ ] [#{pool}] '#{vm}' is running on #{vm_parent_hostname}")
-          subject._migrate_vm(vm, pool, vsphere)
-        end
-
-        it "should remove the VM from vmpooler__migrating queue in redis if the migration limit is #{testvalue}" do
-          redis.sadd("vmpooler__migrating__#{pool}", vm)
-          config[:config]['migration_limit'] = testvalue
-
-          expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_truthy
-          subject._migrate_vm(vm, pool, vsphere)
-          expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_falsey
-        end
-      end
-    end
-
-    context 'when VM exists but migration limit is reached' do
-      before(:each) do
-        expect(vsphere).to receive(:find_vm).with(vm).and_return(host)
-        allow(subject).to receive(:get_vm_host_info).with(host).and_return([{'name' => vm_parent_hostname}, vm_parent_hostname])
-
-        create_migrating_vm(vm, pool)
-        redis.sadd('vmpooler__migration', 'fakevm1')
-        redis.sadd('vmpooler__migration', 'fakevm2')
-        redis.sadd('vmpooler__migration', 'fakevm3')
-        redis.sadd('vmpooler__migration', 'fakevm4')
-        redis.sadd('vmpooler__migration', 'fakevm5')
-      end
-
-      it "should not migrate a VM if the migration limit is reached" do
-        expect(logger).to receive(:log).with('s',"[ ] [#{pool}] '#{vm}' is running on #{vm_parent_hostname}. No migration will be evaluated since the migration_limit has been reached")
-        subject._migrate_vm(vm, pool, vsphere)
-      end
-
-      it "should remove the VM from vmpooler__migrating queue in redis if the migration limit is reached" do
-        expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_truthy
-        subject._migrate_vm(vm, pool, vsphere)
-        expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_falsey
-      end
-    end
-
-    context 'when VM exists but migration limit is not yet reached' do
-      before(:each) do
-        expect(vsphere).to receive(:find_vm).with(vm).and_return(host)
-        allow(subject).to receive(:get_vm_host_info).with(host).and_return([{'name' => vm_parent_hostname}, vm_parent_hostname])
-
-        create_migrating_vm(vm, pool)
-        redis.sadd('vmpooler__migration', 'fakevm1')
-        redis.sadd('vmpooler__migration', 'fakevm2')
-      end
-
-      context 'and host to migrate to is the same as the current host' do
-        before(:each) do
-          expect(vsphere).to receive(:find_least_used_compatible_host).with(host).and_return([{'name' => vm_parent_hostname}, vm_parent_hostname])
-        end
-
-        it "should not migrate the VM" do
-          expect(logger).to receive(:log).with('s', "[ ] [#{pool}] No migration required for '#{vm}' running on #{vm_parent_hostname}")
-          subject._migrate_vm(vm, pool, vsphere)
-        end
-
-        it "should remove the VM from vmpooler__migrating queue in redis" do
-          expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_truthy
-          subject._migrate_vm(vm, pool, vsphere)
-          expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_falsey
-        end
-
-        it "should not change the vmpooler_migration queue count" do
-          before_count = redis.scard('vmpooler__migration')
-          subject._migrate_vm(vm, pool, vsphere)
-          expect(redis.scard('vmpooler__migration')).to eq(before_count)
-        end
-
-        it "should call remove_vmpooler_migration_vm" do
-          expect(subject).to receive(:remove_vmpooler_migration_vm)
-          subject._migrate_vm(vm, pool, vsphere)
-        end
-      end
-
-      context 'and host to migrate to different to the current host' do
-        let(:vm_new_hostname) { 'new_hostname' }
-        before(:each) do
-          expect(vsphere).to receive(:find_least_used_compatible_host).with(host).and_return([{'name' => vm_new_hostname}, vm_new_hostname])
-          expect(subject).to receive(:migrate_vm_and_record_timing).with(host, vm, pool, Object, vm_parent_hostname, vm_new_hostname, vsphere).and_return('1.00')
-        end
-
-        it "should migrate the VM" do
-          expect(logger).to receive(:log).with('s', "[>] [#{pool}] '#{vm}' migrated from #{vm_parent_hostname} to #{vm_new_hostname} in 1.00 seconds")
-          subject._migrate_vm(vm, pool, vsphere)
-        end
-
-        it "should remove the VM from vmpooler__migrating queue in redis" do
-          expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_truthy
-          subject._migrate_vm(vm, pool, vsphere)
-          expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_falsey
-        end
-
-        it "should not change the vmpooler_migration queue count" do
-          before_count = redis.scard('vmpooler__migration')
-          subject._migrate_vm(vm, pool, vsphere)
-          expect(redis.scard('vmpooler__migration')).to eq(before_count)
-        end
-
-        it "should call remove_vmpooler_migration_vm" do
-          expect(subject).to receive(:remove_vmpooler_migration_vm)
-          subject._migrate_vm(vm, pool, vsphere)
-        end
-      end
-    end
-  end
-
-  describe "#get_vm_host_info" do
-    before do
-      expect(subject).not_to be_nil
-    end
-
-    let(:vm_object) { double('vm_object') }
-    let(:parent_host) { double('parent_host') }
-
-    it 'should return an array with host information' do
-      expect(vm_object).to receive_message_chain(:summary, :runtime, :host).and_return(parent_host)
-      expect(parent_host).to receive(:name).and_return('vmhostname')
-
-      expect(subject.get_vm_host_info(vm_object)).to eq([parent_host,'vmhostname'])
-    end
-  end
-
   describe "#execute!" do
     let(:threads) {{}}
 
@@ -1701,12 +1491,6 @@ EOT
         redis.set('vmpooler__tasks__clone', 1)
         subject.execute!(1,0)
         expect(redis.get('vmpooler__tasks__clone')).to eq('0')
-      end
-
-      it 'should clear migration tasks' do
-        redis.set('vmpooler__migration', 1)
-        subject.execute!(1,0)
-        expect(redis.get('vmpooler__migration')).to be_nil
       end
 
       it 'should run the check_disk_queue method' do
@@ -1965,69 +1749,6 @@ EOT
     end
   end
 
-  describe '#remove_vmpooler_migration_vm' do
-    before do
-      expect(subject).not_to be_nil
-    end
-
-    it 'should remove the migration from redis' do
-      redis.sadd('vmpooler__migration', vm)
-      expect(redis.sismember('vmpooler__migration',vm)).to be(true)
-      subject.remove_vmpooler_migration_vm(pool, vm)
-      expect(redis.sismember('vmpooler__migration',vm)).to be(false)
-    end
-
-    it 'should log a message and swallow an error if one occurs' do
-      expect(redis).to receive(:srem).and_raise(RuntimeError,'MockError')
-      expect(logger).to receive(:log).with('s', "[x] [#{pool}] '#{vm}' removal from vmpooler__migration failed with an error: MockError")
-      subject.remove_vmpooler_migration_vm(pool, vm)
-    end
-  end
-
-  describe '#migrate_vm_and_record_timing' do
-    let(:vsphere) { double('vsphere') }
-    let(:vm_object) { double('vm_object') }
-    let(:source_host_name) { 'source_host' }
-    let(:dest_host_name) { 'dest_host' }
-
-    before do
-      expect(subject).not_to be_nil
-    end
-
-    before(:each) do
-      create_vm(vm,token)
-      expect(vsphere).to receive(:migrate_vm_host).with(vm_object, host)
-    end
-
-    it 'should return the elapsed time for the migration' do
-      result = subject.migrate_vm_and_record_timing(vm_object, vm, pool, host, source_host_name, dest_host_name, vsphere)
-      expect(result).to match(/0\.[\d]+/)
-    end
-
-    it 'should add timing metric' do
-      expect(metrics).to receive(:timing).with("migrate.#{pool}",String)
-      subject.migrate_vm_and_record_timing(vm_object, vm, pool, host, source_host_name, dest_host_name, vsphere)
-    end
-
-    it 'should increment from_host and to_host metric' do
-      expect(metrics).to receive(:increment).with("migrate_from.#{source_host_name}")
-      expect(metrics).to receive(:increment).with("migrate_to.#{dest_host_name}")
-      subject.migrate_vm_and_record_timing(vm_object, vm, pool, host, source_host_name, dest_host_name, vsphere)
-    end
-
-    it 'should set migration_time metric in redis' do
-      expect(redis.hget("vmpooler__vm__#{vm}", 'migration_time')).to be_nil
-      subject.migrate_vm_and_record_timing(vm_object, vm, pool, host, source_host_name, dest_host_name, vsphere)
-      expect(redis.hget("vmpooler__vm__#{vm}", 'migration_time')).to match(/0\.[\d]+/)
-    end
-
-    it 'should set checkout_to_migration metric in redis' do
-      expect(redis.hget("vmpooler__vm__#{vm}", 'checkout_to_migration')).to be_nil
-      subject.migrate_vm_and_record_timing(vm_object, vm, pool, host, source_host_name, dest_host_name, vsphere)
-      expect(redis.hget("vmpooler__vm__#{vm}", 'checkout_to_migration')).to match(/0\.[\d]+/)
-    end
-  end
-
   describe '#_check_pool' do
     # Default test fixtures will consist of;
     #   - Empty Redis dataset
@@ -2057,7 +1778,6 @@ EOT
     # INVENTORY
     context 'Conducting inventory' do
       before(:each) do
-        allow(subject).to receive(:migrate_vm)
         allow(subject).to receive(:check_running_vm)
         allow(subject).to receive(:check_ready_vm)
         allow(subject).to receive(:check_pending_vm)
@@ -2092,7 +1812,7 @@ EOT
         expect(redis.sismember("vmpooler__completed__#{pool}", new_vm)).to be(true)
       end
 
-      ['running','ready','pending','completed','discovered','migrating'].each do |queue_name|
+      ['running','ready','pending','completed','discovered'].each do |queue_name|
         it "should not discover VMs in the #{queue_name} queue" do
           expect(vsphere).to receive(:find_folder).and_return(MockFindFolder.new([new_vm]))
 
@@ -2356,7 +2076,6 @@ EOT
       ['pending','ready','running','completed'].each do |queue_name|
         context "exists in the #{queue_name} queue" do
           before(:each) do
-            allow(subject).to receive(:migrate_vm)
             allow(subject).to receive(:check_running_vm)
             allow(subject).to receive(:check_ready_vm)
             allow(subject).to receive(:check_pending_vm)
@@ -2392,43 +2111,6 @@ EOT
       end
     end
 
-    # MIGRATIONS
-    context 'Migrating VM not in the inventory' do
-      before(:each) do
-        expect(vsphere).to receive(:find_folder).and_return(MockFindFolder.new([new_vm]))
-        expect(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue")
-        create_migrating_vm(vm,pool)
-      end
-
-      it 'should not do anything' do
-        expect(subject).to receive(:migrate_vm).exactly(0).times
-
-        subject._check_pool(pool_object,vsphere)
-      end
-    end
-
-    context 'Migrating VM in the inventory' do
-      before(:each) do
-        expect(vsphere).to receive(:find_folder).and_return(MockFindFolder.new([vm]))
-        allow(subject).to receive(:check_ready_vm)
-        allow(logger).to receive(:log).with("s", "[!] [#{pool}] is empty")
-        create_migrating_vm(vm,pool)
-      end
-
-      it 'should log an error if one occurs' do
-        expect(subject).to receive(:migrate_vm).and_raise(RuntimeError,'MockError')
-        expect(logger).to receive(:log).with('s', "[x] [#{pool}] '#{vm}' failed to migrate: MockError")
-
-        subject._check_pool(pool_object,vsphere)
-      end
-
-      it 'should call migrate_vm' do
-        expect(subject).to receive(:migrate_vm).with(vm,pool,vsphere)
-
-        subject._check_pool(pool_object,vsphere)
-      end
-    end
-
     # REPOPULATE
     context 'Repopulate a pool' do
       it 'should not call clone_vm when number of VMs is equal to the pool size' do
@@ -2458,7 +2140,7 @@ EOT
         end
       end
 
-      ['running','completed','discovered','migrating'].each do |queue_name|
+      ['running','completed','discovered'].each do |queue_name|
         it "should not use VMs in #{queue_name} queue to caculate pool size" do
           expect(vsphere).to receive(:find_folder).and_return(MockFindFolder.new([vm]))
           expect(subject).to receive(:clone_vm)
