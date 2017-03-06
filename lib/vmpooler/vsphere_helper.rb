@@ -15,7 +15,6 @@ module Vmpooler
     def ensure_connected(connection, credentials)
       connection.serviceInstance.CurrentTime
     rescue
-      $metrics.increment("connect.open")
       connect_to_vsphere $credentials
     end
 
