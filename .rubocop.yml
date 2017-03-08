@@ -29,12 +29,14 @@ Metrics/PerceivedComplexity:
   Enabled: false
 Metrics/CyclomaticComplexity:
   Enabled: false
-#   - Long Methods, Classes and blocks
+#   - Long Methods, Classes, Blocks, and Modules
 Metrics/MethodLength:
   Enabled: false
 Metrics/ClassLength:
   Enabled: false
 Metrics/BlockLength:
+  Enabled: false
+Metrics/ModuleLength:
   Enabled: false
 
 

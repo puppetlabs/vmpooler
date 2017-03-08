@@ -436,7 +436,7 @@ module Vmpooler
 
           unless maxloop.zero?
             break if loop_count >= maxloop
-            loop_count = loop_count + 1
+            loop_count += 1
           end
         end
       end
@@ -468,7 +468,7 @@ module Vmpooler
 
           unless maxloop.zero?
             break if loop_count >= maxloop
-            loop_count = loop_count + 1
+            loop_count += 1
           end
         end
       end
@@ -569,7 +569,7 @@ module Vmpooler
       finish
     end
 
-    def check_pool(pool,maxloop = 0, loop_delay = 5)
+    def check_pool(pool, maxloop = 0, loop_delay = 5)
       $logger.log('d', "[*] [#{pool['name']}] starting worker thread")
 
       $vsphere[pool['name']] ||= Vmpooler::VsphereHelper.new $config, $metrics
@@ -582,7 +582,7 @@ module Vmpooler
 
           unless maxloop.zero?
             break if loop_count >= maxloop
-            loop_count = loop_count + 1
+            loop_count += 1
           end
         end
       end
@@ -722,7 +722,7 @@ module Vmpooler
           if $redis.get('vmpooler__tasks__clone').to_i < $config[:config]['task_limit'].to_i
             begin
               $redis.incr('vmpooler__tasks__clone')
-              clone_vm(pool,vsphere)
+              clone_vm(pool, vsphere)
             rescue => err
               $logger.log('s', "[!] [#{pool['name']}] clone failed during check_pool with an error: #{err}")
               $redis.decr('vmpooler__tasks__clone')
@@ -736,7 +736,7 @@ module Vmpooler
       raise
     end
 
-   def execute!(maxloop = 0, loop_delay = 1)
+    def execute!(maxloop = 0, loop_delay = 1)
       $logger.log('d', 'starting vmpooler')
 
       # Clear out the tasks manager, as we don't know about any tasks at this point
@@ -773,7 +773,7 @@ module Vmpooler
 
         unless maxloop.zero?
           break if loop_count >= maxloop
-          loop_count = loop_count + 1
+          loop_count += 1
         end
       end
     end
