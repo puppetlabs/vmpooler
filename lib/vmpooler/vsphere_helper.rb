@@ -7,9 +7,9 @@ module Vmpooler
     DISK_MODE = 'persistent'
 
     def initialize(config, metrics)
-      $credentials = config[:vsphere]
-      $conf = config[:config]
-      $metrics = metrics
+      @credentials = config[:vsphere]
+      @conf = config[:config]
+      @metrics = metrics
     end
 
     def ensure_connected(connection, credentials)
@@ -19,18 +19,18 @@ module Vmpooler
     end
 
     def connect_to_vsphere(credentials)
-      max_tries = $conf['max_tries'] || 3
-      retry_factor = $conf['retry_factor'] || 10
+      max_tries = @conf['max_tries'] || 3
+      retry_factor = @conf['retry_factor'] || 10
       try = 1
       begin
         @connection = RbVmomi::VIM.connect host: credentials['server'],
                                            user: credentials['username'],
                                            password: credentials['password'],
                                            insecure: credentials['insecure'] || true
-        $metrics.increment("connect.open")
+        @metrics.increment("connect.open")
       rescue => err
         try += 1
-        $metrics.increment("connect.fail")
+        @metrics.increment("connect.fail")
         raise err if try == max_tries
         sleep(try * retry_factor)
         retry
@@ -38,7 +38,7 @@ module Vmpooler
     end
 
     def add_disk(vm, size, datastore)
-      ensure_connected @connection, $credentials
+      ensure_connected @connection, @credentials
 
       return false unless size.to_i > 0
 
@@ -88,14 +88,14 @@ module Vmpooler
     end
 
     def find_datastore(datastorename)
-      ensure_connected @connection, $credentials
+      ensure_connected @connection, @credentials
 
       datacenter = @connection.serviceInstance.find_datacenter
       datacenter.find_datastore(datastorename)
     end
 
     def find_device(vm, deviceName)
-      ensure_connected @connection, $credentials
+      ensure_connected @connection, @credentials
 
       vm.config.hardware.device.each do |device|
         return device if device.deviceInfo.label == deviceName
@@ -105,7 +105,7 @@ module Vmpooler
     end
 
     def find_disk_controller(vm)
-      ensure_connected @connection, $credentials
+      ensure_connected @connection, @credentials
 
       devices = find_disk_devices(vm)
 
@@ -119,7 +119,7 @@ module Vmpooler
     end
 
     def find_disk_devices(vm)
-      ensure_connected @connection, $credentials
+      ensure_connected @connection, @credentials
 
       devices = {}
 
@@ -147,7 +147,7 @@ module Vmpooler
     end
 
     def find_disk_unit_number(vm, controller)
-      ensure_connected @connection, $credentials
+      ensure_connected @connection, @credentials
 
       used_unit_numbers = []
       available_unit_numbers = []
@@ -172,7 +172,7 @@ module Vmpooler
     end
 
     def find_folder(foldername)
-      ensure_connected @connection, $credentials
+      ensure_connected @connection, @credentials
 
       datacenter = @connection.serviceInstance.find_datacenter
       base = datacenter.vmFolder
@@ -233,7 +233,7 @@ module Vmpooler
     end
 
     def find_least_used_host(cluster)
-      ensure_connected @connection, $credentials
+      ensure_connected @connection, @credentials
 
       cluster_object = find_cluster(cluster)
       target_hosts = get_cluster_host_utilization(cluster_object)
@@ -256,7 +256,7 @@ module Vmpooler
     end
 
     def find_least_used_compatible_host(vm)
-      ensure_connected @connection, $credentials
+      ensure_connected @connection, @credentials
 
       source_host = vm.summary.runtime.host
       model = get_host_cpu_arch_version(source_host)
@@ -271,7 +271,7 @@ module Vmpooler
     end
 
     def find_pool(poolname)
-      ensure_connected @connection, $credentials
+      ensure_connected @connection, @credentials
 
       datacenter = @connection.serviceInstance.find_datacenter
       base = datacenter.hostFolder
@@ -300,18 +300,18 @@ module Vmpooler
     end
 
     def find_vm(vmname)
-      ensure_connected @connection, $credentials
+      ensure_connected @connection, @credentials
       find_vm_light(vmname) || find_vm_heavy(vmname)[vmname]
     end
 
     def find_vm_light(vmname)
-      ensure_connected @connection, $credentials
+      ensure_connected @connection, @credentials
 
       @connection.searchIndex.FindByDnsName(vmSearch: true, dnsName: vmname)
     end
 
     def find_vm_heavy(vmname)
-      ensure_connected @connection, $credentials
+      ensure_connected @connection, @credentials
 
       vmname = vmname.is_a?(Array) ? vmname : [vmname]
       containerView = get_base_vm_container_from @connection
@@ -361,7 +361,7 @@ module Vmpooler
     end
 
     def find_vmdks(vmname, datastore)
-      ensure_connected @connection, $credentials
+      ensure_connected @connection, @credentials
 
       disks = []
 
@@ -380,7 +380,7 @@ module Vmpooler
     end
 
     def get_base_vm_container_from(connection)
-      ensure_connected @connection, $credentials
+      ensure_connected @connection, @credentials
 
       viewManager = connection.serviceContent.viewManager
       viewManager.CreateContainerView(
