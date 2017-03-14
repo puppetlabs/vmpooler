@@ -23,7 +23,7 @@ describe 'Pool Manager' do
   subject { Vmpooler::PoolManager.new(config, logger, redis, metrics) }
 
   describe '#check_pending_vm' do
-    let(:vsphere) { double('vsphere') }
+    let(:provider) { double('provider') }
 
     before do
       expect(subject).not_to be_nil
@@ -31,9 +31,9 @@ describe 'Pool Manager' do
 
     it 'calls _check_pending_vm' do
       expect(Thread).to receive(:new).and_yield
-      expect(subject).to receive(:_check_pending_vm).with(vm,pool,timeout,vsphere)
+      expect(subject).to receive(:_check_pending_vm).with(vm,pool,timeout,provider)
 
-      subject.check_pending_vm(vm, pool, timeout, vsphere)
+      subject.check_pending_vm(vm, pool, timeout, provider)
     end
   end
 
@@ -94,7 +94,7 @@ describe 'Pool Manager' do
   end
 
   describe '#_check_pending_vm' do
-    let(:vsphere) { double('vsphere') }
+    let(:provider) { double('provider') }
 
     before do
       expect(subject).not_to be_nil
@@ -102,28 +102,28 @@ describe 'Pool Manager' do
 
     context 'host does not exist or not in pool' do
       it 'calls fail_pending_vm' do
-        expect(vsphere).to receive(:find_vm).and_return(nil)
+        expect(provider).to receive(:find_vm).and_return(nil)
         expect(subject).to receive(:fail_pending_vm).with(vm, pool, timeout, false) 
 
-        subject._check_pending_vm(vm, pool, timeout, vsphere)
+        subject._check_pending_vm(vm, pool, timeout, provider)
       end
     end
 
     context 'host is in pool' do
       it 'calls move_pending_vm_to_ready if host is ready' do
-        expect(vsphere).to receive(:find_vm).and_return(host)
+        expect(provider).to receive(:find_vm).and_return(host)
         expect(subject).to receive(:open_socket).and_return(nil)
         expect(subject).to receive(:move_pending_vm_to_ready).with(vm, pool, host)
 
-        subject._check_pending_vm(vm, pool, timeout, vsphere)
+        subject._check_pending_vm(vm, pool, timeout, provider)
       end
 
       it 'calls fail_pending_vm if an error is raised' do
-        expect(vsphere).to receive(:find_vm).and_return(host)
+        expect(provider).to receive(:find_vm).and_return(host)
         expect(subject).to receive(:open_socket).and_raise(SocketError,'getaddrinfo: No such host is known')
         expect(subject).to receive(:fail_pending_vm).with(vm, pool, timeout)
 
-        subject._check_pending_vm(vm, pool, timeout, vsphere)
+        subject._check_pending_vm(vm, pool, timeout, provider)
       end
     end
   end
@@ -266,7 +266,7 @@ describe 'Pool Manager' do
   end
 
   describe '#check_ready_vm' do
-    let(:vsphere) { double('vsphere') }
+    let(:provider) { double('provider') }
     let(:ttl) { 0 }
 
     let(:config) {
@@ -285,38 +285,38 @@ EOT
     end
 
     it 'should raise an error if a TTL above zero is specified' do
-      expect { subject.check_ready_vm(vm,pool,5,vsphere) }.to raise_error(NameError) # This is an implementation bug
+      expect { subject.check_ready_vm(vm,pool,5,provider) }.to raise_error(NameError) # This is an implementation bug
     end
 
     context 'a VM that does not need to be checked' do
       it 'should do nothing' do
         redis.hset("vmpooler__vm__#{vm}", 'check',Time.now.to_s)
-        subject.check_ready_vm(vm, pool, ttl, vsphere)
+        subject.check_ready_vm(vm, pool, ttl, provider)
       end
     end
 
     context 'a VM that does not exist' do
       before do
-        allow(vsphere).to receive(:find_vm).and_return(nil)
+        allow(provider).to receive(:find_vm).and_return(nil)
       end
 
       it 'should set the current check timestamp' do
         allow(subject).to receive(:open_socket)
         expect(redis.hget("vmpooler__vm__#{vm}", 'check')).to be_nil
-        subject.check_ready_vm(vm, pool, ttl, vsphere)
+        subject.check_ready_vm(vm, pool, ttl, provider)
         expect(redis.hget("vmpooler__vm__#{vm}", 'check')).to_not be_nil
       end
 
       it 'should log a message' do
         expect(logger).to receive(:log).with('s', "[!] [#{pool}] '#{vm}' not found in vCenter inventory, removed from 'ready' queue")
         allow(subject).to receive(:open_socket)
-        subject.check_ready_vm(vm, pool, ttl, vsphere)
+        subject.check_ready_vm(vm, pool, ttl, provider)
       end
 
       it 'should remove the VM from the ready queue' do
         allow(subject).to receive(:open_socket)
         expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(true)
-        subject.check_ready_vm(vm, pool, ttl, vsphere)
+        subject.check_ready_vm(vm, pool, ttl, provider)
         expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(false)
       end
     end
@@ -329,7 +329,7 @@ EOT
         allow(host).to receive_message_chain(:summary, :guest).and_return( double('guest') )
         allow(host).to receive_message_chain(:summary, :guest, :hostName).and_return (vm)
         
-        allow(vsphere).to receive(:find_vm).and_return(host)
+        allow(provider).to receive(:find_vm).and_return(host)
       end
 
       context 'and is ready' do
@@ -341,7 +341,7 @@ EOT
         end
 
         it 'should only set the next check interval' do
-          subject.check_ready_vm(vm, pool, ttl, vsphere)
+          subject.check_ready_vm(vm, pool, ttl, provider)
         end
       end
 
@@ -356,13 +356,13 @@ EOT
         it 'should move the VM to the completed queue' do
           expect(redis).to receive(:smove).with("vmpooler__ready__#{pool}", "vmpooler__completed__#{pool}", vm)
 
-          subject.check_ready_vm(vm, pool, ttl, vsphere)
+          subject.check_ready_vm(vm, pool, ttl, provider)
         end
 
         it 'should move the VM to the completed queue in Redis' do
           expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(true)
           expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(false)
-          subject.check_ready_vm(vm, pool, ttl, vsphere)
+          subject.check_ready_vm(vm, pool, ttl, provider)
           expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(false)
           expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
         end
@@ -370,7 +370,7 @@ EOT
         it 'should log messages about being powered off' do
           expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' appears to be powered off, removed from 'ready' queue")
 
-          subject.check_ready_vm(vm, pool, ttl, vsphere)
+          subject.check_ready_vm(vm, pool, ttl, provider)
         end
       end
 
@@ -385,13 +385,13 @@ EOT
         it 'should move the VM to the completed queue' do
           expect(redis).to receive(:smove).with("vmpooler__ready__#{pool}", "vmpooler__completed__#{pool}", vm)
 
-          subject.check_ready_vm(vm, pool, ttl, vsphere)
+          subject.check_ready_vm(vm, pool, ttl, provider)
         end
 
         it 'should move the VM to the completed queue in Redis' do
           expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(true)
           expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(false)
-          subject.check_ready_vm(vm, pool, ttl, vsphere)
+          subject.check_ready_vm(vm, pool, ttl, provider)
           expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(false)
           expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
         end
@@ -399,7 +399,7 @@ EOT
         it 'should log messages about being misnamed' do
           expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' has mismatched hostname, removed from 'ready' queue")
 
-          subject.check_ready_vm(vm, pool, ttl, vsphere)
+          subject.check_ready_vm(vm, pool, ttl, provider)
         end
       end
 
@@ -414,13 +414,13 @@ EOT
         it 'should move the VM to the completed queue' do
           expect(redis).to receive(:smove).with("vmpooler__ready__#{pool}", "vmpooler__completed__#{pool}", vm)
 
-          subject.check_ready_vm(vm, pool, ttl, vsphere)
+          subject.check_ready_vm(vm, pool, ttl, provider)
         end
 
         it 'should move the VM to the completed queue in Redis' do
           expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(true)
           expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(false)
-          subject.check_ready_vm(vm, pool, ttl, vsphere)
+          subject.check_ready_vm(vm, pool, ttl, provider)
           expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(false)
           expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
         end
@@ -428,14 +428,14 @@ EOT
         it 'should log messages about being unreachable' do
           expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' is unreachable, removed from 'ready' queue")
 
-          subject.check_ready_vm(vm, pool, ttl, vsphere)
+          subject.check_ready_vm(vm, pool, ttl, provider)
         end
       end
     end
   end
 
   describe '#check_running_vm' do
-    let(:vsphere) { double('vsphere') }
+    let(:provider) { double('provider') }
     let (:ttl) { 5 }
 
     before do
@@ -444,14 +444,14 @@ EOT
 
     it 'calls _check_running_vm' do
       expect(Thread).to receive(:new).and_yield
-      expect(subject).to receive(:_check_running_vm).with(vm, pool, ttl, vsphere)
+      expect(subject).to receive(:_check_running_vm).with(vm, pool, ttl, provider)
 
-      subject.check_running_vm(vm, pool, ttl, vsphere)
+      subject.check_running_vm(vm, pool, ttl, provider)
     end
   end
 
   describe '#_check_running_vm' do
-    let(:vsphere) { double('vsphere') }
+    let(:provider) { double('provider') }
 
     before do
       expect(subject).not_to be_nil
@@ -462,9 +462,9 @@ EOT
     end
 
     it 'does nothing with a missing VM' do
-      allow(vsphere).to receive(:find_vm).and_return(nil)
+      allow(provider).to receive(:find_vm).and_return(nil)
       expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
-      subject._check_running_vm(vm, pool, timeout, vsphere)
+      subject._check_running_vm(vm, pool, timeout, provider)
       expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
     end
 
@@ -474,36 +474,36 @@ EOT
      it 'should not move VM when not poweredOn' do
         # I'm not sure this test is useful.  There is no codepath
         # in _check_running_vm that looks at Power State
-        allow(vsphere).to receive(:find_vm).and_return vm_host
+        allow(provider).to receive(:find_vm).and_return vm_host
         allow(vm_host).to receive(:runtime).and_return true
         allow(vm_host).to receive_message_chain(:runtime, :powerState).and_return 'poweredOff'
         expect(logger).not_to receive(:log).with('d', "[!] [#{pool}] '#{vm}' appears to be powered off or dead")
         expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
-        subject._check_running_vm(vm, pool, timeout, vsphere)
+        subject._check_running_vm(vm, pool, timeout, provider)
         expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
       end
 
       it 'should not move VM if it has no checkout time' do
-        allow(vsphere).to receive(:find_vm).and_return vm_host
+        allow(provider).to receive(:find_vm).and_return vm_host
         expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
-        subject._check_running_vm(vm, pool, 0, vsphere)
+        subject._check_running_vm(vm, pool, 0, provider)
         expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
       end
 
       it 'should not move VM if TTL is zero' do
-        allow(vsphere).to receive(:find_vm).and_return vm_host
+        allow(provider).to receive(:find_vm).and_return vm_host
         redis.hset("vmpooler__active__#{pool}", vm,(Time.now - timeout*60*60).to_s)
         expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
-        subject._check_running_vm(vm, pool, 0, vsphere)
+        subject._check_running_vm(vm, pool, 0, provider)
         expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
       end
 
       it 'should move VM when past TTL' do
-        allow(vsphere).to receive(:find_vm).and_return vm_host
+        allow(provider).to receive(:find_vm).and_return vm_host
         redis.hset("vmpooler__active__#{pool}", vm,(Time.now - timeout*60*60).to_s)
         expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
         expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(false)
-        subject._check_running_vm(vm, pool, timeout, vsphere)
+        subject._check_running_vm(vm, pool, timeout, provider)
         expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(false)
         expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
       end
@@ -549,7 +549,7 @@ EOT
   end
 
   describe '#clone_vm' do
-    let(:vsphere) { double('vsphere') }
+    let(:provider) { double('provider') }
 
     let(:config) {
       YAML.load(<<-EOT
@@ -571,27 +571,23 @@ EOT
 
     it 'calls _clone_vm' do
       expect(Thread).to receive(:new).and_yield
-      expect(subject).to receive(:_clone_vm).with(pool_object,vsphere)
+      expect(subject).to receive(:_clone_vm).with(pool_object,provider)
 
-      subject.clone_vm(pool_object,vsphere)
+      subject.clone_vm(pool_object,provider)
     end
 
     it 'logs a message if an error is raised' do
       expect(Thread).to receive(:new).and_yield
       expect(logger).to receive(:log)
-      expect(subject).to receive(:_clone_vm).with(pool_object,vsphere).and_raise('an_error')
+      expect(subject).to receive(:_clone_vm).with(pool_object,provider).and_raise('an_error')
 
-      expect{subject.clone_vm(pool_object,vsphere)}.to raise_error(/an_error/)
+      expect{subject.clone_vm(pool_object,provider)}.to raise_error(/an_error/)
     end
   end
 
   describe '#_clone_vm' do
     before do
       expect(subject).not_to be_nil
-    end
-
-    before(:each) do
-      #expect(Thread).to receive(:new).and_yield
     end
 
     let (:folder) { 'vmfolder' }
@@ -618,7 +614,7 @@ EOT
       )
     }
 
-    let (:vsphere) { double('vsphere') }
+    let (:provider) { double('provider') }
     let (:template_folder_object) { double('template_folder_object') }
     let (:template_vm_object) { double('template_vm_object') }
     let (:clone_task) { double('clone_task') }
@@ -630,7 +626,7 @@ EOT
       end
 
       it 'should raise an error' do
-        expect{subject._clone_vm(pool_object,vsphere)}.to raise_error(/Please provide a full path to the template/)
+        expect{subject._clone_vm(pool_object,provider)}.to raise_error(/Please provide a full path to the template/)
       end
     end
 
@@ -640,7 +636,7 @@ EOT
       end
 
       it 'should raise an error' do
-        expect{subject._clone_vm(pool_object,vsphere)}.to raise_error(/Please provide a full path to the template/)
+        expect{subject._clone_vm(pool_object,provider)}.to raise_error(/Please provide a full path to the template/)
       end
     end
 
@@ -661,14 +657,14 @@ EOT
       context 'a valid template' do
         before(:each) do
           expect(template_folder_object).to receive(:find).with(template_name).and_return(template_vm_object)
-          expect(vsphere).to receive(:find_folder).with('template').and_return(template_folder_object)
+          expect(provider).to receive(:find_folder).with('template').and_return(template_folder_object)
         end
 
         context 'with no errors during cloning' do
           before(:each) do
-            expect(vsphere).to receive(:find_least_used_host).with(target).and_return('least_used_host')
-            expect(vsphere).to receive(:find_datastore).with(datastore).and_return('datastore')
-            expect(vsphere).to receive(:find_folder).with('vmfolder').and_return(folder_object)
+            expect(provider).to receive(:find_least_used_host).with(target).and_return('least_used_host')
+            expect(provider).to receive(:find_datastore).with(datastore).and_return('datastore')
+            expect(provider).to receive(:find_folder).with('vmfolder').and_return(folder_object)
             expect(template_vm_object).to receive(:CloneVM_Task).and_return(clone_task)
             expect(clone_task).to receive(:wait_for_completion)
             expect(metrics).to receive(:timing).with(/clone\./,/0/)
@@ -678,7 +674,7 @@ EOT
             expect(logger).to receive(:log).at_least(:once)
             expect(redis.scard("vmpooler__pending__#{pool}")).to eq(0)
 
-            subject._clone_vm(pool_object,vsphere)
+            subject._clone_vm(pool_object,provider)
 
             expect(redis.scard("vmpooler__pending__#{template_name}")).to eq(1)
             # Get the new VM Name from the pending pool queue as it should be the only entry
@@ -693,14 +689,14 @@ EOT
             expect(logger).to receive(:log).with('d',/\[ \] \[#{template_name}\] '(.+)' is being cloned from '#{template_name}'/)
             allow(logger).to receive(:log)
 
-            subject._clone_vm(pool_object,vsphere)
+            subject._clone_vm(pool_object,provider)
           end
 
           it 'should log a message that it completed being cloned' do
             expect(logger).to receive(:log).with('s',/\[\+\] \[#{template_name}\] '(.+)' cloned from '#{template_name}' in [0-9.]+ seconds/)
             allow(logger).to receive(:log)
 
-            subject._clone_vm(pool_object,vsphere)
+            subject._clone_vm(pool_object,provider)
           end
         end
 
@@ -711,9 +707,9 @@ EOT
         # https://www.vmware.com/support/developer/converter-sdk/conv50_apireference/vim.VirtualMachine.html#clone
         context 'with an error during cloning' do
           before(:each) do
-            expect(vsphere).to receive(:find_least_used_host).with(target).and_return('least_used_host')
-            expect(vsphere).to receive(:find_datastore).with(datastore).and_return(nil)
-            expect(vsphere).to receive(:find_folder).with('vmfolder').and_return(folder_object)
+            expect(provider).to receive(:find_least_used_host).with(target).and_return('least_used_host')
+            expect(provider).to receive(:find_datastore).with(datastore).and_return(nil)
+            expect(provider).to receive(:find_folder).with('vmfolder').and_return(folder_object)
             expect(template_vm_object).to receive(:CloneVM_Task).and_return(clone_task)
             expect(clone_task).to receive(:wait_for_completion).and_raise(RuntimeError,'SomeError')
             expect(metrics).to receive(:timing).with(/clone\./,/0/).exactly(0).times
@@ -722,7 +718,7 @@ EOT
 
           it 'should raise an error within the Thread' do
             expect(logger).to receive(:log).at_least(:once)
-            expect{subject._clone_vm(pool_object,vsphere)}.to raise_error(/SomeError/)
+            expect{subject._clone_vm(pool_object,provider)}.to raise_error(/SomeError/)
           end
 
           it 'should log a message that is being cloned from a template' do
@@ -731,7 +727,7 @@ EOT
 
             # Swallow the error
             begin
-              subject._clone_vm(pool_object,vsphere)
+              subject._clone_vm(pool_object,provider)
             rescue
             end
           end
@@ -742,7 +738,7 @@ EOT
 
             # Swallow the error
             begin
-              subject._clone_vm(pool_object,vsphere)
+              subject._clone_vm(pool_object,provider)
             rescue
             end
           end
@@ -753,14 +749,14 @@ EOT
     context 'a valid template' do
       before(:each) do
         expect(template_folder_object).to receive(:find).with(template_name).and_return(template_vm_object)
-        expect(vsphere).to receive(:find_folder).with('template').and_return(template_folder_object)
+        expect(provider).to receive(:find_folder).with('template').and_return(template_folder_object)
       end
 
       context 'with no errors during cloning' do
         before(:each) do
-          expect(vsphere).to receive(:find_least_used_host).with(target).and_return('least_used_host')
-          expect(vsphere).to receive(:find_datastore).with(datastore).and_return('datastore')
-          expect(vsphere).to receive(:find_folder).with('vmfolder').and_return(folder_object)
+          expect(provider).to receive(:find_least_used_host).with(target).and_return('least_used_host')
+          expect(provider).to receive(:find_datastore).with(datastore).and_return('datastore')
+          expect(provider).to receive(:find_folder).with('vmfolder').and_return(folder_object)
           expect(template_vm_object).to receive(:CloneVM_Task).and_return(clone_task)
           expect(clone_task).to receive(:wait_for_completion)
           expect(metrics).to receive(:timing).with(/clone\./,/0/)
@@ -770,7 +766,7 @@ EOT
           expect(logger).to receive(:log).at_least(:once)
           expect(redis.scard("vmpooler__pending__#{pool}")).to eq(0)
 
-          subject._clone_vm(pool_object,vsphere)
+          subject._clone_vm(pool_object,provider)
 
           expect(redis.scard("vmpooler__pending__#{pool}")).to eq(1)
           # Get the new VM Name from the pending pool queue as it should be the only entry
@@ -785,7 +781,7 @@ EOT
           redis.incr('vmpooler__tasks__clone')
           redis.incr('vmpooler__tasks__clone')
           expect(redis.get('vmpooler__tasks__clone')).to eq('2')
-          subject._clone_vm(pool_object,vsphere)
+          subject._clone_vm(pool_object,provider)
           expect(redis.get('vmpooler__tasks__clone')).to eq('1')
         end
 
@@ -793,14 +789,14 @@ EOT
           expect(logger).to receive(:log).with('d',/\[ \] \[#{pool}\] '(.+)' is being cloned from '#{template_name}'/)
           allow(logger).to receive(:log)
 
-          subject._clone_vm(pool_object,vsphere)
+          subject._clone_vm(pool_object,provider)
         end
 
         it 'should log a message that it completed being cloned' do
           expect(logger).to receive(:log).with('s',/\[\+\] \[#{pool}\] '(.+)' cloned from '#{template_name}' in [0-9.]+ seconds/)
           allow(logger).to receive(:log)
 
-          subject._clone_vm(pool_object,vsphere)
+          subject._clone_vm(pool_object,provider)
         end
       end
 
@@ -811,9 +807,9 @@ EOT
       # https://www.vmware.com/support/developer/converter-sdk/conv50_apireference/vim.VirtualMachine.html#clone
       context 'with an error during cloning' do
         before(:each) do
-          expect(vsphere).to receive(:find_least_used_host).with(target).and_return('least_used_host')
-          expect(vsphere).to receive(:find_datastore).with(datastore).and_return(nil)
-          expect(vsphere).to receive(:find_folder).with('vmfolder').and_return(folder_object)
+          expect(provider).to receive(:find_least_used_host).with(target).and_return('least_used_host')
+          expect(provider).to receive(:find_datastore).with(datastore).and_return(nil)
+          expect(provider).to receive(:find_folder).with('vmfolder').and_return(folder_object)
           expect(template_vm_object).to receive(:CloneVM_Task).and_return(clone_task)
           expect(clone_task).to receive(:wait_for_completion).and_raise(RuntimeError,'SomeError')
           expect(metrics).to receive(:timing).with(/clone\./,/0/).exactly(0).times
@@ -822,7 +818,7 @@ EOT
 
         it 'should raise an error within the Thread' do
           expect(logger).to receive(:log).at_least(:once)
-          expect{subject._clone_vm(pool_object,vsphere)}.to raise_error(/SomeError/)
+          expect{subject._clone_vm(pool_object,provider)}.to raise_error(/SomeError/)
         end
 
         it 'should log a message that is being cloned from a template' do
@@ -831,7 +827,7 @@ EOT
 
           # Swallow the error
           begin
-            subject._clone_vm(pool_object,vsphere)
+            subject._clone_vm(pool_object,provider)
           rescue
           end
         end
@@ -842,7 +838,7 @@ EOT
 
           # Swallow the error
           begin
-            subject._clone_vm(pool_object,vsphere)
+            subject._clone_vm(pool_object,provider)
           rescue
           end
         end
@@ -851,7 +847,7 @@ EOT
   end
 
   describe "#destroy_vm" do
-    let (:vsphere) { double('vsphere') }
+    let (:provider) { double('provider') }
 
     let(:config) {
       YAML.load(<<-EOT
@@ -883,12 +879,12 @@ EOT
       }
 
       before(:each) do
-        expect(vsphere).to receive(:find_vm).and_return(nil)
+        expect(provider).to receive(:find_vm).and_return(nil)
       end
 
       it 'should call redis expire with 0' do
         expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to_not be_nil
-        subject.destroy_vm(vm,pool,vsphere)
+        subject.destroy_vm(vm,pool,provider)
         expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to be_nil
       end
     end
@@ -897,17 +893,17 @@ EOT
       let(:config) {}
       
       it 'should raise an error' do
-        expect{ subject.destroy_vm(vm,pool,vsphere) }.to raise_error(NoMethodError)
+        expect{ subject.destroy_vm(vm,pool,provider) }.to raise_error(NoMethodError)
       end
     end
 
     context 'when a VM does not exist' do
       before(:each) do
-        expect(vsphere).to receive(:find_vm).and_return(nil)
+        expect(provider).to receive(:find_vm).and_return(nil)
       end
 
-      it 'should not call any vsphere methods' do
-        subject.destroy_vm(vm,pool,vsphere)
+      it 'should not call any provider methods' do
+        subject.destroy_vm(vm,pool,provider)
       end
     end
 
@@ -916,7 +912,7 @@ EOT
       let (:poweroff_task) { double('poweroff_task') }
 
       before(:each) do
-        expect(vsphere).to receive(:find_vm).and_return(host)
+        expect(provider).to receive(:find_vm).and_return(host)
         allow(host).to receive(:runtime).and_return(true)
       end
 
@@ -929,7 +925,7 @@ EOT
         end
 
         it 'should raise an error in the thread' do
-          expect { subject.destroy_vm(vm,pool,vsphere) }.to raise_error(/DestroyFailure/)
+          expect { subject.destroy_vm(vm,pool,provider) }.to raise_error(/DestroyFailure/)
         end
       end
 
@@ -943,7 +939,7 @@ EOT
         end
 
         it 'should raise an error in the thread' do
-          expect { subject.destroy_vm(vm,pool,vsphere) }.to raise_error(/PowerOffFailure/)
+          expect { subject.destroy_vm(vm,pool,provider) }.to raise_error(/PowerOffFailure/)
         end
       end
 
@@ -957,7 +953,7 @@ EOT
 
         it 'should log a message the VM was destroyed' do
           expect(logger).to receive(:log).with('s', /\[-\] \[#{pool}\] '#{vm}' destroyed in [0-9.]+ seconds/)
-          subject.destroy_vm(vm,pool,vsphere)
+          subject.destroy_vm(vm,pool,provider)
         end
       end
 
@@ -975,21 +971,21 @@ EOT
           expect(logger).to receive(:log).with('d', "[ ] [#{pool}] '#{vm}' is being shut down")
           allow(logger).to receive(:log)
 
-          subject.destroy_vm(vm,pool,vsphere)
+          subject.destroy_vm(vm,pool,provider)
         end
 
         it 'should log a message the VM was destroyed' do
          expect(logger).to receive(:log).with('s', /\[-\] \[#{pool}\] '#{vm}' destroyed in [0-9.]+ seconds/)
           allow(logger).to receive(:log)
 
-          subject.destroy_vm(vm,pool,vsphere)
+          subject.destroy_vm(vm,pool,provider)
         end
       end
     end
   end
 
   describe '#create_vm_disk' do
-    let(:vsphere) { double('vsphere') }
+    let(:provider) { double('provider') }
     let(:disk_size) { 15 }
 
     before do
@@ -998,14 +994,14 @@ EOT
 
     it 'calls _create_vm_disk' do
       expect(Thread).to receive(:new).and_yield
-      expect(subject).to receive(:_create_vm_disk).with(vm, disk_size, vsphere)
+      expect(subject).to receive(:_create_vm_disk).with(vm, disk_size, provider)
 
-      subject.create_vm_disk(vm, disk_size, vsphere)
+      subject.create_vm_disk(vm, disk_size, provider)
     end
   end
 
   describe "#_create_vm_disk" do
-    let(:vsphere) { double('vsphere') }
+    let(:provider) { double('provider') }
     let(:disk_size) { '15' }
     let(:datastore) { 'datastore0'}
     let(:config) {
@@ -1023,39 +1019,39 @@ EOT
     end
 
     before(:each) do
-      allow(vsphere).to receive(:find_vm).with(vm).and_return(host)
+      allow(provider).to receive(:find_vm).with(vm).and_return(host)
       create_running_vm(pool,vm,token)
     end
 
     it 'should not do anything if the VM does not exist' do
-      expect(vsphere).to receive(:find_vm).with(vm).and_return(nil)
+      expect(provider).to receive(:find_vm).with(vm).and_return(nil)
       expect(logger).to receive(:log).exactly(0).times
-      subject._create_vm_disk(vm, disk_size, vsphere)
+      subject._create_vm_disk(vm, disk_size, provider)
     end
 
     it 'should not do anything if the disk size is nil' do
       expect(logger).to receive(:log).exactly(0).times
-      subject._create_vm_disk(vm, nil, vsphere)
+      subject._create_vm_disk(vm, nil, provider)
     end
 
     it 'should not do anything if the disk size is empty string' do
       expect(logger).to receive(:log).exactly(0).times
-      subject._create_vm_disk(vm, '', vsphere)
+      subject._create_vm_disk(vm, '', provider)
     end
 
     it 'should not do anything if the disk size is less than 1' do
       expect(logger).to receive(:log).exactly(0).times
-      subject._create_vm_disk(vm, '0', vsphere)
+      subject._create_vm_disk(vm, '0', provider)
     end
 
     it 'should not do anything if the disk size cannot be converted to an integer' do
       expect(logger).to receive(:log).exactly(0).times
-      subject._create_vm_disk(vm, 'abc123', vsphere)
+      subject._create_vm_disk(vm, 'abc123', provider)
     end
 
     it 'should raise an error if the disk size is a Fixnum' do
       expect(logger).to receive(:log).exactly(0).times
-      expect{ subject._create_vm_disk(vm, 10, vsphere) }.to raise_error(NoMethodError,/empty?/)
+      expect{ subject._create_vm_disk(vm, 10, provider) }.to raise_error(NoMethodError,/empty?/)
     end
 
     it 'should not do anything if the datastore for pool is nil' do
@@ -1063,7 +1059,7 @@ EOT
       expect(logger).to receive(:log).with('s', "[+] [disk_manager] '#{vm}' failed to attach disk")
       config[:pools][0]['datastore'] = nil
 
-      subject._create_vm_disk(vm, disk_size, vsphere)
+      subject._create_vm_disk(vm, disk_size, provider)
     end
 
     it 'should not do anything if the datastore for pool is empty' do
@@ -1071,36 +1067,36 @@ EOT
       expect(logger).to receive(:log).with('s', "[+] [disk_manager] '#{vm}' failed to attach disk")
       config[:pools][0]['datastore'] = ''
 
-      subject._create_vm_disk(vm, disk_size, vsphere)
+      subject._create_vm_disk(vm, disk_size, provider)
     end
 
     it 'should attach the disk' do
       expect(logger).to receive(:log).with('s', "[ ] [disk_manager] '#{vm}' is attaching a #{disk_size}gb disk")
       expect(logger).to receive(:log).with('s', /\[\+\] \[disk_manager\] '#{vm}' attached #{disk_size}gb disk in 0.[\d]+ seconds/)
-      expect(vsphere).to receive(:add_disk).with(host,disk_size,datastore)
+      expect(provider).to receive(:add_disk).with(host,disk_size,datastore)
 
-      subject._create_vm_disk(vm, disk_size, vsphere)
+      subject._create_vm_disk(vm, disk_size, provider)
     end
 
     it 'should update redis information when attaching the first disk' do
-      expect(vsphere).to receive(:add_disk).with(host,disk_size,datastore)
+      expect(provider).to receive(:add_disk).with(host,disk_size,datastore)
 
-      subject._create_vm_disk(vm, disk_size, vsphere)
+      subject._create_vm_disk(vm, disk_size, provider)
       expect(redis.hget("vmpooler__vm__#{vm}", 'disk')).to eq("+#{disk_size}gb")
     end
 
     it 'should update redis information when attaching the additional disks' do
-      expect(vsphere).to receive(:add_disk).with(host,disk_size,datastore)
+      expect(provider).to receive(:add_disk).with(host,disk_size,datastore)
       initial_disks = '+10gb:+20gb'
       redis.hset("vmpooler__vm__#{vm}", 'disk', initial_disks)
 
-      subject._create_vm_disk(vm, disk_size, vsphere)
+      subject._create_vm_disk(vm, disk_size, provider)
       expect(redis.hget("vmpooler__vm__#{vm}", 'disk')).to eq("#{initial_disks}:+#{disk_size}gb")
     end
   end
 
   describe '#create_vm_snapshot' do
-    let(:vsphere) { double('vsphere') }
+    let(:provider) { double('provider') }
     let(:snapshot_name) { 'snapshot' }
 
     before do
@@ -1109,14 +1105,14 @@ EOT
 
     it 'calls _create_vm_snapshot' do
       expect(Thread).to receive(:new).and_yield
-      expect(subject).to receive(:_create_vm_snapshot).with(vm, snapshot_name, vsphere)
+      expect(subject).to receive(:_create_vm_snapshot).with(vm, snapshot_name, provider)
 
-      subject.create_vm_snapshot(vm, snapshot_name, vsphere)
+      subject.create_vm_snapshot(vm, snapshot_name, provider)
     end
   end
 
   describe '#_create_vm_snapshot' do
-    let(:vsphere) { double('vsphere') }
+    let(:provider) { double('provider') }
     let(:snapshot_name) { 'snapshot1' }
     let(:snapshot_task) { double('snapshot_task') }
 
@@ -1125,43 +1121,43 @@ EOT
     end
 
     before(:each) do
-      allow(vsphere).to receive(:find_vm).with(vm).and_return(host)
+      allow(provider).to receive(:find_vm).with(vm).and_return(host)
       allow(snapshot_task).to receive(:wait_for_completion).and_return(nil)
       allow(host).to receive(:CreateSnapshot_Task).with({:name=>snapshot_name, :description=>"vmpooler", :memory=>true, :quiesce=>true}).and_return(snapshot_task)
       create_running_vm(pool,vm,token)
     end
 
     it 'should not do anything if the VM does not exist' do
-      expect(vsphere).to receive(:find_vm).with(vm).and_return(nil)
+      expect(provider).to receive(:find_vm).with(vm).and_return(nil)
       expect(logger).to receive(:log).exactly(0).times
-      subject._create_vm_snapshot(vm, snapshot_name, vsphere)
+      subject._create_vm_snapshot(vm, snapshot_name, provider)
     end
 
     it 'should not do anything if the snapshot name is nil' do
       expect(logger).to receive(:log).exactly(0).times
-      subject._create_vm_snapshot(vm, nil, vsphere)
+      subject._create_vm_snapshot(vm, nil, provider)
     end
 
     it 'should not do anything if the snapshot name is empty string' do
       expect(logger).to receive(:log).exactly(0).times
-      subject._create_vm_snapshot(vm, '', vsphere)
+      subject._create_vm_snapshot(vm, '', provider)
     end
 
-    it 'should invoke vSphere to snapshot the VM' do
+    it 'should invoke provider to snapshot the VM' do
       expect(logger).to receive(:log).with('s', "[ ] [snapshot_manager] '#{vm}' is being snapshotted")
       expect(logger).to receive(:log).with('s', /\[\+\] \[snapshot_manager\] '#{vm}' snapshot created in 0.[\d]+ seconds/)
-      subject._create_vm_snapshot(vm, snapshot_name, vsphere)
+      subject._create_vm_snapshot(vm, snapshot_name, provider)
     end
 
     it 'should add snapshot redis information' do
       expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to be_nil
-      subject._create_vm_snapshot(vm, snapshot_name, vsphere)
+      subject._create_vm_snapshot(vm, snapshot_name, provider)
       expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to_not be_nil
     end
   end
 
   describe '#revert_vm_snapshot' do
-    let(:vsphere) { double('vsphere') }
+    let(:provider) { double('provider') }
     let(:snapshot_name) { 'snapshot' }
 
     before do
@@ -1170,14 +1166,14 @@ EOT
 
     it 'calls _create_vm_snapshot' do
       expect(Thread).to receive(:new).and_yield
-      expect(subject).to receive(:_revert_vm_snapshot).with(vm, snapshot_name, vsphere)
+      expect(subject).to receive(:_revert_vm_snapshot).with(vm, snapshot_name, provider)
 
-      subject.revert_vm_snapshot(vm, snapshot_name, vsphere)
+      subject.revert_vm_snapshot(vm, snapshot_name, provider)
     end
   end
 
   describe '#_revert_vm_snapshot' do
-    let(:vsphere) { double('vsphere') }
+    let(:provider) { double('provider') }
     let(:snapshot_name) { 'snapshot1' }
     let(:snapshot_object) { double('snapshot_object') }
 
@@ -1186,33 +1182,33 @@ EOT
     end
 
     before(:each) do
-      allow(vsphere).to receive(:find_vm).with(vm).and_return(host)
+      allow(provider).to receive(:find_vm).with(vm).and_return(host)
       allow(snapshot_object).to receive_message_chain(:RevertToSnapshot_Task, :wait_for_completion)
-      allow(vsphere).to receive(:find_snapshot).with(host,snapshot_name).and_return(snapshot_object)
+      allow(provider).to receive(:find_snapshot).with(host,snapshot_name).and_return(snapshot_object)
     end
 
     it 'should not do anything if the VM does not exist' do
-      expect(vsphere).to receive(:find_vm).with(vm).and_return(nil)
+      expect(provider).to receive(:find_vm).with(vm).and_return(nil)
       expect(logger).to receive(:log).exactly(0).times
-      subject._revert_vm_snapshot(vm, snapshot_name, vsphere)
+      subject._revert_vm_snapshot(vm, snapshot_name, provider)
     end
 
     it 'should not do anything if the snapshot name is nil' do
       expect(logger).to receive(:log).exactly(0).times
-      expect(vsphere).to receive(:find_snapshot).with(host,nil).and_return nil
-      subject._revert_vm_snapshot(vm, nil, vsphere)
+      expect(provider).to receive(:find_snapshot).with(host,nil).and_return nil
+      subject._revert_vm_snapshot(vm, nil, provider)
     end
 
     it 'should not do anything if the snapshot name is empty string' do
       expect(logger).to receive(:log).exactly(0).times
-      expect(vsphere).to receive(:find_snapshot).with(host,'').and_return nil
-      subject._revert_vm_snapshot(vm, '', vsphere)
+      expect(provider).to receive(:find_snapshot).with(host,'').and_return nil
+      subject._revert_vm_snapshot(vm, '', provider)
     end
 
-    it 'should invoke vSphere to revert the VM to the snapshot' do
+    it 'should invoke provider to revert the VM to the snapshot' do
       expect(logger).to receive(:log).with('s', "[ ] [snapshot_manager] '#{vm}' is being reverted to snapshot '#{snapshot_name}'")
       expect(logger).to receive(:log).with('s', /\[\<\] \[snapshot_manager\] '#{vm}' reverted to snapshot in 0\.[\d]+ seconds/)
-      subject._revert_vm_snapshot(vm, snapshot_name, vsphere)
+      subject._revert_vm_snapshot(vm, snapshot_name, provider)
     end
   end
 
@@ -1283,7 +1279,7 @@ EOT
   end
 
   describe '#_check_disk_queue' do
-    let(:vsphere) { double('vsphere') }
+    let(:provider) { double('provider') }
 
     before do
       expect(subject).not_to be_nil
@@ -1292,7 +1288,7 @@ EOT
     context 'when no VMs in the queue' do
       it 'should not call create_vm_disk' do
         expect(subject).to receive(:create_vm_disk).exactly(0).times
-        subject._check_disk_queue(vsphere)
+        subject._check_disk_queue(provider)
       end
     end
 
@@ -1305,18 +1301,18 @@ EOT
 
       it 'should call create_vm_disk once' do
         expect(subject).to receive(:create_vm_disk).exactly(1).times
-        subject._check_disk_queue(vsphere)
+        subject._check_disk_queue(provider)
       end
 
       it 'should snapshot the first VM in the queue' do
-        expect(subject).to receive(:create_vm_disk).with('vm1','1',vsphere)
-        subject._check_disk_queue(vsphere)
+        expect(subject).to receive(:create_vm_disk).with('vm1','1',provider)
+        subject._check_disk_queue(provider)
       end
 
       it 'should log an error if one occurs' do
         expect(subject).to receive(:create_vm_disk).and_raise(RuntimeError,'MockError')
         expect(logger).to receive(:log).with('s', "[!] [disk_manager] disk creation appears to have failed")
-        subject._check_disk_queue(vsphere)
+        subject._check_disk_queue(provider)
       end
     end
   end
@@ -1388,7 +1384,7 @@ EOT
   end
 
   describe '#_check_snapshot_queue' do
-    let(:vsphere) { double('vsphere') }
+    let(:provider) { double('provider') }
 
     before do
       expect(subject).not_to be_nil
@@ -1398,7 +1394,7 @@ EOT
       context 'when no VMs in the queue' do
         it 'should not call create_vm_snapshot' do
           expect(subject).to receive(:create_vm_snapshot).exactly(0).times
-          subject._check_snapshot_queue(vsphere)
+          subject._check_snapshot_queue(provider)
         end
       end
 
@@ -1411,18 +1407,18 @@ EOT
 
         it 'should call create_vm_snapshot once' do
           expect(subject).to receive(:create_vm_snapshot).exactly(1).times
-          subject._check_snapshot_queue(vsphere)
+          subject._check_snapshot_queue(provider)
         end
 
         it 'should snapshot the first VM in the queue' do
-          expect(subject).to receive(:create_vm_snapshot).with('vm1','snapshot1',vsphere)
-          subject._check_snapshot_queue(vsphere)
+          expect(subject).to receive(:create_vm_snapshot).with('vm1','snapshot1',provider)
+          subject._check_snapshot_queue(provider)
         end
 
         it 'should log an error if one occurs' do
           expect(subject).to receive(:create_vm_snapshot).and_raise(RuntimeError,'MockError')
           expect(logger).to receive(:log).with('s', "[!] [snapshot_manager] snapshot appears to have failed")
-          subject._check_snapshot_queue(vsphere)
+          subject._check_snapshot_queue(provider)
         end
       end
     end
@@ -1431,7 +1427,7 @@ EOT
       context 'when no VMs in the queue' do
         it 'should not call revert_vm_snapshot' do
           expect(subject).to receive(:revert_vm_snapshot).exactly(0).times
-          subject._check_snapshot_queue(vsphere)
+          subject._check_snapshot_queue(provider)
         end
       end
 
@@ -1444,18 +1440,18 @@ EOT
 
         it 'should call revert_vm_snapshot once' do
           expect(subject).to receive(:revert_vm_snapshot).exactly(1).times
-          subject._check_snapshot_queue(vsphere)
+          subject._check_snapshot_queue(provider)
         end
 
         it 'should revert snapshot the first VM in the queue' do
-          expect(subject).to receive(:revert_vm_snapshot).with('vm1','snapshot1',vsphere)
-          subject._check_snapshot_queue(vsphere)
+          expect(subject).to receive(:revert_vm_snapshot).with('vm1','snapshot1',provider)
+          subject._check_snapshot_queue(provider)
         end
 
         it 'should log an error if one occurs' do
           expect(subject).to receive(:revert_vm_snapshot).and_raise(RuntimeError,'MockError')
           expect(logger).to receive(:log).with('s', "[!] [snapshot_manager] snapshot revert appears to have failed")
-          subject._check_snapshot_queue(vsphere)
+          subject._check_snapshot_queue(provider)
         end
       end
     end
@@ -1485,7 +1481,7 @@ EOT
   end
 
   describe '#migrate_vm' do
-    let(:vsphere) { double('vsphere') }
+    let(:provider) { double('provider') }
 
     before do
       expect(subject).not_to be_nil
@@ -1493,14 +1489,14 @@ EOT
 
     it 'calls _migrate_vm' do
       expect(Thread).to receive(:new).and_yield
-      expect(subject).to receive(:_migrate_vm).with(vm, pool, vsphere)
+      expect(subject).to receive(:_migrate_vm).with(vm, pool, provider)
 
-      subject.migrate_vm(vm, pool, vsphere)
+      subject.migrate_vm(vm, pool, provider)
     end
   end
 
   describe "#_migrate_vm" do
-    let(:vsphere) { double('vsphere') }
+    let(:provider) { double('provider') }
     let(:vm_parent_hostname) { 'parent1' }
     let(:config) {
       YAML.load(<<-EOT
@@ -1519,25 +1515,25 @@ EOT
 
     context 'when an error occurs' do
       it 'should log an error message and attempt to remove from vmpooler_migration queue' do
-        expect(vsphere).to receive(:find_vm).with(vm).and_raise(RuntimeError,'MockError')
+        expect(provider).to receive(:find_vm).with(vm).and_raise(RuntimeError,'MockError')
         expect(logger).to receive(:log).with('s', "[x] [#{pool}] '#{vm}' migration failed with an error: MockError")
         expect(subject).to receive(:remove_vmpooler_migration_vm)
-        subject._migrate_vm(vm, pool, vsphere)
+        subject._migrate_vm(vm, pool, provider)
       end
     end
 
     context 'when VM does not exist' do
       it 'should log an error message when VM does not exist' do
-        expect(vsphere).to receive(:find_vm).with(vm).and_return(nil)
+        expect(provider).to receive(:find_vm).with(vm).and_return(nil)
         # This test is quite fragile.  Should refactor the code to make this scenario easier to detect
         expect(logger).to receive(:log).with('s', "[x] [#{pool}] '#{vm}' migration failed with an error: undefined method `summary' for nil:NilClass")
-        subject._migrate_vm(vm, pool, vsphere)
+        subject._migrate_vm(vm, pool, provider)
       end
     end
 
     context 'when VM exists but migration is disabled' do
       before(:each) do
-        expect(vsphere).to receive(:find_vm).with(vm).and_return(host)
+        expect(provider).to receive(:find_vm).with(vm).and_return(host)
         allow(subject).to receive(:get_vm_host_info).with(host).and_return([{'name' => vm_parent_hostname}, vm_parent_hostname])
         create_migrating_vm(vm, pool)
       end
@@ -1546,7 +1542,7 @@ EOT
         it "should not migrate a VM if the migration limit is #{testvalue}" do
           config[:config]['migration_limit'] = testvalue
           expect(logger).to receive(:log).with('s', "[ ] [#{pool}] '#{vm}' is running on #{vm_parent_hostname}")
-          subject._migrate_vm(vm, pool, vsphere)
+          subject._migrate_vm(vm, pool, provider)
         end
 
         it "should remove the VM from vmpooler__migrating queue in redis if the migration limit is #{testvalue}" do
@@ -1554,7 +1550,7 @@ EOT
           config[:config]['migration_limit'] = testvalue
 
           expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_truthy
-          subject._migrate_vm(vm, pool, vsphere)
+          subject._migrate_vm(vm, pool, provider)
           expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_falsey
         end
       end
@@ -1562,7 +1558,7 @@ EOT
 
     context 'when VM exists but migration limit is reached' do
       before(:each) do
-        expect(vsphere).to receive(:find_vm).with(vm).and_return(host)
+        expect(provider).to receive(:find_vm).with(vm).and_return(host)
         allow(subject).to receive(:get_vm_host_info).with(host).and_return([{'name' => vm_parent_hostname}, vm_parent_hostname])
 
         create_migrating_vm(vm, pool)
@@ -1575,19 +1571,19 @@ EOT
 
       it "should not migrate a VM if the migration limit is reached" do
         expect(logger).to receive(:log).with('s',"[ ] [#{pool}] '#{vm}' is running on #{vm_parent_hostname}. No migration will be evaluated since the migration_limit has been reached")
-        subject._migrate_vm(vm, pool, vsphere)
+        subject._migrate_vm(vm, pool, provider)
       end
 
       it "should remove the VM from vmpooler__migrating queue in redis if the migration limit is reached" do
         expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_truthy
-        subject._migrate_vm(vm, pool, vsphere)
+        subject._migrate_vm(vm, pool, provider)
         expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_falsey
       end
     end
 
     context 'when VM exists but migration limit is not yet reached' do
       before(:each) do
-        expect(vsphere).to receive(:find_vm).with(vm).and_return(host)
+        expect(provider).to receive(:find_vm).with(vm).and_return(host)
         allow(subject).to receive(:get_vm_host_info).with(host).and_return([{'name' => vm_parent_hostname}, vm_parent_hostname])
 
         create_migrating_vm(vm, pool)
@@ -1597,59 +1593,59 @@ EOT
 
       context 'and host to migrate to is the same as the current host' do
         before(:each) do
-          expect(vsphere).to receive(:find_least_used_compatible_host).with(host).and_return([{'name' => vm_parent_hostname}, vm_parent_hostname])
+          expect(provider).to receive(:find_least_used_compatible_host).with(host).and_return([{'name' => vm_parent_hostname}, vm_parent_hostname])
         end
 
         it "should not migrate the VM" do
           expect(logger).to receive(:log).with('s', "[ ] [#{pool}] No migration required for '#{vm}' running on #{vm_parent_hostname}")
-          subject._migrate_vm(vm, pool, vsphere)
+          subject._migrate_vm(vm, pool, provider)
         end
 
         it "should remove the VM from vmpooler__migrating queue in redis" do
           expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_truthy
-          subject._migrate_vm(vm, pool, vsphere)
+          subject._migrate_vm(vm, pool, provider)
           expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_falsey
         end
 
         it "should not change the vmpooler_migration queue count" do
           before_count = redis.scard('vmpooler__migration')
-          subject._migrate_vm(vm, pool, vsphere)
+          subject._migrate_vm(vm, pool, provider)
           expect(redis.scard('vmpooler__migration')).to eq(before_count)
         end
 
         it "should call remove_vmpooler_migration_vm" do
           expect(subject).to receive(:remove_vmpooler_migration_vm)
-          subject._migrate_vm(vm, pool, vsphere)
+          subject._migrate_vm(vm, pool, provider)
         end
       end
 
       context 'and host to migrate to different to the current host' do
         let(:vm_new_hostname) { 'new_hostname' }
         before(:each) do
-          expect(vsphere).to receive(:find_least_used_compatible_host).with(host).and_return([{'name' => vm_new_hostname}, vm_new_hostname])
-          expect(subject).to receive(:migrate_vm_and_record_timing).with(host, vm, pool, Object, vm_parent_hostname, vm_new_hostname, vsphere).and_return('1.00')
+          expect(provider).to receive(:find_least_used_compatible_host).with(host).and_return([{'name' => vm_new_hostname}, vm_new_hostname])
+          expect(subject).to receive(:migrate_vm_and_record_timing).with(host, vm, pool, Object, vm_parent_hostname, vm_new_hostname, provider).and_return('1.00')
         end
 
         it "should migrate the VM" do
           expect(logger).to receive(:log).with('s', "[>] [#{pool}] '#{vm}' migrated from #{vm_parent_hostname} to #{vm_new_hostname} in 1.00 seconds")
-          subject._migrate_vm(vm, pool, vsphere)
+          subject._migrate_vm(vm, pool, provider)
         end
 
         it "should remove the VM from vmpooler__migrating queue in redis" do
           expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_truthy
-          subject._migrate_vm(vm, pool, vsphere)
+          subject._migrate_vm(vm, pool, provider)
           expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_falsey
         end
 
         it "should not change the vmpooler_migration queue count" do
           before_count = redis.scard('vmpooler__migration')
-          subject._migrate_vm(vm, pool, vsphere)
+          subject._migrate_vm(vm, pool, provider)
           expect(redis.scard('vmpooler__migration')).to eq(before_count)
         end
 
         it "should call remove_vmpooler_migration_vm" do
           expect(subject).to receive(:remove_vmpooler_migration_vm)
-          subject._migrate_vm(vm, pool, vsphere)
+          subject._migrate_vm(vm, pool, provider)
         end
       end
     end
@@ -1859,7 +1855,7 @@ EOT
 
  describe "#check_pool" do
     let(:threads) {{}}
-    let(:vsphere) {{}}
+    let(:provider) {{}}
 
     let(:config) {
       YAML.load(<<-EOT
@@ -1888,17 +1884,17 @@ EOT
       after(:each) do
         # Reset the global variable - Note this is a code smell
         $threads = nil
-        $vsphere = nil
+        $providers = nil
       end
 
       it 'should log a message the worker thread is starting' do
         subject.check_pool(pool_object,1,0)
       end
 
-      it 'should populate the vsphere global variable' do
+      it 'should populate the providers global variable' do
         subject.check_pool(pool_object,1,0)
 
-        expect($vsphere[pool]).to_not be_nil 
+        expect($providers[pool]).to_not be_nil 
       end
 
       it 'should populate the threads global variable' do
@@ -1923,7 +1919,7 @@ EOT
       after(:each) do
         # Reset the global variable - Note this is a code smell
         $threads = nil
-        $vsphere = nil
+        $provider = nil
       end
 
       it 'when a non-default loop delay is specified' do
@@ -1942,13 +1938,13 @@ EOT
       before(:each) do
         allow(logger).to receive(:log)
         # Note the Vmpooler::VsphereHelper is not mocked
-        allow(subject).to receive(:_check_pool)        
+        allow(subject).to receive(:_check_pool)
       end
 
       after(:each) do
         # Reset the global variable - Note this is a code smell
         $threads = nil
-        $vsphere = nil
+        $provider = nil
       end
 
       it 'should run startup tasks only once' do
@@ -1985,7 +1981,7 @@ EOT
   end
 
   describe '#migrate_vm_and_record_timing' do
-    let(:vsphere) { double('vsphere') }
+    let(:provider) { double('provider') }
     let(:vm_object) { double('vm_object') }
     let(:source_host_name) { 'source_host' }
     let(:dest_host_name) { 'dest_host' }
@@ -1996,34 +1992,34 @@ EOT
 
     before(:each) do
       create_vm(vm,token)
-      expect(vsphere).to receive(:migrate_vm_host).with(vm_object, host)
+      expect(provider).to receive(:migrate_vm_host).with(vm_object, host)
     end
 
     it 'should return the elapsed time for the migration' do
-      result = subject.migrate_vm_and_record_timing(vm_object, vm, pool, host, source_host_name, dest_host_name, vsphere)
+      result = subject.migrate_vm_and_record_timing(vm_object, vm, pool, host, source_host_name, dest_host_name, provider)
       expect(result).to match(/0\.[\d]+/)
     end
 
     it 'should add timing metric' do
       expect(metrics).to receive(:timing).with("migrate.#{pool}",String)
-      subject.migrate_vm_and_record_timing(vm_object, vm, pool, host, source_host_name, dest_host_name, vsphere)
+      subject.migrate_vm_and_record_timing(vm_object, vm, pool, host, source_host_name, dest_host_name, provider)
     end
 
     it 'should increment from_host and to_host metric' do
       expect(metrics).to receive(:increment).with("migrate_from.#{source_host_name}")
       expect(metrics).to receive(:increment).with("migrate_to.#{dest_host_name}")
-      subject.migrate_vm_and_record_timing(vm_object, vm, pool, host, source_host_name, dest_host_name, vsphere)
+      subject.migrate_vm_and_record_timing(vm_object, vm, pool, host, source_host_name, dest_host_name, provider)
     end
 
     it 'should set migration_time metric in redis' do
       expect(redis.hget("vmpooler__vm__#{vm}", 'migration_time')).to be_nil
-      subject.migrate_vm_and_record_timing(vm_object, vm, pool, host, source_host_name, dest_host_name, vsphere)
+      subject.migrate_vm_and_record_timing(vm_object, vm, pool, host, source_host_name, dest_host_name, provider)
       expect(redis.hget("vmpooler__vm__#{vm}", 'migration_time')).to match(/0\.[\d]+/)
     end
 
     it 'should set checkout_to_migration metric in redis' do
       expect(redis.hget("vmpooler__vm__#{vm}", 'checkout_to_migration')).to be_nil
-      subject.migrate_vm_and_record_timing(vm_object, vm, pool, host, source_host_name, dest_host_name, vsphere)
+      subject.migrate_vm_and_record_timing(vm_object, vm, pool, host, source_host_name, dest_host_name, provider)
       expect(redis.hget("vmpooler__vm__#{vm}", 'checkout_to_migration')).to match(/0\.[\d]+/)
     end
   end
@@ -2046,7 +2042,7 @@ EOT
       )
     }
     let(:pool_object) { config[:pools][0] }
-    let(:vsphere) { double('vsphere') }
+    let(:provider) { double('provider') }
     let(:new_vm) { 'newvm'}
 
     before do
@@ -2066,27 +2062,27 @@ EOT
       end
 
       it 'should log an error if one occurs' do
-        expect(vsphere).to receive(:find_folder).and_raise(RuntimeError,'Mock Error')
+        expect(provider).to receive(:find_folder).and_raise(RuntimeError,'Mock Error')
         expect(logger).to receive(:log).with('s', "[!] [#{pool}] _check_pool failed with an error while inspecting inventory: Mock Error")
 
-        subject._check_pool(pool_object,vsphere)
+        subject._check_pool(pool_object,provider)
       end
 
       it 'should log the discovery of VMs' do
-        expect(vsphere).to receive(:find_folder).and_return(MockFindFolder.new([new_vm]))
+        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([new_vm]))
         expect(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue")
 
-        subject._check_pool(pool_object,vsphere)
+        subject._check_pool(pool_object,provider)
       end
 
       it 'should add undiscovered VMs to the completed queue' do
-        expect(vsphere).to receive(:find_folder).and_return(MockFindFolder.new([new_vm]))
+        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([new_vm]))
         allow(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue")
 
         expect(redis.sismember("vmpooler__discovered__#{pool}", new_vm)).to be(false)
         expect(redis.sismember("vmpooler__completed__#{pool}", new_vm)).to be(false)
 
-        subject._check_pool(pool_object,vsphere)
+        subject._check_pool(pool_object,provider)
 
         expect(redis.sismember("vmpooler__discovered__#{pool}", new_vm)).to be(false)
         expect(redis.sismember("vmpooler__completed__#{pool}", new_vm)).to be(true)
@@ -2094,13 +2090,13 @@ EOT
 
       ['running','ready','pending','completed','discovered','migrating'].each do |queue_name|
         it "should not discover VMs in the #{queue_name} queue" do
-          expect(vsphere).to receive(:find_folder).and_return(MockFindFolder.new([new_vm]))
+          expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([new_vm]))
 
           expect(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue").exactly(0).times
           expect(redis.sismember("vmpooler__discovered__#{pool}", new_vm)).to be(false)
           redis.sadd("vmpooler__#{queue_name}__#{pool}", new_vm)
 
-          subject._check_pool(pool_object,vsphere)
+          subject._check_pool(pool_object,provider)
 
           if queue_name == 'discovered'
             # Discovered VMs end up in the completed queue
@@ -2115,7 +2111,7 @@ EOT
     # RUNNING
     context 'Running VM not in the inventory' do
       before(:each) do
-        expect(vsphere).to receive(:find_folder).and_return(MockFindFolder.new([new_vm]))
+        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([new_vm]))
         expect(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue")
         create_running_vm(pool,vm,token)
       end
@@ -2123,13 +2119,13 @@ EOT
       it 'should not do anything' do
         expect(subject).to receive(:check_running_vm).exactly(0).times
 
-        subject._check_pool(pool_object,vsphere)
+        subject._check_pool(pool_object,provider)
       end
     end
 
     context 'Running VM in the inventory' do
       before(:each) do
-        expect(vsphere).to receive(:find_folder).and_return(MockFindFolder.new([vm]))
+        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([vm]))
         allow(subject).to receive(:check_running_vm)
         create_running_vm(pool,vm,token)
       end
@@ -2138,7 +2134,7 @@ EOT
         expect(subject).to receive(:check_running_vm).and_raise(RuntimeError,'MockError')
         expect(logger).to receive(:log).with('d', "[!] [#{pool}] _check_pool with an error while evaluating running VMs: MockError")
 
-        subject._check_pool(pool_object,vsphere)
+        subject._check_pool(pool_object,provider)
       end
 
       it 'should use the VM lifetime in preference to defaults' do
@@ -2146,29 +2142,29 @@ EOT
 
         redis.hset("vmpooler__vm__#{vm}", 'lifetime',big_lifetime)
         # The lifetime comes in as string
-        expect(subject).to receive(:check_running_vm).with(vm,pool,"#{big_lifetime}",vsphere)
+        expect(subject).to receive(:check_running_vm).with(vm,pool,"#{big_lifetime}",provider)
 
-        subject._check_pool(pool_object,vsphere)
+        subject._check_pool(pool_object,provider)
       end
 
       it 'should use the configuration default if the VM lifetime is not set' do
         config[:config]['vm_lifetime'] = 50
-        expect(subject).to receive(:check_running_vm).with(vm,pool,50,vsphere)
+        expect(subject).to receive(:check_running_vm).with(vm,pool,50,provider)
 
-        subject._check_pool(pool_object,vsphere)
+        subject._check_pool(pool_object,provider)
       end
 
       it 'should use a lifetime of 12 if nothing is set' do
-        expect(subject).to receive(:check_running_vm).with(vm,pool,12,vsphere)
+        expect(subject).to receive(:check_running_vm).with(vm,pool,12,provider)
 
-        subject._check_pool(pool_object,vsphere)
+        subject._check_pool(pool_object,provider)
       end
     end
 
     # READY
     context 'Ready VM not in the inventory' do
       before(:each) do
-        expect(vsphere).to receive(:find_folder).and_return(MockFindFolder.new([new_vm]))
+        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([new_vm]))
         expect(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue")
         create_ready_vm(pool,vm,token)
       end
@@ -2176,13 +2172,13 @@ EOT
       it 'should not do anything' do
         expect(subject).to receive(:check_ready_vm).exactly(0).times
 
-        subject._check_pool(pool_object,vsphere)
+        subject._check_pool(pool_object,provider)
       end
     end
 
     context 'Ready VM in the inventory' do
       before(:each) do
-        expect(vsphere).to receive(:find_folder).and_return(MockFindFolder.new([vm]))
+        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([vm]))
         allow(subject).to receive(:check_ready_vm)
         create_ready_vm(pool,vm,token)
       end
@@ -2191,29 +2187,29 @@ EOT
         expect(subject).to receive(:check_ready_vm).and_raise(RuntimeError,'MockError')
         expect(logger).to receive(:log).with('d', "[!] [#{pool}] _check_pool failed with an error while evaluating ready VMs: MockError")
 
-        subject._check_pool(pool_object,vsphere)
+        subject._check_pool(pool_object,provider)
       end
 
       it 'should use the pool TTL if set' do
         big_lifetime = 2000
 
         config[:pools][0]['ready_ttl'] = big_lifetime
-        expect(subject).to receive(:check_ready_vm).with(vm,pool,big_lifetime,vsphere)
+        expect(subject).to receive(:check_ready_vm).with(vm,pool,big_lifetime,provider)
 
-        subject._check_pool(pool_object,vsphere)
+        subject._check_pool(pool_object,provider)
       end
 
       it 'should use a pool TTL of zero if none set' do
-        expect(subject).to receive(:check_ready_vm).with(vm,pool,0,vsphere)
+        expect(subject).to receive(:check_ready_vm).with(vm,pool,0,provider)
 
-        subject._check_pool(pool_object,vsphere)
+        subject._check_pool(pool_object,provider)
       end
     end
 
     # PENDING
     context 'Pending VM not in the inventory' do
       before(:each) do
-        expect(vsphere).to receive(:find_folder).and_return(MockFindFolder.new([new_vm]))
+        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([new_vm]))
         expect(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue")
         create_pending_vm(pool,vm,token)
       end
@@ -2222,13 +2218,13 @@ EOT
         expect(subject).to receive(:check_ready_vm).exactly(0).times
         expect(subject).to receive(:fail_pending_vm).with(vm,pool,Integer,false)
 
-        subject._check_pool(pool_object,vsphere)
+        subject._check_pool(pool_object,provider)
       end
     end
 
     context 'Pending VM in the inventory' do
       before(:each) do
-        expect(vsphere).to receive(:find_folder).and_return(MockFindFolder.new([vm]))
+        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([vm]))
         allow(subject).to receive(:check_pending_vm)
         create_pending_vm(pool,vm,token)
       end
@@ -2237,51 +2233,51 @@ EOT
         expect(subject).to receive(:check_pending_vm).and_raise(RuntimeError,'MockError')
         expect(logger).to receive(:log).with('d', "[!] [#{pool}] _check_pool failed with an error while evaluating pending VMs: MockError")
 
-        subject._check_pool(pool_object,vsphere)
+        subject._check_pool(pool_object,provider)
       end
 
       it 'should use the pool timeout if set' do
         big_lifetime = 2000
 
         config[:pools][0]['timeout'] = big_lifetime
-        expect(subject).to receive(:check_pending_vm).with(vm,pool,big_lifetime,vsphere)
+        expect(subject).to receive(:check_pending_vm).with(vm,pool,big_lifetime,provider)
 
-        subject._check_pool(pool_object,vsphere)
+        subject._check_pool(pool_object,provider)
       end
 
       it 'should use the configuration setting if the pool timeout is not set' do
         big_lifetime = 2000
 
         config[:config]['timeout'] = big_lifetime
-        expect(subject).to receive(:check_pending_vm).with(vm,pool,big_lifetime,vsphere)
+        expect(subject).to receive(:check_pending_vm).with(vm,pool,big_lifetime,provider)
 
-        subject._check_pool(pool_object,vsphere)
+        subject._check_pool(pool_object,provider)
       end
 
       it 'should use a pool timeout of 15 if nothing is set' do
-        expect(subject).to receive(:check_pending_vm).with(vm,pool,15,vsphere)
+        expect(subject).to receive(:check_pending_vm).with(vm,pool,15,provider)
 
-        subject._check_pool(pool_object,vsphere)
+        subject._check_pool(pool_object,provider)
       end
     end
 
     # COMPLETED
     context 'Completed VM not in the inventory' do
       before(:each) do
-        expect(vsphere).to receive(:find_folder).and_return(MockFindFolder.new([new_vm]))
+        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([new_vm]))
         expect(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue")
         expect(logger).to receive(:log).with('s', "[!] [#{pool}] '#{vm}' not found in inventory, removed from 'completed' queue")
         create_completed_vm(vm,pool,true)
       end
 
       it 'should log a message' do
-        subject._check_pool(pool_object,vsphere)
+        subject._check_pool(pool_object,provider)
       end
 
       it 'should not call destroy_vm' do
         expect(subject).to receive(:destroy_vm).exactly(0).times
 
-        subject._check_pool(pool_object,vsphere)
+        subject._check_pool(pool_object,provider)
       end
 
       it 'should remove redis information' do
@@ -2289,7 +2285,7 @@ EOT
         expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to_not be(nil)
         expect(redis.hget("vmpooler__active__#{pool}",vm)).to_not be(nil)
 
-        subject._check_pool(pool_object,vsphere)
+        subject._check_pool(pool_object,provider)
 
         expect(redis.sismember("vmpooler__completed__#{pool}",vm)).to be(false)
         expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to be(nil)
@@ -2299,14 +2295,14 @@ EOT
 
     context 'Completed VM in the inventory' do
       before(:each) do
-        expect(vsphere).to receive(:find_folder).and_return(MockFindFolder.new([vm]))
+        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([vm]))
         create_completed_vm(vm,pool,true)
       end
 
       it 'should call destroy_vm' do
         expect(subject).to receive(:destroy_vm)
 
-        subject._check_pool(pool_object,vsphere)
+        subject._check_pool(pool_object,provider)
       end
 
       context 'with an error during destroy_vm' do
@@ -2316,7 +2312,7 @@ EOT
         end
 
         it 'should log a message' do
-          subject._check_pool(pool_object,vsphere)
+          subject._check_pool(pool_object,provider)
         end
 
         it 'should remove redis information' do
@@ -2324,7 +2320,7 @@ EOT
           expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to_not be(nil)
           expect(redis.hget("vmpooler__active__#{pool}",vm)).to_not be(nil)
 
-          subject._check_pool(pool_object,vsphere)
+          subject._check_pool(pool_object,provider)
 
           expect(redis.sismember("vmpooler__completed__#{pool}",vm)).to be(false)
           expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to be(nil)
@@ -2336,12 +2332,12 @@ EOT
     # DISCOVERED
     context 'Discovered VM' do
       before(:each) do
-        expect(vsphere).to receive(:find_folder).and_return(MockFindFolder.new([vm]))
+        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([vm]))
         create_discovered_vm(vm,pool)
       end
 
       it 'should be moved to the completed queue' do
-        subject._check_pool(pool_object,vsphere)
+        subject._check_pool(pool_object,provider)
 
         expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
       end
@@ -2350,7 +2346,7 @@ EOT
         expect(redis).to receive(:smove).with("vmpooler__discovered__#{pool}", "vmpooler__completed__#{pool}", vm).and_raise(RuntimeError,'MockError')
         expect(logger).to receive(:log).with("d", "[!] [#{pool}] _check_pool failed with an error while evaluating discovered VMs: MockError")
 
-        subject._check_pool(pool_object,vsphere)
+        subject._check_pool(pool_object,provider)
       end
 
       ['pending','ready','running','completed'].each do |queue_name|
@@ -2368,7 +2364,7 @@ EOT
             redis.sadd("vmpooler__#{queue_name}__#{pool}", vm)
             allow(logger).to receive(:log)
 
-            subject._check_pool(pool_object,vsphere)
+            subject._check_pool(pool_object,provider)
 
             expect(redis.sismember("vmpooler__#{queue_name}__#{pool}", vm)).to be(true)
           end
@@ -2378,7 +2374,7 @@ EOT
             allow(logger).to receive(:log)
 
             expect(redis.sismember("vmpooler__discovered__#{pool}", vm)).to be(true)
-            subject._check_pool(pool_object,vsphere)
+            subject._check_pool(pool_object,provider)
             expect(redis.sismember("vmpooler__discovered__#{pool}", vm)).to be(false)
           end
 
@@ -2386,7 +2382,7 @@ EOT
             redis.sadd("vmpooler__#{queue_name}__#{pool}", vm)
             expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' found in '#{queue_name}', removed from 'discovered' queue")
 
-            subject._check_pool(pool_object,vsphere)
+            subject._check_pool(pool_object,provider)
           end
         end
       end
@@ -2395,7 +2391,7 @@ EOT
     # MIGRATIONS
     context 'Migrating VM not in the inventory' do
       before(:each) do
-        expect(vsphere).to receive(:find_folder).and_return(MockFindFolder.new([new_vm]))
+        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([new_vm]))
         expect(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue")
         create_migrating_vm(vm,pool)
       end
@@ -2403,13 +2399,13 @@ EOT
       it 'should not do anything' do
         expect(subject).to receive(:migrate_vm).exactly(0).times
 
-        subject._check_pool(pool_object,vsphere)
+        subject._check_pool(pool_object,provider)
       end
     end
 
     context 'Migrating VM in the inventory' do
       before(:each) do
-        expect(vsphere).to receive(:find_folder).and_return(MockFindFolder.new([vm]))
+        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([vm]))
         allow(subject).to receive(:check_ready_vm)
         allow(logger).to receive(:log).with("s", "[!] [#{pool}] is empty")
         create_migrating_vm(vm,pool)
@@ -2419,88 +2415,88 @@ EOT
         expect(subject).to receive(:migrate_vm).and_raise(RuntimeError,'MockError')
         expect(logger).to receive(:log).with('s', "[x] [#{pool}] '#{vm}' failed to migrate: MockError")
 
-        subject._check_pool(pool_object,vsphere)
+        subject._check_pool(pool_object,provider)
       end
 
       it 'should call migrate_vm' do
-        expect(subject).to receive(:migrate_vm).with(vm,pool,vsphere)
+        expect(subject).to receive(:migrate_vm).with(vm,pool,provider)
 
-        subject._check_pool(pool_object,vsphere)
+        subject._check_pool(pool_object,provider)
       end
     end
 
     # REPOPULATE
     context 'Repopulate a pool' do
       it 'should not call clone_vm when number of VMs is equal to the pool size' do
-        expect(vsphere).to receive(:find_folder).and_return(MockFindFolder.new([]))
+        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([]))
         expect(subject).to receive(:clone_vm).exactly(0).times
 
-        subject._check_pool(pool_object,vsphere)
+        subject._check_pool(pool_object,provider)
       end
 
       it 'should not call clone_vm when number of VMs is greater than the pool size' do
-        expect(vsphere).to receive(:find_folder).and_return(MockFindFolder.new([vm]))
+        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([vm]))
         create_ready_vm(pool,vm,token)
         expect(subject).to receive(:clone_vm).exactly(0).times
 
-        subject._check_pool(pool_object,vsphere)
+        subject._check_pool(pool_object,provider)
       end
 
       ['ready','pending'].each do |queue_name|
         it "should use VMs in #{queue_name} queue to caculate pool size" do
-          expect(vsphere).to receive(:find_folder).and_return(MockFindFolder.new([vm]))
+          expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([vm]))
           expect(subject).to receive(:clone_vm).exactly(0).times
           # Modify the pool size to 1 and add a VM in the queue
           redis.sadd("vmpooler__#{queue_name}__#{pool}",vm)
           config[:pools][0]['size'] = 1
           
-          subject._check_pool(pool_object,vsphere)
+          subject._check_pool(pool_object,provider)
         end
       end
 
       ['running','completed','discovered','migrating'].each do |queue_name|
         it "should not use VMs in #{queue_name} queue to caculate pool size" do
-          expect(vsphere).to receive(:find_folder).and_return(MockFindFolder.new([vm]))
+          expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([vm]))
           expect(subject).to receive(:clone_vm)
           # Modify the pool size to 1 and add a VM in the queue
           redis.sadd("vmpooler__#{queue_name}__#{pool}",vm)
           config[:pools][0]['size'] = 1
 
-          subject._check_pool(pool_object,vsphere)
+          subject._check_pool(pool_object,provider)
         end
       end
 
       it 'should log a message the first time a pool is empty' do
-        expect(vsphere).to receive(:find_folder).and_return(MockFindFolder.new([]))
+        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([]))
         expect(logger).to receive(:log).with('s', "[!] [#{pool}] is empty")
 
-        subject._check_pool(pool_object,vsphere)
+        subject._check_pool(pool_object,provider)
       end
 
       context 'when pool is marked as empty' do
         before(:each) do
-          expect(vsphere).to receive(:find_folder).and_return(MockFindFolder.new([]))
+          expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([]))
           redis.set("vmpooler__empty__#{pool}", 'true')
         end
 
         it 'should not log a message when the pool remains empty' do
           expect(logger).to receive(:log).with('s', "[!] [#{pool}] is empty").exactly(0).times
 
-          subject._check_pool(pool_object,vsphere)
+          subject._check_pool(pool_object,provider)
         end
 
         it 'should remove the empty pool mark if it is no longer empty' do
           create_ready_vm(pool,vm,token)
 
           expect(redis.get("vmpooler__empty__#{pool}")).to be_truthy
-          subject._check_pool(pool_object,vsphere)
+          subject._check_pool(pool_object,provider)
           expect(redis.get("vmpooler__empty__#{pool}")).to be_falsey
         end
       end
 
       context 'when number of VMs is less than the pool size' do
         before(:each) do
-          expect(vsphere).to receive(:find_folder).and_return(MockFindFolder.new([]))
+          expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([]))
         end
 
         it 'should call clone_vm to populate the pool' do
@@ -2509,7 +2505,7 @@ EOT
 
           expect(subject).to receive(:clone_vm).exactly(pool_size).times
           
-          subject._check_pool(pool_object,vsphere)
+          subject._check_pool(pool_object,provider)
         end
 
         it 'should call clone_vm until task_limit is hit' do
@@ -2520,7 +2516,7 @@ EOT
 
           expect(subject).to receive(:clone_vm).exactly(task_limit).times
           
-          subject._check_pool(pool_object,vsphere)
+          subject._check_pool(pool_object,provider)
         end
 
         it 'log a message if a cloning error occurs' do
@@ -2531,7 +2527,7 @@ EOT
           expect(logger).to receive(:log).with("s", "[!] [#{pool}] clone failed during check_pool with an error: MockError")
           expect(logger).to receive(:log).with('d', "[!] [#{pool}] _check_pool failed with an error: MockError")
           
-          expect{ subject._check_pool(pool_object,vsphere) }.to raise_error(RuntimeError,'MockError')
+          expect{ subject._check_pool(pool_object,provider) }.to raise_error(RuntimeError,'MockError')
         end
       end
 
@@ -2540,33 +2536,33 @@ EOT
           create_ready_vm(pool,'vm1')
           create_ready_vm(pool,'vm2')
           create_ready_vm(pool,'vm3')
-          expect(vsphere).to receive(:find_folder).and_return(MockFindFolder.new(['vm1','vm2','vm3']))
+          expect(provider).to receive(:find_folder).and_return(MockFindFolder.new(['vm1','vm2','vm3']))
 
           expect(metrics).to receive(:gauge).with("ready.#{pool}", 3)
           allow(metrics).to receive(:gauge)
 
-          subject._check_pool(pool_object,vsphere)
+          subject._check_pool(pool_object,provider)
         end
 
         it 'increments metrics for running queue' do
           create_running_vm(pool,'vm1',token)
           create_running_vm(pool,'vm2',token)
           create_running_vm(pool,'vm3',token)
-          expect(vsphere).to receive(:find_folder).and_return(MockFindFolder.new(['vm1','vm2','vm3']))
+          expect(provider).to receive(:find_folder).and_return(MockFindFolder.new(['vm1','vm2','vm3']))
 
           expect(metrics).to receive(:gauge).with("running.#{pool}", 3)
           allow(metrics).to receive(:gauge)
 
-          subject._check_pool(pool_object,vsphere)
+          subject._check_pool(pool_object,provider)
         end
 
         it 'increments metrics with 0 when pool empty' do
-          expect(vsphere).to receive(:find_folder).and_return(MockFindFolder.new([]))
+          expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([]))
 
           expect(metrics).to receive(:gauge).with("ready.#{pool}", 0)
           expect(metrics).to receive(:gauge).with("running.#{pool}", 0)
 
-          subject._check_pool(pool_object,vsphere)
+          subject._check_pool(pool_object,provider)
         end
       end
     end
@@ -2574,18 +2570,18 @@ EOT
 
   describe '#_check_snapshot_queue' do
     let(:pool_helper) { double('pool') }
-    let(:vsphere) { {pool => pool_helper} }
+    let(:provider) { {pool => pool_helper} }
 
     before do
       expect(subject).not_to be_nil
-      $vsphere = vsphere
+      $provider = provider
     end
 
     it 'checks appropriate redis queues' do
       expect(redis).to receive(:spop).with('vmpooler__tasks__snapshot')
       expect(redis).to receive(:spop).with('vmpooler__tasks__snapshot-revert')
 
-      subject._check_snapshot_queue(vsphere)
+      subject._check_snapshot_queue(provider)
     end
   end
 end
