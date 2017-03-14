@@ -178,11 +178,10 @@ module Vmpooler
       base = datacenter.vmFolder
       folders = foldername.split('/')
       folders.each do |folder|
-        case base
-          when RbVmomi::VIM::Folder
-            base = base.childEntity.find { |f| f.name == folder }
-          else
-            abort "Unexpected object type encountered (#{base.class}) while finding folder"
+        if base.is_a? RbVmomi::VIM::Folder
+          base = base.childEntity.find { |f| f.name == folder }
+        else
+          abort "Unexpected object type encountered (#{base.class}) while finding folder"
         end
       end
 
