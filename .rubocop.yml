@@ -17,6 +17,9 @@ Style/Documentation:
 Metrics/LineLength:
   Enabled: false
 
+# Empty method definitions over more than one line is ok
+Style/EmptyMethod:
+  Enabled: false
 
 # Due to legacy codebase
 #   - Globals are used liberally
@@ -28,6 +31,8 @@ Metrics/AbcSize:
 Metrics/PerceivedComplexity:
   Enabled: false
 Metrics/CyclomaticComplexity:
+  Enabled: false
+Metrics/BlockNesting:
   Enabled: false
 #   - Long Methods, Classes, Blocks, and Modules
 Metrics/MethodLength:
