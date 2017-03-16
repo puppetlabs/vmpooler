@@ -22,7 +22,7 @@ module Vmpooler
 
     # Load dashboard components
     begin
-      require "dashboard"
+      require 'dashboard'
     rescue LoadError
       require File.expand_path(File.join(File.dirname(__FILE__), 'dashboard'))
     end
@@ -30,7 +30,7 @@ module Vmpooler
     use Vmpooler::Dashboard
 
     # Load API components
-    %w( helpers dashboard reroute v1 ).each do |lib|
+    %w(helpers dashboard reroute v1).each do |lib|
       begin
         require "api/#{lib}"
       rescue LoadError

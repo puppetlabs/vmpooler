@@ -19,16 +19,16 @@ module Vmpooler
         # returns
         #   hashtable
         #     name : name of the device   <---- TODO is this all?
-        def vms_in_pool(pool)
-          fail "#{self.class.name} does not implement vms_in_pool"
+        def vms_in_pool(_pool)
+          raise("#{self.class.name} does not implement vms_in_pool")
         end
 
         # inputs
         #   vm_name: string
         # returns
         #    [String] hostname   = Name of the host computer running the vm.  If this is not a Virtual Machine, it returns the vm_name
-        def get_vm_host(vm_name)
-          fail "#{self.class.name} does not implement get_vm_host"
+        def get_vm_host(_vm_name)
+          raise("#{self.class.name} does not implement get_vm_host")
         end
 
         # inputs
@@ -36,8 +36,8 @@ module Vmpooler
         # returns
         #    [String] hostname   = Name of the most appropriate host computer to run this VM.  Useful for load balancing VMs in a cluster
         #                          If this is not a Virtual Machine, it returns the vm_name
-        def find_least_used_compatible_host(vm_name)
-          fail "#{self.class.name} does not implement find_least_used_compatible_host"
+        def find_least_used_compatible_host(_vm_name)
+          raise("#{self.class.name} does not implement find_least_used_compatible_host")
         end
 
         # inputs
@@ -45,8 +45,8 @@ module Vmpooler
         #   dest_host_name: string (Name of the host to migrate `vm_name` to)
         # returns
         #    [Boolean] Returns true on success or false on failure
-        def migrate_vm_to_host(vm_name, dest_host_name)
-          fail "#{self.class.name} does not implement migrate_vm_to_host"
+        def migrate_vm_to_host(_vm_name, _dest_host_name)
+          raise("#{self.class.name} does not implement migrate_vm_to_host")
         end
 
         # inputs
@@ -61,8 +61,8 @@ module Vmpooler
         #    [Time]   boottime   = Time when the VM was created/booted
         #    [String] powerstate = Current power state of a VM.  Valid values (as per vCenter API)
         #                            - 'PoweredOn','PoweredOff'
-        def get_vm(vm_name)
-          fail "#{self.class.name} does not implement get_vm"
+        def get_vm(_vm_name)
+          raise("#{self.class.name} does not implement get_vm")
         end
 
         # inputs
@@ -70,8 +70,8 @@ module Vmpooler
         #   new_vmname : string      Name the new VM should use
         # returns
         #   Hashtable of the VM as per get_vm
-        def create_vm(pool,new_vmname)
-          fail "#{self.class.name} does not implement create_vm"
+        def create_vm(_pool, _new_vmname)
+          raise("#{self.class.name} does not implement create_vm")
         end
 
         # inputs
@@ -79,8 +79,8 @@ module Vmpooler
         #   pool: string
         # returns
         #   boolean : true if success, false on error
-        def destroy_vm(vm_name,pool)
-          fail "#{self.class.name} does not implement destroy_vm"
+        def destroy_vm(_vm_name, _pool)
+          raise("#{self.class.name} does not implement destroy_vm")
         end
 
         # inputs
@@ -89,8 +89,8 @@ module Vmpooler
         # timeout: int (Seconds)
         # returns
         #   result: boolean
-        def is_vm_ready?(vm,pool,timeout)
-          fail "#{self.class.name} does not implement is_vm_ready?"
+        def vm_ready?(_vm, _pool, _timeout)
+          raise("#{self.class.name} does not implement vm_ready?")
         end
 
         # inputs
@@ -100,7 +100,6 @@ module Vmpooler
         def vm_exists?(vm)
           !get_vm(vm).nil?
         end
-
       end
     end
   end

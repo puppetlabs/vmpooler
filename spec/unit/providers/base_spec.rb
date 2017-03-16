@@ -66,9 +66,9 @@ describe 'Vmpooler::PoolManager::Provider::Base' do
     end
   end
 
-  describe '#is_vm_ready?' do
+  describe '#vm_ready?' do
     it 'should raise error' do
-      expect{subject.is_vm_ready?('vm','pool','timeout')}.to raise_error(/does not implement is_vm_ready?/)
+      expect{subject.vm_ready?('vm','pool','timeout')}.to raise_error(/does not implement vm_ready?/)
     end
   end
 
