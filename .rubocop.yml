@@ -44,6 +44,9 @@ Metrics/BlockLength:
 Metrics/ModuleLength:
   Enabled: false
 
+# WordArray is crashing rubocop in lib/vmpooler/api/helpers.rb
+Style/WordArray:
+  Enabled: false
 
 # Either sytnax for regex is ok
 Style/RegexpLiteral:
