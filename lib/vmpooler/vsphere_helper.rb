@@ -276,12 +276,12 @@ module Vmpooler
       base = datacenter.hostFolder
       pools = poolname.split('/')
       pools.each do |pool|
-        case base
-          when RbVmomi::VIM::Folder
+        case
+          when base.is_a?(RbVmomi::VIM::Folder)
             base = base.childEntity.find { |f| f.name == pool }
-          when RbVmomi::VIM::ClusterComputeResource
+          when base.is_a?(RbVmomi::VIM::ClusterComputeResource)
             base = base.resourcePool.resourcePool.find { |f| f.name == pool }
-          when RbVmomi::VIM::ResourcePool
+          when base.is_a?(RbVmomi::VIM::ResourcePool)
             base = base.resourcePool.find { |f| f.name == pool }
           else
             abort "Unexpected object type encountered (#{base.class}) while finding resource pool"
