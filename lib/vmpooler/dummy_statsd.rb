@@ -2,18 +2,18 @@ module Vmpooler
   class DummyStatsd
     attr_reader :server, :port, :prefix
 
-    def initialize(params = {})
+    def initialize(*)
     end
 
-    def increment(label)
+    def increment(*)
       true
     end
 
-    def gauge(label, value)
+    def gauge(*)
       true
     end
 
-    def timing(label, duration)
+    def timing(*)
       true
     end
   end
