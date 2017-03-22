@@ -116,12 +116,23 @@ EOT
   let(:connection) { mock_RbVmomi_VIM_Connection(connection_options) }
   let(:vmname) { 'vm1' }
 
-  describe '#ensure_connected' do
-    context 'when connection has ok' do
+  describe '#get_connection' do
+    before(:each) do
+      # NOTE - Using instance_variable_set is a code smell of code that is not testable
+      subject.instance_variable_set("@connection",connection)
+    end
+
+    context 'when connection is ok' do
       it 'should not attempt to reconnect' do
         expect(subject).to receive(:connect_to_vsphere).exactly(0).times
 
-        subject.ensure_connected(connection,credentials)
+        subject.get_connection()
+      end
+
+      it 'should return a connection' do
+        result = subject.get_connection()
+
+        expect(result).to be(connection)
       end
     end
 
@@ -135,23 +146,29 @@ EOT
         expect(metrics).to receive(:increment).with('connect.open').exactly(0).times
         allow(subject).to receive(:connect_to_vsphere)
 
-        subject.ensure_connected(connection,credentials)
+        subject.get_connection()
       end
 
       it 'should call connect_to_vsphere to reconnect' do
         allow(metrics).to receive(:increment)
-        allow(subject).to receive(:connect_to_vsphere).with(credentials)
+        expect(subject).to receive(:connect_to_vsphere).with(credentials)
 
-        subject.ensure_connected(connection,credentials)
+        subject.get_connection()
+      end
+
+      it 'should return a new connection' do
+        new_connection = mock_RbVmomi_VIM_Connection(connection_options)
+        expect(subject).to receive(:connect_to_vsphere).with(credentials).and_return(new_connection)
+
+        result = subject.get_connection()
+
+        expect(result).to be(new_connection)
       end
     end
   end
 
   describe '#connect_to_vsphere' do
     before(:each) do
-      # NOTE - Using instance_variable_set is a code smell of code that is not testable
-      subject.instance_variable_set("@connection",nil)
-
       allow(RbVmomi::VIM).to receive(:connect).and_return(connection)
     end
 
@@ -192,11 +209,10 @@ EOT
         subject.connect_to_vsphere(credentials)
       end
 
-      it 'should set the instance level connection object' do
-        # NOTE - Using instance_variable_get is a code smell of code that is not testable
-        expect(subject.instance_variable_get("@connection")).to be_nil
-        subject.connect_to_vsphere(credentials)
-        expect(subject.instance_variable_get("@connection")).to be(connection)
+      it 'should return the connection object' do
+        result = subject.connect_to_vsphere(credentials)
+
+        expect(result).to be(connection)
       end
 
       it 'should increment the connect.open counter' do
@@ -207,9 +223,6 @@ EOT
 
     context 'connection is initially unsuccessful' do
       before(:each) do
-        # NOTE - Using instance_variable_set is a code smell of code that is not testable
-        subject.instance_variable_set("@connection",nil)
-
         # Simulate a failure and then success
         expect(RbVmomi::VIM).to receive(:connect).and_raise(RuntimeError,'MockError').ordered
         expect(RbVmomi::VIM).to receive(:connect).and_return(connection).ordered
@@ -217,11 +230,10 @@ EOT
         allow(subject).to receive(:sleep)
       end
 
-      it 'should set the instance level connection object' do
-        # NOTE - Using instance_variable_get is a code smell of code that is not testable
-        expect(subject.instance_variable_get("@connection")).to be_nil
-        subject.connect_to_vsphere(credentials)
-        expect(subject.instance_variable_get("@connection")).to be(connection)
+      it 'should return the connection object' do
+        result = subject.connect_to_vsphere(credentials)
+
+        expect(result).to be(connection)
       end
 
       it 'should increment the connect.fail and then connect.open counter' do
@@ -233,9 +245,6 @@ EOT
 
     context 'connection is always unsuccessful' do
       before(:each) do
-        # NOTE - Using instance_variable_set is a code smell of code that is not testable
-        subject.instance_variable_set("@connection",nil)
-
         allow(RbVmomi::VIM).to receive(:connect).and_raise(RuntimeError,'MockError')
         allow(subject).to receive(:sleep)
       end
@@ -320,12 +329,9 @@ EOT
     let(:reconfig_vm_task) { mock_RbVmomi_VIM_Task() }
 
     before(:each) do
-      # NOTE - Using instance_variable_set is a code smell of code that is not testable
-      subject.instance_variable_set("@connection",connection)
-
       # NOTE - This method should not be using `_connection`, instead it should be using `@conection`
       # This should not be required once https://github.com/puppetlabs/vmpooler/issues/213 is resolved
-      mock_ds = subject.find_datastore(datastorename)
+      mock_ds = subject.find_datastore(datastorename,connection)
       allow(mock_ds).to receive(:_connection).and_return(connection) unless mock_ds.nil?
 
       # Mocking for find_vmdks
@@ -340,15 +346,9 @@ EOT
       allow(reconfig_vm_task).to receive(:wait_for_completion).and_return(true)
     end
 
-    it 'should ensure the connection' do
-      expect(subject).to receive(:ensure_connected).at_least(:once)
-
-      subject.add_disk(vm_object,disk_size,datastorename)
-    end
-
     context 'Succesfully addding disk' do
       it 'should return true' do
-        expect(subject.add_disk(vm_object,disk_size,datastorename)).to be true
+        expect(subject.add_disk(vm_object,disk_size,datastorename,connection)).to be true
       end
 
       it 'should request a disk of appropriate size' do
@@ -357,13 +357,13 @@ EOT
           .and_return(create_virtual_disk_task)
 
 
-        subject.add_disk(vm_object,disk_size,datastorename)
+        subject.add_disk(vm_object,disk_size,datastorename,connection)
       end
     end
 
     context 'Requested disk size is 0' do
       it 'should raise an error' do
-        expect(subject.add_disk(vm_object,0,datastorename)).to be false
+        expect(subject.add_disk(vm_object,0,datastorename,connection)).to be false
       end
     end
 
@@ -377,7 +377,7 @@ EOT
       }}
 
       it 'should return false' do
-        expect{ subject.add_disk(vm_object,disk_size,datastorename) }.to raise_error(NoMethodError)
+        expect{ subject.add_disk(vm_object,disk_size,datastorename,connection) }.to raise_error(NoMethodError)
       end
     end
 
@@ -391,7 +391,7 @@ EOT
       }
 
       it 'should raise an error' do
-        expect{ subject.add_disk(vm_object,disk_size,datastorename) }.to raise_error(NoMethodError)
+        expect{ subject.add_disk(vm_object,disk_size,datastorename,connection) }.to raise_error(NoMethodError)
       end
     end
   end
@@ -399,11 +399,6 @@ EOT
   describe '#find_datastore' do
     let(:datastorename) { 'datastore' }
     let(:datastore_list) { [] }
-
-    before(:each) do
-      # NOTE - Using instance_variable_set is a code smell of code that is not testable
-      subject.instance_variable_set("@connection",connection)
-    end
 
     context 'No datastores in the datacenter' do
       let(:connection_options) {{
@@ -414,14 +409,8 @@ EOT
         }
       }}
 
-      it 'should ensure the connection' do
-        expect(subject).to receive(:ensure_connected)
-
-        subject.find_datastore(datastorename)
-      end
-
       it 'should return nil if the datastore is not found' do
-        result = subject.find_datastore(datastorename)
+        result = subject.find_datastore(datastorename,connection)
         expect(result).to be_nil
       end
     end
@@ -435,19 +424,13 @@ EOT
         }
       }}
 
-      it 'should ensure the connection' do
-        expect(subject).to receive(:ensure_connected)
-
-        subject.find_datastore(datastorename)
-      end
-
       it 'should return nil if the datastore is not found' do
-        result = subject.find_datastore('missing_datastore')
+        result = subject.find_datastore('missing_datastore',connection)
         expect(result).to be_nil
       end
 
       it 'should find the datastore in the datacenter' do
-        result = subject.find_datastore(datastorename)
+        result = subject.find_datastore(datastorename,connection)
         
         expect(result).to_not be_nil
         expect(result.is_a?(RbVmomi::VIM::Datastore)).to be true
@@ -465,17 +448,6 @@ EOT
 
       mock_vm
     }
-
-    before(:each) do
-      # NOTE - Using instance_variable_set is a code smell of code that is not testable
-      subject.instance_variable_set("@connection",connection)
-    end
-
-    it 'should ensure the connection' do
-      expect(subject).to receive(:ensure_connected)
-
-      subject.find_device(vm_object,devicename)
-    end
 
     it 'should return a device if the device name matches' do
       result = subject.find_device(vm_object,devicename)
@@ -496,18 +468,6 @@ EOT
 
       mock_vm
     }
-
-    before(:each) do
-      # NOTE - Using instance_variable_set is a code smell of code that is not testable
-      subject.instance_variable_set("@connection",connection)
-    end
-
-    it 'should ensure the connection' do
-      # TODO There's no reason for this as the connection is not used in this method
-      expect(subject).to receive(:ensure_connected).at_least(:once)
-
-      result = subject.find_disk_controller(vm_object)
-    end
 
     it 'should return nil when there are no devices' do
       result = subject.find_disk_controller(vm_object)
@@ -568,18 +528,6 @@ EOT
 
       mock_vm
     }
-
-    before(:each) do
-      # NOTE - Using instance_variable_set is a code smell of code that is not testable
-      subject.instance_variable_set("@connection",connection)
-    end
-
-    it 'should ensure the connection' do
-      # TODO There's no reason for this as the connection is not used in this method
-      expect(subject).to receive(:ensure_connected)
-
-      result = subject.find_disk_devices(vm_object)
-    end
 
     it 'should return empty hash when there are no devices' do
       result = subject.find_disk_devices(vm_object)
@@ -652,18 +600,6 @@ EOT
     }
     let(:controller) { mock_RbVmomi_VIM_VirtualSCSIController() }
 
-    before(:each) do
-      # NOTE - Using instance_variable_set is a code smell of code that is not testable
-      subject.instance_variable_set("@connection",connection)
-    end
-
-    it 'should ensure the connection' do
-      # TODO There's no reason for this as the connection is not used in this method
-      expect(subject).to receive(:ensure_connected).at_least(:once)
-
-      result = subject.find_disk_unit_number(vm_object,controller)
-    end
-
     it 'should return 0 when there are no devices' do
       result = subject.find_disk_unit_number(vm_object,controller)
 
@@ -721,22 +657,14 @@ EOT
     let(:missing_foldername) { 'missing_folder'}
 
     before(:each) do
-      # NOTE - Using instance_variable_set is a code smell of code that is not testable
-      subject.instance_variable_set("@connection",connection)
       allow(connection.serviceInstance).to receive(:find_datacenter).and_return(datacenter_object)
     end
 
     context 'with no folder hierarchy' do
       let(:datacenter_object) { mock_RbVmomi_VIM_Datacenter() }
 
-      it 'should ensure the connection' do
-        expect(subject).to receive(:ensure_connected)
-
-        subject.find_folder(foldername)
-      end
-
       it 'should return nil if the folder is not found' do
-        expect(subject.find_folder(missing_foldername)).to be_nil
+        expect(subject.find_folder(missing_foldername,connection)).to be_nil
       end
     end
 
@@ -750,20 +678,14 @@ EOT
         }
       }) }
 
-      it 'should ensure the connection' do
-        expect(subject).to receive(:ensure_connected)
-
-        subject.find_folder(foldername)
-      end
-
       it 'should return the folder when found' do
-        result = subject.find_folder(foldername)
+        result = subject.find_folder(foldername,connection)
         expect(result).to_not be_nil
         expect(result.name).to eq(foldername)
       end
 
       it 'should return nil if the folder is not found' do
-        expect(subject.find_folder(missing_foldername)).to be_nil
+        expect(subject.find_folder(missing_foldername,connection)).to be_nil
       end
     end
 
@@ -781,7 +703,7 @@ EOT
 
       it 'should not return a VM' do
         pending('https://github.com/puppetlabs/vmpooler/issues/204')
-        result = subject.find_folder(foldername)
+        result = subject.find_folder(foldername,connection)
         expect(result).to_not be_nil
         expect(result.name).to eq(foldername)
         expect(result.is_a? RbVmomi::VIM::VirtualMachine).to be false
@@ -808,20 +730,14 @@ EOT
         }
       }) }
 
-      it 'should ensure the connection' do
-        expect(subject).to receive(:ensure_connected)
-
-        subject.find_folder(foldername)
-      end
-
       it 'should return the folder when found' do
-        result = subject.find_folder(foldername)
+        result = subject.find_folder(foldername,connection)
         expect(result).to_not be_nil
         expect(result.name).to eq(end_folder_name)
       end
 
       it 'should return nil if the folder is not found' do
-        expect(subject.find_folder(missing_foldername)).to be_nil
+        expect(subject.find_folder(missing_foldername,connection)).to be_nil
       end
     end
 
@@ -850,7 +766,7 @@ EOT
 
       it 'should not return a VM' do
         pending('https://github.com/puppetlabs/vmpooler/issues/204')
-        result = subject.find_folder(foldername)
+        result = subject.find_folder(foldername,connection)
         expect(result).to_not be_nil
         expect(result.name).to eq(foldername)
         expect(result.is_a? RbVmomi::VIM::VirtualMachine).to be false
@@ -1090,9 +1006,6 @@ EOT
     let(:datacenter_object) { mock_RbVmomi_VIM_Datacenter() }
 
     before(:each) do
-      # NOTE - Using instance_variable_set is a code smell of code that is not testable
-      subject.instance_variable_set("@connection",connection)
-
       # This mocking is a little fragile but hard to do without a real vCenter instance
       allow(connection.serviceInstance).to receive(:find_datacenter).and_return(datacenter_object)
       datacenter_object.hostFolder.childEntity = [cluster_object]
@@ -1107,13 +1020,7 @@ EOT
       let(:expected_host) { cluster_object.host[0] }
 
       it 'should raise an error' do
-        expect{subject.find_least_used_host(missing_cluster_name)}.to raise_error(NoMethodError,/undefined method/)
-      end
-
-      it 'should ensure the connection' do
-        expect(subject).to receive(:ensure_connected)
-
-        expect{subject.find_least_used_host(missing_cluster_name)}.to raise_error(NoMethodError)
+        expect{subject.find_least_used_host(missing_cluster_name,connection)}.to raise_error(NoMethodError,/undefined method/)
       end
     end
 
@@ -1126,15 +1033,9 @@ EOT
       let(:expected_host) { cluster_object.host[0] }
 
       it 'should return the standalone host' do
-        result = subject.find_least_used_host(cluster_name)
+        result = subject.find_least_used_host(cluster_name,connection)
 
         expect(result).to be(expected_host)
-      end
-
-      it 'should ensure the connection' do
-        expect(subject).to receive(:ensure_connected)
-
-        result = subject.find_least_used_host(cluster_name)
       end
     end
 
@@ -1148,13 +1049,7 @@ EOT
       let(:expected_host) { cluster_object.host[0] }
 
       it 'should raise an error' do
-        expect{subject.find_least_used_host(missing_cluster_name)}.to raise_error(NoMethodError,/undefined method/)
-      end
-
-      it 'should ensure the connection' do
-        expect(subject).to receive(:ensure_connected)
-
-        expect{subject.find_least_used_host(missing_cluster_name)}.to raise_error(NoMethodError)
+        expect{subject.find_least_used_host(missing_cluster_name,connection)}.to raise_error(NoMethodError,/undefined method/)
       end
     end
 
@@ -1169,15 +1064,9 @@ EOT
       let(:expected_host) { cluster_object.host[1] }
 
       it 'should return the standalone host' do
-        result = subject.find_least_used_host(cluster_name)
+        result = subject.find_least_used_host(cluster_name,connection)
 
         expect(result).to be(expected_host)
-      end
-
-      it 'should ensure the connection' do
-        expect(subject).to receive(:ensure_connected)
-
-        result = subject.find_least_used_host(cluster_name)
       end
     end
 
@@ -1192,13 +1081,7 @@ EOT
       let(:expected_host) { cluster_object.host[1] }
 
       it 'should raise an error' do
-        expect{subject.find_least_used_host(missing_cluster_name)}.to raise_error(NoMethodError,/undefined method/)
-      end
-
-      it 'should ensure the connection' do
-        expect(subject).to receive(:ensure_connected)
-
-        expect{subject.find_least_used_host(missing_cluster_name)}.to raise_error(NoMethodError)
+        expect{subject.find_least_used_host(missing_cluster_name,connection)}.to raise_error(NoMethodError,/undefined method/)
       end
     end
 
@@ -1215,15 +1098,9 @@ EOT
       let(:expected_host) { cluster_object.host[1] }
 
       it 'should return the standalone host' do
-        result = subject.find_least_used_host(cluster_name)
+        result = subject.find_least_used_host(cluster_name,connection)
 
         expect(result).to be(expected_host)
-      end
-
-      it 'should ensure the connection' do
-        expect(subject).to receive(:ensure_connected)
-
-        result = subject.find_least_used_host(cluster_name)
       end
     end
 
@@ -1239,15 +1116,8 @@ EOT
 
       it 'should return a host' do
         pending('https://github.com/puppetlabs/vmpooler/issues/206')
-        result = subject.find_least_used_host(missing_cluster_name)
+        result = subject.find_least_used_host(missing_cluster_name,connection)
         expect(result).to_not be_nil
-      end
-
-      it 'should ensure the connection' do
-        pending('https://github.com/puppetlabs/vmpooler/issues/206')
-        expect(subject).to receive(:ensure_connected)
-
-        result = subject.find_least_used_host(cluster_name)
       end
     end
   end
@@ -1257,8 +1127,6 @@ EOT
     let(:missing_cluster) {'missing_cluster'}
 
     before(:each) do
-      # NOTE - Using instance_variable_set is a code smell of code that is not testable
-      subject.instance_variable_set("@connection",connection)
       allow(connection.serviceInstance).to receive(:find_datacenter).and_return(datacenter_object)
     end
 
@@ -1269,7 +1137,7 @@ EOT
       end
 
       it 'should return nil if the cluster is not found' do
-        expect(subject.find_cluster(missing_cluster)).to be_nil
+        expect(subject.find_cluster(missing_cluster,connection)).to be_nil
       end
     end
 
@@ -1284,14 +1152,14 @@ EOT
       }) }
 
       it 'should return the cluster when found' do
-        result = subject.find_cluster(cluster)
+        result = subject.find_cluster(cluster,connection)
 
         expect(result).to_not be_nil
         expect(result.name).to eq(cluster)
       end
 
       it 'should return nil if the cluster is not found' do
-        expect(subject.find_cluster(missing_cluster)).to be_nil
+        expect(subject.find_cluster(missing_cluster,connection)).to be_nil
       end
     end
 
@@ -1310,14 +1178,14 @@ EOT
 
       it 'should return the cluster when found' do
         pending('https://github.com/puppetlabs/vmpooler/issues/205')
-        result = subject.find_cluster(cluster)
+        result = subject.find_cluster(cluster,connection)
 
         expect(result).to_not be_nil
         expect(result.name).to eq(cluster)
       end
 
       it 'should return nil if the cluster is not found' do
-        expect(subject.find_cluster(missing_cluster)).to be_nil
+        expect(subject.find_cluster(missing_cluster,connection)).to be_nil
       end
     end
   end
@@ -1393,11 +1261,6 @@ EOT
   describe '#find_least_used_vpshere_compatible_host' do
     let(:vm) { mock_RbVmomi_VIM_VirtualMachine() }
 
-    before(:each) do
-      # NOTE - Using instance_variable_set is a code smell of code that is not testable
-      subject.instance_variable_set("@connection",connection)
-    end
-
     context 'standalone host within limits' do
       let(:cluster_object) { mock_RbVmomi_VIM_ComputeResource({:hosts => [{}]}) }
       let(:standalone_host) { cluster_object.host[0] }
@@ -1413,12 +1276,6 @@ EOT
         expect(result).to_not be_nil
         expect(result[0]).to be(standalone_host)
         expect(result[1]).to eq(standalone_host.name)
-      end
-
-      it 'should ensure the connection' do
-        expect(subject).to receive(:ensure_connected)
-
-        result = subject.find_least_used_vpshere_compatible_host(vm)
       end
     end
 
@@ -1457,12 +1314,6 @@ EOT
         expect(result).to_not be_nil
         expect(result[0]).to be(expected_host)
         expect(result[1]).to eq(expected_host.name)
-      end
-
-      it 'should ensure the connection' do
-        expect(subject).to receive(:ensure_connected)
-
-        result = subject.find_least_used_vpshere_compatible_host(vm)
       end
     end
 
@@ -1506,12 +1357,6 @@ EOT
         expect(result[0]).to be(expected_host)
         expect(result[1]).to eq(expected_host.name)
       end
-
-      it 'should ensure the connection' do
-        expect(subject).to receive(:ensure_connected)
-
-        result = subject.find_least_used_vpshere_compatible_host(vm)
-      end
     end
 
     context 'cluster of 3 hosts all with the same utilisation' do
@@ -1533,13 +1378,6 @@ EOT
 
         expect(result).to_not be_nil
       end
-
-      it 'should ensure the connection' do
-        pending('https://github.com/puppetlabs/vmpooler/issues/206 is fixed')
-        expect(subject).to receive(:ensure_connected)
-
-        result = subject.find_least_used_vpshere_compatible_host(vm)
-      end
     end
   end
 
@@ -1548,8 +1386,6 @@ EOT
     let(:missing_poolname) { 'missing_pool'}
 
     before(:each) do
-      # NOTE - Using instance_variable_set is a code smell of code that is not testable
-      subject.instance_variable_set("@connection",connection)
       allow(connection.serviceInstance).to receive(:find_datacenter).and_return(datacenter_object)
     end
 
@@ -1560,12 +1396,12 @@ EOT
         pending('https://github.com/puppetlabs/vmpooler/issues/209')
         expect(subject).to receive(:ensure_connected)
 
-        subject.find_pool(poolname)
+        subject.find_pool(poolname,connection)
       end
 
       it 'should return nil if the pool is not found' do
         pending('https://github.com/puppetlabs/vmpooler/issues/209')
-        expect(subject.find_pool(missing_poolname)).to be_nil
+        expect(subject.find_pool(missing_poolname,connection)).to be_nil
       end
     end
 
@@ -1662,14 +1498,8 @@ EOT
       context testcase[:context] do
         let(:datacenter_object) { mock_RbVmomi_VIM_Datacenter({ :hostfolder_tree => testcase[:hostfolder_tree]}) }
 
-        it 'should ensure the connection' do
-          expect(subject).to receive(:ensure_connected)
-
-          subject.find_pool(testcase[:poolpath])
-        end
-
         it 'should return the pool when found' do
-          result = subject.find_pool(testcase[:poolpath])
+          result = subject.find_pool(testcase[:poolpath],connection)
 
           expect(result).to_not be_nil
           expect(result.name).to eq(testcase[:poolname])
@@ -1678,7 +1508,7 @@ EOT
 
         it 'should return nil if the poolname is not found' do
           pending('https://github.com/puppetlabs/vmpooler/issues/209')
-          expect(subject.find_pool(missing_poolname)).to be_nil
+          expect(subject.find_pool(missing_poolname,connection)).to be_nil
         end
       end
     end
@@ -1808,39 +1638,28 @@ EOT
 
   describe '#find_vm' do
     before(:each) do
-      # NOTE - Using instance_variable_set is a code smell of code that is not testable
-      subject.instance_variable_set("@connection",connection)
-
       allow(subject).to receive(:find_vm_light).and_return('vmlight')
       allow(subject).to receive(:find_vm_heavy).and_return( { vmname => 'vmheavy' })
-    end
-
-    it 'should ensure the connection' do
-      # TODO This seems like overkill as we immediately call vm_light and heavy which
-      # does the same thing.  Also the connection isn't actually used in this method
-      expect(subject).to receive(:ensure_connected)
-
-      subject.find_vm(vmname)
     end
 
     it 'should call find_vm_light' do
       expect(subject).to receive(:find_vm_light).and_return('vmlight')
 
-      expect(subject.find_vm(vmname)).to eq('vmlight')
+      expect(subject.find_vm(vmname,connection)).to eq('vmlight')
     end
 
     it 'should not call find_vm_heavy if find_vm_light finds the VM' do
       expect(subject).to receive(:find_vm_light).and_return('vmlight')
       expect(subject).to receive(:find_vm_heavy).exactly(0).times
 
-      expect(subject.find_vm(vmname)).to eq('vmlight')
+      expect(subject.find_vm(vmname,connection)).to eq('vmlight')
     end
 
     it 'should call find_vm_heavy when find_vm_light returns nil' do
       expect(subject).to receive(:find_vm_light).and_return(nil)
       expect(subject).to receive(:find_vm_heavy).and_return( { vmname => 'vmheavy' })
 
-      expect(subject.find_vm(vmname)).to eq('vmheavy')
+      expect(subject.find_vm(vmname,connection)).to eq('vmheavy')
     end
   end
 
@@ -1848,16 +1667,7 @@ EOT
     let(:missing_vm) { 'missing_vm' }
 
     before(:each) do
-      # NOTE - Using instance_variable_set is a code smell of code that is not testable
-      subject.instance_variable_set("@connection",connection)
-
       allow(connection.searchIndex).to receive(:FindByDnsName).and_return(nil)
-    end
-
-    it 'should ensure the connection' do
-      expect(subject).to receive(:ensure_connected)
-
-      subject.find_vm_light(vmname)
     end
 
     it 'should call FindByDnsName with the correct parameters' do
@@ -1866,7 +1676,7 @@ EOT
         dnsName: vmname,
       })
 
-      subject.find_vm_light(vmname)
+      subject.find_vm_light(vmname,connection)
     end
 
     it 'should return the VM object when found' do
@@ -1876,7 +1686,7 @@ EOT
         dnsName: vmname,
       }).and_return(vm_object)
 
-      expect(subject.find_vm_light(vmname)).to be(vm_object)
+      expect(subject.find_vm_light(vmname,connection)).to be(vm_object)
     end
 
     it 'should return nil if the VM is not found' do
@@ -1885,7 +1695,7 @@ EOT
         dnsName: missing_vm,
       }).and_return(nil)
 
-      expect(subject.find_vm_light(missing_vm)).to be_nil
+      expect(subject.find_vm_light(missing_vm,connection)).to be_nil
     end
   end
 
@@ -1895,21 +1705,12 @@ EOT
     let(:retrieve_result) {{}}
 
     before(:each) do
-      # NOTE - Using instance_variable_set is a code smell of code that is not testable
-      subject.instance_variable_set("@connection",connection)
-
       allow(connection.propertyCollector).to receive(:RetrievePropertiesEx).and_return(mock_RbVmomi_VIM_RetrieveResult(retrieve_result))
-    end
-
-    it 'should ensure the connection' do
-      expect(subject).to receive(:ensure_connected).at_least(:once)
-
-      subject.find_vm_heavy(vmname)
     end
 
     context 'Search result is empty' do
       it 'should return empty hash' do
-        expect(subject.find_vm_heavy(vmname)).to eq({})
+        expect(subject.find_vm_heavy(vmname,connection)).to eq({})
       end
     end
 
@@ -1925,7 +1726,7 @@ EOT
       }
 
       it 'should return empty hash' do
-        expect(subject.find_vm_heavy(vmname)).to eq({})
+        expect(subject.find_vm_heavy(vmname,connection)).to eq({})
       end
     end
 
@@ -1943,12 +1744,12 @@ EOT
       }
 
       it 'should return single result' do
-        result = subject.find_vm_heavy(vmname)
+        result = subject.find_vm_heavy(vmname,connection)
         expect(result.keys.count).to eq(1)
       end
 
       it 'should return the matching VM Object' do
-        result = subject.find_vm_heavy(vmname)
+        result = subject.find_vm_heavy(vmname,connection)
         expect(result[vmname]).to be(vm_object)
       end
     end
@@ -1969,12 +1770,12 @@ EOT
       }
 
       it 'should return one result' do
-        result = subject.find_vm_heavy(vmname)
+        result = subject.find_vm_heavy(vmname,connection)
         expect(result.keys.count).to eq(1)
       end
 
       it 'should return the last matching VM Object' do
-        result = subject.find_vm_heavy(vmname)
+        result = subject.find_vm_heavy(vmname,connection)
         expect(result[vmname]).to be(vm_object2)
       end
     end
@@ -1993,11 +1794,8 @@ EOT
     let(:collectMultiple_response) { {} }
 
     before(:each) do
-      # NOTE - Using instance_variable_set is a code smell of code that is not testable
-      subject.instance_variable_set("@connection",connection)
-
       # NOTE - This method should not be using `_connection`, instead it should be using `@conection`
-      mock_ds = subject.find_datastore(datastorename)
+      mock_ds = subject.find_datastore(datastorename,connection)
       allow(mock_ds).to receive(:_connection).and_return(connection)
       allow(connection.serviceContent.propertyCollector).to receive(:collectMultiple).and_return(collectMultiple_response)
     end
@@ -2010,15 +1808,9 @@ EOT
 
       begin
         # ignore all errors. What's important is that it doesn't call _connection
-        subject.find_vmdks(vmname,datastorename)
+        subject.find_vmdks(vmname,datastorename,connection)
       rescue
       end
-    end
-
-    it 'should ensure the connection' do
-      expect(subject).to receive(:ensure_connected).at_least(:once)
-
-      subject.find_vmdks(vmname,datastorename)
     end
 
     context 'Searching all files for all VMs on a Datastore' do
@@ -2041,11 +1833,11 @@ EOT
       } }
 
       it 'should return empty array if no VMDKs match the VM name' do
-        expect(subject.find_vmdks('missing_vm_name',datastorename)).to eq([])
+        expect(subject.find_vmdks('missing_vm_name',datastorename,connection)).to eq([])
       end
 
       it 'should return matching VMDKs for the VM' do
-        result = subject.find_vmdks(vmname,datastorename)
+        result = subject.find_vmdks(vmname,datastorename,connection)
         expect(result).to_not be_nil
         expect(result.count).to eq(2)
         # The keys for each VMDK should be less that 100 as per the mocks
@@ -2057,21 +1849,8 @@ EOT
   end
 
   describe '#get_base_vm_container_from' do
-    let(:local_connection) { mock_RbVmomi_VIM_Connection() }
-
-    before(:each) do
-      allow(subject).to receive(:ensure_connected)
-    end
-
-    it 'should ensure the connection' do
-      pending('https://github.com/puppetlabs/vmpooler/issues/212')
-      expect(subject).to receive(:ensure_connected).with(local_connection,credentials)
-
-      subject.get_base_vm_container_from(local_connection)
-    end
-
     it 'should return a recursive view of type VirtualMachine' do
-      result = subject.get_base_vm_container_from(local_connection)
+      result = subject.get_base_vm_container_from(connection)
 
       expect(result.recursive).to be true
       expect(result.type).to eq(['VirtualMachine'])

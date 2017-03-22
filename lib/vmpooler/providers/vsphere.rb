@@ -23,10 +23,12 @@ module Vmpooler
         DISK_TYPE = 'thin'
         DISK_MODE = 'persistent'
 
-        def ensure_connected(connection, credentials)
-          connection.serviceInstance.CurrentTime
+        def get_connection
+          @connection.serviceInstance.CurrentTime
         rescue
-          connect_to_vsphere @credentials
+          @connection = connect_to_vsphere @credentials
+        ensure
+          return @connection
         end
 
         def connect_to_vsphere(credentials)
@@ -34,11 +36,12 @@ module Vmpooler
           retry_factor = @conf['retry_factor'] || 10
           try = 1
           begin
-            @connection = RbVmomi::VIM.connect host: credentials['server'],
+            connection = RbVmomi::VIM.connect host: credentials['server'],
                                               user: credentials['username'],
                                               password: credentials['password'],
                                               insecure: credentials['insecure'] || true
             @metrics.increment("connect.open")
+            return connection
           rescue => err
             try += 1
             @metrics.increment("connect.fail")
@@ -48,13 +51,11 @@ module Vmpooler
           end
         end
 
-        def add_disk(vm, size, datastore)
-          ensure_connected @connection, @credentials
-
+        def add_disk(vm, size, datastore, connection)
           return false unless size.to_i > 0
 
-          vmdk_datastore = find_datastore(datastore)
-          vmdk_file_name = "#{vm['name']}/#{vm['name']}_#{find_vmdks(vm['name'], datastore).length + 1}.vmdk"
+          vmdk_datastore = find_datastore(datastore, connection)
+          vmdk_file_name = "#{vm['name']}/#{vm['name']}_#{find_vmdks(vm['name'], datastore, connection).length + 1}.vmdk"
 
           controller = find_disk_controller(vm)
 
@@ -87,8 +88,8 @@ module Vmpooler
             deviceChange: [device_config_spec]
           )
 
-          @connection.serviceContent.virtualDiskManager.CreateVirtualDisk_Task(
-            datacenter: @connection.serviceInstance.find_datacenter,
+          connection.serviceContent.virtualDiskManager.CreateVirtualDisk_Task(
+            datacenter: connection.serviceInstance.find_datacenter,
             name: "[#{vmdk_datastore.name}] #{vmdk_file_name}",
             spec: vmdk_spec
           ).wait_for_completion
@@ -98,16 +99,12 @@ module Vmpooler
           true
         end
 
-        def find_datastore(datastorename)
-          ensure_connected @connection, @credentials
-
-          datacenter = @connection.serviceInstance.find_datacenter
+        def find_datastore(datastorename, connection)
+          datacenter = connection.serviceInstance.find_datacenter
           datacenter.find_datastore(datastorename)
         end
 
         def find_device(vm, deviceName)
-          ensure_connected @connection, @credentials
-
           vm.config.hardware.device.each do |device|
             return device if device.deviceInfo.label == deviceName
           end
@@ -116,8 +113,6 @@ module Vmpooler
         end
 
         def find_disk_controller(vm)
-          ensure_connected @connection, @credentials
-
           devices = find_disk_devices(vm)
 
           devices.keys.sort.each do |device|
@@ -130,8 +125,6 @@ module Vmpooler
         end
 
         def find_disk_devices(vm)
-          ensure_connected @connection, @credentials
-
           devices = {}
 
           vm.config.hardware.device.each do |device|
@@ -158,8 +151,6 @@ module Vmpooler
         end
 
         def find_disk_unit_number(vm, controller)
-          ensure_connected @connection, @credentials
-
           used_unit_numbers = []
           available_unit_numbers = []
 
@@ -182,10 +173,8 @@ module Vmpooler
           available_unit_numbers.sort[0]
         end
 
-        def find_folder(foldername)
-          ensure_connected @connection, @credentials
-
-          datacenter = @connection.serviceInstance.find_datacenter
+        def find_folder(foldername, connection)
+          datacenter = connection.serviceInstance.find_datacenter
           base = datacenter.vmFolder
           folders = foldername.split('/')
           folders.each do |folder|
@@ -205,7 +194,7 @@ module Vmpooler
         # +limit+:: Hard limit for CPU or memory utilization beyond which a host is excluded for deployments
         def get_host_utilization(host, model=nil, limit=90)
           if model
-            return nil unless host_has_cpu_model? host, model
+            return nil unless host_has_cpu_model?(host, model)
           end
           return nil if host.runtime.inMaintenanceMode
           return nil unless host.overallStatus == 'green'
@@ -242,17 +231,15 @@ module Vmpooler
           (memory_usage.to_f / memory_size.to_f) * 100
         end
 
-        def find_least_used_host(cluster)
-          ensure_connected @connection, @credentials
-
-          cluster_object = find_cluster(cluster)
+        def find_least_used_host(cluster, connection)
+          cluster_object = find_cluster(cluster, connection)
           target_hosts = get_cluster_host_utilization(cluster_object)
           least_used_host = target_hosts.sort[0][1]
           least_used_host
         end
 
-        def find_cluster(cluster)
-          datacenter = @connection.serviceInstance.find_datacenter
+        def find_cluster(cluster, connection)
+          datacenter = connection.serviceInstance.find_datacenter
           datacenter.hostFolder.children.find { |cluster_object| cluster_object.name == cluster }
         end
 
@@ -266,8 +253,6 @@ module Vmpooler
         end
 
         def find_least_used_vpshere_compatible_host(vm)
-          ensure_connected @connection, @credentials
-
           source_host = vm.summary.runtime.host
           model = get_host_cpu_arch_version(source_host)
           cluster = source_host.parent
@@ -280,10 +265,8 @@ module Vmpooler
           [target_host, target_host.name]
         end
 
-        def find_pool(poolname)
-          ensure_connected @connection, @credentials
-
-          datacenter = @connection.serviceInstance.find_datacenter
+        def find_pool(poolname, connection)
+          datacenter = connection.serviceInstance.find_datacenter
           base = datacenter.hostFolder
           pools = poolname.split('/')
           pools.each do |pool|
@@ -309,23 +292,18 @@ module Vmpooler
           end
         end
 
-        def find_vm(vmname)
-          ensure_connected @connection, @credentials
-          find_vm_light(vmname) || find_vm_heavy(vmname)[vmname]
+        def find_vm(vmname, connection)
+          find_vm_light(vmname, connection) || find_vm_heavy(vmname, connection)[vmname]
         end
 
-        def find_vm_light(vmname)
-          ensure_connected @connection, @credentials
-
-          @connection.searchIndex.FindByDnsName(vmSearch: true, dnsName: vmname)
+        def find_vm_light(vmname, connection)
+          connection.searchIndex.FindByDnsName(vmSearch: true, dnsName: vmname)
         end
 
-        def find_vm_heavy(vmname)
-          ensure_connected @connection, @credentials
-
+        def find_vm_heavy(vmname, connection)
           vmname = vmname.is_a?(Array) ? vmname : [vmname]
-          containerView = get_base_vm_container_from @connection
-          propertyCollector = @connection.propertyCollector
+          containerView = get_base_vm_container_from(connection)
+          propertyCollector = connection.propertyCollector
 
           objectSet = [{
             obj: containerView,
@@ -370,12 +348,10 @@ module Vmpooler
           vms
         end
 
-        def find_vmdks(vmname, datastore)
-          ensure_connected @connection, @credentials
-
+        def find_vmdks(vmname, datastore, connection)
           disks = []
 
-          vmdk_datastore = find_datastore(datastore)
+          vmdk_datastore = find_datastore(datastore, connection)
 
           vm_files = vmdk_datastore._connection.serviceContent.propertyCollector.collectMultiple vmdk_datastore.vm, 'layoutEx.file'
           vm_files.keys.each do |f|
@@ -390,8 +366,6 @@ module Vmpooler
         end
 
         def get_base_vm_container_from(connection)
-          ensure_connected @connection, @credentials
-
           viewManager = connection.serviceContent.viewManager
           viewManager.CreateContainerView(
             container: connection.serviceContent.rootFolder,
@@ -422,10 +396,6 @@ module Vmpooler
         def close
           @connection.close
         end
-
-
-
-
       end
     end
   end
