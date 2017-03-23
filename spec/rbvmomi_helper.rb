@@ -60,6 +60,22 @@ MockFolder = Struct.new(
   def children
     childEntity
   end
+
+  # https://github.com/vmware/rbvmomi/blob/master/lib/rbvmomi/vim/Folder.rb#L9-L12
+  def find(name, type=Object)
+    # Fake the searchIndex
+    childEntity.each do |child|
+      if child.name == name
+        if child.kind_of?(type)
+          return child
+        else
+          return nil
+        end
+      end
+    end
+
+    nil
+  end
 end
 
 MockHostSystem = Struct.new(
@@ -103,7 +119,7 @@ MockServiceInstance = Struct.new(
     # In our mocked instance, DataCenters are always in the root Folder.
     # If path is nil the first DC is returned otherwise match by name
     content.rootFolder.childEntity.each do |child|
-      if child.is_a?(MockDatacenter)
+      if child.is_a?(RbVmomi::VIM::Datacenter)
         return child if path.nil? || child.name == path
       end
     end
@@ -143,9 +159,12 @@ MockVirtualDiskManager = Object
 MockVirtualMachine = Struct.new(
   # https://www.vmware.com/support/developer/vc-sdk/visdk400pubs/ReferenceGuide/vim.VirtualMachine.html
   # From VirtualMachine
-  :config, :snapshot, :summary,
+  :config, :runtime, :snapshot, :summary,
   # From ManagedEntity
-  :name
+  :name,
+  # From RbVmomi::VIM::ManagedEntity
+  # https://github.com/vmware/rbvmomi/blob/master/lib/rbvmomi/vim/ManagedEntity.rb
+  :path
 )
 
 MockVirtualMachineSnapshot = Struct.new(
@@ -254,6 +273,12 @@ MockVirtualMachineFileLayoutExFileInfo = Struct.new(
   # https://pubs.vmware.com/vsphere-55/index.jsp?topic=%2Fcom.vmware.wssdk.apiref.doc%2Fvim.vm.FileLayoutEx.FileInfo.html
   # From VirtualMachineFileLayoutExFileInfo
   :key, :name, :size, :type, :uniqueSize
+)
+
+MockVirtualMachineGuestSummary = Struct.new(
+  # https://www.vmware.com/support/developer/vc-sdk/visdk400pubs/ReferenceGuide/vim.vm.Summary.GuestSummary.html
+  # From VirtualMachineGuestSummary
+  :hostName
 )
 
 MockVirtualMachineRuntimeInfo = Struct.new(
@@ -397,6 +422,10 @@ def mock_RbVmomi_VIM_Datacenter(options = {})
   options[:datastores].each do |datastorename|
     mock_ds = mock_RbVmomi_VIM_Datastore({ :name => datastorename })
     mock.datastore << mock_ds
+  end
+
+  allow(mock).to receive(:is_a?) do |expected_type|
+    expected_type == RbVmomi::VIM::Datacenter
   end
 
   mock
@@ -626,14 +655,21 @@ end
 def mock_RbVmomi_VIM_VirtualMachine(options = {})
   options[:snapshot_tree] = nil if options[:snapshot_tree].nil?
   options[:name] = 'VM' + rand(65536).to_s if options[:name].nil?
+  options[:path] = [] if options[:path].nil?
 
   mock = MockVirtualMachine.new()
   mock.config = MockVirtualMachineConfigInfo.new()
   mock.config.hardware = MockVirtualHardware.new([])
   mock.summary = MockVirtualMachineSummary.new()
   mock.summary.runtime = MockVirtualMachineRuntimeInfo.new()
+  mock.summary.guest = MockVirtualMachineGuestSummary.new()
+  mock.runtime = mock.summary.runtime
 
   mock.name = options[:name]
+  mock.summary.guest.hostName = options[:hostname]
+  mock.runtime.bootTime = options[:boottime]
+  mock.runtime.powerState = options[:powerstate]
+
   unless options[:snapshot_tree].nil?
     mock.snapshot = MockVirtualMachineSnapshotInfo.new()
     mock.snapshot.rootSnapshotList = []
@@ -642,6 +678,24 @@ def mock_RbVmomi_VIM_VirtualMachine(options = {})
     # Create a recursive snapshot tree
     recurse_snapshot_tree(options[:snapshot_tree],mock.snapshot.rootSnapshotList,index)
   end
+
+  # Create an array of items that describe the path of the VM from the root folder
+  # all the way to the VM itself
+  mock.path = []
+  options[:path].each do |path_item|
+    mock_item = nil
+    case path_item[:type]
+    when 'folder'
+      mock_item = mock_RbVmomi_VIM_Folder({ :name => path_item[:name] })
+    when 'datacenter'
+      mock_item = mock_RbVmomi_VIM_Datacenter({ :name => path_item[:name] })
+    else
+      raise("Unknown mock type #{path_item[:type]} for mock_RbVmomi_VIM_VirtualMachine")
+    end
+    mock.path << [mock_item,path_item[:name]]
+  end
+  mock.path << [mock,options[:name]]
+
   allow(mock).to receive(:is_a?) do |expected_type|
     expected_type == RbVmomi::VIM::VirtualMachine
   end

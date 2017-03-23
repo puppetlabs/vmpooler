@@ -8,8 +8,40 @@ RSpec::Matchers.define :create_virtual_disk_with_size do |value|
   match { |actual| actual[:spec].capacityKb == value * 1024 * 1024 }
 end
 
+RSpec::Matchers.define :create_vm_spec do |new_name,target_folder_name,datastore|
+  match { |actual|
+    # Should have the correct new name
+    actual[:name] == new_name &&
+    # Should be in the new folder
+    actual[:folder].name == target_folder_name &&
+    # Should be poweredOn after clone
+    actual[:spec].powerOn == true &&
+    # Should be on the correct datastore
+    actual[:spec][:location].datastore.name == datastore &&
+    # Should contain annotation data
+    actual[:spec][:config].annotation != '' &&
+    # Should contain VIC information
+    actual[:spec][:config].extraConfig[0][:key] == 'guestinfo.hostname' &&
+    actual[:spec][:config].extraConfig[0][:value] == new_name
+  }
+end
+
+RSpec::Matchers.define :create_snapshot_spec do |new_snapshot_name|
+  match { |actual|
+    # Should have the correct new name
+    actual[:name] == new_snapshot_name &&
+    # Should snapshot the memory too
+    actual[:memory] == true &&
+    # Should quiesce the disk
+    actual[:quiesce] == true
+  }
+end
+
 describe 'Vmpooler::PoolManager::Provider::VSphere' do
+  let(:logger) { MockLogger.new }
   let(:metrics) { Vmpooler::DummyStatsd.new }
+  let(:poolname) { 'pool1'}
+  let(:provider_options) { { 'param' => 'value' } }
   let(:config) { YAML.load(<<-EOT
 ---
 :config:
@@ -20,22 +52,27 @@ describe 'Vmpooler::PoolManager::Provider::VSphere' do
   username: "vcenter_user"
   password: "vcenter_password"
   insecure: true
+:pools:
+  - name: '#{poolname}'
+    alias: [ 'mockpool' ]
+    template: 'Templates/pool1'
+    folder: 'Pooler/pool1'
+    datastore: 'datastore0'
+    size: 5
+    timeout: 10
+    ready_ttl: 1440
+    clone_target: 'cluster1'
 EOT
     )
   }
 
-  let(:fake_vm) {
-    fake_vm = {}
-    fake_vm['name'] = 'vm1'
-    fake_vm['hostname'] = 'vm1'
-    fake_vm['template'] = 'pool1'
-    fake_vm['boottime'] = Time.now
-    fake_vm['powerstate'] = 'PoweredOn'
+  let(:credentials) { config[:vsphere] }
 
-    fake_vm
-  }
+  let(:connection_options) {{}}
+  let(:connection) { mock_RbVmomi_VIM_Connection(connection_options) }
+  let(:vmname) { 'vm1' }
 
-  subject { Vmpooler::PoolManager::Provider::VSphere.new({:config => config, :metrics => metrics}) }
+  subject { Vmpooler::PoolManager::Provider::VSphere.new(config, logger, metrics, 'vsphere', provider_options) }
 
   describe '#name' do
     it 'should be vsphere' do
@@ -44,78 +81,802 @@ EOT
   end
 
   describe '#vms_in_pool' do
-    it 'should raise error' do
-      expect{subject.vms_in_pool('pool')}.to raise_error(/does not implement vms_in_pool/)
+    let(:folder_object) { mock_RbVmomi_VIM_Folder({ :name => 'pool1'}) }
+    let(:pool_config) { config[:pools][0] }
+
+    before(:each) do
+      allow(subject).to receive(:get_connection).and_return(connection)
+    end
+
+    context 'Given a pool folder that is missing' do
+      before(:each) do
+        expect(subject).to receive(:find_folder).with(pool_config['folder'],connection).and_return(nil)
+      end
+
+      it 'should get a connection' do
+        expect(subject).to receive(:get_connection).and_return(connection)
+
+        subject.vms_in_pool(poolname)
+      end
+
+      it 'should return an empty array' do
+        result = subject.vms_in_pool(poolname)
+
+        expect(result).to eq([])
+      end
+    end
+
+    context 'Given an empty pool folder' do
+      before(:each) do
+        expect(subject).to receive(:find_folder).with(pool_config['folder'],connection).and_return(folder_object)
+      end
+
+      it 'should get a connection' do
+        expect(subject).to receive(:get_connection).and_return(connection)
+
+        subject.vms_in_pool(poolname)
+      end
+
+      it 'should return an empty array' do
+        result = subject.vms_in_pool(poolname)
+
+        expect(result).to eq([])
+      end
+    end
+
+    context 'Given a pool folder with many VMs' do
+      let(:expected_vm_list) {[
+        { 'name' => 'vm1'},
+        { 'name' => 'vm2'},
+        { 'name' => 'vm3'}
+      ]}
+      before(:each) do
+        expected_vm_list.each do |vm_hash|
+          mock_vm = mock_RbVmomi_VIM_VirtualMachine({ :name => vm_hash['name'] })
+          # Add the mocked VM to the folder
+          folder_object.childEntity << mock_vm
+        end
+
+        expect(subject).to receive(:find_folder).with(pool_config['folder'],connection).and_return(folder_object)
+      end
+
+      it 'should get a connection' do
+        expect(subject).to receive(:get_connection).and_return(connection)
+
+        subject.vms_in_pool(poolname)
+      end
+
+      it 'should list all VMs in the VM folder for the pool' do
+        result = subject.vms_in_pool(poolname)
+
+        expect(result).to eq(expected_vm_list)
+      end
     end
   end
 
   describe '#get_vm_host' do
-    it 'should raise error' do
-      expect{subject.get_vm_host('vm')}.to raise_error(/does not implement get_vm_host/)
+    before(:each) do
+      allow(subject).to receive(:get_connection).and_return(connection)
+      expect(subject).to receive(:find_vm).with(vmname,connection).and_return(vm_object)
+    end
+
+    context 'when VM does not exist' do
+      let(:vm_object) { nil }
+
+      it 'should get a connection' do
+        expect(subject).to receive(:get_connection).and_return(connection)
+
+        subject.get_vm_host(poolname,vmname)
+      end
+
+      it 'should return nil' do
+        expect(subject.get_vm_host(poolname,vmname)).to be_nil
+      end
+    end
+
+    context 'when VM exists but missing runtime information' do
+      # For example if the VM is shutdown
+      let(:vm_object) { mock_RbVmomi_VIM_VirtualMachine({
+          :name => vmname,
+        })
+      }
+
+      before(:each) do
+        vm_object.summary.runtime = nil
+      end
+
+      it 'should get a connection' do
+        expect(subject).to receive(:get_connection).and_return(connection)
+
+        subject.get_vm_host(poolname,vmname)
+      end
+
+      it 'should return nil' do
+        expect(subject.get_vm_host(poolname,vmname)).to be_nil
+      end
+    end
+
+    context 'when VM exists and is running on a host' do
+      let(:vm_object) { mock_RbVmomi_VIM_VirtualMachine({
+          :name => vmname,
+        })
+      }
+      let(:hostname) { 'HOST001' }
+
+      before(:each) do
+        mock_host = mock_RbVmomi_VIM_HostSystem({ :name => hostname })
+        vm_object.summary.runtime.host = mock_host
+      end
+
+      it 'should get a connection' do
+        expect(subject).to receive(:get_connection).and_return(connection)
+
+        subject.get_vm_host(poolname,vmname)
+      end
+
+      it 'should return the hostname' do
+        expect(subject.get_vm_host(poolname,vmname)).to eq(hostname)
+      end
     end
   end
 
   describe '#find_least_used_compatible_host' do
-    it 'should raise error' do
-      expect{subject.find_least_used_compatible_host('vm')}.to raise_error(/does not implement find_least_used_compatible_host/)
+    let(:vm_object) { nil }
+
+    before(:each) do
+      allow(subject).to receive(:get_connection).and_return(connection)
+      expect(subject).to receive(:find_vm).with(vmname,connection).and_return(vm_object)
+    end
+
+    context 'when VM does not exist' do
+      let(:vm_object) { nil }
+
+      it 'should get a connection' do
+        expect(subject).to receive(:get_connection).and_return(connection)
+
+        subject.find_least_used_compatible_host(poolname,vmname)
+      end
+
+      it 'should return nil' do
+        expect(subject.find_least_used_compatible_host(poolname,vmname)).to be_nil
+      end
+    end
+
+    context 'when VM exists but no compatible host' do
+      let(:vm_object) { mock_RbVmomi_VIM_VirtualMachine({ :name => vmname }) }
+      let(:host_list) { nil }
+
+      before(:each) do
+        expect(subject).to receive(:find_least_used_vpshere_compatible_host).with(vm_object).and_return(host_list)
+      end
+
+      it 'should get a connection' do
+        expect(subject).to receive(:get_connection).and_return(connection)
+
+        subject.find_least_used_compatible_host(poolname,vmname)
+      end
+
+      it 'should return nil' do
+        expect(subject.find_least_used_compatible_host(poolname,vmname)).to be_nil
+      end
+    end
+
+    context 'when VM exists and a compatible host' do
+      let(:vm_object) { mock_RbVmomi_VIM_VirtualMachine({ :name => vmname }) }
+      let(:hostname) { 'HOST001' }
+      # As per find_least_used_vpshere_compatible_host, the return value is an array
+      #  [ <HostObject>, <Hostname> ]
+      let(:host_list) { [mock_RbVmomi_VIM_HostSystem({ :name => hostname }), hostname] }
+
+      before(:each) do
+        expect(subject).to receive(:find_least_used_vpshere_compatible_host).with(vm_object).and_return(host_list)
+      end
+
+      it 'should get a connection' do
+        expect(subject).to receive(:get_connection).and_return(connection)
+
+        subject.find_least_used_compatible_host(poolname,vmname)
+      end
+
+      it 'should return the hostname' do
+        expect(subject.find_least_used_compatible_host(poolname,vmname)).to eq(hostname)
+      end
     end
   end
 
   describe '#migrate_vm_to_host' do
-    it 'should raise error' do
-      expect{subject.migrate_vm_to_host('vm','host')}.to raise_error(/does not implement migrate_vm_to_host/)
+    let(:dest_host_name) { 'HOST002' }
+    let(:cluster_name) { 'CLUSTER001' }
+    let(:vm_object) { mock_RbVmomi_VIM_VirtualMachine({
+        :name => vmname,
+      })
+    }
+
+    before(:each) do
+      config[:pools][0]['clone_target'] = cluster_name
+      allow(subject).to receive(:get_connection).and_return(connection)
+      allow(subject).to receive(:find_vm).and_return(vm_object)
+    end
+
+    context 'Given an invalid pool name' do
+      it 'should raise an error' do
+        expect{ subject.migrate_vm_to_host('missing_pool', vmname, dest_host_name) }.to raise_error(/missing_pool does not exist/)
+      end
+    end
+
+    context 'Given a missing VM name' do
+      before(:each) do
+        expect(subject).to receive(:find_vm).and_return(nil)
+      end
+
+      it 'should raise an error' do
+        expect{ subject.migrate_vm_to_host(poolname, 'missing_vm', dest_host_name) }.to raise_error(/missing_vm does not exist/)
+      end
+    end
+
+    context 'Given a missing cluster name in the pool configuration' do
+      let(:cluster_name) { 'missing_cluster' }
+
+      before(:each) do
+        config[:pools][0]['clone_target'] = cluster_name
+        expect(subject).to receive(:find_cluster).with(cluster_name,connection).and_return(nil)
+      end
+
+      it 'should raise an error' do
+        expect{ subject.migrate_vm_to_host(poolname, vmname, dest_host_name) }.to raise_error(/#{cluster_name} which does not exist/)
+      end
+    end
+
+    context 'Given a missing cluster name in the global configuration' do
+      let(:cluster_name) { 'missing_cluster' }
+
+      before(:each) do
+        config[:pools][0]['clone_target'] = nil
+        config[:config]['clone_target'] = cluster_name
+        expect(subject).to receive(:find_cluster).with(cluster_name,connection).and_return(nil)
+      end
+
+      it 'should raise an error' do
+        expect{ subject.migrate_vm_to_host(poolname, vmname, dest_host_name) }.to raise_error(/#{cluster_name} which does not exist/)
+      end
+    end
+
+    context 'Given a missing hostname in the cluster' do
+      before(:each) do
+        config[:pools][0]['clone_target'] = cluster_name
+        mock_cluster = mock_RbVmomi_VIM_ComputeResource({
+          :hosts => [ { :name => 'HOST001' },{ :name => dest_host_name} ]
+        })
+        expect(subject).to receive(:find_cluster).with(cluster_name,connection).and_return(mock_cluster)
+        expect(subject).to receive(:migrate_vm_host).exactly(0).times
+      end
+
+      it 'should return true' do
+        expect(subject.migrate_vm_to_host(poolname, vmname, 'missing_host')).to be false
+      end
+    end
+
+    context 'Given an error during migration' do
+      before(:each) do
+        config[:pools][0]['clone_target'] = cluster_name
+        mock_cluster = mock_RbVmomi_VIM_ComputeResource({
+          :hosts => [ { :name => 'HOST001' },{ :name => dest_host_name} ]
+        })
+        expect(subject).to receive(:find_cluster).with(cluster_name,connection).and_return(mock_cluster)
+        expect(subject).to receive(:migrate_vm_host).with(Object,Object).and_raise(RuntimeError,'MockMigrationError')
+      end
+
+      it 'should raise an error' do
+        expect{ subject.migrate_vm_to_host(poolname, vmname, dest_host_name) }.to raise_error('MockMigrationError')
+      end
+    end
+
+    context 'Given a successful migration' do
+      before(:each) do
+        config[:pools][0]['clone_target'] = cluster_name
+        mock_cluster = mock_RbVmomi_VIM_ComputeResource({
+          :hosts => [ { :name => 'HOST001' },{ :name => dest_host_name} ]
+        })
+        expect(subject).to receive(:find_cluster).with(cluster_name,connection).and_return(mock_cluster)
+        expect(subject).to receive(:migrate_vm_host).with(Object,Object).and_return(nil)
+      end
+
+      it 'should return true' do
+        expect(subject.migrate_vm_to_host(poolname, vmname, dest_host_name)).to be true
+      end
     end
   end
 
   describe '#get_vm' do
-    it 'should raise error' do
-      expect{subject.get_vm('vm')}.to raise_error(/does not implement get_vm/)
+    let(:vm_object) { nil }
+    before(:each) do
+      allow(subject).to receive(:get_connection).and_return(connection)
+      expect(subject).to receive(:find_vm).with(vmname,connection).and_return(vm_object)
+    end
+
+    context 'when VM does not exist' do
+      it 'should return nil' do
+        expect(subject.get_vm(poolname,vmname)).to be_nil
+      end
+    end
+
+    context 'when VM exists but is missing information' do
+      let(:vm_object) { mock_RbVmomi_VIM_VirtualMachine({
+          :name => vmname,
+        })
+      }
+
+      it 'should return a hash' do
+        expect(subject.get_vm(poolname,vmname)).to be_kind_of(Hash)
+      end
+
+      it 'should return the VM name' do
+        result = subject.get_vm(poolname,vmname)
+
+        expect(result['name']).to eq(vmname)
+      end
+
+      ['hostname','template','poolname','boottime','powerstate'].each do |testcase|
+        it "should return nil for #{testcase}" do
+          result = subject.get_vm(poolname,vmname)
+
+          expect(result[testcase]).to be_nil
+        end
+      end
+    end
+
+    context 'when VM exists and contains all information' do
+      let(:vm_hostname) { "#{vmname}.demo.local" }
+      let(:boot_time) { Time.now }
+      let(:power_state) { 'MockPowerState' }
+
+      let(:vm_object) { mock_RbVmomi_VIM_VirtualMachine({
+          :name => vmname,
+          :hostname => vm_hostname,
+          :powerstate => power_state,
+          :boottime => boot_time,
+          # This path should match the folder in the mocked pool in the config above
+          :path => [
+            { :type => 'folder',     :name => 'Datacenters' },
+            { :type => 'datacenter', :name => 'DC01' },
+            { :type => 'folder',     :name => 'vm' },
+            { :type => 'folder',     :name => 'Pooler' },
+            { :type => 'folder',     :name => 'pool1'},
+          ]
+        })
+      }
+      let(:pool_info) { config[:pools][0]}
+
+      it 'should return a hash' do
+        expect(subject.get_vm(poolname,vmname)).to be_kind_of(Hash)
+      end
+
+      it 'should return the VM name' do
+        result = subject.get_vm(poolname,vmname)
+
+        expect(result['name']).to eq(vmname)
+      end
+
+      it 'should return the VM hostname' do
+        result = subject.get_vm(poolname,vmname)
+
+        expect(result['hostname']).to eq(vm_hostname)
+      end
+
+      it 'should return the template name' do
+        result = subject.get_vm(poolname,vmname)
+
+        expect(result['template']).to eq(pool_info['template'])
+      end
+
+      it 'should return the pool name' do
+        result = subject.get_vm(poolname,vmname)
+
+        expect(result['poolname']).to eq(pool_info['name'])
+      end
+
+      it 'should return the boot time' do
+        result = subject.get_vm(poolname,vmname)
+
+        expect(result['boottime']).to eq(boot_time)
+      end
+
+      it 'should return the powerstate' do
+        result = subject.get_vm(poolname,vmname)
+
+        expect(result['powerstate']).to eq(power_state)
+      end
+
     end
   end
 
   describe '#create_vm' do
-    it 'should raise error' do
-      expect{subject.create_vm('pool','newname')}.to raise_error(/does not implement create_vm/)
+    let(:datacenter_object) { mock_RbVmomi_VIM_Datacenter({
+      :datastores => ['datastore0'],
+      :vmfolder_tree => {
+        'Templates' => { :children => {
+          'pool1' => { :object_type => 'vm', :name => 'pool1' },
+        }},
+        'Pooler' => { :children => {
+          'pool1' => nil,
+        }},
+      },
+      :hostfolder_tree => {
+        'cluster1' =>  {:object_type => 'compute_resource'},
+      }
+    })
+    }
+
+    let(:clone_vm_task) { mock_RbVmomi_VIM_Task() }
+    let(:new_vm_object)  { mock_RbVmomi_VIM_VirtualMachine({ :name => vmname }) }
+
+    before(:each) do
+      allow(subject).to receive(:get_connection).and_return(connection)
+      allow(connection.serviceInstance).to receive(:find_datacenter).and_return(datacenter_object)
+    end
+
+    context 'Given an invalid pool name' do
+      it 'should raise an error' do
+        expect{ subject.create_vm('missing_pool', vmname) }.to raise_error(/missing_pool does not exist/)
+      end
+    end
+
+    context 'Given an invalid template path in the pool config' do
+      before(:each) do
+        config[:pools][0]['template'] = 'bad_template'
+      end
+
+      it 'should raise an error' do
+        expect{ subject.create_vm(poolname, vmname) }.to raise_error(/did specify a full path for the template/)
+      end
+    end
+
+    context 'Given a template path that does not exist' do
+      before(:each) do
+        config[:pools][0]['template'] = 'missing_Templates/pool1'
+      end
+
+      it 'should raise an error' do
+        expect{ subject.create_vm(poolname, vmname) }.to raise_error(/specifies a template folder of .+ which does not exist/)
+      end
+    end
+
+    context 'Given a template VM that does not exist' do
+      before(:each) do
+        config[:pools][0]['template'] = 'Templates/missing_template'
+      end
+
+      it 'should raise an error' do
+        expect{ subject.create_vm(poolname, vmname) }.to raise_error(/specifies a template VM of .+ which does not exist/)
+      end
+    end
+
+    context 'Given a successful creation' do
+      before(:each) do
+        template_vm = subject.find_folder('Templates',connection).find('pool1')
+        allow(template_vm).to receive(:CloneVM_Task).and_return(clone_vm_task)
+        allow(clone_vm_task).to receive(:wait_for_completion).and_return(new_vm_object)
+      end
+
+      it 'should return a hash' do
+        result = subject.create_vm(poolname, vmname)
+
+        expect(result.is_a?(Hash)).to be true
+      end
+
+      it 'should use the appropriate Create_VM spec' do
+        template_vm = subject.find_folder('Templates',connection).find('pool1')
+        expect(template_vm).to receive(:CloneVM_Task)
+          .with(create_vm_spec(vmname,'pool1','datastore0'))
+          .and_return(clone_vm_task)
+
+        subject.create_vm(poolname, vmname)
+      end
+
+      it 'should have the new VM name' do
+        result = subject.create_vm(poolname, vmname)
+
+        expect(result['name']).to eq(vmname)
+      end
+    end
+  end
+
+  describe '#create_disk' do
+    let(:vm_object) { mock_RbVmomi_VIM_VirtualMachine({ :name => vmname }) }
+    let(:datastorename) { 'datastore0' }
+    let(:disk_size) { 10 }
+    before(:each) do
+      allow(subject).to receive(:get_connection).and_return(connection)
+      allow(subject).to receive(:find_vm).with(vmname, connection).and_return(vm_object)
+    end
+
+    context 'Given an invalid pool name' do
+      it 'should raise an error' do
+        expect{ subject.create_disk('missing_pool',vmname,disk_size) }.to raise_error(/missing_pool does not exist/)
+      end
+    end
+
+    context 'Given a missing datastore in the pool config' do
+      before(:each) do
+        config[:pools][0]['datastore'] = nil
+      end
+
+      it 'should raise an error' do
+        expect{ subject.create_disk(poolname,vmname,disk_size) }.to raise_error(/does not have a datastore defined/)
+      end
+    end
+
+    context 'when VM does not exist' do
+      before(:each) do
+        expect(subject).to receive(:find_vm).with(vmname, connection).and_return(nil)
+      end
+
+      it 'should raise an error' do
+        expect{ subject.create_disk(poolname,vmname,disk_size) }.to raise_error(/VM #{vmname} .+ does not exist/)
+      end
+    end
+
+    context 'when adding the disk raises an error' do
+      before(:each) do
+        expect(subject).to receive(:add_disk).and_raise(RuntimeError,'Mock Disk Error')
+      end
+
+      it 'should raise an error' do
+        expect{ subject.create_disk(poolname,vmname,disk_size) }.to raise_error(/Mock Disk Error/)
+      end
+    end
+
+    context 'when adding the disk succeeds' do
+      before(:each) do
+        expect(subject).to receive(:add_disk).with(vm_object, disk_size, datastorename, connection)
+      end
+
+      it 'should return true' do
+        expect(subject.create_disk(poolname,vmname,disk_size)).to be true
+      end
+    end
+  end
+
+  describe '#create_snapshot' do
+    let(:snapshot_task) { mock_RbVmomi_VIM_Task() }
+    let(:snapshot_name) { 'snapshot' }
+    let(:snapshot_tree) {{}}
+    let(:vm_object) { mock_RbVmomi_VIM_VirtualMachine({ :name => vmname, :snapshot_tree => snapshot_tree }) }
+
+    before(:each) do
+      allow(subject).to receive(:get_connection).and_return(connection)
+      allow(subject).to receive(:find_vm).with(vmname,connection).and_return(vm_object)
+    end
+
+    context 'when VM does not exist' do
+      before(:each) do
+        expect(subject).to receive(:find_vm).with(vmname, connection).and_return(nil)
+      end
+
+      it 'should raise an error' do
+        expect{ subject.create_snapshot(poolname,vmname,snapshot_name) }.to raise_error(/VM #{vmname} .+ does not exist/)
+      end
+    end
+
+    context 'when snapshot already exists' do
+      let(:snapshot_object) { mock_RbVmomi_VIM_VirtualMachineSnapshot() }
+      let(:snapshot_tree) { { snapshot_name => { :ref => snapshot_object } } }
+
+      it 'should raise an error' do
+        expect{ subject.create_snapshot(poolname,vmname,snapshot_name) }.to raise_error(/Snapshot #{snapshot_name} .+ already exists /)
+      end
+    end
+
+    context 'when snapshot raises an error' do
+      before(:each) do
+        expect(vm_object).to receive(:CreateSnapshot_Task).and_raise(RuntimeError,'Mock Snapshot Error')
+      end
+
+      it 'should raise an error' do
+        expect{ subject.create_snapshot(poolname,vmname,snapshot_name) }.to raise_error(/Mock Snapshot Error/)
+      end
+    end
+
+    context 'when snapshot succeeds' do
+      before(:each) do
+        expect(vm_object).to receive(:CreateSnapshot_Task)
+          .with(create_snapshot_spec(snapshot_name))
+          .and_return(snapshot_task)
+        expect(snapshot_task).to receive(:wait_for_completion).and_return(nil)
+      end
+
+      it 'should return true' do
+        expect(subject.create_snapshot(poolname,vmname,snapshot_name)).to be true
+      end
+    end
+  end
+
+  describe '#revert_snapshot' do
+    let(:snapshot_task) { mock_RbVmomi_VIM_Task() }
+    let(:snapshot_name) { 'snapshot' }
+    let(:snapshot_tree) { { snapshot_name => { :ref => snapshot_object } } }
+    let(:snapshot_object) { mock_RbVmomi_VIM_VirtualMachineSnapshot() }
+    let(:vm_object) { mock_RbVmomi_VIM_VirtualMachine({ :name => vmname, :snapshot_tree => snapshot_tree }) }
+
+    before(:each) do
+      allow(subject).to receive(:get_connection).and_return(connection)
+      allow(subject).to receive(:find_vm).with(vmname,connection).and_return(vm_object)
+    end
+
+    context 'when VM does not exist' do
+      before(:each) do
+        expect(subject).to receive(:find_vm).with(vmname,connection).and_return(nil)
+      end
+
+      it 'should raise an error' do
+        expect{ subject.revert_snapshot(poolname,vmname,snapshot_name) }.to raise_error(/VM #{vmname} .+ does not exist/)
+      end
+    end
+
+    context 'when snapshot does not exist' do
+      let(:snapshot_tree) {{}}
+
+      it 'should raise an error' do
+        expect{ subject.revert_snapshot(poolname,vmname,snapshot_name) }.to raise_error(/Snapshot #{snapshot_name} .+ does not exist /)
+      end
+    end
+
+    context 'when revert to snapshot raises an error' do
+      before(:each) do
+        expect(snapshot_object).to receive(:RevertToSnapshot_Task).and_raise(RuntimeError,'Mock Snapshot Error')
+      end
+
+      it 'should raise an error' do
+        expect{ subject.revert_snapshot(poolname,vmname,snapshot_name) }.to raise_error(/Mock Snapshot Error/)
+      end
+    end
+
+    context 'when revert to snapshot succeeds' do
+      before(:each) do
+        expect(snapshot_object).to receive(:RevertToSnapshot_Task).and_return(snapshot_task)
+        expect(snapshot_task).to receive(:wait_for_completion).and_return(nil)
+      end
+
+      it 'should return true' do
+        expect(subject.revert_snapshot(poolname,vmname,snapshot_name)).to be true
+      end
     end
   end
 
   describe '#destroy_vm' do
-    it 'should raise error' do
-      expect{subject.destroy_vm('vm','pool')}.to raise_error(/does not implement destroy_vm/)
+    let(:power_off_task) { mock_RbVmomi_VIM_Task() }
+    let(:destroy_task) { mock_RbVmomi_VIM_Task() }
+
+    before(:each) do
+      allow(subject).to receive(:get_connection).and_return(connection)
+    end
+
+    context 'Given a missing VM name' do
+      before(:each) do
+        expect(subject).to receive(:find_vm).and_return(nil)
+      end
+
+      it 'should return true' do
+        expect(subject.destroy_vm(poolname, 'missing_vm')).to be true
+      end
+    end
+
+    context 'Given a powered on VM' do
+      let(:vm_object) { mock_RbVmomi_VIM_VirtualMachine({
+          :name => vmname,
+          :powerstate => 'poweredOn',
+        })
+      }
+
+      before(:each) do
+        expect(subject).to receive(:find_vm).and_return(vm_object)
+        allow(vm_object).to receive(:PowerOffVM_Task).and_return(power_off_task)
+        allow(vm_object).to receive(:Destroy_Task).and_return(destroy_task)
+
+        allow(power_off_task).to receive(:wait_for_completion)
+        allow(destroy_task).to receive(:wait_for_completion)
+      end
+
+      it 'should call PowerOffVM_Task on the VM' do
+        expect(vm_object).to receive(:PowerOffVM_Task).and_return(power_off_task)
+
+        subject.destroy_vm(poolname, vmname)
+      end
+
+      it 'should call Destroy_Task on the VM' do
+        expect(vm_object).to receive(:Destroy_Task).and_return(destroy_task)
+
+        subject.destroy_vm(poolname, vmname)
+      end
+
+      it 'should return true' do
+        expect(subject.destroy_vm(poolname, vmname)).to be true
+      end
+    end
+
+    context 'Given a powered off VM' do
+      let(:vm_object) { mock_RbVmomi_VIM_VirtualMachine({
+          :name => vmname,
+          :powerstate => 'poweredOff',
+        })
+      }
+
+      before(:each) do
+        expect(subject).to receive(:find_vm).and_return(vm_object)
+        allow(vm_object).to receive(:Destroy_Task).and_return(destroy_task)
+
+        allow(destroy_task).to receive(:wait_for_completion)
+      end
+
+      it 'should not call PowerOffVM_Task on the VM' do
+        expect(vm_object).to receive(:PowerOffVM_Task).exactly(0).times
+
+        subject.destroy_vm(poolname, vmname)
+      end
+
+      it 'should call Destroy_Task on the VM' do
+        expect(vm_object).to receive(:Destroy_Task).and_return(destroy_task)
+
+        subject.destroy_vm(poolname, vmname)
+      end
+
+      it 'should return true' do
+        expect(subject.destroy_vm(poolname, vmname)).to be true
+      end
     end
   end
 
   describe '#vm_ready?' do
-    it 'should raise error' do
-      expect{subject.vm_ready?('vm','pool','timeout')}.to raise_error(/does not implement vm_ready?/)
+    context 'When a VM is ready' do
+      before(:each) do
+        expect(subject).to receive(:open_socket).with(vmname)
+      end
+
+      it 'should return true' do
+        expect(subject.vm_ready?(poolname,vmname)).to be true
+      end
+    end
+
+    context 'When a VM is ready but the pool does not exist' do
+      # TODO not sure how to handle a VM that is passed in but
+      # not located in the pool.  Is that ready or not?
+      before(:each) do
+        expect(subject).to receive(:open_socket).with(vmname)
+      end
+
+      it 'should return true' do
+        expect(subject.vm_ready?('missing_pool',vmname)).to be true
+      end
+    end
+
+    context 'When an error occurs connecting to the VM' do
+      # TODO not sure how to handle a VM that is passed in but
+      # not located in the pool.  Is that ready or not?
+      before(:each) do
+        expect(subject).to receive(:open_socket).and_raise(RuntimeError,'MockError')
+      end
+
+      it 'should return false' do
+        expect(subject.vm_ready?(poolname,vmname)).to be false
+      end
     end
   end
 
   describe '#vm_exists?' do
-    it 'should raise error' do
-      expect{subject.vm_exists?('vm')}.to raise_error(/does not implement/)
-    end
-
     it 'should return true when get_vm returns an object' do
-      allow(subject).to receive(:get_vm).with('vm').and_return(fake_vm)
+      allow(subject).to receive(:get_vm).with(poolname,vmname).and_return(mock_RbVmomi_VIM_VirtualMachine({ :name => vmname }))
 
-      expect(subject.vm_exists?('vm')).to eq(true)
+      expect(subject.vm_exists?(poolname,vmname)).to eq(true)
     end
 
     it 'should return false when get_vm returns nil' do
-      allow(subject).to receive(:get_vm).with('vm').and_return(nil)
+      allow(subject).to receive(:get_vm).with(poolname,vmname).and_return(nil)
 
-      expect(subject.vm_exists?('vm')).to eq(false)
+      expect(subject.vm_exists?(poolname,vmname)).to eq(false)
     end
   end
 
   # vSphere helper methods
-  let(:credentials) { config[:vsphere] }
-
-  let(:connection_options) {{}}
-  let(:connection) { mock_RbVmomi_VIM_Connection(connection_options) }
-  let(:vmname) { 'vm1' }
-
   describe '#get_connection' do
     before(:each) do
       # NOTE - Using instance_variable_set is a code smell of code that is not testable
@@ -299,6 +1060,133 @@ EOT
     end
   end
 
+  describe '#open_socket' do
+    let(:TCPSocket) { double('tcpsocket') }
+    let(:socket) { double('tcpsocket') }
+    let(:hostname) { 'host' }
+    let(:domain) { 'domain.local'}
+    let(:default_socket) { 22 }
+
+    before do
+      expect(subject).not_to be_nil
+      allow(socket).to receive(:close)
+    end
+
+    it 'opens socket with defaults' do
+      expect(TCPSocket).to receive(:new).with(hostname,default_socket).and_return(socket)
+
+      expect(subject.open_socket(hostname)).to eq(nil)
+    end
+
+    it 'yields the socket if a block is given' do
+      expect(TCPSocket).to receive(:new).with(hostname,default_socket).and_return(socket)
+
+      expect{ |socket| subject.open_socket(hostname,nil,nil,default_socket,&socket) }.to yield_control.exactly(1).times 
+    end
+
+    it 'closes the opened socket' do
+      expect(TCPSocket).to receive(:new).with(hostname,default_socket).and_return(socket)
+      expect(socket).to receive(:close)
+
+      expect(subject.open_socket(hostname)).to eq(nil)
+    end
+
+    it 'opens a specific socket' do
+      expect(TCPSocket).to receive(:new).with(hostname,80).and_return(socket)
+
+      expect(subject.open_socket(hostname,nil,nil,80)).to eq(nil)
+    end
+
+    it 'uses a specific domain with the hostname' do
+      expect(TCPSocket).to receive(:new).with("#{hostname}.#{domain}",default_socket).and_return(socket)
+
+      expect(subject.open_socket(hostname,domain)).to eq(nil)
+    end
+
+    it 'raises error if host is not resolvable' do
+      expect(TCPSocket).to receive(:new).with(hostname,default_socket).and_raise(SocketError,'getaddrinfo: No such host is known')
+
+      expect { subject.open_socket(hostname,nil,1) }.to raise_error(SocketError)
+    end
+
+    it 'raises error if socket is not listening' do
+      expect(TCPSocket).to receive(:new).with(hostname,default_socket).and_raise(SocketError,'No connection could be made because the target machine actively refused it')
+
+      expect { subject.open_socket(hostname,nil,1) }.to raise_error(SocketError)
+    end
+  end
+
+  describe '#get_vm_folder_path' do
+    [
+      { :path_description => 'Datacenters/DC01/vm/Pooler/pool1/vm1',
+        :expected_path => 'Pooler/pool1',
+        :vm_object_path => [
+          { :type => 'folder',     :name => 'Datacenters' },
+          { :type => 'datacenter', :name => 'DC01' },
+          { :type => 'folder',     :name => 'vm' },
+          { :type => 'folder',     :name => 'Pooler' },
+          { :type => 'folder',     :name => 'pool1'},
+        ],
+      },
+      { :path_description => 'Datacenters/DC01/vm/something/subfolder/pool/vm1',
+        :expected_path => 'something/subfolder/pool',
+        :vm_object_path => [
+          { :type => 'folder',     :name => 'Datacenters' },
+          { :type => 'datacenter', :name => 'DC01' },
+          { :type => 'folder',     :name => 'vm' },
+          { :type => 'folder',     :name => 'something' },
+          { :type => 'folder',     :name => 'subfolder' },
+          { :type => 'folder',     :name => 'pool'},
+        ],
+      },
+      { :path_description => 'Datacenters/DC01/vm/vm1',
+        :expected_path => '',
+        :vm_object_path => [
+          { :type => 'folder',     :name => 'Datacenters' },
+          { :type => 'datacenter', :name => 'DC01' },
+          { :type => 'folder',     :name => 'vm' },
+        ],
+      },
+    ].each do |testcase|
+      context "given a path of #{testcase[:path_description]}" do
+        it "should return '#{testcase[:expected_path]}'" do
+          vm_object = mock_RbVmomi_VIM_VirtualMachine({
+            :name => 'vm1',
+            :path => testcase[:vm_object_path],
+          })
+          expect(subject.get_vm_folder_path(vm_object)).to eq(testcase[:expected_path])
+        end
+      end
+    end
+
+    [
+      { :path_description => 'a path missing a Datacenter',
+        :vm_object_path => [
+          { :type => 'folder',     :name => 'Datacenters' },
+          { :type => 'folder',     :name => 'vm' },
+          { :type => 'folder',     :name => 'Pooler' },
+          { :type => 'folder',     :name => 'pool1'},
+        ],
+      },
+      { :path_description => 'a path missing root VM folder',
+        :vm_object_path => [
+          { :type => 'folder',     :name => 'Datacenters' },
+          { :type => 'datacenter', :name => 'DC01' },
+        ],
+      },
+    ].each do |testcase|
+      context "given #{testcase[:path_description]}" do
+        it "should return nil" do
+          vm_object = mock_RbVmomi_VIM_VirtualMachine({
+            :name => 'vm1',
+            :path => testcase[:vm_object_path],
+          })
+          expect(subject.get_vm_folder_path(vm_object)).to be_nil
+        end
+      end
+    end
+  end
+
   describe '#add_disk' do
     let(:datastorename) { 'datastore' }
     let(:disk_size) { 30 }
@@ -316,7 +1204,7 @@ EOT
       mock_vm
     }
 
-    # Require at least one DC with the requried datastore
+    # Require at least one DC with the required datastore
     let(:connection_options) {{
       :serviceContent => {
         :datacenters => [
@@ -1578,7 +2466,7 @@ EOT
     let(:snapshot_name) {'snapshot'}
     let(:missing_snapshot_name) {'missing_snapshot'}
     let(:vm) { mock_RbVmomi_VIM_VirtualMachine(mock_options) }
-    let(:snapshot_object) { mock_RbVmomi_VIM_VirtualMachine() }
+    let(:snapshot_object) { mock_RbVmomi_VIM_VirtualMachineSnapshot() }
 
     context 'VM with no snapshots' do
       let(:mock_options) {{ :snapshot_tree => nil }}
