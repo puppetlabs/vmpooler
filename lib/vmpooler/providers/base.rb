@@ -4,101 +4,191 @@ module Vmpooler
       class Base
         # These defs must be overidden in child classes
 
-        def initialize(options)
+        # Helper Methods
+        # Global Logger object
+        attr_reader :logger
+        # Global Metrics object
+        attr_reader :metrics
+        # Provider options passed in during initialization
+        attr_reader :provider_options
+
+        def initialize(config, logger, metrics, name, options)
+          @config = config
+          @logger = logger
+          @metrics = metrics
+          @provider_name = name
+
           @provider_options = options
         end
 
-        # returns
-        #   [String] Name of the provider service
-        def name
-          'base'
-        end
+        # Helper Methods
 
         # inputs
-        #  pool : hashtable from config file
+        #  [String] pool_name : Name of the pool to get the configuration
         # returns
-        #   hashtable
-        #     name : name of the device   <---- TODO is this all?
-        def vms_in_pool(_pool)
+        #   [Hashtable] : The pools configuration from the config file.  Returns nil if the pool does not exist
+        def pool_config(pool_name)
+          # Get the configuration of a specific pool
+          @config[:pools].each do |pool|
+            return pool if pool['name'] == pool_name
+          end
+
+          nil
+        end
+
+        # returns
+        #   [Hashtable] : This provider's configuration from the config file.  Returns nil if the provider does not exist
+        def provider_config
+          @config[:providers].each do |provider|
+            # Convert the symbol from the config into a string for comparison
+            return provider[1] if provider[0].to_s == @provider_name
+          end
+
+          nil
+        end
+
+        # returns
+        #   [Hashtable] : The entire VMPooler configuration
+        def global_config
+          # This entire VM Pooler config
+          @config
+        end
+
+        # returns
+        #   [String] : Name of the provider service
+        def name
+          @provider_name
+        end
+
+        # Pool Manager Methods
+
+        # inputs
+        #  [String] pool_name : Name of the pool
+        # returns
+        #   Array[Hashtable]
+        #     Hash contains:
+        #       'name' => [String] Name of VM
+        def vms_in_pool(_pool_name)
           raise("#{self.class.name} does not implement vms_in_pool")
         end
 
         # inputs
-        #   vm_name: string
+        #   [String]pool_name : Name of the pool
+        #   [String] vm_name  : Name of the VM
         # returns
-        #    [String] hostname   = Name of the host computer running the vm.  If this is not a Virtual Machine, it returns the vm_name
-        def get_vm_host(_vm_name)
+        #   [String] : Name of the host computer running the vm.  If this is not a Virtual Machine, it returns the vm_name
+        def get_vm_host(_pool_name, _vm_name)
           raise("#{self.class.name} does not implement get_vm_host")
         end
 
         # inputs
-        #   vm_name: string
+        #   [String] pool_name : Name of the pool
+        #   [String] vm_name   : Name of the VM
         # returns
-        #    [String] hostname   = Name of the most appropriate host computer to run this VM.  Useful for load balancing VMs in a cluster
-        #                          If this is not a Virtual Machine, it returns the vm_name
-        def find_least_used_compatible_host(_vm_name)
+        #   [String] : Name of the most appropriate host computer to run this VM.  Useful for load balancing VMs in a cluster
+        #                If this is not a Virtual Machine, it returns the vm_name
+        def find_least_used_compatible_host(_pool_name, _vm_name)
           raise("#{self.class.name} does not implement find_least_used_compatible_host")
         end
 
         # inputs
-        #   vm_name: string
-        #   dest_host_name: string (Name of the host to migrate `vm_name` to)
+        #   [String] pool_name      : Name of the pool
+        #   [String] vm_name        : Name of the VM to migrate
+        #   [String] dest_host_name : Name of the host to migrate `vm_name` to
         # returns
-        #    [Boolean] Returns true on success or false on failure
-        def migrate_vm_to_host(_vm_name, _dest_host_name)
+        #   [Boolean] : true on success or false on failure
+        def migrate_vm_to_host(_pool_name, _vm_name, _dest_host_name)
           raise("#{self.class.name} does not implement migrate_vm_to_host")
         end
 
         # inputs
-        #   vm_name: string
+        #   [String] pool_name : Name of the pool
+        #   [String] vm_name   : Name of the VM to find
         # returns
-        #   nil if it doesn't exist
-        #   Hastable of the VM
-        #    [String] name       = Name of the VM
-        #    [String] hostname   = Name reported by Vmware tools (host.summary.guest.hostName)
-        #    [String] template   = This is the name of template exposed by the API.  It must _match_ the poolname
-        #    [String] poolname   = Name of the pool the VM is located
-        #    [Time]   boottime   = Time when the VM was created/booted
-        #    [String] powerstate = Current power state of a VM.  Valid values (as per vCenter API)
+        #   nil if VM doesn't exist
+        #   [Hastable] of the VM
+        #    [String] name       : Name of the VM
+        #    [String] hostname   : Name reported by Vmware tools (host.summary.guest.hostName)
+        #    [String] template   : This is the name of template exposed by the API.  It must _match_ the poolname
+        #    [String] poolname   : Name of the pool the VM is located
+        #    [Time]   boottime   : Time when the VM was created/booted
+        #    [String] powerstate : Current power state of a VM.  Valid values (as per vCenter API)
         #                            - 'PoweredOn','PoweredOff'
-        def get_vm(_vm_name)
+        def get_vm(_pool_name, _vm_name)
           raise("#{self.class.name} does not implement get_vm")
         end
 
         # inputs
-        #   pool : hashtable from config file
-        #   new_vmname : string      Name the new VM should use
+        #   [String] pool       : Name of the pool
+        #   [String] new_vmname : Name to give the new VM
         # returns
-        #   Hashtable of the VM as per get_vm
-        def create_vm(_pool, _new_vmname)
+        #   [Hashtable] of the VM as per get_vm
+        #   Raises RuntimeError if the pool_name is not supported by the Provider
+        def create_vm(_pool_name, _new_vmname)
           raise("#{self.class.name} does not implement create_vm")
         end
 
         # inputs
-        #   vm_name: string
-        #   pool: string
+        #   [String]  pool_name  : Name of the pool
+        #   [String]  vm_name    : Name of the VM to create the disk on
+        #   [Integer] disk_size  : Size of the disk to create in Gigabytes (GB)
         # returns
-        #   boolean : true if success, false on error
-        def destroy_vm(_vm_name, _pool)
+        #   [Boolean] : true if success, false if disk could not be created
+        #   Raises RuntimeError if the Pool does not exist
+        #   Raises RuntimeError if the VM does not exist
+        def create_disk(_pool_name, _vm_name, _disk_size)
+          raise("#{self.class.name} does not implement create_disk")
+        end
+
+        # inputs
+        #   [String] pool_name         : Name of the pool
+        #   [String] new_vmname        : Name of the VM to create the snapshot on
+        #   [String] new_snapshot_name : Name of the new snapshot to create
+        # returns
+        #   [Boolean] : true if success, false if snapshot could not be created
+        #   Raises RuntimeError if the VM does not exist
+        #   Raises RuntimeError if the snapshot already exists
+        def create_snapshot(_pool_name, _vm_name, _new_snapshot_name)
+          raise("#{self.class.name} does not implement create_snapshot")
+        end
+
+        # inputs
+        #   [String] pool_name     : Name of the pool
+        #   [String] new_vmname    : Name of the VM to restore
+        #   [String] snapshot_name : Name of the snapshot to restore to
+        # returns
+        #   [Boolean] : true if success, false if snapshot could not be revertted
+        #   Raises RuntimeError if the VM does not exist
+        #   Raises RuntimeError if the snapshot already exists
+        def revert_snapshot(_pool_name, _vm_name, _snapshot_name)
+          raise("#{self.class.name} does not implement revert_snapshot")
+        end
+
+        # inputs
+        #   [String] pool_name : Name of the pool
+        #   [String] vm_name   : Name of the VM to destroy
+        # returns
+        #   [Boolean] : true if success, false on error. Should returns true if the VM is missing
+        def destroy_vm(_pool_name, _vm_name)
           raise("#{self.class.name} does not implement destroy_vm")
         end
 
         # inputs
-        #    vm  : string
-        #    pool: string
-        # timeout: int (Seconds)
+        #   [String] pool_name : Name of the pool
+        #   [String] vm_name   : Name of the VM to check if ready
         # returns
-        #   result: boolean
-        def vm_ready?(_vm, _pool, _timeout)
+        #   [Boolean] : true if ready, false if not
+        def vm_ready?(_pool_name, _vm_name)
           raise("#{self.class.name} does not implement vm_ready?")
         end
 
         # inputs
-        #    vm : string
+        #   [String] pool_name : Name of the pool
+        #   [String] vm_name   : Name of the VM to check if it exists
         # returns
-        #   result: boolean
-        def vm_exists?(vm)
-          !get_vm(vm).nil?
+        #   [Boolean] : true if it exists, false if not
+        def vm_exists?(pool_name, vm_name)
+          !get_vm(pool_name, vm_name).nil?
         end
       end
     end
