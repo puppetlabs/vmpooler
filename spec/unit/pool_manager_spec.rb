@@ -1855,46 +1855,38 @@ EOT
 
  describe "#check_pool" do
     let(:threads) {{}}
-    let(:provider) {{}}
-
+    let(:provider_name) { 'mock_provider' }
     let(:config) {
       YAML.load(<<-EOT
 ---
 :pools:
   - name: #{pool}
+    provider: #{provider_name}
 EOT
       )
     }
 
-    let(:thread) { double('thread') }
     let(:pool_object) { config[:pools][0] }
 
     before do
       expect(subject).not_to be_nil
       expect(Thread).to receive(:new).and_yield
+      allow(subject).to receive(:get_provider_for_pool).with(pool).and_return(provider)
     end
 
     context 'on startup' do
       before(:each) do
-        # Note the Vmpooler::VsphereHelper is not mocked
-        allow(subject).to receive(:_check_pool)        
+        allow(subject).to receive(:_check_pool)
         expect(logger).to receive(:log).with('d', "[*] [#{pool}] starting worker thread")
       end
 
       after(:each) do
         # Reset the global variable - Note this is a code smell
         $threads = nil
-        $providers = nil
       end
 
       it 'should log a message the worker thread is starting' do
         subject.check_pool(pool_object,1,0)
-      end
-
-      it 'should populate the providers global variable' do
-        subject.check_pool(pool_object,1,0)
-
-        expect($providers[pool]).to_not be_nil 
       end
 
       it 'should populate the threads global variable' do
@@ -1913,22 +1905,18 @@ EOT
       before(:each) do
         allow(logger).to receive(:log)
         # Note the Vmpooler::VsphereHelper is not mocked
-        allow(subject).to receive(:_check_pool)        
+        allow(subject).to receive(:_check_pool)
       end
 
       after(:each) do
         # Reset the global variable - Note this is a code smell
         $threads = nil
-        $provider = nil
       end
 
       it 'when a non-default loop delay is specified' do
-        start_time = Time.now
-        subject.check_pool(pool_object,maxloop,loop_delay)
-        finish_time = Time.now
+        expect(subject).to receive(:sleep).with(loop_delay).exactly(maxloop).times
 
-        # Use a generous delta to take into account various CPU load etc.
-        expect(finish_time - start_time).to be_within(0.75).of(maxloop * loop_delay)
+        subject.check_pool(pool_object,maxloop,loop_delay)
       end
     end
 

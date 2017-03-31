@@ -522,18 +522,24 @@ module Vmpooler
     def check_pool(pool, maxloop = 0, loop_delay = 5)
       $logger.log('d', "[*] [#{pool['name']}] starting worker thread")
 
-      $providers[pool['name']] ||= Vmpooler::VsphereHelper.new $config, $metrics
-
       $threads[pool['name']] = Thread.new do
-        loop_count = 1
-        loop do
-          _check_pool(pool, $providers[pool['name']])
-          sleep(loop_delay)
+        begin
+          loop_count = 1
+          provider = get_provider_for_pool(pool['name'])
+          raise("Could not find provider '#{pool['provider']}") if provider.nil?
+          loop do
+            _check_pool(pool, provider)
 
-          unless maxloop.zero?
-            break if loop_count >= maxloop
-            loop_count += 1
+            sleep(loop_delay)
+
+            unless maxloop.zero?
+              break if loop_count >= maxloop
+              loop_count += 1
+            end
           end
+        rescue => err
+          $logger.log('s', "[!] [#{pool['name']}] Error while checking the pool: #{err}")
+          raise
         end
       end
     end
