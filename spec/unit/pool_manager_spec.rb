@@ -617,140 +617,105 @@ EOT
     end
   end
 
-  describe "#destroy_vm" do
-    let (:provider) { double('provider') }
-
-    let(:config) {
-      YAML.load(<<-EOT
----
-:redis:
-  data_ttl: 168
-EOT
-      )
-    }
-
+  describe '#destroy_vm' do
     before do
       expect(subject).not_to be_nil
+      expect(Thread).to receive(:new).and_yield
     end
 
+    it 'calls _destroy_vm' do
+      expect(subject).to receive(:_destroy_vm).with(vm,pool,provider)
+
+      subject.destroy_vm(vm,pool,provider)
+    end
+
+    it 'logs a message if an error is raised' do
+      allow(logger).to receive(:log)
+      expect(logger).to receive(:log).with('d',"[!] [#{pool}] '#{vm}' failed while destroying the VM with an error: MockError")
+      expect(subject).to receive(:_destroy_vm).with(vm,pool,provider).and_raise('MockError')
+
+      expect{subject.destroy_vm(vm,pool,provider)}.to raise_error(/MockError/)
+    end
+  end
+
+  describe "#_destroy_vm" do
     before(:each) do
-      expect(Thread).to receive(:new).and_yield
+      expect(subject).not_to be_nil
 
       create_completed_vm(vm,pool,true)
+
+      allow(provider).to receive(:destroy_vm).with(pool,vm).and_return(true)
+
+      # Set redis configuration
+      config[:redis] = {}
+      config[:redis]['data_ttl'] = 168
     end
 
     context 'when redis data_ttl is not specified in the configuration' do
-      let(:config) {
-        YAML.load(<<-EOT
----
-:redis:
-  "key": "value"
-EOT
-      )
-      }
-
       before(:each) do
-        expect(provider).to receive(:find_vm).and_return(nil)
+        config[:redis]['data_ttl'] = nil
       end
 
       it 'should call redis expire with 0' do
         expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to_not be_nil
-        subject.destroy_vm(vm,pool,provider)
+        subject._destroy_vm(vm,pool,provider)
         expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to be_nil
       end
     end
 
     context 'when there is no redis section in the configuration' do
-      let(:config) {}
+      before(:each) do
+        config[:redis] = nil
+      end
       
       it 'should raise an error' do
-        expect{ subject.destroy_vm(vm,pool,provider) }.to raise_error(NoMethodError)
+        expect{ subject._destroy_vm(vm,pool,provider) }.to raise_error(NoMethodError)
       end
     end
 
     context 'when a VM does not exist' do
       before(:each) do
-        expect(provider).to receive(:find_vm).and_return(nil)
+        # As per base_spec, destroy_vm will return true if the VM does not exist
+        expect(provider).to receive(:destroy_vm).with(pool,vm).and_return(true)
       end
 
-      it 'should not call any provider methods' do
-        subject.destroy_vm(vm,pool,provider)
+      it 'should not raise an error' do
+        subject._destroy_vm(vm,pool,provider)
       end
     end
 
-    context 'when a VM exists' do
-      let (:destroy_task) { double('destroy_task') }
-      let (:poweroff_task) { double('poweroff_task') }
+    context 'when the VM is destroyed without error' do
+      it 'should log a message the VM was destroyed' do
+        expect(logger).to receive(:log).with('s', /\[-\] \[#{pool}\] '#{vm}' destroyed in [0-9.]+ seconds/)
+        allow(logger).to receive(:log)
 
+        subject._destroy_vm(vm,pool,provider)
+      end
+
+      it 'should emit a timing metric' do
+        expect(metrics).to receive(:timing).with("destroy.#{pool}", String)
+
+        subject._destroy_vm(vm,pool,provider)
+      end
+    end
+
+    context 'when the VM destruction raises an eror' do
       before(:each) do
-        expect(provider).to receive(:find_vm).and_return(host)
-        allow(host).to receive(:runtime).and_return(true)
+        # As per base_spec, destroy_vm will return true if the VM does not exist
+        expect(provider).to receive(:destroy_vm).with(pool,vm).and_raise('MockError')
       end
 
-      context 'and an error occurs during destroy' do
-        before(:each) do
-          allow(host).to receive_message_chain(:runtime, :powerState).and_return('poweredOff')
-          expect(host).to receive(:Destroy_Task).and_return(destroy_task)
-          expect(destroy_task).to receive(:wait_for_completion).and_raise(RuntimeError,'DestroyFailure')
-          expect(metrics).to receive(:timing).exactly(0).times
-        end
+      it 'should not log a message the VM was destroyed' do
+        expect(logger).to receive(:log).with('s', /\[-\] \[#{pool}\] '#{vm}' destroyed in [0-9.]+ seconds/).exactly(0).times
+        allow(logger).to receive(:log)
 
-        it 'should raise an error in the thread' do
-          expect { subject.destroy_vm(vm,pool,provider) }.to raise_error(/DestroyFailure/)
-        end
+        expect{ subject._destroy_vm(vm,pool,provider) }.to raise_error(/MockError/)
       end
 
-      context 'and an error occurs during power off' do
-        before(:each) do
-          allow(host).to receive_message_chain(:runtime, :powerState).and_return('poweredOn')
-          expect(host).to receive(:PowerOffVM_Task).and_return(poweroff_task)
-          expect(poweroff_task).to receive(:wait_for_completion).and_raise(RuntimeError,'PowerOffFailure')
-          expect(logger).to receive(:log).with('d', "[ ] [#{pool}] '#{vm}' is being shut down")
-          expect(metrics).to receive(:timing).exactly(0).times
-        end
+      it 'should not emit a timing metric' do
+        expect(metrics).to receive(:timing).with("destroy.#{pool}", String).exactly(0).times
 
-        it 'should raise an error in the thread' do
-          expect { subject.destroy_vm(vm,pool,provider) }.to raise_error(/PowerOffFailure/)
-        end
-      end
-
-      context 'and is powered off' do
-        before(:each) do
-          allow(host).to receive_message_chain(:runtime, :powerState).and_return('poweredOff')
-          expect(host).to receive(:Destroy_Task).and_return(destroy_task)
-          expect(destroy_task).to receive(:wait_for_completion)
-          expect(metrics).to receive(:timing).with("destroy.#{pool}", /0/)
-        end
-
-        it 'should log a message the VM was destroyed' do
-          expect(logger).to receive(:log).with('s', /\[-\] \[#{pool}\] '#{vm}' destroyed in [0-9.]+ seconds/)
-          subject.destroy_vm(vm,pool,provider)
-        end
-      end
-
-      context 'and is powered on' do
-        before(:each) do
-          allow(host).to receive_message_chain(:runtime, :powerState).and_return('poweredOn')
-          expect(host).to receive(:Destroy_Task).and_return(destroy_task)
-          expect(host).to receive(:PowerOffVM_Task).and_return(poweroff_task)
-          expect(poweroff_task).to receive(:wait_for_completion)
-          expect(destroy_task).to receive(:wait_for_completion)
-          expect(metrics).to receive(:timing).with("destroy.#{pool}", /0/)
-        end
-
-        it 'should log a message the VM is being shutdown' do
-          expect(logger).to receive(:log).with('d', "[ ] [#{pool}] '#{vm}' is being shut down")
-          allow(logger).to receive(:log)
-
-          subject.destroy_vm(vm,pool,provider)
-        end
-
-        it 'should log a message the VM was destroyed' do
-         expect(logger).to receive(:log).with('s', /\[-\] \[#{pool}\] '#{vm}' destroyed in [0-9.]+ seconds/)
-          allow(logger).to receive(:log)
-
-          subject.destroy_vm(vm,pool,provider)
-        end
+        expect{ subject._destroy_vm(vm,pool,provider) }.to raise_error(/MockError/)
       end
     end
   end

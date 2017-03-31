@@ -229,34 +229,30 @@ module Vmpooler
     # Destroy a VM
     def destroy_vm(vm, pool, provider)
       Thread.new do
-        $redis.srem('vmpooler__completed__' + pool, vm)
-        $redis.hdel('vmpooler__active__' + pool, vm)
-        $redis.hset('vmpooler__vm__' + vm, 'destroy', Time.now)
-
-        # Auto-expire metadata key
-        $redis.expire('vmpooler__vm__' + vm, ($config[:redis]['data_ttl'].to_i * 60 * 60))
-
-        host = provider.find_vm(vm)
-
-        if host
-          start = Time.now
-
-          if
-            (host.runtime) &&
-            (host.runtime.powerState) &&
-            (host.runtime.powerState == 'poweredOn')
-
-            $logger.log('d', "[ ] [#{pool}] '#{vm}' is being shut down")
-            host.PowerOffVM_Task.wait_for_completion
-          end
-
-          host.Destroy_Task.wait_for_completion
-          finish = '%.2f' % (Time.now - start)
-
-          $logger.log('s', "[-] [#{pool}] '#{vm}' destroyed in #{finish} seconds")
-          $metrics.timing("destroy.#{pool}", finish)
+        begin
+          _destroy_vm(vm, pool, provider)
+        rescue => err
+          $logger.log('d', "[!] [#{pool}] '#{vm}' failed while destroying the VM with an error: #{err}")
+          raise
         end
       end
+    end
+
+    def _destroy_vm(vm, pool, provider)
+      $redis.srem('vmpooler__completed__' + pool, vm)
+      $redis.hdel('vmpooler__active__' + pool, vm)
+      $redis.hset('vmpooler__vm__' + vm, 'destroy', Time.now)
+
+      # Auto-expire metadata key
+      $redis.expire('vmpooler__vm__' + vm, ($config[:redis]['data_ttl'].to_i * 60 * 60))
+
+      start = Time.now
+
+      provider.destroy_vm(pool, vm)
+
+      finish = '%.2f' % (Time.now - start)
+      $logger.log('s', "[-] [#{pool}] '#{vm}' destroyed in #{finish} seconds")
+      $metrics.timing("destroy.#{pool}", finish)
     end
 
     def create_vm_disk(vm, disk_size, provider)
