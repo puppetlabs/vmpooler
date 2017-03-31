@@ -504,299 +504,115 @@ EOT
   end
 
   describe '#clone_vm' do
-    let(:provider) { double('provider') }
-
-    let(:config) {
-      YAML.load(<<-EOT
----
-:config:
-  prefix: "prefix"
-:vsphere:
-  username: "vcenter_user"
-:pools:
-  - name: #{pool}
-EOT
-      )
-    }
-    let (:pool_object) { config[:pools][0] }
+    let (:pool_object) { { 'name' => pool } }
 
     before do
       expect(subject).not_to be_nil
+      expect(Thread).to receive(:new).and_yield
     end
 
     it 'calls _clone_vm' do
-      expect(Thread).to receive(:new).and_yield
       expect(subject).to receive(:_clone_vm).with(pool_object,provider)
 
       subject.clone_vm(pool_object,provider)
     end
 
     it 'logs a message if an error is raised' do
-      expect(Thread).to receive(:new).and_yield
-      expect(logger).to receive(:log)
-      expect(subject).to receive(:_clone_vm).with(pool_object,provider).and_raise('an_error')
+      allow(logger).to receive(:log)
+      expect(logger).to receive(:log).with('s',"[!] [#{pool_object['name']}] failed while cloning VM with an error: MockError")
+      expect(subject).to receive(:_clone_vm).with(pool_object,provider).and_raise('MockError')
 
-      expect{subject.clone_vm(pool_object,provider)}.to raise_error(/an_error/)
+      expect{subject.clone_vm(pool_object,provider)}.to raise_error(/MockError/)
     end
   end
 
   describe '#_clone_vm' do
+    let (:pool_object) { { 'name' => pool } }
+
     before do
       expect(subject).not_to be_nil
     end
-
-    let (:folder) { 'vmfolder' }
-    let (:folder_object) { double('folder_object') }
-    let (:template_name) { pool }
-    let (:template) { "template/#{template_name}" }
-    let (:datastore) { 'datastore' }
-    let (:target) { 'clone_target' }
 
     let(:config) {
       YAML.load(<<-EOT
 ---
 :config:
   prefix: "prefix"
-:vsphere:
-  username: "vcenter_user"
-:pools:
-  - name: #{pool}
-    template: '#{template}'
-    folder: '#{folder}'
-    datastore: '#{datastore}'
-    clone_target: '#{target}'
 EOT
       )
     }
 
-    let (:provider) { double('provider') }
-    let (:template_folder_object) { double('template_folder_object') }
-    let (:template_vm_object) { double('template_vm_object') }
-    let (:clone_task) { double('clone_task') }
-    let (:pool_object) { config[:pools][0] }
-
-    context 'no template specified' do
+    context 'with no errors during cloning' do
       before(:each) do
-        pool_object['template'] = nil
+        expect(metrics).to receive(:timing).with(/clone\./,/0/)
+        expect(provider).to receive(:create_vm).with(pool, String)
+        allow(logger).to receive(:log)
       end
 
-      it 'should raise an error' do
-        expect{subject._clone_vm(pool_object,provider)}.to raise_error(/Please provide a full path to the template/)
+      it 'should create a cloning VM' do
+        expect(redis.scard("vmpooler__pending__#{pool}")).to eq(0)
+
+        subject._clone_vm(pool_object,provider)
+
+        expect(redis.scard("vmpooler__pending__#{pool}")).to eq(1)
+        # Get the new VM Name from the pending pool queue as it should be the only entry
+        vm_name = redis.smembers("vmpooler__pending__#{pool}")[0]
+        expect(redis.hget("vmpooler__vm__#{vm_name}", 'clone')).to_not be_nil
+        expect(redis.hget("vmpooler__vm__#{vm_name}", 'template')).to eq(pool)
+        expect(redis.hget("vmpooler__clone__#{Date.today.to_s}", "#{pool}:#{vm_name}")).to_not be_nil
+        expect(redis.hget("vmpooler__vm__#{vm_name}", 'clone_time')).to_not be_nil
+      end
+
+      it 'should decrement the clone tasks counter' do
+        redis.incr('vmpooler__tasks__clone')
+        redis.incr('vmpooler__tasks__clone')
+        expect(redis.get('vmpooler__tasks__clone')).to eq('2')
+        subject._clone_vm(pool_object,provider)
+        expect(redis.get('vmpooler__tasks__clone')).to eq('1')
+      end
+
+      it 'should log a message that is being cloned from a template' do
+        expect(logger).to receive(:log).with('d',/\[ \] \[#{pool}\] Starting to clone '(.+)'/)
+
+        subject._clone_vm(pool_object,provider)
+      end
+
+      it 'should log a message that it completed being cloned' do
+        expect(logger).to receive(:log).with('s',/\[\+\] \[#{pool}\] '(.+)' cloned in [0-9.]+ seconds/)
+
+        subject._clone_vm(pool_object,provider)
       end
     end
 
-    context 'a template with no forward slash in the string' do
+    context 'with an error during cloning' do
       before(:each) do
-        pool_object['template'] = template_name
+        expect(provider).to receive(:create_vm).with(pool, String).and_raise('MockError')
+        allow(logger).to receive(:log)
       end
 
-      it 'should raise an error' do
-        expect{subject._clone_vm(pool_object,provider)}.to raise_error(/Please provide a full path to the template/)
-      end
-    end
+      it 'should not create a cloning VM' do
+        expect(redis.scard("vmpooler__pending__#{pool}")).to eq(0)
 
-    # Note - It is impossible to get into the following code branch
-    # ...
-    # if vm['template'].length == 0
-    #   fail "Unable to find template '#{vm['template']}'!"
-    # end
-    # ...
+        expect{subject._clone_vm(pool_object,provider)}.to raise_error(/MockError/)
 
-    context "Template name does not match pool name (Implementation Bug)" do
-      let (:template_name) { 'template_vm' }
-
-      # The implementaion of _clone_vm incorrectly uses the VM Template name instead of the pool name.  The VM Template represents the
-      # name of the VM to clone in vSphere whereas pool is the name of the pool in Pooler.  The tests below document the behaviour of
-      # _clone_vm if the Template and Pool name differ.  It is expected that these test will fail once this bug is removed.
-
-      context 'a valid template' do
-        before(:each) do
-          expect(template_folder_object).to receive(:find).with(template_name).and_return(template_vm_object)
-          expect(provider).to receive(:find_folder).with('template').and_return(template_folder_object)
-        end
-
-        context 'with no errors during cloning' do
-          before(:each) do
-            expect(provider).to receive(:find_least_used_host).with(target).and_return('least_used_host')
-            expect(provider).to receive(:find_datastore).with(datastore).and_return('datastore')
-            expect(provider).to receive(:find_folder).with('vmfolder').and_return(folder_object)
-            expect(template_vm_object).to receive(:CloneVM_Task).and_return(clone_task)
-            expect(clone_task).to receive(:wait_for_completion)
-            expect(metrics).to receive(:timing).with(/clone\./,/0/)
-          end
-
-          it 'should create a cloning VM' do
-            expect(logger).to receive(:log).at_least(:once)
-            expect(redis.scard("vmpooler__pending__#{pool}")).to eq(0)
-
-            subject._clone_vm(pool_object,provider)
-
-            expect(redis.scard("vmpooler__pending__#{template_name}")).to eq(1)
-            # Get the new VM Name from the pending pool queue as it should be the only entry
-            vm_name = redis.smembers("vmpooler__pending__#{template_name}")[0]
-            expect(redis.hget("vmpooler__vm__#{vm_name}", 'clone')).to_not be_nil
-            expect(redis.hget("vmpooler__vm__#{vm_name}", 'template')).to eq(template_name)
-            expect(redis.hget("vmpooler__clone__#{Date.today.to_s}", "#{template_name}:#{vm_name}")).to_not be_nil
-            expect(redis.hget("vmpooler__vm__#{vm_name}", 'clone_time')).to_not be_nil
-          end
-
-          it 'should log a message that is being cloned from a template' do
-            expect(logger).to receive(:log).with('d',/\[ \] \[#{template_name}\] '(.+)' is being cloned from '#{template_name}'/)
-            allow(logger).to receive(:log)
-
-            subject._clone_vm(pool_object,provider)
-          end
-
-          it 'should log a message that it completed being cloned' do
-            expect(logger).to receive(:log).with('s',/\[\+\] \[#{template_name}\] '(.+)' cloned from '#{template_name}' in [0-9.]+ seconds/)
-            allow(logger).to receive(:log)
-
-            subject._clone_vm(pool_object,provider)
-          end
-        end
-
-        # An error can be cause by the following configuration errors:
-        # - Missing or invalid datastore
-        # - Missing or invalid clone target
-        # also any runtime errors during the cloning process
-        # https://www.vmware.com/support/developer/converter-sdk/conv50_apireference/vim.VirtualMachine.html#clone
-        context 'with an error during cloning' do
-          before(:each) do
-            expect(provider).to receive(:find_least_used_host).with(target).and_return('least_used_host')
-            expect(provider).to receive(:find_datastore).with(datastore).and_return(nil)
-            expect(provider).to receive(:find_folder).with('vmfolder').and_return(folder_object)
-            expect(template_vm_object).to receive(:CloneVM_Task).and_return(clone_task)
-            expect(clone_task).to receive(:wait_for_completion).and_raise(RuntimeError,'SomeError')
-            expect(metrics).to receive(:timing).with(/clone\./,/0/).exactly(0).times
-
-          end
-
-          it 'should raise an error within the Thread' do
-            expect(logger).to receive(:log).at_least(:once)
-            expect{subject._clone_vm(pool_object,provider)}.to raise_error(/SomeError/)
-          end
-
-          it 'should log a message that is being cloned from a template' do
-            expect(logger).to receive(:log).with('d',/\[ \] \[#{template_name}\] '(.+)' is being cloned from '#{template_name}'/)
-            allow(logger).to receive(:log)
-
-            # Swallow the error
-            begin
-              subject._clone_vm(pool_object,provider)
-            rescue
-            end
-          end
-
-          it 'should log messages that the clone failed' do
-            expect(logger).to receive(:log).with('s', /\[!\] \[#{template_name}\] '(.+)' clone failed with an error: SomeError/)
-            allow(logger).to receive(:log)
-
-            # Swallow the error
-            begin
-              subject._clone_vm(pool_object,provider)
-            rescue
-            end
-          end
-        end
-      end
-    end
-
-    context 'a valid template' do
-      before(:each) do
-        expect(template_folder_object).to receive(:find).with(template_name).and_return(template_vm_object)
-        expect(provider).to receive(:find_folder).with('template').and_return(template_folder_object)
+        expect(redis.scard("vmpooler__pending__#{pool}")).to eq(0)
+        # Get the new VM Name from the pending pool queue as it should be the only entry
+        vm_name = redis.smembers("vmpooler__pending__#{pool}")[0]
+        expect(vm_name).to be_nil
       end
 
-      context 'with no errors during cloning' do
-        before(:each) do
-          expect(provider).to receive(:find_least_used_host).with(target).and_return('least_used_host')
-          expect(provider).to receive(:find_datastore).with(datastore).and_return('datastore')
-          expect(provider).to receive(:find_folder).with('vmfolder').and_return(folder_object)
-          expect(template_vm_object).to receive(:CloneVM_Task).and_return(clone_task)
-          expect(clone_task).to receive(:wait_for_completion)
-          expect(metrics).to receive(:timing).with(/clone\./,/0/)
-        end
-
-        it 'should create a cloning VM' do
-          expect(logger).to receive(:log).at_least(:once)
-          expect(redis.scard("vmpooler__pending__#{pool}")).to eq(0)
-
-          subject._clone_vm(pool_object,provider)
-
-          expect(redis.scard("vmpooler__pending__#{pool}")).to eq(1)
-          # Get the new VM Name from the pending pool queue as it should be the only entry
-          vm_name = redis.smembers("vmpooler__pending__#{pool}")[0]
-          expect(redis.hget("vmpooler__vm__#{vm_name}", 'clone')).to_not be_nil
-          expect(redis.hget("vmpooler__vm__#{vm_name}", 'template')).to eq(template_name)
-          expect(redis.hget("vmpooler__clone__#{Date.today.to_s}", "#{pool}:#{vm_name}")).to_not be_nil
-          expect(redis.hget("vmpooler__vm__#{vm_name}", 'clone_time')).to_not be_nil
-        end
-
-        it 'should decrement the clone tasks counter' do
-          redis.incr('vmpooler__tasks__clone')
-          redis.incr('vmpooler__tasks__clone')
-          expect(redis.get('vmpooler__tasks__clone')).to eq('2')
-          subject._clone_vm(pool_object,provider)
-          expect(redis.get('vmpooler__tasks__clone')).to eq('1')
-        end
-
-        it 'should log a message that is being cloned from a template' do
-          expect(logger).to receive(:log).with('d',/\[ \] \[#{pool}\] '(.+)' is being cloned from '#{template_name}'/)
-          allow(logger).to receive(:log)
-
-          subject._clone_vm(pool_object,provider)
-        end
-
-        it 'should log a message that it completed being cloned' do
-          expect(logger).to receive(:log).with('s',/\[\+\] \[#{pool}\] '(.+)' cloned from '#{template_name}' in [0-9.]+ seconds/)
-          allow(logger).to receive(:log)
-
-          subject._clone_vm(pool_object,provider)
-        end
+      it 'should decrement the clone tasks counter' do
+        redis.incr('vmpooler__tasks__clone')
+        redis.incr('vmpooler__tasks__clone')
+        expect(redis.get('vmpooler__tasks__clone')).to eq('2')
+        expect{subject._clone_vm(pool_object,provider)}.to raise_error(/MockError/)
+        expect(redis.get('vmpooler__tasks__clone')).to eq('1')
       end
 
-      # An error can be cause by the following configuration errors:
-      # - Missing or invalid datastore
-      # - Missing or invalid clone target
-      # also any runtime errors during the cloning process
-      # https://www.vmware.com/support/developer/converter-sdk/conv50_apireference/vim.VirtualMachine.html#clone
-      context 'with an error during cloning' do
-        before(:each) do
-          expect(provider).to receive(:find_least_used_host).with(target).and_return('least_used_host')
-          expect(provider).to receive(:find_datastore).with(datastore).and_return(nil)
-          expect(provider).to receive(:find_folder).with('vmfolder').and_return(folder_object)
-          expect(template_vm_object).to receive(:CloneVM_Task).and_return(clone_task)
-          expect(clone_task).to receive(:wait_for_completion).and_raise(RuntimeError,'SomeError')
-          expect(metrics).to receive(:timing).with(/clone\./,/0/).exactly(0).times
+      it 'should log messages that the clone failed' do
+        expect(logger).to receive(:log).with('s', /\[!\] \[#{pool}\] '(.+)' clone failed with an error: MockError/)
 
-        end
-
-        it 'should raise an error within the Thread' do
-          expect(logger).to receive(:log).at_least(:once)
-          expect{subject._clone_vm(pool_object,provider)}.to raise_error(/SomeError/)
-        end
-
-        it 'should log a message that is being cloned from a template' do
-          expect(logger).to receive(:log).with('d',/\[ \] \[#{pool}\] '(.+)' is being cloned from '#{template_name}'/)
-          allow(logger).to receive(:log)
-
-          # Swallow the error
-          begin
-            subject._clone_vm(pool_object,provider)
-          rescue
-          end
-        end
-
-        it 'should log messages that the clone failed' do
-          expect(logger).to receive(:log).with('s', /\[!\] \[#{pool}\] '(.+)' clone failed with an error: SomeError/)
-          allow(logger).to receive(:log)
-
-          # Swallow the error
-          begin
-            subject._clone_vm(pool_object,provider)
-          rescue
-          end
-        end
+        expect{subject._clone_vm(pool_object,provider)}.to raise_error(/MockError/)
       end
     end
   end
