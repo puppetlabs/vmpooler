@@ -506,11 +506,11 @@ module Vmpooler
       end
     end
 
-    def migrate_vm_and_record_timing(vm_object, vm_name, pool, host, source_host_name, dest_host_name, provider)
+    def migrate_vm_and_record_timing(vm_name, pool_name, source_host_name, dest_host_name, provider)
       start = Time.now
-      provider.migrate_vm_host(vm_object, host)
+      provider.migrate_vm_to_host(pool_name, vm_name, dest_host_name)
       finish = '%.2f' % (Time.now - start)
-      $metrics.timing("migrate.#{pool}", finish)
+      $metrics.timing("migrate.#{pool_name}", finish)
       $metrics.increment("migrate_from.#{source_host_name}")
       $metrics.increment("migrate_to.#{dest_host_name}")
       checkout_to_migration = '%.2f' % (Time.now - Time.parse($redis.hget("vmpooler__vm__#{vm_name}", 'checkout')))
