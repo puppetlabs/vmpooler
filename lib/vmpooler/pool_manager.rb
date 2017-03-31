@@ -402,12 +402,10 @@ module Vmpooler
     def check_snapshot_queue(maxloop = 0, loop_delay = 5)
       $logger.log('d', "[*] [snapshot_manager] starting worker thread")
 
-      $providers['snapshot_manager'] ||= Vmpooler::VsphereHelper.new $config, $metrics
-
       $threads['snapshot_manager'] = Thread.new do
         loop_count = 1
         loop do
-          _check_snapshot_queue $providers['snapshot_manager']
+          _check_snapshot_queue
           sleep(loop_delay)
 
           unless maxloop.zero?
@@ -418,26 +416,38 @@ module Vmpooler
       end
     end
 
-    def _check_snapshot_queue(provider)
-      vm = $redis.spop('vmpooler__tasks__snapshot')
+    def _check_snapshot_queue
+      task_detail = $redis.spop('vmpooler__tasks__snapshot')
 
-      unless vm.nil?
+      unless task_detail.nil?
         begin
-          vm_name, snapshot_name = vm.split(':')
-          create_vm_snapshot(vm_name, snapshot_name, provider)
-        rescue
-          $logger.log('s', "[!] [snapshot_manager] snapshot appears to have failed")
+          vm_name, snapshot_name = task_detail.split(':')
+          pool_name = get_pool_name_for_vm(vm_name)
+          raise("Unable to determine which pool #{vm_name} is a member of") if pool_name.nil?
+
+          provider = get_provider_for_pool(pool_name)
+          raise("Missing Provider for vm #{vm_name} in pool #{pool_name}") if provider.nil?
+
+          create_vm_snapshot(pool_name, vm_name, snapshot_name, provider)
+        rescue => err
+          $logger.log('s', "[!] [snapshot_manager] snapshot create appears to have failed: #{err}")
         end
       end
 
-      vm = $redis.spop('vmpooler__tasks__snapshot-revert')
+      task_detail = $redis.spop('vmpooler__tasks__snapshot-revert')
 
-      unless vm.nil?
+      unless task_detail.nil?
         begin
-          vm_name, snapshot_name = vm.split(':')
-          revert_vm_snapshot(vm_name, snapshot_name, provider)
-        rescue
-          $logger.log('s', "[!] [snapshot_manager] snapshot revert appears to have failed")
+          vm_name, snapshot_name = task_detail.split(':')
+          pool_name = get_pool_name_for_vm(vm_name)
+          raise("Unable to determine which pool #{vm_name} is a member of") if pool_name.nil?
+
+          provider = get_provider_for_pool(pool_name)
+          raise("Missing Provider for vm #{vm_name} in pool #{pool_name}") if provider.nil?
+
+          revert_vm_snapshot(pool_name, vm_name, snapshot_name, provider)
+        rescue => err
+          $logger.log('s', "[!] [snapshot_manager] snapshot revert appears to have failed: #{err}")
         end
       end
     end

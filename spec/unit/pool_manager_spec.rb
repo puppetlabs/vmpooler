@@ -1251,10 +1251,10 @@ EOT
 
     before(:each) do
       expect(Thread).to receive(:new).and_yield
-      allow(subject).to receive(:_check_snapshot_queue)
+      allow(subject).to receive(:_check_snapshot_queue).with(no_args)
     end
 
-    it 'should log the disk manager is starting' do
+    it 'should log the snapshot manager is starting' do
       expect(logger).to receive(:log).with('d', "[*] [snapshot_manager] starting worker thread")
 
       expect($threads.count).to be(0)
@@ -1270,7 +1270,7 @@ EOT
     end
 
     it 'should call _check_snapshot_queue' do
-      expect(subject).to receive(:_check_snapshot_queue).with(Vmpooler::VsphereHelper)
+      expect(subject).to receive(:_check_snapshot_queue).with(no_args)
 
       subject.check_snapshot_queue(1,0)
     end
@@ -1286,12 +1286,9 @@ EOT
       end
 
       it 'when a non-default loop delay is specified' do
-        start_time = Time.now
-        subject.check_snapshot_queue(maxloop,loop_delay)
-        finish_time = Time.now
+        expect(subject).to receive(:sleep).with(loop_delay).exactly(maxloop).times
 
-        # Use a generous delta to take into account various CPU load etc.
-        expect(finish_time - start_time).to be_within(0.75).of(maxloop * loop_delay)
+        subject.check_snapshot_queue(maxloop,loop_delay)
       end
     end
 
@@ -1305,7 +1302,7 @@ EOT
       end
 
       it 'should call _check_snapshot_queue 5 times' do
-        expect(subject).to receive(:_check_snapshot_queue).with(Vmpooler::VsphereHelper).exactly(maxloop).times
+        expect(subject).to receive(:_check_snapshot_queue).with(no_args).exactly(maxloop).times
 
         subject.check_snapshot_queue(maxloop,0)
       end
@@ -1313,8 +1310,6 @@ EOT
   end
 
   describe '#_check_snapshot_queue' do
-    let(:provider) { double('provider') }
-
     before do
       expect(subject).not_to be_nil
     end
@@ -1323,64 +1318,146 @@ EOT
       context 'when no VMs in the queue' do
         it 'should not call create_vm_snapshot' do
           expect(subject).to receive(:create_vm_snapshot).exactly(0).times
-          subject._check_snapshot_queue(provider)
+          subject._check_snapshot_queue
+        end
+      end
+
+      context 'when VM in the queue does not exist' do
+        before(:each) do
+          snapshot_vm(vm,"snapshot_#{vm}")
+        end
+
+        it 'should log an error' do
+          expect(logger).to receive(:log).with('s', /Unable to determine which pool #{vm} is a member of/)
+
+          subject._check_snapshot_queue
+        end
+
+        it 'should not call create_vm_snapshot' do
+          expect(subject).to receive(:create_vm_snapshot).exactly(0).times
+
+          subject._check_snapshot_queue
+        end
+      end
+
+      context 'when specified provider does not exist' do
+        before(:each) do
+          snapshot_vm(vm,"snapshot_#{vm}")
+          create_running_vm(pool, vm, token)
+          expect(subject).to receive(:get_provider_for_pool).and_return(nil)
+        end
+
+        it 'should log an error' do
+          expect(logger).to receive(:log).with('s', /Missing Provider for/)
+
+          subject._check_snapshot_queue
+        end
+
+        it 'should not call create_vm_snapshot' do
+          expect(subject).to receive(:create_vm_snapshot).exactly(0).times
+
+          subject._check_snapshot_queue
         end
       end
 
       context 'when multiple VMs in the queue' do
         before(:each) do
-          snapshot_vm('vm1','snapshot1')
-          snapshot_vm('vm2','snapshot2')
-          snapshot_vm('vm3','snapshot3')
+          ['vm1', 'vm2', 'vm3'].each do |vm_name|
+            snapshot_vm(vm_name,"snapshot_#{vm_name}")
+            create_running_vm(pool, vm_name, token)
+          end
+
+          allow(subject).to receive(:get_provider_for_pool).with(pool).and_return(provider)
         end
 
         it 'should call create_vm_snapshot once' do
           expect(subject).to receive(:create_vm_snapshot).exactly(1).times
-          subject._check_snapshot_queue(provider)
+          subject._check_snapshot_queue
         end
 
         it 'should snapshot the first VM in the queue' do
-          expect(subject).to receive(:create_vm_snapshot).with('vm1','snapshot1',provider)
-          subject._check_snapshot_queue(provider)
+          expect(subject).to receive(:create_vm_snapshot).with(pool,'vm1','snapshot_vm1',provider)
+          subject._check_snapshot_queue
         end
 
         it 'should log an error if one occurs' do
           expect(subject).to receive(:create_vm_snapshot).and_raise(RuntimeError,'MockError')
-          expect(logger).to receive(:log).with('s', "[!] [snapshot_manager] snapshot appears to have failed")
-          subject._check_snapshot_queue(provider)
+          expect(logger).to receive(:log).with('s', "[!] [snapshot_manager] snapshot create appears to have failed: MockError")
+          subject._check_snapshot_queue
         end
       end
     end
 
-    context 'revert_vm_snapshot queue' do
+    context 'vmpooler__tasks__snapshot-revert queue' do
       context 'when no VMs in the queue' do
         it 'should not call revert_vm_snapshot' do
           expect(subject).to receive(:revert_vm_snapshot).exactly(0).times
-          subject._check_snapshot_queue(provider)
+          subject._check_snapshot_queue
+        end
+      end
+
+      context 'when VM in the queue does not exist' do
+        before(:each) do
+          snapshot_revert_vm(vm,"snapshot_#{vm}")
+        end
+
+        it 'should log an error' do
+          expect(logger).to receive(:log).with('s', /Unable to determine which pool #{vm} is a member of/)
+
+          subject._check_snapshot_queue
+        end
+
+        it 'should not call revert_vm_snapshot' do
+          expect(subject).to receive(:revert_vm_snapshot).exactly(0).times
+
+          subject._check_snapshot_queue
+        end
+      end
+
+      context 'when specified provider does not exist' do
+        before(:each) do
+          snapshot_revert_vm(vm,"snapshot_#{vm}")
+          create_running_vm(pool, vm, token)
+          expect(subject).to receive(:get_provider_for_pool).and_return(nil)
+        end
+
+        it 'should log an error' do
+          expect(logger).to receive(:log).with('s', /Missing Provider for/)
+
+          subject._check_snapshot_queue
+        end
+
+        it 'should not call revert_vm_snapshot' do
+          expect(subject).to receive(:revert_vm_snapshot).exactly(0).times
+
+          subject._check_snapshot_queue
         end
       end
 
       context 'when multiple VMs in the queue' do
         before(:each) do
-          snapshot_revert_vm('vm1','snapshot1')
-          snapshot_revert_vm('vm2','snapshot2')
-          snapshot_revert_vm('vm3','snapshot3')
+          ['vm1', 'vm2', 'vm3'].each do |vm_name|
+            snapshot_revert_vm(vm_name,"snapshot_#{vm_name}")
+            create_running_vm(pool, vm_name, token)
+          end
+
+          allow(subject).to receive(:get_provider_for_pool).with(pool).and_return(provider)
         end
 
         it 'should call revert_vm_snapshot once' do
           expect(subject).to receive(:revert_vm_snapshot).exactly(1).times
-          subject._check_snapshot_queue(provider)
+          subject._check_snapshot_queue
         end
 
-        it 'should revert snapshot the first VM in the queue' do
-          expect(subject).to receive(:revert_vm_snapshot).with('vm1','snapshot1',provider)
-          subject._check_snapshot_queue(provider)
+        it 'should snapshot the first VM in the queue' do
+          expect(subject).to receive(:revert_vm_snapshot).with(pool,'vm1','snapshot_vm1',provider)
+          subject._check_snapshot_queue
         end
 
         it 'should log an error if one occurs' do
           expect(subject).to receive(:revert_vm_snapshot).and_raise(RuntimeError,'MockError')
-          expect(logger).to receive(:log).with('s', "[!] [snapshot_manager] snapshot revert appears to have failed")
-          subject._check_snapshot_queue(provider)
+          expect(logger).to receive(:log).with('s', "[!] [snapshot_manager] snapshot revert appears to have failed: MockError")
+          subject._check_snapshot_queue
         end
       end
     end
@@ -2494,23 +2571,6 @@ EOT
           subject._check_pool(pool_object,provider)
         end
       end
-    end
-  end
-
-  describe '#_check_snapshot_queue' do
-    let(:pool_helper) { double('pool') }
-    let(:provider) { {pool => pool_helper} }
-
-    before do
-      expect(subject).not_to be_nil
-      $provider = provider
-    end
-
-    it 'checks appropriate redis queues' do
-      expect(redis).to receive(:spop).with('vmpooler__tasks__snapshot')
-      expect(redis).to receive(:spop).with('vmpooler__tasks__snapshot-revert')
-
-      subject._check_snapshot_queue(provider)
     end
   end
 end
