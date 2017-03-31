@@ -458,42 +458,43 @@ module Vmpooler
       migration_limit if migration_limit >= 1
     end
 
-    def migrate_vm(vm, pool, provider)
+    def migrate_vm(vm_name, pool_name, provider)
       Thread.new do
-        _migrate_vm(vm, pool, provider)
+        begin
+          _migrate_vm(vm_name, pool_name, provider)
+        rescue => err
+          $logger.log('s', "[x] [#{pool_name}] '#{vm_name}' migration failed with an error: #{err}")
+          remove_vmpooler_migration_vm(pool_name, vm_name)
+        end
       end
     end
 
-    def _migrate_vm(vm, pool, provider)
-      begin
-        $redis.srem('vmpooler__migrating__' + pool, vm)
-        vm_object = provider.find_vm(vm)
-        parent_host, parent_host_name = get_vm_host_info(vm_object)
-        migration_limit = migration_limit $config[:config]['migration_limit']
-        migration_count = $redis.scard('vmpooler__migration')
+    def _migrate_vm(vm_name, pool_name, provider)
+      $redis.srem('vmpooler__migrating__' + pool_name, vm_name)
 
-        if ! migration_limit
-          $logger.log('s', "[ ] [#{pool}] '#{vm}' is running on #{parent_host_name}")
+      parent_host_name = provider.get_vm_host(pool_name, vm_name)
+      raise('Unable to determine which host the VM is running on') if parent_host_name.nil?
+      migration_limit = migration_limit $config[:config]['migration_limit']
+      migration_count = $redis.scard('vmpooler__migration')
+
+      if ! migration_limit
+        $logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{parent_host_name}")
+        return
+      else
+        if migration_count >= migration_limit
+          $logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{parent_host_name}. No migration will be evaluated since the migration_limit has been reached")
           return
         else
-          if migration_count >= migration_limit
-            $logger.log('s', "[ ] [#{pool}] '#{vm}' is running on #{parent_host_name}. No migration will be evaluated since the migration_limit has been reached")
-            return
+          $redis.sadd('vmpooler__migration', vm_name)
+          host_name = provider.find_least_used_compatible_host(vm_name)
+          if host_name == parent_host_name
+            $logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{parent_host_name}")
           else
-            $redis.sadd('vmpooler__migration', vm)
-            host, host_name = provider.find_least_used_compatible_host(vm_object)
-            if host == parent_host
-              $logger.log('s', "[ ] [#{pool}] No migration required for '#{vm}' running on #{parent_host_name}")
-            else
-              finish = migrate_vm_and_record_timing(vm_object, vm, pool, host, parent_host_name, host_name, provider)
-              $logger.log('s', "[>] [#{pool}] '#{vm}' migrated from #{parent_host_name} to #{host_name} in #{finish} seconds")
-            end
-            remove_vmpooler_migration_vm(pool, vm)
+            finish = migrate_vm_and_record_timing(vm_name, pool_name, parent_host_name, host_name, provider)
+            $logger.log('s', "[>] [#{pool_name}] '#{vm_name}' migrated from #{parent_host_name} to #{host_name} in #{finish} seconds")
           end
+          remove_vmpooler_migration_vm(pool_name, vm_name)
         end
-      rescue => err
-        $logger.log('s', "[x] [#{pool}] '#{vm}' migration failed with an error: #{err}")
-        remove_vmpooler_migration_vm(pool, vm)
       end
     end
 

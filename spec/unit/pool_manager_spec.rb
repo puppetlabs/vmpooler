@@ -1487,60 +1487,75 @@ EOT
   end
 
   describe '#migrate_vm' do
-    let(:provider) { double('provider') }
-
-    before do
+    before(:each) do
       expect(subject).not_to be_nil
+      expect(Thread).to receive(:new).and_yield
     end
 
     it 'calls _migrate_vm' do
-      expect(Thread).to receive(:new).and_yield
       expect(subject).to receive(:_migrate_vm).with(vm, pool, provider)
 
       subject.migrate_vm(vm, pool, provider)
     end
+
+    context 'When an error is raised' do
+      before(:each) do
+        expect(subject).to receive(:_migrate_vm).with(vm, pool, provider).and_raise('MockError')
+      end
+
+      it 'logs a message' do
+        allow(logger).to receive(:log)
+        expect(logger).to receive(:log).with('s', "[x] [#{pool}] '#{vm}' migration failed with an error: MockError")
+
+        subject.migrate_vm(vm, pool, provider)
+      end
+
+      it 'should attempt to remove from vmpooler_migration queue' do
+        expect(subject).to receive(:remove_vmpooler_migration_vm).with(pool, vm)
+
+        subject.migrate_vm(vm, pool, provider)
+      end
+    end
   end
 
   describe "#_migrate_vm" do
-    let(:provider) { double('provider') }
     let(:vm_parent_hostname) { 'parent1' }
     let(:config) {
       YAML.load(<<-EOT
 ---
 :config:
   migration_limit: 5
-:pools:
-  - name: #{pool}
 EOT
       )
     }
 
-    before do
+    before(:each) do
       expect(subject).not_to be_nil
+      allow(provider).to receive(:get_vm_host).with(pool, vm).and_return(vm_parent_hostname)
     end
 
-    context 'when an error occurs' do
-      it 'should log an error message and attempt to remove from vmpooler_migration queue' do
-        expect(provider).to receive(:find_vm).with(vm).and_raise(RuntimeError,'MockError')
-        expect(logger).to receive(:log).with('s', "[x] [#{pool}] '#{vm}' migration failed with an error: MockError")
-        expect(subject).to receive(:remove_vmpooler_migration_vm)
-        subject._migrate_vm(vm, pool, provider)
+    context 'when an error occurs trying to retrieve the current host' do
+      before(:each) do
+        expect(provider).to receive(:get_vm_host).with(pool, vm).and_raise(RuntimeError,'MockError')
+      end
+
+      it 'should raise an error' do
+        expect{ subject._migrate_vm(vm, pool, provider) }.to raise_error('MockError')
       end
     end
 
-    context 'when VM does not exist' do
-      it 'should log an error message when VM does not exist' do
-        expect(provider).to receive(:find_vm).with(vm).and_return(nil)
-        # This test is quite fragile.  Should refactor the code to make this scenario easier to detect
-        expect(logger).to receive(:log).with('s', "[x] [#{pool}] '#{vm}' migration failed with an error: undefined method `summary' for nil:NilClass")
-        subject._migrate_vm(vm, pool, provider)
+    context 'when the current host can not be determined' do
+      before(:each) do
+        expect(provider).to receive(:get_vm_host).with(pool, vm).and_return(nil)
+      end
+
+      it 'should raise an error' do
+        expect{ subject._migrate_vm(vm, pool, provider) }.to raise_error(/Unable to determine which host the VM is running on/)
       end
     end
 
     context 'when VM exists but migration is disabled' do
       before(:each) do
-        expect(provider).to receive(:find_vm).with(vm).and_return(host)
-        allow(subject).to receive(:get_vm_host_info).with(host).and_return([{'name' => vm_parent_hostname}, vm_parent_hostname])
         create_migrating_vm(vm, pool)
       end
 
@@ -1564,8 +1579,6 @@ EOT
 
     context 'when VM exists but migration limit is reached' do
       before(:each) do
-        expect(provider).to receive(:find_vm).with(vm).and_return(host)
-        allow(subject).to receive(:get_vm_host_info).with(host).and_return([{'name' => vm_parent_hostname}, vm_parent_hostname])
 
         create_migrating_vm(vm, pool)
         redis.sadd('vmpooler__migration', 'fakevm1')
@@ -1589,9 +1602,6 @@ EOT
 
     context 'when VM exists but migration limit is not yet reached' do
       before(:each) do
-        expect(provider).to receive(:find_vm).with(vm).and_return(host)
-        allow(subject).to receive(:get_vm_host_info).with(host).and_return([{'name' => vm_parent_hostname}, vm_parent_hostname])
-
         create_migrating_vm(vm, pool)
         redis.sadd('vmpooler__migration', 'fakevm1')
         redis.sadd('vmpooler__migration', 'fakevm2')
@@ -1599,7 +1609,7 @@ EOT
 
       context 'and host to migrate to is the same as the current host' do
         before(:each) do
-          expect(provider).to receive(:find_least_used_compatible_host).with(host).and_return([{'name' => vm_parent_hostname}, vm_parent_hostname])
+          expect(provider).to receive(:find_least_used_compatible_host).with(vm).and_return(vm_parent_hostname)
         end
 
         it "should not migrate the VM" do
@@ -1628,8 +1638,8 @@ EOT
       context 'and host to migrate to different to the current host' do
         let(:vm_new_hostname) { 'new_hostname' }
         before(:each) do
-          expect(provider).to receive(:find_least_used_compatible_host).with(host).and_return([{'name' => vm_new_hostname}, vm_new_hostname])
-          expect(subject).to receive(:migrate_vm_and_record_timing).with(host, vm, pool, Object, vm_parent_hostname, vm_new_hostname, provider).and_return('1.00')
+          expect(provider).to receive(:find_least_used_compatible_host).with(vm).and_return(vm_new_hostname)
+          expect(subject).to receive(:migrate_vm_and_record_timing).with(vm, pool, vm_parent_hostname, vm_new_hostname, provider).and_return('1.00')
         end
 
         it "should migrate the VM" do
