@@ -25,6 +25,98 @@
   username: 'vmpooler'
   password: 'swimsw1msw!m'
 
+:providers:
+# :providers:
+#
+# This section contains the VM providers for VMs and Pools
+# The currently supported backing services are:
+# - dummy
+
+# :dummy:
+#
+# The dummy backing service is a simple text file service that can be used
+# to test vmpooler operations in a development or test environment
+#
+# Available configuration parameters:
+#
+#   - filename (Optional)
+#     The filename used to store the backing text file.  If this is not specified the VM state is only
+#     kept in memory, and is lost when the Provider is shutdown
+#
+#   - migratevm_couldmove_percent
+#     Percent chance that a VM could be moved to another host
+#     (optional; default 0%)
+#
+#   - migratevm_max_time
+#     Maximum amount of random time a VM migration action will take in seconds
+#     (optional; default 0 seconds)
+#
+#   - migratevm_fail_percent
+#     Percent chance that a VM migration action will fail
+#     (optional; default 0%)
+#
+#   - getvm_poweroff_percent
+#     Percent chance that when the VM information is gathered that the VM will be powered off
+#     (optional; default 0%)
+#
+#   - getvm_rename_percent
+#     Percent chance that when the VM information is gathered that the VM will be renamed
+#     (optional; default 0%)
+#
+#   - createvm_max_time
+#     Maximum amount of random time a VM creation action will take, in seconds
+#     (optional; default 0 seconds)
+#
+#   - createvm_fail_percent
+#     Percent chance that a VM creation action will fail
+#     (optional; default 0%)
+#
+#   - createdisk_max_time
+#     Maximum amount of random time a VM create disk action will take, in seconds
+#     (optional; default 0 seconds)
+#
+#   - createdisk_fail_percent
+#     Percent chance that a VM create disk action will fail
+#     (optional; default 0%)
+#
+#   - createsnapshot_max_time
+#     Maximum amount of random time a VM create snapshot action will take, in seconds
+#     (optional; default 0 seconds)
+#
+#   - createsnapshot_fail_percent
+#     Percent chance that a VM create snapshot action will fail
+#     (optional; default 0%)
+#
+#   - revertsnapshot_max_time
+#     Maximum amount of random time a VM revert snapshot action will take, in seconds
+#     (optional; default 0 seconds)
+#
+#   - revertsnapshot_fail_percent
+#     Percent chance that a VM revert snapshot action will fail
+#     (optional; default 0%)
+#
+#   - destroyvm_max_shutdown_time
+#     Maximum amount of random time a VM shutdown action will take during destroy, in seconds
+#     (optional; default 0 seconds)
+#
+#   - destroyvm_max_time
+#     Maximum amount of random time a VM destroy action will take, in seconds
+#     (optional; default 0 seconds)
+#
+#   - destroyvm_fail_percent
+#     Percent chance that a VM destroy action will fail
+#     (optional; default 0%)
+#
+#   - vmready_fail_percent
+#     Percent chance that an error is raised when vm_ready? is called
+#     (optional; default 0%)
+
+# Example:
+
+  :dummy:
+    filename: '/tmp/dummy-backing.yaml'
+
+
 # :redis:
 #
 # This section contains the server hostname and authentication credentials
