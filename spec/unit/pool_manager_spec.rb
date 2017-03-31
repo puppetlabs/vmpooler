@@ -823,7 +823,6 @@ EOT
   end
 
   describe '#create_vm_snapshot' do
-    let(:provider) { double('provider') }
     let(:snapshot_name) { 'snapshot' }
 
     before do
@@ -832,54 +831,86 @@ EOT
 
     it 'calls _create_vm_snapshot' do
       expect(Thread).to receive(:new).and_yield
-      expect(subject).to receive(:_create_vm_snapshot).with(vm, snapshot_name, provider)
+      expect(subject).to receive(:_create_vm_snapshot).with(pool, vm, snapshot_name, provider)
 
-      subject.create_vm_snapshot(vm, snapshot_name, provider)
+      subject.create_vm_snapshot(pool, vm, snapshot_name, provider)
     end
   end
 
   describe '#_create_vm_snapshot' do
-    let(:provider) { double('provider') }
     let(:snapshot_name) { 'snapshot1' }
-    let(:snapshot_task) { double('snapshot_task') }
 
     before do
       expect(subject).not_to be_nil
     end
 
     before(:each) do
-      allow(provider).to receive(:find_vm).with(vm).and_return(host)
-      allow(snapshot_task).to receive(:wait_for_completion).and_return(nil)
-      allow(host).to receive(:CreateSnapshot_Task).with({:name=>snapshot_name, :description=>"vmpooler", :memory=>true, :quiesce=>true}).and_return(snapshot_task)
       create_running_vm(pool,vm,token)
     end
 
-    it 'should not do anything if the VM does not exist' do
-      expect(provider).to receive(:find_vm).with(vm).and_return(nil)
-      expect(logger).to receive(:log).exactly(0).times
-      subject._create_vm_snapshot(vm, snapshot_name, provider)
+    context 'Given a Pool that does not exist' do
+      let(:missing_pool) { 'missing_pool' }
+
+      before(:each) do
+        expect(provider).to receive(:create_snapshot).with(missing_pool, vm, snapshot_name).and_raise("Pool #{missing_pool} not found")
+      end
+
+      it 'should not update redis' do
+        expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to be_nil
+        expect{ subject._create_vm_snapshot(missing_pool, vm, snapshot_name, provider) }.to raise_error("Pool #{missing_pool} not found")
+        expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to be_nil
+      end
     end
 
-    it 'should not do anything if the snapshot name is nil' do
-      expect(logger).to receive(:log).exactly(0).times
-      subject._create_vm_snapshot(vm, nil, provider)
+    context 'Given a VM that does not exist' do
+      let(:missing_vm) { 'missing_vm' }
+      before(:each) do
+        expect(provider).to receive(:create_snapshot).with(pool, missing_vm, snapshot_name).and_raise("VM #{missing_vm} not found")
+      end
+
+      it 'should not update redis' do
+        expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to be_nil
+        expect{ subject._create_vm_snapshot(pool, missing_vm, snapshot_name, provider) }.to raise_error("VM #{missing_vm} not found")
+        expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to be_nil
+      end
     end
 
-    it 'should not do anything if the snapshot name is empty string' do
-      expect(logger).to receive(:log).exactly(0).times
-      subject._create_vm_snapshot(vm, '', provider)
+    context 'Given a snapshot creation that succeeds' do
+      before(:each) do
+        expect(provider).to receive(:create_snapshot).with(pool, vm, snapshot_name).and_return(true)
+      end
+
+      it 'should log messages' do
+        expect(logger).to receive(:log).with('s', "[ ] [snapshot_manager] 'Attempting to snapshot #{vm} in pool #{pool}")
+        expect(logger).to receive(:log).with('s', /\[\+\] \[snapshot_manager\] '#{vm}' snapshot created in 0.[\d]+ seconds/)
+
+        subject._create_vm_snapshot(pool, vm, snapshot_name, provider)
+      end
+
+      it 'should add snapshot redis information' do
+        expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to be_nil
+        subject._create_vm_snapshot(pool, vm, snapshot_name, provider)
+        expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to_not be_nil
+      end
     end
 
-    it 'should invoke provider to snapshot the VM' do
-      expect(logger).to receive(:log).with('s', "[ ] [snapshot_manager] '#{vm}' is being snapshotted")
-      expect(logger).to receive(:log).with('s', /\[\+\] \[snapshot_manager\] '#{vm}' snapshot created in 0.[\d]+ seconds/)
-      subject._create_vm_snapshot(vm, snapshot_name, provider)
-    end
+    context 'Given a snapshot creation that fails' do
+      before(:each) do
+        expect(provider).to receive(:create_snapshot).with(pool, vm, snapshot_name).and_return(false)
+      end
 
-    it 'should add snapshot redis information' do
-      expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to be_nil
-      subject._create_vm_snapshot(vm, snapshot_name, provider)
-      expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to_not be_nil
+      it 'should log messages' do
+        expect(logger).to receive(:log).with('s', "[ ] [snapshot_manager] 'Attempting to snapshot #{vm} in pool #{pool}")
+        expect(logger).to receive(:log).with('s', "[+] [snapshot_manager] Failed to snapshot '#{vm}'")
+
+        subject._create_vm_snapshot(pool, vm, snapshot_name, provider)
+      end
+
+      it 'should not update redis' do
+        expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to be_nil
+        subject._create_vm_snapshot(pool, vm, snapshot_name, provider)
+        expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to be_nil
+      end
     end
   end
 

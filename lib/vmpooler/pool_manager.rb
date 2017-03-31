@@ -291,33 +291,33 @@ module Vmpooler
       result
     end
 
-    def create_vm_snapshot(vm, snapshot_name, provider)
+    def create_vm_snapshot(pool_name, vm, snapshot_name, provider)
       Thread.new do
-        _create_vm_snapshot(vm, snapshot_name, provider)
+        begin
+          _create_vm_snapshot(pool_name, vm, snapshot_name, provider)
+        rescue => err
+          $logger.log('d', "[!] [#{pool_name}] '#{vm}' failed while creating snapshot: #{err}")
+          raise
+        end
       end
     end
 
-    def _create_vm_snapshot(vm, snapshot_name, provider)
-      host = provider.find_vm(vm)
+    def _create_vm_snapshot(pool_name, vm_name, snapshot_name, provider)
+      $logger.log('s', "[ ] [snapshot_manager] 'Attempting to snapshot #{vm_name} in pool #{pool_name}")
+      start = Time.now
 
-      if (host) && ((! snapshot_name.nil?) && (! snapshot_name.empty?))
-        $logger.log('s', "[ ] [snapshot_manager] '#{vm}' is being snapshotted")
+      result = provider.create_snapshot(pool_name, vm_name, snapshot_name)
 
-        start = Time.now
+      finish = '%.2f' % (Time.now - start)
 
-        host.CreateSnapshot_Task(
-          name: snapshot_name,
-          description: 'vmpooler',
-          memory: true,
-          quiesce: true
-        ).wait_for_completion
-
-        finish = '%.2f' % (Time.now - start)
-
-        $redis.hset('vmpooler__vm__' + vm, 'snapshot:' + snapshot_name, Time.now.to_s)
-
-        $logger.log('s', "[+] [snapshot_manager] '#{vm}' snapshot created in #{finish} seconds")
+      if result
+        $redis.hset('vmpooler__vm__' + vm_name, 'snapshot:' + snapshot_name, Time.now.to_s)
+        $logger.log('s', "[+] [snapshot_manager] '#{vm_name}' snapshot created in #{finish} seconds")
+      else
+        $logger.log('s', "[+] [snapshot_manager] Failed to snapshot '#{vm_name}'")
       end
+
+      result
     end
 
     def revert_vm_snapshot(vm, snapshot_name, provider)
