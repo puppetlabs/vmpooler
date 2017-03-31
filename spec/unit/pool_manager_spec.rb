@@ -730,104 +730,95 @@ EOT
 
     it 'calls _create_vm_disk' do
       expect(Thread).to receive(:new).and_yield
-      expect(subject).to receive(:_create_vm_disk).with(vm, disk_size, provider)
+      expect(subject).to receive(:_create_vm_disk).with(pool, vm, disk_size, provider)
 
-      subject.create_vm_disk(vm, disk_size, provider)
+      subject.create_vm_disk(pool, vm, disk_size, provider)
     end
   end
 
   describe "#_create_vm_disk" do
-    let(:provider) { double('provider') }
     let(:disk_size) { '15' }
-    let(:datastore) { 'datastore0'}
-    let(:config) {
-      YAML.load(<<-EOT
----
-:pools:
-  - name: #{pool}
-    datastore: '#{datastore}'
-EOT
-      )
-    }
-
-    before do
-      expect(subject).not_to be_nil
-    end
 
     before(:each) do
-      allow(provider).to receive(:find_vm).with(vm).and_return(host)
+      expect(subject).not_to be_nil
+      allow(logger).to receive(:log)
+
       create_running_vm(pool,vm,token)
     end
 
-    it 'should not do anything if the VM does not exist' do
-      expect(provider).to receive(:find_vm).with(vm).and_return(nil)
-      expect(logger).to receive(:log).exactly(0).times
-      subject._create_vm_disk(vm, disk_size, provider)
+    context 'Given a VM that does not exist' do
+      before(:each) do
+        # As per base_spec, create_disk will raise if the VM does not exist
+        expect(provider).to receive(:create_disk).with(pool,vm,disk_size.to_i).and_raise("VM #{vm} does not exist")
+      end
+
+      it 'should not update redis if the VM does not exist' do
+        expect(redis).to receive(:hset).exactly(0).times
+        expect{ subject._create_vm_disk(pool, vm, disk_size, provider) }.to raise_error(RuntimeError)
+      end
     end
 
-    it 'should not do anything if the disk size is nil' do
-      expect(logger).to receive(:log).exactly(0).times
-      subject._create_vm_disk(vm, nil, provider)
+    context 'Given an invalid disk size' do
+      [{ :description => 'is nil',                            :value => nil },
+       { :description => 'is an empty string',                :value => '' },
+       { :description => 'is less than 1',                    :value => '0' },
+       { :description => 'cannot be converted to an integer', :value => 'abc123' },
+      ].each do |testcase|
+        it "should not attempt the create the disk if the disk size #{testcase[:description]}" do
+          expect(provider).to receive(:create_disk).exactly(0).times
+          expect{ subject._create_vm_disk(pool, vm, testcase[:value], provider) }.to raise_error(/Invalid disk size/)
+        end
+      end
+
+      it 'should raise an error if the disk size is a Fixnum' do
+        expect(redis).to receive(:hset).exactly(0).times
+        expect{ subject._create_vm_disk(pool, vm, 10, provider) }.to raise_error(NoMethodError,/empty?/)
+      end
     end
 
-    it 'should not do anything if the disk size is empty string' do
-      expect(logger).to receive(:log).exactly(0).times
-      subject._create_vm_disk(vm, '', provider)
+    context 'Given a successful disk creation' do
+      before(:each) do
+        expect(provider).to receive(:create_disk).with(pool,vm,disk_size.to_i).and_return(true)
+      end
+
+      it 'should log a message' do
+        expect(logger).to receive(:log).with('s', "[ ] [disk_manager] '#{vm}' is attaching a #{disk_size}gb disk")
+        expect(logger).to receive(:log).with('s', /\[\+\] \[disk_manager\] '#{vm}' attached #{disk_size}gb disk in 0.[\d]+ seconds/)
+
+        subject._create_vm_disk(pool, vm, disk_size, provider)
+      end
+
+      it 'should update redis information when attaching the first disk' do
+        subject._create_vm_disk(pool, vm, disk_size, provider)
+        expect(redis.hget("vmpooler__vm__#{vm}", 'disk')).to eq("+#{disk_size}gb")
+      end
+
+      it 'should update redis information when attaching the additional disks' do
+        initial_disks = '+10gb:+20gb'
+        redis.hset("vmpooler__vm__#{vm}", 'disk', initial_disks)
+
+        subject._create_vm_disk(pool, vm, disk_size, provider)
+        expect(redis.hget("vmpooler__vm__#{vm}", 'disk')).to eq("#{initial_disks}:+#{disk_size}gb")
+      end
     end
 
-    it 'should not do anything if the disk size is less than 1' do
-      expect(logger).to receive(:log).exactly(0).times
-      subject._create_vm_disk(vm, '0', provider)
-    end
+    context 'Given a failed disk creation' do
+      before(:each) do
+        expect(provider).to receive(:create_disk).with(pool,vm,disk_size.to_i).and_return(false)
+      end
 
-    it 'should not do anything if the disk size cannot be converted to an integer' do
-      expect(logger).to receive(:log).exactly(0).times
-      subject._create_vm_disk(vm, 'abc123', provider)
-    end
+      it 'should not update redis information' do
+        expect(redis).to receive(:hset).exactly(0).times
 
-    it 'should raise an error if the disk size is a Fixnum' do
-      expect(logger).to receive(:log).exactly(0).times
-      expect{ subject._create_vm_disk(vm, 10, provider) }.to raise_error(NoMethodError,/empty?/)
-    end
+        subject._create_vm_disk(pool, vm, disk_size, provider)
+        expect(redis.hget("vmpooler__vm__#{vm}", 'disk')).to be_nil
+      end
 
-    it 'should not do anything if the datastore for pool is nil' do
-      expect(logger).to receive(:log).with('s', "[ ] [disk_manager] '#{vm}' is attaching a #{disk_size}gb disk")
-      expect(logger).to receive(:log).with('s', "[+] [disk_manager] '#{vm}' failed to attach disk")
-      config[:pools][0]['datastore'] = nil
+      it 'should log a message' do
+        expect(logger).to receive(:log).with('s', "[+] [disk_manager] '#{vm}' failed to attach disk")
 
-      subject._create_vm_disk(vm, disk_size, provider)
-    end
-
-    it 'should not do anything if the datastore for pool is empty' do
-      expect(logger).to receive(:log).with('s', "[ ] [disk_manager] '#{vm}' is attaching a #{disk_size}gb disk")
-      expect(logger).to receive(:log).with('s', "[+] [disk_manager] '#{vm}' failed to attach disk")
-      config[:pools][0]['datastore'] = ''
-
-      subject._create_vm_disk(vm, disk_size, provider)
-    end
-
-    it 'should attach the disk' do
-      expect(logger).to receive(:log).with('s', "[ ] [disk_manager] '#{vm}' is attaching a #{disk_size}gb disk")
-      expect(logger).to receive(:log).with('s', /\[\+\] \[disk_manager\] '#{vm}' attached #{disk_size}gb disk in 0.[\d]+ seconds/)
-      expect(provider).to receive(:add_disk).with(host,disk_size,datastore)
-
-      subject._create_vm_disk(vm, disk_size, provider)
-    end
-
-    it 'should update redis information when attaching the first disk' do
-      expect(provider).to receive(:add_disk).with(host,disk_size,datastore)
-
-      subject._create_vm_disk(vm, disk_size, provider)
-      expect(redis.hget("vmpooler__vm__#{vm}", 'disk')).to eq("+#{disk_size}gb")
-    end
-
-    it 'should update redis information when attaching the additional disks' do
-      expect(provider).to receive(:add_disk).with(host,disk_size,datastore)
-      initial_disks = '+10gb:+20gb'
-      redis.hset("vmpooler__vm__#{vm}", 'disk', initial_disks)
-
-      subject._create_vm_disk(vm, disk_size, provider)
-      expect(redis.hget("vmpooler__vm__#{vm}", 'disk')).to eq("#{initial_disks}:+#{disk_size}gb")
+        subject._create_vm_disk(pool, vm, disk_size, provider)
+      end
     end
   end
 

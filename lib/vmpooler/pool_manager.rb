@@ -255,44 +255,40 @@ module Vmpooler
       $metrics.timing("destroy.#{pool}", finish)
     end
 
-    def create_vm_disk(vm, disk_size, provider)
+    def create_vm_disk(pool_name, vm, disk_size, provider)
       Thread.new do
-        _create_vm_disk(vm, disk_size, provider)
+        begin
+          _create_vm_disk(pool_name, vm, disk_size, provider)
+        rescue => err
+          $logger.log('d', "[!] [#{pool_name}] '#{vm}' failed while creating disk: #{err}")
+          raise
+        end
       end
     end
 
-    def _create_vm_disk(vm, disk_size, provider)
-      host = provider.find_vm(vm)
+    def _create_vm_disk(pool_name, vm_name, disk_size, provider)
+      raise("Invalid disk size of '#{disk_size}' passed") if (disk_size.nil?) || (disk_size.empty?) || (disk_size.to_i <= 0)
 
-      if (host) && ((! disk_size.nil?) && (! disk_size.empty?) && (disk_size.to_i > 0))
-        $logger.log('s', "[ ] [disk_manager] '#{vm}' is attaching a #{disk_size}gb disk")
+      $logger.log('s', "[ ] [disk_manager] '#{vm_name}' is attaching a #{disk_size}gb disk")
 
-        start = Time.now
+      start = Time.now
 
-        template = $redis.hget('vmpooler__vm__' + vm, 'template')
-        datastore = nil
+      result = provider.create_disk(pool_name, vm_name, disk_size.to_i)
 
-        $config[:pools].each do |pool|
-          if pool['name'] == template
-            datastore = pool['datastore']
-          end
-        end
+      finish = '%.2f' % (Time.now - start)
 
-        if ((! datastore.nil?) && (! datastore.empty?))
-          provider.add_disk(host, disk_size, datastore)
+      if result
+        rdisks = $redis.hget('vmpooler__vm__' + vm_name, 'disk')
+        disks = rdisks ? rdisks.split(':') : []
+        disks.push("+#{disk_size}gb")
+        $redis.hset('vmpooler__vm__' + vm_name, 'disk', disks.join(':'))
 
-          rdisks = $redis.hget('vmpooler__vm__' + vm, 'disk')
-          disks = rdisks ? rdisks.split(':') : []
-          disks.push("+#{disk_size}gb")
-          $redis.hset('vmpooler__vm__' + vm, 'disk', disks.join(':'))
-
-          finish = '%.2f' % (Time.now - start)
-
-          $logger.log('s', "[+] [disk_manager] '#{vm}' attached #{disk_size}gb disk in #{finish} seconds")
-        else
-          $logger.log('s', "[+] [disk_manager] '#{vm}' failed to attach disk")
-        end
+        $logger.log('s', "[+] [disk_manager] '#{vm_name}' attached #{disk_size}gb disk in #{finish} seconds")
+      else
+        $logger.log('s', "[+] [disk_manager] '#{vm_name}' failed to attach disk")
       end
+
+      result
     end
 
     def create_vm_snapshot(vm, snapshot_name, provider)
