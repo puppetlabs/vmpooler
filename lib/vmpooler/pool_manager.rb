@@ -22,34 +22,27 @@ module Vmpooler
     # Check the state of a VM
     def check_pending_vm(vm, pool, timeout, provider)
       Thread.new do
-        _check_pending_vm(vm, pool, timeout, provider)
-      end
-    end
-
-    def open_socket(host, domain=nil, timeout=5, port=22, &block)
-      Timeout.timeout(timeout) do
-        target_host = host
-        target_host = "#{host}.#{domain}" if domain
-        sock = TCPSocket.new target_host, port
         begin
-          yield sock if block_given?
-        ensure
-          sock.close
+          _check_pending_vm(vm, pool, timeout, provider)
+        rescue => err
+          $logger.log('s', "[!] [#{pool}] '#{vm}' errored while checking a pending vm : #{err}")
+          fail_pending_vm(vm, pool, timeout)
+          raise
         end
       end
     end
 
     def _check_pending_vm(vm, pool, timeout, provider)
-      host = provider.find_vm(vm)
-
+      host = provider.get_vm(pool, vm)
       if ! host
         fail_pending_vm(vm, pool, timeout, false)
         return
       end
-      open_socket vm
-      move_pending_vm_to_ready(vm, pool, host)
-    rescue
-      fail_pending_vm(vm, pool, timeout)
+      if provider.vm_ready?(pool, vm)
+        move_pending_vm_to_ready(vm, pool, host)
+      else
+        fail_pending_vm(vm, pool, timeout)
+      end
     end
 
     def remove_nonexistent_vm(vm, pool)
