@@ -498,11 +498,6 @@ module Vmpooler
       end
     end
 
-    def get_vm_host_info(vm_object)
-      parent_host = vm_object.summary.runtime.host
-      [parent_host, parent_host.name]
-    end
-
     def remove_vmpooler_migration_vm(pool, vm)
       begin
         $redis.srem('vmpooler__migration', vm)

@@ -1667,22 +1667,6 @@ EOT
     end
   end
 
-  describe "#get_vm_host_info" do
-    before do
-      expect(subject).not_to be_nil
-    end
-
-    let(:vm_object) { double('vm_object') }
-    let(:parent_host) { double('parent_host') }
-
-    it 'should return an array with host information' do
-      expect(vm_object).to receive_message_chain(:summary, :runtime, :host).and_return(parent_host)
-      expect(parent_host).to receive(:name).and_return('vmhostname')
-
-      expect(subject.get_vm_host_info(vm_object)).to eq([parent_host,'vmhostname'])
-    end
-  end
-
   describe "#execute!" do
     let(:threads) {{}}
 
