@@ -2009,6 +2009,21 @@ EOT
   end
 
   describe '#_check_pool' do
+    let(:new_vm_response) {
+      # Mock response from Base Provider for vms_in_pool
+      [{ 'name' => new_vm}]
+    }
+    let(:vm_response) {
+      # Mock response from Base Provider for vms_in_pool
+      [{ 'name' => vm}]
+    }
+    let(:multi_vm_response) {
+      # Mock response from Base Provider for vms_in_pool
+      [{ 'name' => 'vm1'},
+       { 'name' => 'vm2'},
+       { 'name' => 'vm3'}]
+    }
+
     # Default test fixtures will consist of;
     #   - Empty Redis dataset
     #   - A single pool with a pool size of zero i.e. no new VMs should be created
@@ -2020,18 +2035,16 @@ EOT
   task_limit: 10
 :pools:
   - name: #{pool}
-    folder: 'vm_folder'
     size: 0
 EOT
       )
     }
     let(:pool_object) { config[:pools][0] }
-    let(:provider) { double('provider') }
     let(:new_vm) { 'newvm'}
 
     before do
       expect(subject).not_to be_nil
-      allow(logger).to receive(:log).with("s", "[!] [#{pool}] is empty")
+      allow(logger).to receive(:log)
     end
 
     # INVENTORY
@@ -2043,24 +2056,23 @@ EOT
         allow(subject).to receive(:check_pending_vm)
         allow(subject).to receive(:destroy_vm)
         allow(subject).to receive(:clone_vm)
+        allow(provider).to receive(:vms_in_pool).with(pool).and_return(new_vm_response)
       end
 
       it 'should log an error if one occurs' do
-        expect(provider).to receive(:find_folder).and_raise(RuntimeError,'Mock Error')
+        expect(provider).to receive(:vms_in_pool).and_raise(RuntimeError,'Mock Error')
         expect(logger).to receive(:log).with('s', "[!] [#{pool}] _check_pool failed with an error while inspecting inventory: Mock Error")
 
         subject._check_pool(pool_object,provider)
       end
 
       it 'should log the discovery of VMs' do
-        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([new_vm]))
         expect(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue")
 
         subject._check_pool(pool_object,provider)
       end
 
       it 'should add undiscovered VMs to the completed queue' do
-        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([new_vm]))
         allow(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue")
 
         expect(redis.sismember("vmpooler__discovered__#{pool}", new_vm)).to be(false)
@@ -2074,8 +2086,6 @@ EOT
 
       ['running','ready','pending','completed','discovered','migrating'].each do |queue_name|
         it "should not discover VMs in the #{queue_name} queue" do
-          expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([new_vm]))
-
           expect(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue").exactly(0).times
           expect(redis.sismember("vmpooler__discovered__#{pool}", new_vm)).to be(false)
           redis.sadd("vmpooler__#{queue_name}__#{pool}", new_vm)
@@ -2095,7 +2105,7 @@ EOT
     # RUNNING
     context 'Running VM not in the inventory' do
       before(:each) do
-        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([new_vm]))
+        expect(provider).to receive(:vms_in_pool).with(pool).and_return(new_vm_response)
         expect(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue")
         create_running_vm(pool,vm,token)
       end
@@ -2109,7 +2119,7 @@ EOT
 
     context 'Running VM in the inventory' do
       before(:each) do
-        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([vm]))
+        expect(provider).to receive(:vms_in_pool).with(pool).and_return(vm_response)
         allow(subject).to receive(:check_running_vm)
         create_running_vm(pool,vm,token)
       end
@@ -2148,7 +2158,7 @@ EOT
     # READY
     context 'Ready VM not in the inventory' do
       before(:each) do
-        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([new_vm]))
+        expect(provider).to receive(:vms_in_pool).with(pool).and_return(new_vm_response)
         expect(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue")
         create_ready_vm(pool,vm,token)
       end
@@ -2162,7 +2172,7 @@ EOT
 
     context 'Ready VM in the inventory' do
       before(:each) do
-        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([vm]))
+        expect(provider).to receive(:vms_in_pool).with(pool).and_return(vm_response)
         allow(subject).to receive(:check_ready_vm)
         create_ready_vm(pool,vm,token)
       end
@@ -2193,7 +2203,7 @@ EOT
     # PENDING
     context 'Pending VM not in the inventory' do
       before(:each) do
-        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([new_vm]))
+        expect(provider).to receive(:vms_in_pool).with(pool).and_return(new_vm_response)
         expect(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue")
         create_pending_vm(pool,vm,token)
       end
@@ -2208,7 +2218,7 @@ EOT
 
     context 'Pending VM in the inventory' do
       before(:each) do
-        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([vm]))
+        expect(provider).to receive(:vms_in_pool).with(pool).and_return(vm_response)
         allow(subject).to receive(:check_pending_vm)
         create_pending_vm(pool,vm,token)
       end
@@ -2248,7 +2258,7 @@ EOT
     # COMPLETED
     context 'Completed VM not in the inventory' do
       before(:each) do
-        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([new_vm]))
+        expect(provider).to receive(:vms_in_pool).with(pool).and_return(new_vm_response)
         expect(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue")
         expect(logger).to receive(:log).with('s', "[!] [#{pool}] '#{vm}' not found in inventory, removed from 'completed' queue")
         create_completed_vm(vm,pool,true)
@@ -2279,7 +2289,7 @@ EOT
 
     context 'Completed VM in the inventory' do
       before(:each) do
-        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([vm]))
+        expect(provider).to receive(:vms_in_pool).with(pool).and_return(vm_response)
         create_completed_vm(vm,pool,true)
       end
 
@@ -2316,7 +2326,7 @@ EOT
     # DISCOVERED
     context 'Discovered VM' do
       before(:each) do
-        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([vm]))
+        expect(provider).to receive(:vms_in_pool).with(pool).and_return(vm_response)
         create_discovered_vm(vm,pool)
       end
 
@@ -2375,7 +2385,7 @@ EOT
     # MIGRATIONS
     context 'Migrating VM not in the inventory' do
       before(:each) do
-        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([new_vm]))
+        expect(provider).to receive(:vms_in_pool).with(pool).and_return(new_vm_response)
         expect(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue")
         create_migrating_vm(vm,pool)
       end
@@ -2389,7 +2399,7 @@ EOT
 
     context 'Migrating VM in the inventory' do
       before(:each) do
-        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([vm]))
+        expect(provider).to receive(:vms_in_pool).with(pool).and_return(vm_response)
         allow(subject).to receive(:check_ready_vm)
         allow(logger).to receive(:log).with("s", "[!] [#{pool}] is empty")
         create_migrating_vm(vm,pool)
@@ -2412,14 +2422,14 @@ EOT
     # REPOPULATE
     context 'Repopulate a pool' do
       it 'should not call clone_vm when number of VMs is equal to the pool size' do
-        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([]))
+        expect(provider).to receive(:vms_in_pool).with(pool).and_return([])
         expect(subject).to receive(:clone_vm).exactly(0).times
 
         subject._check_pool(pool_object,provider)
       end
 
       it 'should not call clone_vm when number of VMs is greater than the pool size' do
-        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([vm]))
+        expect(provider).to receive(:vms_in_pool).with(pool).and_return(vm_response)
         create_ready_vm(pool,vm,token)
         expect(subject).to receive(:clone_vm).exactly(0).times
 
@@ -2428,7 +2438,7 @@ EOT
 
       ['ready','pending'].each do |queue_name|
         it "should use VMs in #{queue_name} queue to caculate pool size" do
-          expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([vm]))
+          expect(provider).to receive(:vms_in_pool).with(pool).and_return(vm_response)
           expect(subject).to receive(:clone_vm).exactly(0).times
           # Modify the pool size to 1 and add a VM in the queue
           redis.sadd("vmpooler__#{queue_name}__#{pool}",vm)
@@ -2440,7 +2450,7 @@ EOT
 
       ['running','completed','discovered','migrating'].each do |queue_name|
         it "should not use VMs in #{queue_name} queue to caculate pool size" do
-          expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([vm]))
+          expect(provider).to receive(:vms_in_pool).with(pool).and_return(vm_response)
           expect(subject).to receive(:clone_vm)
           # Modify the pool size to 1 and add a VM in the queue
           redis.sadd("vmpooler__#{queue_name}__#{pool}",vm)
@@ -2451,7 +2461,7 @@ EOT
       end
 
       it 'should log a message the first time a pool is empty' do
-        expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([]))
+        expect(provider).to receive(:vms_in_pool).with(pool).and_return([])
         expect(logger).to receive(:log).with('s', "[!] [#{pool}] is empty")
 
         subject._check_pool(pool_object,provider)
@@ -2459,7 +2469,7 @@ EOT
 
       context 'when pool is marked as empty' do
         before(:each) do
-          expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([]))
+        expect(provider).to receive(:vms_in_pool).with(pool).and_return([])
           redis.set("vmpooler__empty__#{pool}", 'true')
         end
 
@@ -2480,7 +2490,7 @@ EOT
 
       context 'when number of VMs is less than the pool size' do
         before(:each) do
-          expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([]))
+        expect(provider).to receive(:vms_in_pool).with(pool).and_return([])
         end
 
         it 'should call clone_vm to populate the pool' do
@@ -2520,7 +2530,7 @@ EOT
           create_ready_vm(pool,'vm1')
           create_ready_vm(pool,'vm2')
           create_ready_vm(pool,'vm3')
-          expect(provider).to receive(:find_folder).and_return(MockFindFolder.new(['vm1','vm2','vm3']))
+          expect(provider).to receive(:vms_in_pool).with(pool).and_return(multi_vm_response)
 
           expect(metrics).to receive(:gauge).with("ready.#{pool}", 3)
           allow(metrics).to receive(:gauge)
@@ -2532,7 +2542,7 @@ EOT
           create_running_vm(pool,'vm1',token)
           create_running_vm(pool,'vm2',token)
           create_running_vm(pool,'vm3',token)
-          expect(provider).to receive(:find_folder).and_return(MockFindFolder.new(['vm1','vm2','vm3']))
+          expect(provider).to receive(:vms_in_pool).with(pool).and_return(multi_vm_response)
 
           expect(metrics).to receive(:gauge).with("running.#{pool}", 3)
           allow(metrics).to receive(:gauge)
@@ -2541,7 +2551,7 @@ EOT
         end
 
         it 'increments metrics with 0 when pool empty' do
-          expect(provider).to receive(:find_folder).and_return(MockFindFolder.new([]))
+        expect(provider).to receive(:vms_in_pool).with(pool).and_return([])
 
           expect(metrics).to receive(:gauge).with("ready.#{pool}", 0)
           expect(metrics).to receive(:gauge).with("running.#{pool}", 0)

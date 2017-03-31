@@ -548,9 +548,7 @@ module Vmpooler
       # INVENTORY
       inventory = {}
       begin
-        base = provider.find_folder(pool['folder'])
-
-        base.childEntity.each do |vm|
+        provider.vms_in_pool(pool['name']).each do |vm|
           if
             (! $redis.sismember('vmpooler__running__' + pool['name'], vm['name'])) &&
             (! $redis.sismember('vmpooler__ready__' + pool['name'], vm['name'])) &&
@@ -629,7 +627,7 @@ module Vmpooler
       # DISCOVERED
       begin
         $redis.smembers("vmpooler__discovered__#{pool['name']}").each do |vm|
-          %w(pending ready running completed).each do |queue|
+          %w[pending ready running completed].each do |queue|
             if $redis.sismember("vmpooler__#{queue}__#{pool['name']}", vm)
               $logger.log('d', "[!] [#{pool['name']}] '#{vm}' found in '#{queue}', removed from 'discovered' queue")
               $redis.srem("vmpooler__discovered__#{pool['name']}", vm)
