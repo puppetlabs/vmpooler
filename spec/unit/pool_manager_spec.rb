@@ -915,58 +915,88 @@ EOT
   end
 
   describe '#revert_vm_snapshot' do
-    let(:provider) { double('provider') }
     let(:snapshot_name) { 'snapshot' }
 
     before do
       expect(subject).not_to be_nil
     end
 
-    it 'calls _create_vm_snapshot' do
+    it 'calls _revert_vm_snapshot' do
       expect(Thread).to receive(:new).and_yield
-      expect(subject).to receive(:_revert_vm_snapshot).with(vm, snapshot_name, provider)
+      expect(subject).to receive(:_revert_vm_snapshot).with(pool, vm, snapshot_name, provider)
 
-      subject.revert_vm_snapshot(vm, snapshot_name, provider)
+      subject.revert_vm_snapshot(pool, vm, snapshot_name, provider)
     end
   end
 
   describe '#_revert_vm_snapshot' do
-    let(:provider) { double('provider') }
     let(:snapshot_name) { 'snapshot1' }
-    let(:snapshot_object) { double('snapshot_object') }
 
     before do
       expect(subject).not_to be_nil
     end
 
-    before(:each) do
-      allow(provider).to receive(:find_vm).with(vm).and_return(host)
-      allow(snapshot_object).to receive_message_chain(:RevertToSnapshot_Task, :wait_for_completion)
-      allow(provider).to receive(:find_snapshot).with(host,snapshot_name).and_return(snapshot_object)
+    context 'Given a Pool that does not exist' do
+      let(:missing_pool) { 'missing_pool' }
+
+      before(:each) do
+        expect(provider).to receive(:revert_snapshot).with(missing_pool, vm, snapshot_name).and_raise("Pool #{missing_pool} not found")
+      end
+
+      it 'should not log a result message' do
+        expect(logger).to receive(:log).with('s', /\[\+\] \[snapshot_manager\] '#{vm}' reverted to snapshot '#{snapshot_name}' in 0.[\d]+ seconds/).exactly(0).times
+        expect(logger).to receive(:log).with('s', "[+] [snapshot_manager] Failed to revert #{vm}' in pool #{missing_pool} to snapshot '#{snapshot_name}'").exactly(0).times
+
+        expect{ subject._revert_vm_snapshot(missing_pool, vm, snapshot_name, provider) }.to raise_error("Pool #{missing_pool} not found")
+      end
     end
 
-    it 'should not do anything if the VM does not exist' do
-      expect(provider).to receive(:find_vm).with(vm).and_return(nil)
-      expect(logger).to receive(:log).exactly(0).times
-      subject._revert_vm_snapshot(vm, snapshot_name, provider)
+    context 'Given a VM that does not exist' do
+      let(:missing_vm) { 'missing_vm' }
+      before(:each) do
+        expect(provider).to receive(:revert_snapshot).with(pool, missing_vm, snapshot_name).and_raise("VM #{missing_vm} not found")
+      end
+
+      it 'should not log a result message' do
+        expect(logger).to receive(:log).with('s', /\[\+\] \[snapshot_manager\] '#{missing_vm}' reverted to snapshot '#{snapshot_name}' in 0.[\d]+ seconds/).exactly(0).times
+        expect(logger).to receive(:log).with('s', "[+] [snapshot_manager] Failed to revert #{missing_vm}' in pool #{pool} to snapshot '#{snapshot_name}'").exactly(0).times
+
+        expect{ subject._revert_vm_snapshot(pool, missing_vm, snapshot_name, provider) }.to raise_error("VM #{missing_vm} not found")
+      end
     end
 
-    it 'should not do anything if the snapshot name is nil' do
-      expect(logger).to receive(:log).exactly(0).times
-      expect(provider).to receive(:find_snapshot).with(host,nil).and_return nil
-      subject._revert_vm_snapshot(vm, nil, provider)
+    context 'Given a snapshot revert that succeeds' do
+      before(:each) do
+        expect(provider).to receive(:revert_snapshot).with(pool, vm, snapshot_name).and_return(true)
+      end
+
+      it 'should log success messages' do
+        expect(logger).to receive(:log).with('s', "[ ] [snapshot_manager] 'Attempting to revert #{vm}' in pool #{pool} to snapshot '#{snapshot_name}'")
+        expect(logger).to receive(:log).with('s', /\[\+\] \[snapshot_manager\] '#{vm}' reverted to snapshot '#{snapshot_name}' in 0.[\d]+ seconds/)
+
+        subject._revert_vm_snapshot(pool, vm, snapshot_name, provider)
+      end
+
+      it 'should return true' do
+        expect(subject._revert_vm_snapshot(pool, vm, snapshot_name, provider)).to be true
+      end
     end
 
-    it 'should not do anything if the snapshot name is empty string' do
-      expect(logger).to receive(:log).exactly(0).times
-      expect(provider).to receive(:find_snapshot).with(host,'').and_return nil
-      subject._revert_vm_snapshot(vm, '', provider)
-    end
+    context 'Given a snapshot creation that fails' do
+      before(:each) do
+        expect(provider).to receive(:revert_snapshot).with(pool, vm, snapshot_name).and_return(false)
+      end
 
-    it 'should invoke provider to revert the VM to the snapshot' do
-      expect(logger).to receive(:log).with('s', "[ ] [snapshot_manager] '#{vm}' is being reverted to snapshot '#{snapshot_name}'")
-      expect(logger).to receive(:log).with('s', /\[\<\] \[snapshot_manager\] '#{vm}' reverted to snapshot in 0\.[\d]+ seconds/)
-      subject._revert_vm_snapshot(vm, snapshot_name, provider)
+      it 'should log failure messages' do
+        expect(logger).to receive(:log).with('s', "[ ] [snapshot_manager] 'Attempting to revert #{vm}' in pool #{pool} to snapshot '#{snapshot_name}'")
+        expect(logger).to receive(:log).with('s', "[+] [snapshot_manager] Failed to revert #{vm}' in pool #{pool} to snapshot '#{snapshot_name}'")
+
+        subject._revert_vm_snapshot(pool, vm, snapshot_name, provider)
+      end
+
+      it 'should return false' do
+        expect(subject._revert_vm_snapshot(pool, vm, snapshot_name, provider)).to be false
+      end
     end
   end
 

@@ -320,30 +320,32 @@ module Vmpooler
       result
     end
 
-    def revert_vm_snapshot(vm, snapshot_name, provider)
+    def revert_vm_snapshot(pool_name, vm, snapshot_name, provider)
       Thread.new do
-        _revert_vm_snapshot(vm, snapshot_name, provider)
+        begin
+          _revert_vm_snapshot(pool_name, vm, snapshot_name, provider)
+        rescue => err
+          $logger.log('d', "[!] [#{pool_name}] '#{vm}' failed while reverting snapshot: #{err}")
+          raise
+        end
       end
     end
 
-    def _revert_vm_snapshot(vm, snapshot_name, provider)
-      host = provider.find_vm(vm)
+    def _revert_vm_snapshot(pool_name, vm_name, snapshot_name, provider)
+      $logger.log('s', "[ ] [snapshot_manager] 'Attempting to revert #{vm_name}' in pool #{pool_name} to snapshot '#{snapshot_name}'")
+      start = Time.now
 
-      if host
-        snapshot = provider.find_snapshot(host, snapshot_name)
+      result = provider.revert_snapshot(pool_name, vm_name, snapshot_name)
 
-        if snapshot
-          $logger.log('s', "[ ] [snapshot_manager] '#{vm}' is being reverted to snapshot '#{snapshot_name}'")
+      finish = '%.2f' % (Time.now - start)
 
-          start = Time.now
-
-          snapshot.RevertToSnapshot_Task.wait_for_completion
-
-          finish = '%.2f' % (Time.now - start)
-
-          $logger.log('s', "[<] [snapshot_manager] '#{vm}' reverted to snapshot in #{finish} seconds")
-        end
+      if result
+        $logger.log('s', "[+] [snapshot_manager] '#{vm_name}' reverted to snapshot '#{snapshot_name}' in #{finish} seconds")
+      else
+        $logger.log('s', "[+] [snapshot_manager] Failed to revert #{vm_name}' in pool #{pool_name} to snapshot '#{snapshot_name}'")
       end
+
+      result
     end
 
     def check_disk_queue(maxloop = 0, loop_delay = 5)
