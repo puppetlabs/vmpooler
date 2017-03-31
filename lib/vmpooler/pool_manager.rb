@@ -367,11 +367,10 @@ module Vmpooler
     def check_disk_queue(maxloop = 0, loop_delay = 5)
       $logger.log('d', "[*] [disk_manager] starting worker thread")
 
-      $providers['disk_manager'] ||= Vmpooler::VsphereHelper.new $config, $metrics
       $threads['disk_manager'] = Thread.new do
         loop_count = 1
         loop do
-          _check_disk_queue $providers['disk_manager']
+          _check_disk_queue
           sleep(loop_delay)
 
           unless maxloop.zero?
@@ -382,15 +381,20 @@ module Vmpooler
       end
     end
 
-    def _check_disk_queue(provider)
-      vm = $redis.spop('vmpooler__tasks__disk')
-
-      unless vm.nil?
+    def _check_disk_queue
+      task_detail = $redis.spop('vmpooler__tasks__disk')
+      unless task_detail.nil?
         begin
-          vm_name, disk_size = vm.split(':')
-          create_vm_disk(vm_name, disk_size, provider)
-        rescue
-          $logger.log('s', "[!] [disk_manager] disk creation appears to have failed")
+          vm_name, disk_size = task_detail.split(':')
+          pool_name = get_pool_name_for_vm(vm_name)
+          raise("Unable to determine which pool #{vm_name} is a member of") if pool_name.nil?
+
+          provider = get_provider_for_pool(pool_name)
+          raise("Missing Provider for vm #{vm_name} in pool #{pool_name}") if provider.nil?
+
+          create_vm_disk(pool_name, vm_name, disk_size, provider)
+        rescue => err
+          $logger.log('s', "[!] [disk_manager] disk creation appears to have failed: #{err}")
         end
       end
     end

@@ -1129,7 +1129,7 @@ EOT
     end
 
     it 'should call _check_disk_queue' do
-      expect(subject).to receive(:_check_disk_queue).with(Vmpooler::VsphereHelper)
+      expect(subject).to receive(:_check_disk_queue).with(no_args)
 
       subject.check_disk_queue(1,0)
     end
@@ -1145,12 +1145,9 @@ EOT
       end
 
       it 'when a non-default loop delay is specified' do
-        start_time = Time.now
-        subject.check_disk_queue(maxloop,loop_delay)
-        finish_time = Time.now
+        expect(subject).to receive(:sleep).with(loop_delay).exactly(maxloop).times
 
-        # Use a generous delta to take into account various CPU load etc.
-        expect(finish_time - start_time).to be_within(0.75).of(maxloop * loop_delay)
+        subject.check_disk_queue(maxloop,loop_delay)
       end
     end
 
@@ -1164,7 +1161,7 @@ EOT
       end
 
       it 'should call _check_disk_queue 5 times' do
-        expect(subject).to receive(:_check_disk_queue).with(Vmpooler::VsphereHelper).exactly(maxloop).times
+        expect(subject).to receive(:_check_disk_queue).with(no_args).exactly(maxloop).times
 
         subject.check_disk_queue(maxloop,0)
       end
@@ -1172,8 +1169,6 @@ EOT
   end
 
   describe '#_check_disk_queue' do
-    let(:provider) { double('provider') }
-
     before do
       expect(subject).not_to be_nil
     end
@@ -1181,31 +1176,72 @@ EOT
     context 'when no VMs in the queue' do
       it 'should not call create_vm_disk' do
         expect(subject).to receive(:create_vm_disk).exactly(0).times
-        subject._check_disk_queue(provider)
+        subject._check_disk_queue
+      end
+    end
+
+    context 'when VM in the queue does not exist' do
+      before(:each) do
+        disk_task_vm(vm,"snapshot_#{vm}")
+      end
+
+      it 'should log an error' do
+        expect(logger).to receive(:log).with('s', /Unable to determine which pool #{vm} is a member of/)
+
+        subject._check_disk_queue
+      end
+
+      it 'should not call create_vm_disk' do
+        expect(subject).to receive(:create_vm_disk).exactly(0).times
+
+        subject._check_disk_queue
+      end
+    end
+
+    context 'when specified provider does not exist' do
+      before(:each) do
+        disk_task_vm(vm,"snapshot_#{vm}")
+        create_running_vm(pool, vm, token)
+        expect(subject).to receive(:get_provider_for_pool).and_return(nil)
+      end
+
+      it 'should log an error' do
+        expect(logger).to receive(:log).with('s', /Missing Provider for/)
+
+        subject._check_disk_queue
+      end
+
+      it 'should not call create_vm_disk' do
+        expect(subject).to receive(:create_vm_disk).exactly(0).times
+
+        subject._check_disk_queue
       end
     end
 
     context 'when multiple VMs in the queue' do
       before(:each) do
-        disk_task_vm('vm1',1)
-        disk_task_vm('vm2',2)
-        disk_task_vm('vm3',3)
+        ['vm1', 'vm2', 'vm3'].each do |vm_name|
+          disk_task_vm(vm_name,"snapshot_#{vm_name}")
+          create_running_vm(pool, vm_name, token)
+        end
+
+        allow(subject).to receive(:get_provider_for_pool).with(pool).and_return(provider)
       end
 
       it 'should call create_vm_disk once' do
         expect(subject).to receive(:create_vm_disk).exactly(1).times
-        subject._check_disk_queue(provider)
+        subject._check_disk_queue
       end
 
-      it 'should snapshot the first VM in the queue' do
-        expect(subject).to receive(:create_vm_disk).with('vm1','1',provider)
-        subject._check_disk_queue(provider)
+      it 'should create the disk for the first VM in the queue' do
+        expect(subject).to receive(:create_vm_disk).with(pool,'vm1','snapshot_vm1',provider)
+        subject._check_disk_queue
       end
 
       it 'should log an error if one occurs' do
         expect(subject).to receive(:create_vm_disk).and_raise(RuntimeError,'MockError')
-        expect(logger).to receive(:log).with('s', "[!] [disk_manager] disk creation appears to have failed")
-        subject._check_disk_queue(provider)
+        expect(logger).to receive(:log).with('s', "[!] [disk_manager] disk creation appears to have failed: MockError")
+        subject._check_disk_queue
       end
     end
   end
