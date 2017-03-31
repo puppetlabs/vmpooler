@@ -1000,6 +1000,24 @@ EOT
     end
   end
 
+  describe '#get_pool_name_for_vm' do
+    context 'Given a valid VM' do
+      before(:each) do
+        create_running_vm(pool, vm, token)
+      end
+
+      it 'should return the pool name' do
+        expect(subject.get_pool_name_for_vm(vm)).to eq(pool)
+      end
+    end
+
+    context 'Given an invalid VM' do
+      it 'should return nil' do
+        expect(subject.get_pool_name_for_vm('does_not_exist')).to be_nil
+      end
+    end
+  end
+
   describe '#check_disk_queue' do
     let(:threads) {[]}
 

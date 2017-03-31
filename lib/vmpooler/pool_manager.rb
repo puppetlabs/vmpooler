@@ -348,6 +348,11 @@ module Vmpooler
       result
     end
 
+    def get_pool_name_for_vm(vm_name)
+      # the 'template' is a bad name.  Should really be 'poolname'
+      $redis.hget('vmpooler__vm__' + vm_name, 'template')
+    end
+
     def check_disk_queue(maxloop = 0, loop_delay = 5)
       $logger.log('d', "[*] [disk_manager] starting worker thread")
 
