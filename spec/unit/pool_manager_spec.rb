@@ -157,6 +157,8 @@ EOT
   end
   
   describe '#move_pending_vm_to_ready' do
+    let(:host) { { 'hostname' => vm }}
+
     before do
       expect(subject).not_to be_nil
       allow(Socket).to receive(:getaddrinfo)
@@ -171,21 +173,13 @@ EOT
         expect(logger).to receive(:log).exactly(0).times
         expect(Socket).to receive(:getaddrinfo).exactly(0).times
 
-        allow(host).to receive(:summary).and_return( double('summary') )
-        allow(host).to receive_message_chain(:summary, :guest).and_return( double('guest') )
-        allow(host).to receive_message_chain(:summary, :guest, :hostName).and_return ('different_name')
+        host['hostname'] = 'different_name'
 
         subject.move_pending_vm_to_ready(vm, pool, host)
       end
     end
 
     context 'when hostname matches VM name' do
-      before do
-        allow(host).to receive(:summary).and_return( double('summary') )
-        allow(host).to receive_message_chain(:summary, :guest).and_return( double('guest') )
-        allow(host).to receive_message_chain(:summary, :guest, :hostName).and_return (vm)
-      end
-
       it 'should move the VM from pending to ready pool' do
         expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(true)
         expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(false)
@@ -195,7 +189,7 @@ EOT
       end
 
       it 'should log a message' do
-        expect(logger).to receive(:log).with('s', "[>] [#{pool}] '#{vm}' moved to 'ready' queue")
+        expect(logger).to receive(:log).with('s', "[>] [#{pool}] '#{vm}' moved from 'pending' to 'ready' queue")
 
         subject.move_pending_vm_to_ready(vm, pool, host)
       end

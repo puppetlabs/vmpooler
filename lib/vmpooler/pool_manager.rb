@@ -70,13 +70,9 @@ module Vmpooler
     end
 
     def move_pending_vm_to_ready(vm, pool, host)
-      if (host.summary) &&
-          (host.summary.guest) &&
-          (host.summary.guest.hostName) &&
-          (host.summary.guest.hostName == vm)
-
+      if host['hostname'] == vm
         begin
-          Socket.getaddrinfo(vm, nil)  # WTF?
+          Socket.getaddrinfo(vm, nil)  # WTF? I assume this is just priming the local DNS resolver cache?!?!
         rescue
         end
 
@@ -86,7 +82,7 @@ module Vmpooler
         $redis.smove('vmpooler__pending__' + pool, 'vmpooler__ready__' + pool, vm)
         $redis.hset('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm, finish)
 
-        $logger.log('s', "[>] [#{pool}] '#{vm}' moved to 'ready' queue")
+        $logger.log('s', "[>] [#{pool}] '#{vm}' moved from 'pending' to 'ready' queue")
       end
     end
 
