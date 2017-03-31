@@ -114,19 +114,19 @@ EOT
     end
 
     it 'takes no action if VM is not cloning' do
-      expect(subject.fail_pending_vm(vm, pool, timeout)).to eq(nil)
+      expect(subject.fail_pending_vm(vm, pool, timeout)).to eq(true)
       expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(true)
     end
 
     it 'takes no action if VM is within timeout' do
       redis.hset("vmpooler__vm__#{vm}", 'clone',Time.now.to_s)
-      expect(subject.fail_pending_vm(vm, pool, timeout)).to eq(nil)
+      expect(subject.fail_pending_vm(vm, pool, timeout)).to eq(true)
       expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(true)
     end
 
     it 'moves VM to completed queue if VM has exceeded timeout and exists' do
       redis.hset("vmpooler__vm__#{vm}", 'clone',Date.new(2001,1,1).to_s)
-      expect(subject.fail_pending_vm(vm, pool, timeout,true)).to eq(nil)
+      expect(subject.fail_pending_vm(vm, pool, timeout,true)).to eq(true)
       expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(false)
       expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
     end
@@ -134,18 +134,18 @@ EOT
     it 'logs message if VM has exceeded timeout and exists' do
       redis.hset("vmpooler__vm__#{vm}", 'clone',Date.new(2001,1,1).to_s)
       expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes")
-      expect(subject.fail_pending_vm(vm, pool, timeout,true)).to eq(nil)
+      expect(subject.fail_pending_vm(vm, pool, timeout,true)).to eq(true)
     end
 
     it 'calls remove_nonexistent_vm if VM has exceeded timeout and does not exist' do
       redis.hset("vmpooler__vm__#{vm}", 'clone',Date.new(2001,1,1).to_s)
       expect(subject).to receive(:remove_nonexistent_vm).with(vm, pool)
-      expect(subject.fail_pending_vm(vm, pool, timeout,false)).to eq(nil)
+      expect(subject.fail_pending_vm(vm, pool, timeout,false)).to eq(true)
     end
 
     it 'swallows error if an error is raised' do
       redis.hset("vmpooler__vm__#{vm}", 'clone','iamnotparsable_asdate')
-      expect(subject.fail_pending_vm(vm, pool, timeout,true)).to eq(nil)
+      expect(subject.fail_pending_vm(vm, pool, timeout,true)).to eq(false)
     end
 
     it 'logs message if an error is raised' do

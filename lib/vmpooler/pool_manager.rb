@@ -50,9 +50,9 @@ module Vmpooler
       $logger.log('d', "[!] [#{pool}] '#{vm}' no longer exists. Removing from pending.")
     end
 
-    def fail_pending_vm(vm, pool, timeout, exists=true)
+    def fail_pending_vm(vm, pool, timeout, exists = true)
       clone_stamp = $redis.hget("vmpooler__vm__#{vm}", 'clone')
-      return if ! clone_stamp
+      return true if !clone_stamp
 
       time_since_clone = (Time.now - Time.parse(clone_stamp)) / 60
       if time_since_clone > timeout
@@ -63,8 +63,10 @@ module Vmpooler
           remove_nonexistent_vm(vm, pool)
         end
       end
+      true
     rescue => err
       $logger.log('d', "Fail pending VM failed with an error: #{err}")
+      false
     end
 
     def move_pending_vm_to_ready(vm, pool, host)
