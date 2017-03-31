@@ -149,12 +149,17 @@ module Vmpooler
 
     def check_running_vm(vm, pool, ttl, provider)
       Thread.new do
-        _check_running_vm(vm, pool, ttl, provider)
+        begin
+          _check_running_vm(vm, pool, ttl, provider)
+        rescue => err
+          $logger.log('s', "[!] [#{pool}] '#{vm}' failed while checking VM with an error: #{err}")
+          raise
+        end
       end
     end
 
     def _check_running_vm(vm, pool, ttl, provider)
-      host = provider.find_vm(vm)
+      host = provider.get_vm(pool, vm)
 
       if host
         queue_from, queue_to = 'running', 'completed'
