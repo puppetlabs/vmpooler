@@ -216,103 +216,115 @@ EOT
   end
 
   describe '#check_ready_vm' do
-    let(:provider) { double('provider') }
     let(:ttl) { 0 }
 
-    let(:config) {
-      YAML.load(<<-EOT
----
-:config:
-  vm_checktime: 15
-
-EOT
-      )
-    }
-
-    before(:each) do
-      expect(Thread).to receive(:new).and_yield
-      create_ready_vm(pool,vm)
+    before do
+      expect(subject).not_to be_nil
     end
 
-    it 'should raise an error if a TTL above zero is specified' do
-      expect { subject.check_ready_vm(vm,pool,5,provider) }.to raise_error(NameError) # This is an implementation bug
+    it 'calls _check_ready_vm' do
+      expect(Thread).to receive(:new).and_yield
+      expect(subject).to receive(:_check_ready_vm).with(vm, pool, ttl, provider)
+
+      subject.check_ready_vm(vm, pool, ttl, provider)
+    end
+  end
+
+  describe '#_check_ready_vm' do
+    let(:ttl) { 0 }
+    let(:host) { {} }
+
+    before(:each) do
+      create_ready_vm(pool,vm)
+      config[:config] = {}
+      config[:config]['vm_checktime'] = 15
+
+      # Create a VM which is powered on
+      host['hostname'] = vm
+      host['powerstate'] = 'PoweredOn'
+      allow(provider).to receive(:get_vm).with(pool,vm).and_return(host)
     end
 
     context 'a VM that does not need to be checked' do
       it 'should do nothing' do
-        redis.hset("vmpooler__vm__#{vm}", 'check',Time.now.to_s)
-        subject.check_ready_vm(vm, pool, ttl, provider)
+        check_stamp = (Time.now - 60).to_s
+        redis.hset("vmpooler__vm__#{vm}", 'check', check_stamp)
+        expect(provider).to receive(:get_vm).exactly(0).times
+        subject._check_ready_vm(vm, pool, ttl, provider)
+        expect(redis.hget("vmpooler__vm__#{vm}", 'check')).to eq(check_stamp)
       end
     end
 
     context 'a VM that does not exist' do
       before do
-        allow(provider).to receive(:find_vm).and_return(nil)
+        expect(provider).to receive(:get_vm).with(pool,vm).and_return(nil)
       end
 
-      it 'should set the current check timestamp' do
-        allow(subject).to receive(:open_socket)
+      it 'should not set the current check timestamp' do
         expect(redis.hget("vmpooler__vm__#{vm}", 'check')).to be_nil
-        subject.check_ready_vm(vm, pool, ttl, provider)
-        expect(redis.hget("vmpooler__vm__#{vm}", 'check')).to_not be_nil
+        subject._check_ready_vm(vm, pool, ttl, provider)
+        expect(redis.hget("vmpooler__vm__#{vm}", 'check')).to be_nil
       end
 
       it 'should log a message' do
-        expect(logger).to receive(:log).with('s', "[!] [#{pool}] '#{vm}' not found in vCenter inventory, removed from 'ready' queue")
-        allow(subject).to receive(:open_socket)
-        subject.check_ready_vm(vm, pool, ttl, provider)
+        expect(logger).to receive(:log).with('s', "[!] [#{pool}] '#{vm}' not found in inventory, removed from 'ready' queue")
+        subject._check_ready_vm(vm, pool, ttl, provider)
       end
 
       it 'should remove the VM from the ready queue' do
-        allow(subject).to receive(:open_socket)
         expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(true)
-        subject.check_ready_vm(vm, pool, ttl, provider)
+        subject._check_ready_vm(vm, pool, ttl, provider)
         expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(false)
       end
     end
 
-    context 'a VM that needs to be checked' do
-      before(:each) do
-        redis.hset("vmpooler__vm__#{vm}", 'check',Date.new(2001,1,1).to_s)
+    context 'a VM that has never been checked' do
+      let(:last_check_date) { Date.new(2001,1,1).to_s }
 
-        allow(host).to receive(:summary).and_return( double('summary') )
-        allow(host).to receive_message_chain(:summary, :guest).and_return( double('guest') )
-        allow(host).to receive_message_chain(:summary, :guest, :hostName).and_return (vm)
-        
-        allow(provider).to receive(:find_vm).and_return(host)
+      it 'should set the current check timestamp' do
+        expect(redis.hget("vmpooler__vm__#{vm}", 'check')).to be_nil
+        subject._check_ready_vm(vm, pool, ttl, provider)
+        expect(redis.hget("vmpooler__vm__#{vm}", 'check')).to_not be_nil
+      end
+    end
+
+    context 'a VM that needs to be checked' do
+      let(:last_check_date) { Date.new(2001,1,1).to_s }
+      before(:each) do
+        redis.hset("vmpooler__vm__#{vm}", 'check',last_check_date)
+      end
+
+      it 'should set the current check timestamp' do
+        expect(redis.hget("vmpooler__vm__#{vm}", 'check')).to eq(last_check_date)
+        subject._check_ready_vm(vm, pool, ttl, provider)
+        expect(redis.hget("vmpooler__vm__#{vm}", 'check')).to_not eq(last_check_date)
       end
 
       context 'and is ready' do
         before(:each) do
-          allow(host).to receive(:runtime).and_return( double('runtime') )
-          allow(host).to receive_message_chain(:runtime, :powerState).and_return('poweredOn')
-          allow(host).to receive_message_chain(:summary, :guest, :hostName).and_return (vm)
-          allow(subject).to receive(:open_socket).with(vm).and_return(nil)
+          expect(provider).to receive(:vm_ready?).with(pool, vm).and_return(true)
         end
 
         it 'should only set the next check interval' do
-          subject.check_ready_vm(vm, pool, ttl, provider)
+          subject._check_ready_vm(vm, pool, ttl, provider)
         end
       end
 
-      context 'is turned off, a name mismatch and not available via TCP' do
+      context 'is turned off' do
         before(:each) do
-          allow(host).to receive(:runtime).and_return( double('runtime') )
-          allow(host).to receive_message_chain(:runtime, :powerState).and_return('poweredOff')
-          allow(host).to receive_message_chain(:summary, :guest, :hostName).and_return ('')
-          allow(subject).to receive(:open_socket).with(vm).and_raise(SocketError,'getaddrinfo: No such host is known')
+          host['powerstate'] = 'PoweredOff'
         end
 
         it 'should move the VM to the completed queue' do
           expect(redis).to receive(:smove).with("vmpooler__ready__#{pool}", "vmpooler__completed__#{pool}", vm)
 
-          subject.check_ready_vm(vm, pool, ttl, provider)
+          subject._check_ready_vm(vm, pool, ttl, provider)
         end
 
         it 'should move the VM to the completed queue in Redis' do
           expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(true)
           expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(false)
-          subject.check_ready_vm(vm, pool, ttl, provider)
+          subject._check_ready_vm(vm, pool, ttl, provider)
           expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(false)
           expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
         end
@@ -320,28 +332,25 @@ EOT
         it 'should log messages about being powered off' do
           expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' appears to be powered off, removed from 'ready' queue")
 
-          subject.check_ready_vm(vm, pool, ttl, provider)
+          subject._check_ready_vm(vm, pool, ttl, provider)
         end
       end
 
-      context 'is turned on, a name mismatch and not available via TCP' do
+      context 'is turned on, a name mismatch' do
         before(:each) do
-          allow(host).to receive(:runtime).and_return( double('runtime') )
-          allow(host).to receive_message_chain(:runtime, :powerState).and_return('poweredOn')
-          allow(host).to receive_message_chain(:summary, :guest, :hostName).and_return ('')
-          allow(subject).to receive(:open_socket).with(vm).and_raise(SocketError,'getaddrinfo: No such host is known')
+          host['hostname'] = 'different_name'
         end
 
         it 'should move the VM to the completed queue' do
           expect(redis).to receive(:smove).with("vmpooler__ready__#{pool}", "vmpooler__completed__#{pool}", vm)
 
-          subject.check_ready_vm(vm, pool, ttl, provider)
+          subject._check_ready_vm(vm, pool, ttl, provider)
         end
 
         it 'should move the VM to the completed queue in Redis' do
           expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(true)
           expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(false)
-          subject.check_ready_vm(vm, pool, ttl, provider)
+          subject._check_ready_vm(vm, pool, ttl, provider)
           expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(false)
           expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
         end
@@ -349,28 +358,25 @@ EOT
         it 'should log messages about being misnamed' do
           expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' has mismatched hostname, removed from 'ready' queue")
 
-          subject.check_ready_vm(vm, pool, ttl, provider)
+          subject._check_ready_vm(vm, pool, ttl, provider)
         end
       end
 
-      context 'is turned on, with correct name and not available via TCP' do
+      context 'is turned on, with correct name and is not ready' do
         before(:each) do
-          allow(host).to receive(:runtime).and_return( double('runtime') )
-          allow(host).to receive_message_chain(:runtime, :powerState).and_return('poweredOn')
-          allow(host).to receive_message_chain(:summary, :guest, :hostName).and_return (vm)
-          allow(subject).to receive(:open_socket).with(vm).and_raise(SocketError,'getaddrinfo: No such host is known')
+          expect(provider).to receive(:vm_ready?).with(pool, vm).and_return(false)
         end
 
         it 'should move the VM to the completed queue' do
           expect(redis).to receive(:smove).with("vmpooler__ready__#{pool}", "vmpooler__completed__#{pool}", vm)
 
-          subject.check_ready_vm(vm, pool, ttl, provider)
+          subject._check_ready_vm(vm, pool, ttl, provider)
         end
 
         it 'should move the VM to the completed queue in Redis' do
           expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(true)
           expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(false)
-          subject.check_ready_vm(vm, pool, ttl, provider)
+          subject._check_ready_vm(vm, pool, ttl, provider)
           expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(false)
           expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
         end
@@ -378,7 +384,7 @@ EOT
         it 'should log messages about being unreachable' do
           expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' is unreachable, removed from 'ready' queue")
 
-          subject.check_ready_vm(vm, pool, ttl, provider)
+          subject._check_ready_vm(vm, pool, ttl, provider)
         end
       end
     end
