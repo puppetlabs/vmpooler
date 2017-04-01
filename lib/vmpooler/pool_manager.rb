@@ -713,6 +713,32 @@ module Vmpooler
       # Clear out vmpooler__migrations since stale entries may be left after a restart
       $redis.del('vmpooler__migration')
 
+      # Copy vSphere settings to correct location.  This happens with older configuration files
+      if !$config[:vsphere].nil? && ($config[:providers].nil? || $config[:providers][:vsphere].nil?)
+        $logger.log('d', "[!] Detected an older configuration file. Copying the settings from ':vsphere:' to ':providers:/:vsphere:'")
+        $config[:providers] = {} if $config[:providers].nil?
+        $config[:providers][:vsphere] = $config[:vsphere]
+      end
+
+      # Set default provider for all pools that do not have one defined
+      $config[:pools].each do |pool|
+        if pool['provider'].nil?
+          $logger.log('d', "[!] Setting provider for pool '#{pool['name']}' to 'vsphere' as default")
+          pool['provider'] = 'vsphere'
+        end
+      end
+
+      # Create the providers
+      $config[:pools].each do |pool|
+        provider_name = pool['provider']
+        begin
+          $providers[provider_name] = create_provider_object($config, $logger, $metrics, provider_name, {}) if $providers[provider_name].nil?
+        rescue => err
+          $logger.log('s', "Error while creating provider for pool #{pool['name']}: #{err}")
+          raise
+        end
+      end
+
       loop_count = 1
       loop do
         if ! $threads['disk_manager']

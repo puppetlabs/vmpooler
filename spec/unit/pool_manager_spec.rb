@@ -1678,8 +1678,6 @@ EOT
   end
 
   describe "#execute!" do
-    let(:threads) {{}}
-
     let(:config) {
       YAML.load(<<-EOT
 ---
@@ -1689,18 +1687,26 @@ EOT
       )
     }
 
-    let(:thread) { double('thread') }
-
-    before do
+    before(:each) do
       expect(subject).not_to be_nil
+
+      allow(subject).to receive(:check_disk_queue)
+      allow(subject).to receive(:check_snapshot_queue)
+      allow(subject).to receive(:check_pool)
+
+      allow(logger).to receive(:log)
+    end
+
+    after(:each) do
+      # Reset the global variable - Note this is a code smell
+      $threads = nil
     end
 
     context 'on startup' do
-      before(:each) do
-        allow(subject).to receive(:check_disk_queue)
-        allow(subject).to receive(:check_snapshot_queue)
-        allow(subject).to receive(:check_pool)
+      it 'should log a message that VMPooler has started' do
         expect(logger).to receive(:log).with('d', 'starting vmpooler')
+
+        subject.execute!(1,0)
       end
 
       it 'should set clone tasks to zero' do
@@ -1732,69 +1738,146 @@ EOT
 
         subject.execute!(1,0)
       end
+
+      context 'creating Providers' do
+        let(:vsphere_provider) { double('vsphere_provider') }
+        let(:config) {
+        YAML.load(<<-EOT
+---
+:pools:
+  - name: #{pool}
+  - name: 'dummy'
+    provider: 'vsphere'
+EOT
+        )}
+
+        it 'should call create_provider_object idempotently' do
+          # Even though there are two pools using the vsphere provider (the default), it should only
+          # create the provider object once.
+          expect(subject).to receive(:create_provider_object).with(Object, Object, Object, 'vsphere', Object).and_return(vsphere_provider)
+
+          subject.execute!(1,0)
+        end
+
+        it 'should raise an error if the provider can not be created' do
+          expect(subject).to receive(:create_provider_object).and_raise(RuntimeError, "MockError")
+
+          expect{ subject.execute!(1,0) }.to raise_error(/MockError/)
+        end
+
+        it 'should log a message if the provider can not be created' do
+          expect(subject).to receive(:create_provider_object).and_raise(RuntimeError, "MockError")
+          expect(logger).to receive(:log).with('s',"Error while creating provider for pool #{pool}: MockError")
+
+          expect{ subject.execute!(1,0) }.to raise_error(/MockError/)
+        end
+      end
+    end
+
+    context 'modify configuration on startup' do
+      context 'move vSphere configuration to providers location' do
+        let(:config) {
+        YAML.load(<<-EOT
+:vsphere:
+  server: 'vsphere.company.com'
+  username: 'vmpooler'
+  password: 'password'
+:pools:
+  - name: #{pool}
+EOT
+        )}
+
+        it 'should set providers with no provider to vsphere' do
+          expect(subject.config[:providers]).to be nil
+
+          subject.execute!(1,0)
+          expect(subject.config[:providers][:vsphere]['server']).to eq('vsphere.company.com')
+          expect(subject.config[:providers][:vsphere]['username']).to eq('vmpooler')
+          expect(subject.config[:providers][:vsphere]['password']).to eq('password')
+        end
+
+        it 'should log a message' do
+          expect(logger).to receive(:log).with('d', "[!] Detected an older configuration file. Copying the settings from ':vsphere:' to ':providers:/:vsphere:'")
+
+          subject.execute!(1,0)
+        end
+      end
+
+
+      context 'default to the vphere provider' do
+        let(:config) {
+        YAML.load(<<-EOT
+---
+:pools:
+  - name: #{pool}
+  - name: 'dummy'
+    provider: 'dummy'
+EOT
+        )}
+
+        it 'should set providers with no provider to vsphere' do
+          expect(subject.config[:pools][0]['provider']).to be_nil
+          expect(subject.config[:pools][1]['provider']).to eq('dummy')
+
+          subject.execute!(1,0)
+
+          expect(subject.config[:pools][0]['provider']).to eq('vsphere')
+          expect(subject.config[:pools][1]['provider']).to eq('dummy')
+        end
+
+        it 'should log a message' do
+          expect(logger).to receive(:log).with('d', "[!] Setting provider for pool '#{pool}' to 'vsphere' as default")
+
+          subject.execute!(1,0)
+        end
+      end
     end
 
     context 'with dead disk_manager thread' do
-      before(:each) do
-        allow(subject).to receive(:check_snapshot_queue)
-        allow(subject).to receive(:check_pool)
-        expect(logger).to receive(:log).with('d', 'starting vmpooler')
-      end
+      let(:disk_manager_thread) { double('thread', :alive? => false) }
 
-      after(:each) do
+      before(:each) do
         # Reset the global variable - Note this is a code smell
-        $threads = nil
+        $threads = {}
+        $threads['disk_manager'] = disk_manager_thread
       end
 
       it 'should run the check_disk_queue method and log a message' do
-        expect(thread).to receive(:alive?).and_return(false)
         expect(subject).to receive(:check_disk_queue)
         expect(logger).to receive(:log).with('d', "[!] [disk_manager] worker thread died, restarting")
-        $threads['disk_manager'] = thread
 
         subject.execute!(1,0)
       end
     end
 
     context 'with dead snapshot_manager thread' do
+      let(:snapshot_manager_thread) { double('thread', :alive? => false) }
       before(:each) do
-        allow(subject).to receive(:check_disk_queue)
-        allow(subject).to receive(:check_pool)
-        expect(logger).to receive(:log).with('d', 'starting vmpooler')
-      end
-
-      after(:each) do
         # Reset the global variable - Note this is a code smell
-        $threads = nil
+        $threads = {}
+        $threads['snapshot_manager'] = snapshot_manager_thread
       end
 
       it 'should run the check_snapshot_queue method and log a message' do
-        expect(thread).to receive(:alive?).and_return(false)
         expect(subject).to receive(:check_snapshot_queue)
         expect(logger).to receive(:log).with('d', "[!] [snapshot_manager] worker thread died, restarting")
-        $threads['snapshot_manager'] = thread
+        $threads['snapshot_manager'] = snapshot_manager_thread
 
         subject.execute!(1,0)
       end
     end
 
     context 'with dead pool thread' do
+      let(:pool_thread) { double('thread', :alive? => false) }
       before(:each) do
-        allow(subject).to receive(:check_disk_queue)
-        allow(subject).to receive(:check_snapshot_queue)
-        expect(logger).to receive(:log).with('d', 'starting vmpooler')
-      end
-
-      after(:each) do
         # Reset the global variable - Note this is a code smell
-        $threads = nil
+        $threads = {}
+        $threads[pool] = pool_thread
       end
 
       it 'should run the check_pool method and log a message' do
-        expect(thread).to receive(:alive?).and_return(false)
         expect(subject).to receive(:check_pool).with(a_pool_with_name_of(pool))
         expect(logger).to receive(:log).with('d', "[!] [#{pool}] worker thread died, restarting")
-        $threads[pool] = thread
 
         subject.execute!(1,0)
       end
@@ -1812,30 +1895,22 @@ EOT
       end
 
       it 'when a non-default loop delay is specified' do
-        start_time = Time.now
-        subject.execute!(maxloop,loop_delay)
-        finish_time = Time.now
+        expect(subject).to receive(:sleep).with(loop_delay).exactly(maxloop).times
 
-        # Use a generous delta to take into account various CPU load etc.
-        expect(finish_time - start_time).to be_within(0.75).of(maxloop * loop_delay)
+        subject.execute!(maxloop,loop_delay)
       end
     end
 
     context 'loops specified number of times (5)' do
+      let(:alive_thread) { double('thread', :alive? => true) }
       let(:maxloop) { 5 }
       # Note a maxloop of zero can not be tested as it never terminates
       before(:each) do
         end
 
-      after(:each) do
-        # Reset the global variable - Note this is a code smell
-        $threads = nil
-      end
-
       it 'should run startup tasks only once' do
-        allow(subject).to receive(:check_disk_queue)
-        allow(subject).to receive(:check_snapshot_queue)
-        allow(subject).to receive(:check_pool)
+        expect(redis).to receive(:set).with('vmpooler__tasks__clone', 0).once
+        expect(redis).to receive(:del).with('vmpooler__migration').once
 
         subject.execute!(maxloop,0)
       end
@@ -1853,10 +1928,9 @@ EOT
         expect(subject).to receive(:check_snapshot_queue).exactly(0).times
         expect(subject).to receive(:check_pool).exactly(0).times
 
-        allow(thread).to receive(:alive?).and_return(true)
-        $threads[pool] = thread
-        $threads['disk_manager'] = thread
-        $threads['snapshot_manager'] = thread
+        $threads[pool] = alive_thread
+        $threads['disk_manager'] = alive_thread
+        $threads['snapshot_manager'] = alive_thread
 
         subject.execute!(maxloop,0)
       end
