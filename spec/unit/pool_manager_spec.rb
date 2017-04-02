@@ -13,12 +13,26 @@ describe 'Pool Manager' do
   let(:logger) { MockLogger.new }
   let(:redis) { MockRedis.new }
   let(:metrics) { Vmpooler::DummyStatsd.new }
-  let(:config) { {} }
   let(:pool) { 'pool1' }
   let(:vm) { 'vm1' }
   let(:timeout) { 5 }
   let(:host) { double('host') }
   let(:token) { 'token1234'}
+
+  let(:provider_options) { {} }
+  let(:provider) { Vmpooler::PoolManager::Provider::Base.new(config, logger, metrics, 'mock_provider', provider_options) }
+
+  let(:config) { YAML.load(<<-EOT
+---
+:config:
+:providers:
+  :mock:
+:pools:
+  - name: '#{pool}'
+    size: 1
+EOT
+    )
+  }
 
   subject { Vmpooler::PoolManager.new(config, logger, redis, metrics) }
 
