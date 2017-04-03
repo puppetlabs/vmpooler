@@ -51,3 +51,10 @@ Style/WordArray:
 # Either sytnax for regex is ok
 Style/RegexpLiteral:
   Enabled: false
+
+# In some cases readability is better without these cops enabled
+Style/ConditionalAssignment:
+  Enabled: false
+Next:
+  Enabled: false
+
