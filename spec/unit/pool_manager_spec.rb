@@ -1018,6 +1018,93 @@ EOT
     end
   end
 
+  describe '#get_provider_for_pool' do
+    let(:provider_name) { 'mock_provider' }
+
+    before do
+      expect(subject).not_to be_nil
+      # Inject mock provider into global variable - Note this is a code smell
+      $providers = { provider_name => provider }
+    end
+
+    after(:each) do
+      # Reset the global variable - Note this is a code smell
+      $providers = nil
+    end
+
+    context 'Given a pool name which does not exist' do
+      let(:config) { YAML.load(<<-EOT
+---
+:config:
+:providers:
+  :mock:
+:pools:
+  - name: '#{pool}'
+    size: 1
+EOT
+      )}
+
+      it 'should return nil' do
+        expect(subject.get_provider_for_pool('pool_does_not_exist')).to be_nil
+      end
+    end
+
+    context 'Given a pool which does not have a provider' do
+      let(:config) { YAML.load(<<-EOT
+---
+:config:
+:providers:
+  :mock:
+:pools:
+  - name: '#{pool}'
+    size: 1
+EOT
+      )}
+
+      it 'should return nil' do
+        expect(subject.get_provider_for_pool(pool)).to be_nil
+      end
+    end
+
+    context 'Given a pool which uses an invalid provider' do
+      let(:config) { YAML.load(<<-EOT
+---
+:config:
+:providers:
+  :mock:
+:pools:
+  - name: '#{pool}'
+    size: 1
+    provider: 'does_not_exist'
+EOT
+      )}
+
+      it 'should return nil' do
+        expect(subject.get_provider_for_pool(pool)).to be_nil
+      end
+    end
+
+    context 'Given a pool which uses a valid provider' do
+      let(:config) { YAML.load(<<-EOT
+---
+:config:
+:providers:
+  :mock:
+:pools:
+  - name: '#{pool}'
+    size: 1
+    provider: #{provider_name}
+EOT
+      )}
+
+      it 'should return a provider object' do
+        result = subject.get_provider_for_pool(pool)
+        expect(result).to_not be_nil
+        expect(result.name).to eq(provider_name)
+      end
+    end
+  end
+
   describe '#check_disk_queue' do
     let(:threads) {[]}
 

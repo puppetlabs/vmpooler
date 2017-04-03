@@ -353,6 +353,17 @@ module Vmpooler
       $redis.hget('vmpooler__vm__' + vm_name, 'template')
     end
 
+    def get_provider_for_pool(pool_name)
+      provider_name = nil
+      $config[:pools].each do |pool|
+        next unless pool['name'] == pool_name
+        provider_name = pool['provider']
+      end
+      return nil if provider_name.nil?
+
+      $providers[provider_name]
+    end
+
     def check_disk_queue(maxloop = 0, loop_delay = 5)
       $logger.log('d', "[*] [disk_manager] starting worker thread")
 
