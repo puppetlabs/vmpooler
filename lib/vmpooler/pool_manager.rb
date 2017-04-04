@@ -19,6 +19,10 @@ module Vmpooler
       $threads = {}
     end
 
+    def config
+      $config
+    end
+
     # Check the state of a VM
     def check_pending_vm(vm, pool, timeout, provider)
       Thread.new do

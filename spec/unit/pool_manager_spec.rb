@@ -36,6 +36,16 @@ EOT
 
   subject { Vmpooler::PoolManager.new(config, logger, redis, metrics) }
 
+  describe '#config' do
+    before do
+      expect(subject).not_to be_nil
+    end
+
+    it 'should return the current configuration' do
+      expect(subject.config).to eq(config)
+    end
+  end
+
   describe '#check_pending_vm' do
     before do
       expect(subject).not_to be_nil
