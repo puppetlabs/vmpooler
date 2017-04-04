@@ -690,6 +690,17 @@ module Vmpooler
       raise
     end
 
+    def create_provider_object(config, logger, metrics, provider_name, options)
+      case provider_name
+      when 'vsphere'
+        Vmpooler::PoolManager::Provider::VSphere.new(config, logger, metrics, provider_name, options)
+      when 'dummy'
+        Vmpooler::PoolManager::Provider::Dummy.new(config, logger, metrics, provider_name, options)
+      else
+        raise("Provider '#{provider_name}' is unknown")
+      end
+    end
+
     def execute!(maxloop = 0, loop_delay = 1)
       $logger.log('d', 'starting vmpooler')
 
