@@ -12,6 +12,8 @@ module Vmpooler
       time = Time.new
       stamp = time.strftime('%Y-%m-%d %H:%M:%S')
 
+      puts "[#{stamp}] #{string}" if ENV['VMPOOLER_DEBUG']
+
       open(@file, 'a') do |f|
         f.puts "[#{stamp}] #{string}"
       end
