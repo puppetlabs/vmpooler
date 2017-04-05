@@ -9,6 +9,8 @@ AllCops:
     - 'scripts/**/*'
     - 'spec/**/*'
     - 'vendor/**/*'
+    - Gemfile
+    - Rakefile
 
 Style/Documentation:
   Enabled: false
@@ -57,4 +59,8 @@ Style/ConditionalAssignment:
   Enabled: false
 Next:
   Enabled: false
+
+# Enforce LF line endings, even when on Windows
+Style/EndOfLine:
+  EnforcedStyle: lf
 
