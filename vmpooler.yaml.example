@@ -50,6 +50,14 @@
 #     The filename used to store the backing text file.  If this is not specified the VM state is only
 #     kept in memory, and is lost when the Provider is shutdown
 #
+#   - connection_pool_size (Optional)
+#     The size of the dummy connection pool.  This can be used to simulate constrained provider resources e.g. 200 pools sharing on connection
+#     (optional; default 1)
+#
+#   - connection_pool_timeout (Optional)
+#     The number of seconds to wait for a connection object from the pool.  If the timeout is exceeded an error is raised
+#     (optional; default 10 seconds)
+#
 #   - migratevm_couldmove_percent
 #     Percent chance that a VM could be moved to another host
 #     (optional; default 0%)

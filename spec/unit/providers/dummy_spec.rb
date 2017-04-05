@@ -76,11 +76,11 @@ describe 'Vmpooler::PoolManager::Provider::Dummy' do
   let(:config) { YAML.load(<<-EOT
 ---
 :config:
-  max_tries: 3
-  retry_factor: 10
 :providers:
   :dummy:
     key1: 'value1'
+    # Drop the connection pool timeout way down for spec tests so they fail fast
+    connection_pool_timeout: 1
 :pools:
   - name: '#{pool_name}'
     size: 5
