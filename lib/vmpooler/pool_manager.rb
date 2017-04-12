@@ -26,7 +26,7 @@ module Vmpooler
       end
     end
 
-    def slots_available?(slots, max_slots)
+    def slots_available(slots, max_slots)
       # Returns slots in use unless max is reached
       return slots unless slots >= max_slots
     end
@@ -580,14 +580,14 @@ module Vmpooler
       return if checking_pools.include? pool['name']
       $redis.sadd('vmpooler__check__pool__pending', pool['name'])
       loop_count = 1
-      while (slots_available?($redis.smembers('vmpooler__check__pool').count, slots.to_i).nil?)
-        sleep(loop_delay * 3)
+      while (slots_available($redis.smembers('vmpooler__check__pool').count, slots.to_i).nil?)
+        sleep(loop_delay)
         unless maxloop.zero?
           return if loop_count >= maxloop
           loop_count += 1
         end
       end
-      slots_free = slots_available?($redis.smembers('vmpooler__check__pool').count, slots)
+      slots_free = slots_available($redis.smembers('vmpooler__check__pool').count, slots)
       next_slot = (slots_free.to_i + 1).to_s
       check_pool(pool, next_slot)
     rescue => err
