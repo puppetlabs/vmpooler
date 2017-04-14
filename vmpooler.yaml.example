@@ -1,8 +1,19 @@
 ---
+:providers:
+# :providers:
+#
+# This section contains the VM providers for VMs and Pools
+# The currently supported backing services are:
+# - vsphere
+# - dummy
+
 # :vsphere:
 #
 # This section contains the server hostname and authentication credentials
 # needed for vmpooler to connect to VMware vSphere.
+#
+# NOTE - To support older configuration files, a :vsphere: configuration section
+# will be copied into :providers:/:vsphere: if one does not already exist.
 #
 # Available configuration parameters:
 #
@@ -17,20 +28,16 @@
 #   - password
 #     The password used to authenticate VMware vSphere.
 #     (required)
-
+#
+#   - insecure
+#     Whether to ignore any HTTPS negotiation errors (e.g. untrusted self-signed certificates)
+#     (optional: default true)
 # Example:
 
-:vsphere:
-  server: 'vsphere.company.com'
-  username: 'vmpooler'
-  password: 'swimsw1msw!m'
-
-:providers:
-# :providers:
-#
-# This section contains the VM providers for VMs and Pools
-# The currently supported backing services are:
-# - dummy
+  :vsphere:
+    server: 'vsphere.company.com'
+    username: 'vmpooler'
+    password: 'swimsw1msw!m'
 
 # :dummy:
 #
@@ -146,58 +153,58 @@
   server: 'redis.company.com'
 
 
-  # :graphs:
-  #
-  # This section contains the server and prefix information for a graphite-
-  # compatible web front-end where graphs may be viewed. This is used by the
-  # vmpooler dashboard to retrieve statistics and graphs for a given instance.
-  #
-  # NOTE: This is not the endpoint for publishing metrics data. See `graphite:`
-  #       and `statsd:` below.
-  #
-  # NOTE: If `graphs:` is not set, for legacy compatibility, `graphite:` will be
-  #       consulted for `server`/`prefix` information to use in locating a
-  #       graph server for our dashboard.  `graphs:` is recommended over
-  #       `graphite:`
-  #
-  #
-  # Available configuration parameters:
-  #
-  #
-  #   - server
-  #     The FQDN hostname of the statsd daemon.
-  #     (required)
-  #
-  #   - prefix
-  #     The prefix to use while storing statsd data.
-  #     (optional; default: 'vmpooler')
+# :graphs:
+#
+# This section contains the server and prefix information for a graphite-
+# compatible web front-end where graphs may be viewed. This is used by the
+# vmpooler dashboard to retrieve statistics and graphs for a given instance.
+#
+# NOTE: This is not the endpoint for publishing metrics data. See `graphite:`
+#       and `statsd:` below.
+#
+# NOTE: If `graphs:` is not set, for legacy compatibility, `graphite:` will be
+#       consulted for `server`/`prefix` information to use in locating a
+#       graph server for our dashboard.  `graphs:` is recommended over
+#       `graphite:`
+#
+#
+# Available configuration parameters:
+#
+#
+#   - server
+#     The FQDN hostname of the statsd daemon.
+#     (required)
+#
+#   - prefix
+#     The prefix to use while storing statsd data.
+#     (optional; default: 'vmpooler')
 
-  # :statsd:
-  #
-  # This section contains the connection information required to store
-  # historical data via statsd.  This is mutually exclusive with graphite
-  # and takes precedence.
-  #
-  # Available configuration parameters:
-  #
-  #   - server
-  #     The FQDN hostname of the statsd daemon.
-  #     (required)
-  #
-  #   - prefix
-  #     The prefix to use while storing statsd data.
-  #     (optional; default: 'vmpooler')
-  #
-  #   - port
-  #     The UDP port to communicate with the statsd daemon.
-  #     (optional; default: 8125)
+# :statsd:
+#
+# This section contains the connection information required to store
+# historical data via statsd.  This is mutually exclusive with graphite
+# and takes precedence.
+#
+# Available configuration parameters:
+#
+#   - server
+#     The FQDN hostname of the statsd daemon.
+#     (required)
+#
+#   - prefix
+#     The prefix to use while storing statsd data.
+#     (optional; default: 'vmpooler')
+#
+#   - port
+#     The UDP port to communicate with the statsd daemon.
+#     (optional; default: 8125)
 
-  # Example:
+# Example:
 
-  :statsd:
-    server: 'statsd.company.com'
-    prefix: 'vmpooler'
-    port: 8125
+:statsd:
+  server: 'statsd.company.com'
+  prefix: 'vmpooler'
+  port: 8125
 
 # :graphite:
 #
@@ -309,7 +316,7 @@
 #     (optional; default: same cluster/host as origin template)
 #
 #   - task_limit
-#     The number of concurrent VMware vSphere tasks to perform.
+#     The number of concurrent VM creation tasks to perform.
 #     (optional; default: '10')
 #
 #   - timeout
@@ -341,21 +348,23 @@
 #
 #   - migration_limit
 #     When set to any value greater than 0 enable VM migration at checkout.
-#     When enabled this capability will evaluate a VM for migration when it is requested
+#     When enabled this capability will evaluate a VM for migration to a different host when it is requested
 #     in an effort to maintain a more even distribution of load across compute resources.
-#     The migration_limit ensures that no more than n migrations will be evaluated at any one time
+#     The migration_limit ensures that no more than the specified migrations will be evaluated at any one time
 #     and greatly reduces the possibilty of VMs ending up bunched together on a particular host.
 #
-#  - max_tries
-#    Set the max number of times a connection should retry in vsphere helper.
-#    This optional setting allows a user to dial in retry limits to
-#    suit your environment.
+#   - max_tries
+#     Set the max number of times a connection should retry in VM providers.
+#     This optional setting allows a user to dial in retry limits to
+#     suit your environment.
+#     (optional; default: 3)
 #
-#  - retry_factor
-#    When retrying, each attempt sleeps for the try count * retry_factor.
-#    Increase this number to lengthen the delay between retry attempts.
-#    This is particularly useful for instances with a large number of pools
-#    to prevent a thundering herd when retrying connections.
+#   - retry_factor
+#     When retrying, each attempt sleeps for the try count * retry_factor.
+#     Increase this number to lengthen the delay between retry attempts.
+#     This is particularly useful for instances with a large number of pools
+#     to prevent a thundering herd when retrying connections.
+#     (optional; default: 10)
 
 # Example:
 
@@ -392,17 +401,14 @@
 #     The template or virtual machine target to spawn clones from.
 #     (required)
 #
-#   - folder
-#     The vSphere 'folder' destination for spawned clones.
-#     (required)
-#
-#   - datastore
-#     The vSphere 'datastore' destination for spawned clones.
-#     (required)
-#
 #   - size
 #     The number of waiting VMs to keep in a pool.
 #     (required)
+#
+#   - provider
+#     The name of the VM provider which manage this pool.  This should match
+#     a name in the :providers: section above e.g. vsphere
+#     (required; will default to vsphere for backwards compatibility)
 #
 #   - clone_target
 #     Per-pool option to override the global 'clone_target' cluster.
@@ -415,8 +421,18 @@
 #
 #   - ready_ttl
 #     How long (in minutes) to keep VMs in 'ready' queues before destroying.
-#     (optional)
-
+#     (optional; default: no limit)
+#
+#   Provider specific pool settings
+#     vSphere provider
+#     - folder
+#       The vSphere 'folder' destination for spawned clones.
+#       (required)
+#
+#     - datastore
+#       The vSphere 'datastore' destination for spawned clones.
+#       (required)
+#
 # Example:
 
 :pools:
@@ -428,6 +444,7 @@
     size: 5
     timeout: 15
     ready_ttl: 1440
+    provider: vsphere
   - name: 'debian-7-x86_64'
     alias: [ 'debian-7-64', 'debian-7-amd64' ]
     template: 'Templates/debian-7-x86_64'
@@ -436,3 +453,4 @@
     size: 5
     timeout: 15
     ready_ttl: 1440
+    provider: vsphere

@@ -2,12 +2,6 @@ module Vmpooler
   class PoolManager
     class Provider
       class VSphere < Vmpooler::PoolManager::Provider::Base
-        def initialize(config, logger, metrics, name, options)
-          super(config, logger, metrics, name, options)
-          @credentials = provider_config
-          @conf = global_config[:config]
-        end
-
         def name
           'vsphere'
         end
@@ -239,12 +233,6 @@ module Vmpooler
           true
         end
 
-        def provider_config
-          # The vSphere configuration is currently in it's own root.  This will
-          # eventually shift into the same location base expects it
-          global_config[:vsphere]
-        end
-
         # VSphere Helper methods
 
         def get_target_cluster_from_config(pool_name)
@@ -279,21 +267,21 @@ module Vmpooler
           begin
             @connection.serviceInstance.CurrentTime
           rescue
-            @connection = connect_to_vsphere @credentials
+            @connection = connect_to_vsphere
           end
 
           @connection
         end
 
-        def connect_to_vsphere(credentials)
-          max_tries = @conf['max_tries'] || 3
-          retry_factor = @conf['retry_factor'] || 10
+        def connect_to_vsphere
+          max_tries = global_config[:config]['max_tries'] || 3
+          retry_factor = global_config[:config]['retry_factor'] || 10
           try = 1
           begin
-            connection = RbVmomi::VIM.connect host: credentials['server'],
-                                              user: credentials['username'],
-                                              password: credentials['password'],
-                                              insecure: credentials['insecure'] || true
+            connection = RbVmomi::VIM.connect host: provider_config['server'],
+                                              user: provider_config['username'],
+                                              password: provider_config['password'],
+                                              insecure: provider_config['insecure'] || true
             metrics.increment('connect.open')
             return connection
           rescue => err

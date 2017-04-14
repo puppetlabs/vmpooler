@@ -47,11 +47,12 @@ describe 'Vmpooler::PoolManager::Provider::VSphere' do
 :config:
   max_tries: 3
   retry_factor: 10
-:vsphere:
-  server: "vcenter.domain.local"
-  username: "vcenter_user"
-  password: "vcenter_password"
-  insecure: true
+:providers:
+  :vsphere:
+    server: "vcenter.domain.local"
+    username: "vcenter_user"
+    password: "vcenter_password"
+    insecure: true
 :pools:
   - name: '#{poolname}'
     alias: [ 'mockpool' ]
@@ -65,8 +66,6 @@ describe 'Vmpooler::PoolManager::Provider::VSphere' do
 EOT
     )
   }
-
-  let(:credentials) { config[:vsphere] }
 
   let(:connection_options) {{}}
   let(:connection) { mock_RbVmomi_VIM_Connection(connection_options) }
@@ -912,14 +911,14 @@ EOT
 
       it 'should call connect_to_vsphere to reconnect' do
         allow(metrics).to receive(:increment)
-        expect(subject).to receive(:connect_to_vsphere).with(credentials)
+        expect(subject).to receive(:connect_to_vsphere).with(no_args)
 
         subject.get_connection()
       end
 
       it 'should return a new connection' do
         new_connection = mock_RbVmomi_VIM_Connection(connection_options)
-        expect(subject).to receive(:connect_to_vsphere).with(credentials).and_return(new_connection)
+        expect(subject).to receive(:connect_to_vsphere).with(no_args).and_return(new_connection)
 
         result = subject.get_connection()
 
@@ -933,6 +932,8 @@ EOT
       allow(RbVmomi::VIM).to receive(:connect).and_return(connection)
     end
 
+    let (:credentials) { config[:providers][:vsphere] }
+
     context 'succesful connection' do
       it 'should use the supplied credentials' do
         expect(RbVmomi::VIM).to receive(:connect).with({
@@ -941,7 +942,7 @@ EOT
           :password => credentials['password'],
           :insecure => credentials['insecure']
         }).and_return(connection)
-        subject.connect_to_vsphere(credentials)
+        subject.connect_to_vsphere
       end
 
       it 'should honor the insecure setting' do
@@ -954,11 +955,11 @@ EOT
           :password => credentials['password'],
           :insecure => false,
         }).and_return(connection)
-        subject.connect_to_vsphere(credentials)
+        subject.connect_to_vsphere
       end
 
       it 'should default to an insecure connection' do
-        config[:vsphere][:insecure] = nil
+        config[:providers][:vsphere][:insecure] = nil
 
         expect(RbVmomi::VIM).to receive(:connect).with({
           :host     => credentials['server'],
@@ -967,18 +968,18 @@ EOT
           :insecure => true
         }).and_return(connection)
 
-        subject.connect_to_vsphere(credentials)
+        subject.connect_to_vsphere
       end
 
       it 'should return the connection object' do
-        result = subject.connect_to_vsphere(credentials)
+        result = subject.connect_to_vsphere
 
         expect(result).to be(connection)
       end
 
       it 'should increment the connect.open counter' do
         expect(metrics).to receive(:increment).with('connect.open')
-        subject.connect_to_vsphere(credentials)
+        subject.connect_to_vsphere
       end
     end
 
@@ -992,7 +993,7 @@ EOT
       end
 
       it 'should return the connection object' do
-        result = subject.connect_to_vsphere(credentials)
+        result = subject.connect_to_vsphere
 
         expect(result).to be(connection)
       end
@@ -1000,7 +1001,7 @@ EOT
       it 'should increment the connect.fail and then connect.open counter' do
         expect(metrics).to receive(:increment).with('connect.fail').exactly(1).times
         expect(metrics).to receive(:increment).with('connect.open').exactly(1).times
-        subject.connect_to_vsphere(credentials)
+        subject.connect_to_vsphere
       end
     end
 
@@ -1011,7 +1012,7 @@ EOT
       end
 
       it 'should raise an error' do
-        expect{subject.connect_to_vsphere(credentials)}.to raise_error(RuntimeError,'MockError')
+        expect{subject.connect_to_vsphere}.to raise_error(RuntimeError,'MockError')
       end
 
       it 'should retry the connection attempt config.max_tries times' do
@@ -1020,7 +1021,7 @@ EOT
 
         begin
           # Swallow any errors
-          subject.connect_to_vsphere(credentials)
+          subject.connect_to_vsphere
         rescue
         end
       end
@@ -1031,7 +1032,7 @@ EOT
 
         begin
           # Swallow any errors
-          subject.connect_to_vsphere(credentials)
+          subject.connect_to_vsphere
         rescue
         end
       end
@@ -1051,7 +1052,7 @@ EOT
 
             begin
               # Swallow any errors
-              subject.connect_to_vsphere(credentials)
+              subject.connect_to_vsphere
             rescue
             end
           end
