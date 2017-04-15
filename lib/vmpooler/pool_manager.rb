@@ -601,7 +601,7 @@ module Vmpooler
 
       $providers[slot] ||= Vmpooler::VsphereHelper.new $config, $metrics
 
-      $threads[slot] = Thread.new do
+      $threads[pool['name']] = Thread.new do
         _check_pool(pool, $providers[slot])
       end
     rescue => err
