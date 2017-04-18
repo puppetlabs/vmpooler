@@ -53,6 +53,8 @@ describe 'Vmpooler::PoolManager::Provider::VSphere' do
     username: "vcenter_user"
     password: "vcenter_password"
     insecure: true
+    # Drop the connection pool timeout way down for spec tests so they fail fast
+    connection_pool_timeout: 1
 :pools:
   - name: '#{poolname}'
     alias: [ 'mockpool' ]
@@ -84,7 +86,7 @@ EOT
     let(:pool_config) { config[:pools][0] }
 
     before(:each) do
-      allow(subject).to receive(:get_connection).and_return(connection)
+      allow(subject).to receive(:connect_to_vsphere).and_return(connection)
     end
 
     context 'Given a pool folder that is missing' do
@@ -93,7 +95,7 @@ EOT
       end
 
       it 'should get a connection' do
-        expect(subject).to receive(:get_connection).and_return(connection)
+        expect(subject).to receive(:connect_to_vsphere).and_return(connection)
 
         subject.vms_in_pool(poolname)
       end
@@ -111,7 +113,7 @@ EOT
       end
 
       it 'should get a connection' do
-        expect(subject).to receive(:get_connection).and_return(connection)
+        expect(subject).to receive(:connect_to_vsphere).and_return(connection)
 
         subject.vms_in_pool(poolname)
       end
@@ -140,7 +142,7 @@ EOT
       end
 
       it 'should get a connection' do
-        expect(subject).to receive(:get_connection).and_return(connection)
+        expect(subject).to receive(:connect_to_vsphere).and_return(connection)
 
         subject.vms_in_pool(poolname)
       end
@@ -155,7 +157,7 @@ EOT
 
   describe '#get_vm_host' do
     before(:each) do
-      allow(subject).to receive(:get_connection).and_return(connection)
+      allow(subject).to receive(:connect_to_vsphere).and_return(connection)
       expect(subject).to receive(:find_vm).with(vmname,connection).and_return(vm_object)
     end
 
@@ -163,7 +165,7 @@ EOT
       let(:vm_object) { nil }
 
       it 'should get a connection' do
-        expect(subject).to receive(:get_connection).and_return(connection)
+        expect(subject).to receive(:connect_to_vsphere).and_return(connection)
 
         subject.get_vm_host(poolname,vmname)
       end
@@ -185,7 +187,7 @@ EOT
       end
 
       it 'should get a connection' do
-        expect(subject).to receive(:get_connection).and_return(connection)
+        expect(subject).to receive(:connect_to_vsphere).and_return(connection)
 
         subject.get_vm_host(poolname,vmname)
       end
@@ -208,7 +210,7 @@ EOT
       end
 
       it 'should get a connection' do
-        expect(subject).to receive(:get_connection).and_return(connection)
+        expect(subject).to receive(:connect_to_vsphere).and_return(connection)
 
         subject.get_vm_host(poolname,vmname)
       end
@@ -223,7 +225,7 @@ EOT
     let(:vm_object) { nil }
 
     before(:each) do
-      allow(subject).to receive(:get_connection).and_return(connection)
+      allow(subject).to receive(:connect_to_vsphere).and_return(connection)
       expect(subject).to receive(:find_vm).with(vmname,connection).and_return(vm_object)
     end
 
@@ -231,7 +233,7 @@ EOT
       let(:vm_object) { nil }
 
       it 'should get a connection' do
-        expect(subject).to receive(:get_connection).and_return(connection)
+        expect(subject).to receive(:connect_to_vsphere).and_return(connection)
 
         subject.find_least_used_compatible_host(poolname,vmname)
       end
@@ -250,7 +252,7 @@ EOT
       end
 
       it 'should get a connection' do
-        expect(subject).to receive(:get_connection).and_return(connection)
+        expect(subject).to receive(:connect_to_vsphere).and_return(connection)
 
         subject.find_least_used_compatible_host(poolname,vmname)
       end
@@ -272,7 +274,7 @@ EOT
       end
 
       it 'should get a connection' do
-        expect(subject).to receive(:get_connection).and_return(connection)
+        expect(subject).to receive(:connect_to_vsphere).and_return(connection)
 
         subject.find_least_used_compatible_host(poolname,vmname)
       end
@@ -293,7 +295,7 @@ EOT
 
     before(:each) do
       config[:pools][0]['clone_target'] = cluster_name
-      allow(subject).to receive(:get_connection).and_return(connection)
+      allow(subject).to receive(:connect_to_vsphere).and_return(connection)
       allow(subject).to receive(:find_vm).and_return(vm_object)
     end
 
@@ -389,7 +391,7 @@ EOT
   describe '#get_vm' do
     let(:vm_object) { nil }
     before(:each) do
-      allow(subject).to receive(:get_connection).and_return(connection)
+      allow(subject).to receive(:connect_to_vsphere).and_return(connection)
       expect(subject).to receive(:find_vm).with(vmname,connection).and_return(vm_object)
     end
 
@@ -510,7 +512,7 @@ EOT
     let(:new_vm_object)  { mock_RbVmomi_VIM_VirtualMachine({ :name => vmname }) }
 
     before(:each) do
-      allow(subject).to receive(:get_connection).and_return(connection)
+      allow(subject).to receive(:connect_to_vsphere).and_return(connection)
       allow(connection.serviceInstance).to receive(:find_datacenter).and_return(datacenter_object)
     end
 
@@ -585,7 +587,7 @@ EOT
     let(:datastorename) { 'datastore0' }
     let(:disk_size) { 10 }
     before(:each) do
-      allow(subject).to receive(:get_connection).and_return(connection)
+      allow(subject).to receive(:connect_to_vsphere).and_return(connection)
       allow(subject).to receive(:find_vm).with(vmname, connection).and_return(vm_object)
     end
 
@@ -643,7 +645,7 @@ EOT
     let(:vm_object) { mock_RbVmomi_VIM_VirtualMachine({ :name => vmname, :snapshot_tree => snapshot_tree }) }
 
     before(:each) do
-      allow(subject).to receive(:get_connection).and_return(connection)
+      allow(subject).to receive(:connect_to_vsphere).and_return(connection)
       allow(subject).to receive(:find_vm).with(vmname,connection).and_return(vm_object)
     end
 
@@ -698,7 +700,7 @@ EOT
     let(:vm_object) { mock_RbVmomi_VIM_VirtualMachine({ :name => vmname, :snapshot_tree => snapshot_tree }) }
 
     before(:each) do
-      allow(subject).to receive(:get_connection).and_return(connection)
+      allow(subject).to receive(:connect_to_vsphere).and_return(connection)
       allow(subject).to receive(:find_vm).with(vmname,connection).and_return(vm_object)
     end
 
@@ -747,7 +749,7 @@ EOT
     let(:destroy_task) { mock_RbVmomi_VIM_Task() }
 
     before(:each) do
-      allow(subject).to receive(:get_connection).and_return(connection)
+      allow(subject).to receive(:connect_to_vsphere).and_return(connection)
     end
 
     context 'Given a missing VM name' do
@@ -876,57 +878,6 @@ EOT
   end
 
   # vSphere helper methods
-  describe '#get_connection' do
-    before(:each) do
-      # NOTE - Using instance_variable_set is a code smell of code that is not testable
-      subject.instance_variable_set("@connection",connection)
-    end
-
-    context 'when connection is ok' do
-      it 'should not attempt to reconnect' do
-        expect(subject).to receive(:connect_to_vsphere).exactly(0).times
-
-        subject.get_connection()
-      end
-
-      it 'should return a connection' do
-        result = subject.get_connection()
-
-        expect(result).to be(connection)
-      end
-    end
-
-    context 'when connection has broken' do
-      before(:each) do
-        expect(connection.serviceInstance).to receive(:CurrentTime).and_raise(RuntimeError,'MockConnectionError')
-      end
-
-      it 'should not increment the connect.open metric' do
-        # https://github.com/puppetlabs/vmpooler/issues/195
-        expect(metrics).to receive(:increment).with('connect.open').exactly(0).times
-        allow(subject).to receive(:connect_to_vsphere)
-
-        subject.get_connection()
-      end
-
-      it 'should call connect_to_vsphere to reconnect' do
-        allow(metrics).to receive(:increment)
-        expect(subject).to receive(:connect_to_vsphere).with(no_args)
-
-        subject.get_connection()
-      end
-
-      it 'should return a new connection' do
-        new_connection = mock_RbVmomi_VIM_Connection(connection_options)
-        expect(subject).to receive(:connect_to_vsphere).with(no_args).and_return(new_connection)
-
-        result = subject.get_connection()
-
-        expect(result).to be(new_connection)
-      end
-    end
-  end
-
   describe '#connect_to_vsphere' do
     before(:each) do
       allow(RbVmomi::VIM).to receive(:connect).and_return(connection)
@@ -2826,32 +2777,6 @@ EOT
       expect(relocate_task).to receive(:wait_for_completion).and_return('RELOCATE_RESULT')
 
       expect(subject.migrate_vm_host(vm_object,host_object)).to eq('RELOCATE_RESULT')
-    end
-  end
-
-  describe '#close' do
-    context 'no connection has been made' do
-      before(:each) do
-        # NOTE - Using instance_variable_set is a code smell of code that is not testable
-        subject.instance_variable_set("@connection",nil)
-      end
-
-      it 'should not error' do
-        pending('https://github.com/puppetlabs/vmpooler/issues/211')
-        subject.close
-      end
-    end
-
-    context 'on an open connection' do
-      before(:each) do
-        # NOTE - Using instance_variable_set is a code smell of code that is not testable
-        subject.instance_variable_set("@connection",connection)
-      end
-
-      it 'should close the underlying connection object' do
-        expect(connection).to receive(:close)
-        subject.close
-      end
     end
   end
 end
