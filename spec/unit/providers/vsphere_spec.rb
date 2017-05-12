@@ -75,6 +75,10 @@ EOT
 
   subject { Vmpooler::PoolManager::Provider::VSphere.new(config, logger, metrics, 'vsphere', provider_options) }
 
+  before(:each) do
+    allow(subject).to receive(:vsphere_connection_ok?).and_return(true)
+  end
+
   describe '#name' do
     it 'should be vsphere' do
       expect(subject.name).to eq('vsphere')
@@ -878,6 +882,69 @@ EOT
   end
 
   # vSphere helper methods
+  describe '#ensured_vsphere_connection' do
+    let(:config) { YAML.load(<<-EOT
+---
+:config:
+:providers:
+  :vsphere:
+    # Drop the connection pool timeout way down for spec tests so they fail fast
+    connection_pool_timeout: 1
+    connection_pool_size: 1
+:pools:
+EOT
+      )
+    }
+    let(:connection1) { mock_RbVmomi_VIM_Connection(connection_options) }
+    let(:connection2) { mock_RbVmomi_VIM_Connection(connection_options) }
+
+    before(:each) do
+      allow(subject).to receive(:connect_to_vsphere).and_return(connection1)
+    end
+
+    # This is to ensure that the pool_size of 1 is in effect
+    it 'should return the same connection object when calling the pool multiple times' do
+      subject.connection_pool.with_metrics do |pool_object|
+        expect(pool_object[:connection]).to be(connection1)
+      end
+      subject.connection_pool.with_metrics do |pool_object|
+        expect(pool_object[:connection]).to be(connection1)
+      end
+      subject.connection_pool.with_metrics do |pool_object|
+        expect(pool_object[:connection]).to be(connection1)
+      end
+    end
+
+    context 'when the connection breaks' do
+      before(:each) do
+        # Emulate the connection state being good, then bad, then good again
+        expect(subject).to receive(:vsphere_connection_ok?).and_return(true, false, true)
+        expect(subject).to receive(:connect_to_vsphere).and_return(connection1, connection2)
+      end
+
+      it 'should restore the connection' do
+        subject.connection_pool.with_metrics do |pool_object|
+          # This line needs to be added to all instances of the connection_pool allocation
+          connection = subject.ensured_vsphere_connection(pool_object)
+
+          expect(connection).to be(connection1)
+        end
+
+        subject.connection_pool.with_metrics do |pool_object|
+          connection = subject.ensured_vsphere_connection(pool_object)
+          # The second connection would have failed.  This test ensures that a
+          # new connection object was created.
+          expect(connection).to be(connection2)
+        end
+
+        subject.connection_pool.with_metrics do |pool_object|
+          connection = subject.ensured_vsphere_connection(pool_object)
+          expect(connection).to be(connection2)
+        end
+      end
+    end
+  end
+
   describe '#connect_to_vsphere' do
     before(:each) do
       allow(RbVmomi::VIM).to receive(:connect).and_return(connection)

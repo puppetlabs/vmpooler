@@ -16,6 +16,47 @@ describe 'GenericConnectionPool' do
             ) { connection_object }
   }
 
+  describe "When consuming a pool object" do
+    let(:pool_size) { 1 }
+    let(:pool_timeout) { 1 }
+    let(:connection_object) {{
+      connection: 'connection'
+    }}
+
+    it 'should return a connection object when grabbing one from the pool' do
+      subject.with_metrics do |conn_pool_object|
+        expect(conn_pool_object).to be(connection_object)
+      end
+    end
+
+    it 'should return the same connection object when calling the pool multiple times' do
+      subject.with_metrics do |conn_pool_object|
+        expect(conn_pool_object).to be(connection_object)
+      end
+      subject.with_metrics do |conn_pool_object|
+        expect(conn_pool_object).to be(connection_object)
+      end
+      subject.with_metrics do |conn_pool_object|
+        expect(conn_pool_object).to be(connection_object)
+      end
+    end
+
+    it 'should preserve connection state across mulitple pool calls' do
+      new_connection = 'new_connection'
+      # Ensure the connection is not modified
+      subject.with_metrics do |conn_pool_object|
+        expect(conn_pool_object).to be(connection_object)
+        expect(conn_pool_object[:connection]).to_not eq(new_connection)
+        # Change the connection
+        conn_pool_object[:connection] = new_connection
+      end
+      # Ensure the connection is modified
+      subject.with_metrics do |conn_pool_object|
+        expect(conn_pool_object).to be(connection_object)
+        expect(conn_pool_object[:connection]).to eq(new_connection)
+      end
+    end
+  end
 
   describe "#with_metrics" do
     before(:each) do

@@ -2,6 +2,9 @@ module Vmpooler
   class PoolManager
     class Provider
       class VSphere < Vmpooler::PoolManager::Provider::Base
+        # The connection_pool method is normally used only for testing
+        attr_reader :connection_pool
+
         def initialize(config, logger, metrics, name, options)
           super(config, logger, metrics, name, options)
 
@@ -23,9 +26,12 @@ module Vmpooler
             timeout: connpool_timeout
           ) do
             logger.log('d', "[#{name}] Connection Pool - Creating a connection object")
+            # Need to wrap the vSphere connection object in another object. The generic connection pooler will preserve
+            # the object reference for the connection, which means it cannot "reconnect" by creating an entirely new connection
+            # object.  Instead by wrapping it in a Hash, the Hash object reference itself never changes but the content of the
+            # Hash can change, and is preserved across invocations.
             new_conn = connect_to_vsphere
-
-            new_conn
+            { connection: new_conn }
           end
         end
 
@@ -35,7 +41,8 @@ module Vmpooler
 
         def vms_in_pool(pool_name)
           vms = []
-          @connection_pool.with_metrics do |connection|
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool_object)
             foldername = pool_config(pool_name)['folder']
             folder_object = find_folder(foldername, connection)
 
@@ -51,7 +58,8 @@ module Vmpooler
         def get_vm_host(_pool_name, vm_name)
           host_name = nil
 
-          @connection_pool.with_metrics do |connection|
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool_object)
             vm_object = find_vm(vm_name, connection)
             return host_name if vm_object.nil?
 
@@ -62,7 +70,8 @@ module Vmpooler
 
         def find_least_used_compatible_host(_pool_name, vm_name)
           hostname = nil
-          @connection_pool.with_metrics do |connection|
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool_object)
             vm_object = find_vm(vm_name, connection)
 
             return hostname if vm_object.nil?
@@ -78,7 +87,8 @@ module Vmpooler
           pool = pool_config(pool_name)
           raise("Pool #{pool_name} does not exist for the provider #{name}") if pool.nil?
 
-          @connection_pool.with_metrics do |connection|
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool_object)
             vm_object = find_vm(vm_name, connection)
             raise("VM #{vm_name} does not exist in Pool #{pool_name} for the provider #{name}") if vm_object.nil?
 
@@ -99,7 +109,8 @@ module Vmpooler
 
         def get_vm(_pool_name, vm_name)
           vm_hash = nil
-          @connection_pool.with_metrics do |connection|
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool_object)
             vm_object = find_vm(vm_name, connection)
             return vm_hash if vm_object.nil?
 
@@ -123,7 +134,8 @@ module Vmpooler
           pool = pool_config(pool_name)
           raise("Pool #{pool_name} does not exist for the provider #{name}") if pool.nil?
           vm_hash = nil
-          @connection_pool.with_metrics do |connection|
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool_object)
             # Assume all pool config is valid i.e. not missing
             template_path = pool['template']
             target_folder_path = pool['folder']
@@ -193,7 +205,8 @@ module Vmpooler
           datastore_name = pool['datastore']
           raise("Pool #{pool_name} does not have a datastore defined for the provider #{name}") if datastore_name.nil?
 
-          @connection_pool.with_metrics do |connection|
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool_object)
             vm_object = find_vm(vm_name, connection)
             raise("VM #{vm_name} in pool #{pool_name} does not exist for the provider #{name}") if vm_object.nil?
 
@@ -203,7 +216,8 @@ module Vmpooler
         end
 
         def create_snapshot(pool_name, vm_name, new_snapshot_name)
-          @connection_pool.with_metrics do |connection|
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool_object)
             vm_object = find_vm(vm_name, connection)
             raise("VM #{vm_name} in pool #{pool_name} does not exist for the provider #{name}") if vm_object.nil?
 
@@ -221,7 +235,8 @@ module Vmpooler
         end
 
         def revert_snapshot(pool_name, vm_name, snapshot_name)
-          @connection_pool.with_metrics do |connection|
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool_object)
             vm_object = find_vm(vm_name, connection)
             raise("VM #{vm_name} in pool #{pool_name} does not exist for the provider #{name}") if vm_object.nil?
 
@@ -234,7 +249,8 @@ module Vmpooler
         end
 
         def destroy_vm(_pool_name, vm_name)
-          @connection_pool.with_metrics do |connection|
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool_object)
             vm_object = find_vm(vm_name, connection)
             # If a VM doesn't exist then it is effectively deleted
             return true if vm_object.nil?
@@ -287,6 +303,18 @@ module Vmpooler
         ADAPTER_TYPE = 'lsiLogic'.freeze
         DISK_TYPE = 'thin'.freeze
         DISK_MODE = 'persistent'.freeze
+
+        def ensured_vsphere_connection(connection_pool_object)
+          connection_pool_object[:connection] = connect_to_vsphere unless vsphere_connection_ok?(connection_pool_object[:connection])
+          connection_pool_object[:connection]
+        end
+
+        def vsphere_connection_ok?(connection)
+          _result = connection.serviceInstance.CurrentTime
+          return true
+        rescue
+          return false
+        end
 
         def connect_to_vsphere
           max_tries = global_config[:config]['max_tries'] || 3
