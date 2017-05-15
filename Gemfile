@@ -7,7 +7,9 @@ else
 end
 
 gem 'puma', '>= 3.6.0'
-gem 'rack', '>= 1.6'
+# Rack 2.x requires ruby 2.2 or above.
+# As VMPooler should work in older jruby, we need to be Ruby 1.9.3 compatible.
+gem 'rack', '~> 1.6'
 gem 'rake', '>= 10.4'
 gem 'rbvmomi', '>= 1.8'
 gem 'redis', '>= 3.2'
