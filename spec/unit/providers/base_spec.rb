@@ -84,7 +84,7 @@ EOT
       )
     }
 
-    context 'Given a misconfigured provider name' do
+    context 'Given a provider with no configuration' do
     let(:config) { YAML.load(<<-EOT
 ---
 :providers:
@@ -94,8 +94,8 @@ EOT
 EOT
       )
     }
-      it 'should return nil' do
-        expect(subject.provider_config).to be_nil
+      it 'should return empty hash' do
+        expect(subject.provider_config).to eq({})
       end
     end
 
@@ -117,6 +117,26 @@ EOT
   describe '#name' do
     it "should come from the provider initialization" do
       expect(subject.name).to eq(provider_name)
+    end
+  end
+
+  describe '#provided_pools' do
+    let(:config) { YAML.load(<<-EOT
+---
+:pools:
+  - name: 'pool1'
+    provider: 'base'
+  - name: 'pool2'
+    provider: 'base'
+  - name: 'otherpool'
+    provider: 'other provider'
+  - name: 'no name'
+EOT
+      )
+    }
+
+    it "should return pools serviced by this provider" do
+      expect(subject.provided_pools).to eq(['pool1','pool2'])
     end
   end
 

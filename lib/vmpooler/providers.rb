@@ -1,4 +1,4 @@
-%w(base vsphere).each do |lib|
+%w[base dummy vsphere].each do |lib|
   begin
     require "vmpooler/providers/#{lib}"
   rescue LoadError

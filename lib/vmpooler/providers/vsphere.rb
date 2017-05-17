@@ -2,10 +2,37 @@ module Vmpooler
   class PoolManager
     class Provider
       class VSphere < Vmpooler::PoolManager::Provider::Base
+        # The connection_pool method is normally used only for testing
+        attr_reader :connection_pool
+
         def initialize(config, logger, metrics, name, options)
           super(config, logger, metrics, name, options)
-          @credentials = provider_config
-          @conf = global_config[:config]
+
+          task_limit = global_config[:config].nil? || global_config[:config]['task_limit'].nil? ? 10 : global_config[:config]['task_limit'].to_i
+          # The default connection pool size is:
+          # Whatever is biggest from:
+          #   - How many pools this provider services
+          #   - Maximum number of cloning tasks allowed
+          #   - Need at least 2 connections so that a pool can have inventory functions performed while cloning etc.
+          default_connpool_size = [provided_pools.count, task_limit, 2].max
+          connpool_size = provider_config['connection_pool_size'].nil? ? default_connpool_size : provider_config['connection_pool_size'].to_i
+          # The default connection pool timeout should be quite large - 60 seconds
+          connpool_timeout = provider_config['connection_pool_timeout'].nil? ? 60 : provider_config['connection_pool_timeout'].to_i
+          logger.log('d', "[#{name}] ConnPool - Creating a connection pool of size #{connpool_size} with timeout #{connpool_timeout}")
+          @connection_pool = Vmpooler::PoolManager::GenericConnectionPool.new(
+            metrics: metrics,
+            metric_prefix: "#{name}_provider_connection_pool",
+            size: connpool_size,
+            timeout: connpool_timeout
+          ) do
+            logger.log('d', "[#{name}] Connection Pool - Creating a connection object")
+            # Need to wrap the vSphere connection object in another object. The generic connection pooler will preserve
+            # the object reference for the connection, which means it cannot "reconnect" by creating an entirely new connection
+            # object.  Instead by wrapping it in a Hash, the Hash object reference itself never changes but the content of the
+            # Hash can change, and is preserved across invocations.
+            new_conn = connect_to_vsphere
+            { connection: new_conn }
+          end
         end
 
         def name
@@ -13,154 +40,162 @@ module Vmpooler
         end
 
         def vms_in_pool(pool_name)
-          connection = get_connection
-
-          foldername = pool_config(pool_name)['folder']
-          folder_object = find_folder(foldername, connection)
-
           vms = []
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool_object)
+            foldername = pool_config(pool_name)['folder']
+            folder_object = find_folder(foldername, connection)
 
-          return vms if folder_object.nil?
+            return vms if folder_object.nil?
 
-          folder_object.childEntity.each do |vm|
-            vms << { 'name' => vm.name }
+            folder_object.childEntity.each do |vm|
+              vms << { 'name' => vm.name }
+            end
           end
-
           vms
         end
 
         def get_vm_host(_pool_name, vm_name)
-          connection = get_connection
-
-          vm_object = find_vm(vm_name, connection)
-          return nil if vm_object.nil?
-
           host_name = nil
-          host_name = vm_object.summary.runtime.host.name if vm_object.summary && vm_object.summary.runtime && vm_object.summary.runtime.host
 
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool_object)
+            vm_object = find_vm(vm_name, connection)
+            return host_name if vm_object.nil?
+
+            host_name = vm_object.summary.runtime.host.name if vm_object.summary && vm_object.summary.runtime && vm_object.summary.runtime.host
+          end
           host_name
         end
 
         def find_least_used_compatible_host(_pool_name, vm_name)
-          connection = get_connection
+          hostname = nil
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool_object)
+            vm_object = find_vm(vm_name, connection)
 
-          vm_object = find_vm(vm_name, connection)
+            return hostname if vm_object.nil?
+            host_object = find_least_used_vpshere_compatible_host(vm_object)
 
-          return nil if vm_object.nil?
-          host_object = find_least_used_vpshere_compatible_host(vm_object)
-
-          return nil if host_object.nil?
-          host_object[0].name
+            return hostname if host_object.nil?
+            hostname = host_object[0].name
+          end
+          hostname
         end
 
         def migrate_vm_to_host(pool_name, vm_name, dest_host_name)
           pool = pool_config(pool_name)
           raise("Pool #{pool_name} does not exist for the provider #{name}") if pool.nil?
 
-          connection = get_connection
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool_object)
+            vm_object = find_vm(vm_name, connection)
+            raise("VM #{vm_name} does not exist in Pool #{pool_name} for the provider #{name}") if vm_object.nil?
 
-          vm_object = find_vm(vm_name, connection)
-          raise("VM #{vm_name} does not exist in Pool #{pool_name} for the provider #{name}") if vm_object.nil?
+            target_cluster_name = get_target_cluster_from_config(pool_name)
+            cluster = find_cluster(target_cluster_name, connection)
+            raise("Pool #{pool_name} specifies cluster #{target_cluster_name} which does not exist for the provider #{name}") if cluster.nil?
 
-          target_cluster_name = get_target_cluster_from_config(pool_name)
-          cluster = find_cluster(target_cluster_name, connection)
-          raise("Pool #{pool_name} specifies cluster #{target_cluster_name} which does not exist for the provider #{name}") if cluster.nil?
-
-          # Go through each host and initiate a migration when the correct host name is found
-          cluster.host.each do |host|
-            if host.name == dest_host_name
-              migrate_vm_host(vm_object, host)
-              return true
+            # Go through each host and initiate a migration when the correct host name is found
+            cluster.host.each do |host|
+              if host.name == dest_host_name
+                migrate_vm_host(vm_object, host)
+                return true
+              end
             end
           end
-
           false
         end
 
         def get_vm(_pool_name, vm_name)
-          connection = get_connection
+          vm_hash = nil
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool_object)
+            vm_object = find_vm(vm_name, connection)
+            return vm_hash if vm_object.nil?
 
-          vm_object = find_vm(vm_name, connection)
-          return nil if vm_object.nil?
-
-          vm_folder_path = get_vm_folder_path(vm_object)
-          # Find the pool name based on the folder path
-          pool_name = nil
-          template_name = nil
-          global_config[:pools].each do |pool|
-            if pool['folder'] == vm_folder_path
-              pool_name = pool['name']
-              template_name = pool['template']
+            vm_folder_path = get_vm_folder_path(vm_object)
+            # Find the pool name based on the folder path
+            pool_name = nil
+            template_name = nil
+            global_config[:pools].each do |pool|
+              if pool['folder'] == vm_folder_path
+                pool_name = pool['name']
+                template_name = pool['template']
+              end
             end
-          end
 
-          generate_vm_hash(vm_object, template_name, pool_name)
+            vm_hash = generate_vm_hash(vm_object, template_name, pool_name)
+          end
+          vm_hash
         end
 
         def create_vm(pool_name, new_vmname)
           pool = pool_config(pool_name)
           raise("Pool #{pool_name} does not exist for the provider #{name}") if pool.nil?
+          vm_hash = nil
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool_object)
+            # Assume all pool config is valid i.e. not missing
+            template_path = pool['template']
+            target_folder_path = pool['folder']
+            target_datastore = pool['datastore']
+            target_cluster_name = get_target_cluster_from_config(pool_name)
 
-          connection = get_connection
+            # Extract the template VM name from the full path
+            raise("Pool #{pool_name} did specify a full path for the template for the provider #{name}") unless template_path =~ /\//
+            templatefolders = template_path.split('/')
+            template_name = templatefolders.pop
 
-          # Assume all pool config is valid i.e. not missing
-          template_path = pool['template']
-          target_folder_path = pool['folder']
-          target_datastore = pool['datastore']
-          target_cluster_name = get_target_cluster_from_config(pool_name)
+            # Get the actual objects from vSphere
+            template_folder_object = find_folder(templatefolders.join('/'), connection)
+            raise("Pool #{pool_name} specifies a template folder of #{templatefolders.join('/')} which does not exist for the provider #{name}") if template_folder_object.nil?
 
-          # Extract the template VM name from the full path
-          raise("Pool #{pool_name} did specify a full path for the template for the provider #{name}") unless template_path =~ /\//
-          templatefolders = template_path.split('/')
-          template_name = templatefolders.pop
+            template_vm_object = template_folder_object.find(template_name)
+            raise("Pool #{pool_name} specifies a template VM of #{template_name} which does not exist for the provider #{name}") if template_vm_object.nil?
 
-          # Get the actual objects from vSphere
-          template_folder_object = find_folder(templatefolders.join('/'), connection)
-          raise("Pool #{pool_name} specifies a template folder of #{templatefolders.join('/')} which does not exist for the provider #{name}") if template_folder_object.nil?
+            # Annotate with creation time, origin template, etc.
+            # Add extraconfig options that can be queried by vmtools
+            config_spec = RbVmomi::VIM.VirtualMachineConfigSpec(
+              annotation: JSON.pretty_generate(
+                name: new_vmname,
+                created_by: provider_config['username'],
+                base_template: template_path,
+                creation_timestamp: Time.now.utc
+              ),
+              extraConfig: [
+                { key: 'guestinfo.hostname', value: new_vmname }
+              ]
+            )
 
-          template_vm_object = template_folder_object.find(template_name)
-          raise("Pool #{pool_name} specifies a template VM of #{template_name} which does not exist for the provider #{name}") if template_vm_object.nil?
+            # Choose a cluster/host to place the new VM on
+            target_host_object = find_least_used_host(target_cluster_name, connection)
 
-          # Annotate with creation time, origin template, etc.
-          # Add extraconfig options that can be queried by vmtools
-          config_spec = RbVmomi::VIM.VirtualMachineConfigSpec(
-            annotation: JSON.pretty_generate(
+            # Put the VM in the specified folder and resource pool
+            relocate_spec = RbVmomi::VIM.VirtualMachineRelocateSpec(
+              datastore: find_datastore(target_datastore, connection),
+              host: target_host_object,
+              diskMoveType: :moveChildMostDiskBacking
+            )
+
+            # Create a clone spec
+            clone_spec = RbVmomi::VIM.VirtualMachineCloneSpec(
+              location: relocate_spec,
+              config: config_spec,
+              powerOn: true,
+              template: false
+            )
+
+            # Create the new VM
+            new_vm_object = template_vm_object.CloneVM_Task(
+              folder: find_folder(target_folder_path, connection),
               name: new_vmname,
-              created_by: provider_config['username'],
-              base_template: template_path,
-              creation_timestamp: Time.now.utc
-            ),
-            extraConfig: [
-              { key: 'guestinfo.hostname', value: new_vmname }
-            ]
-          )
+              spec: clone_spec
+            ).wait_for_completion
 
-          # Choose a cluster/host to place the new VM on
-          target_host_object = find_least_used_host(target_cluster_name, connection)
-
-          # Put the VM in the specified folder and resource pool
-          relocate_spec = RbVmomi::VIM.VirtualMachineRelocateSpec(
-            datastore: find_datastore(target_datastore, connection),
-            host: target_host_object,
-            diskMoveType: :moveChildMostDiskBacking
-          )
-
-          # Create a clone spec
-          clone_spec = RbVmomi::VIM.VirtualMachineCloneSpec(
-            location: relocate_spec,
-            config: config_spec,
-            powerOn: true,
-            template: false
-          )
-
-          # Create the new VM
-          new_vm_object = template_vm_object.CloneVM_Task(
-            folder: find_folder(target_folder_path, connection),
-            name: new_vmname,
-            spec: clone_spec
-          ).wait_for_completion
-
-          generate_vm_hash(new_vm_object, template_path, pool_name)
+            vm_hash = generate_vm_hash(new_vm_object, template_path, pool_name)
+          end
+          vm_hash
         end
 
         def create_disk(pool_name, vm_name, disk_size)
@@ -170,62 +205,62 @@ module Vmpooler
           datastore_name = pool['datastore']
           raise("Pool #{pool_name} does not have a datastore defined for the provider #{name}") if datastore_name.nil?
 
-          connection = get_connection
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool_object)
+            vm_object = find_vm(vm_name, connection)
+            raise("VM #{vm_name} in pool #{pool_name} does not exist for the provider #{name}") if vm_object.nil?
 
-          vm_object = find_vm(vm_name, connection)
-          raise("VM #{vm_name} in pool #{pool_name} does not exist for the provider #{name}") if vm_object.nil?
-
-          add_disk(vm_object, disk_size, datastore_name, connection)
-
+            add_disk(vm_object, disk_size, datastore_name, connection)
+          end
           true
         end
 
         def create_snapshot(pool_name, vm_name, new_snapshot_name)
-          connection = get_connection
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool_object)
+            vm_object = find_vm(vm_name, connection)
+            raise("VM #{vm_name} in pool #{pool_name} does not exist for the provider #{name}") if vm_object.nil?
 
-          vm_object = find_vm(vm_name, connection)
-          raise("VM #{vm_name} in pool #{pool_name} does not exist for the provider #{name}") if vm_object.nil?
+            old_snap = find_snapshot(vm_object, new_snapshot_name)
+            raise("Snapshot #{new_snapshot_name} for VM #{vm_name} in pool #{pool_name} already exists for the provider #{name}") unless old_snap.nil?
 
-          old_snap = find_snapshot(vm_object, new_snapshot_name)
-          raise("Snapshot #{new_snapshot_name} for VM #{vm_name} in pool #{pool_name} already exists for the provider #{name}") unless old_snap.nil?
-
-          vm_object.CreateSnapshot_Task(
-            name: new_snapshot_name,
-            description: 'vmpooler',
-            memory: true,
-            quiesce: true
-          ).wait_for_completion
-
+            vm_object.CreateSnapshot_Task(
+              name: new_snapshot_name,
+              description: 'vmpooler',
+              memory: true,
+              quiesce: true
+            ).wait_for_completion
+          end
           true
         end
 
         def revert_snapshot(pool_name, vm_name, snapshot_name)
-          connection = get_connection
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool_object)
+            vm_object = find_vm(vm_name, connection)
+            raise("VM #{vm_name} in pool #{pool_name} does not exist for the provider #{name}") if vm_object.nil?
 
-          vm_object = find_vm(vm_name, connection)
-          raise("VM #{vm_name} in pool #{pool_name} does not exist for the provider #{name}") if vm_object.nil?
+            snapshot_object = find_snapshot(vm_object, snapshot_name)
+            raise("Snapshot #{snapshot_name} for VM #{vm_name} in pool #{pool_name} does not exist for the provider #{name}") if snapshot_object.nil?
 
-          snapshot_object = find_snapshot(vm_object, snapshot_name)
-          raise("Snapshot #{snapshot_name} for VM #{vm_name} in pool #{pool_name} does not exist for the provider #{name}") if snapshot_object.nil?
-
-          snapshot_object.RevertToSnapshot_Task.wait_for_completion
-
+            snapshot_object.RevertToSnapshot_Task.wait_for_completion
+          end
           true
         end
 
         def destroy_vm(_pool_name, vm_name)
-          connection = get_connection
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool_object)
+            vm_object = find_vm(vm_name, connection)
+            # If a VM doesn't exist then it is effectively deleted
+            return true if vm_object.nil?
 
-          vm_object = find_vm(vm_name, connection)
-          # If a VM doesn't exist then it is effectively deleted
-          return true if vm_object.nil?
+            # Poweroff the VM if it's running
+            vm_object.PowerOffVM_Task.wait_for_completion if vm_object.runtime && vm_object.runtime.powerState && vm_object.runtime.powerState == 'poweredOn'
 
-          # Poweroff the VM if it's running
-          vm_object.PowerOffVM_Task.wait_for_completion if vm_object.runtime && vm_object.runtime.powerState && vm_object.runtime.powerState == 'poweredOn'
-
-          # Kill it with fire
-          vm_object.Destroy_Task.wait_for_completion
-
+            # Kill it with fire
+            vm_object.Destroy_Task.wait_for_completion
+          end
           true
         end
 
@@ -237,12 +272,6 @@ module Vmpooler
           end
 
           true
-        end
-
-        def provider_config
-          # The vSphere configuration is currently in it's own root.  This will
-          # eventually shift into the same location base expects it
-          global_config[:vsphere]
         end
 
         # VSphere Helper methods
@@ -275,25 +304,27 @@ module Vmpooler
         DISK_TYPE = 'thin'.freeze
         DISK_MODE = 'persistent'.freeze
 
-        def get_connection
-          begin
-            @connection.serviceInstance.CurrentTime
-          rescue
-            @connection = connect_to_vsphere @credentials
-          end
-
-          @connection
+        def ensured_vsphere_connection(connection_pool_object)
+          connection_pool_object[:connection] = connect_to_vsphere unless vsphere_connection_ok?(connection_pool_object[:connection])
+          connection_pool_object[:connection]
         end
 
-        def connect_to_vsphere(credentials)
-          max_tries = @conf['max_tries'] || 3
-          retry_factor = @conf['retry_factor'] || 10
+        def vsphere_connection_ok?(connection)
+          _result = connection.serviceInstance.CurrentTime
+          return true
+        rescue
+          return false
+        end
+
+        def connect_to_vsphere
+          max_tries = global_config[:config]['max_tries'] || 3
+          retry_factor = global_config[:config]['retry_factor'] || 10
           try = 1
           begin
-            connection = RbVmomi::VIM.connect host: credentials['server'],
-                                              user: credentials['username'],
-                                              password: credentials['password'],
-                                              insecure: credentials['insecure'] || true
+            connection = RbVmomi::VIM.connect host: provider_config['server'],
+                                              user: provider_config['username'],
+                                              password: provider_config['password'],
+                                              insecure: provider_config['insecure'] || true
             metrics.increment('connect.open')
             return connection
           rescue => err
@@ -678,10 +709,6 @@ module Vmpooler
         def migrate_vm_host(vm, host)
           relospec = RbVmomi::VIM.VirtualMachineRelocateSpec(host: host)
           vm.RelocateVM_Task(spec: relospec).wait_for_completion
-        end
-
-        def close
-          @connection.close
         end
       end
     end

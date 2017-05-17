@@ -6,21 +6,6 @@ def redis
   @redis
 end
 
-# Mock an object which is result from Vmpooler::VsphereHelper.find_folder(foldername)
-class MockFindFolder
-  attr_reader :childEntity
-
-  def initialize(vmlist = [])
-    # Generate an array of hashes
-    @childEntity = vmlist.map do |vm|
-      vm_object = {}
-      vm_object['name'] = vm
-
-      vm_object
-    end
-  end
-end
-
 # Mock an object which represents a Logger.  This stops the proliferation
 # of allow(logger).to .... expectations in tests.
 class MockLogger

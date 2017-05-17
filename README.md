@@ -29,10 +29,11 @@ The following YAML configuration sets up two pools, `debian-7-i386` and `debian-
 
 ```
 ---
-:vsphere:
-  server: 'vsphere.company.com'
-  username: 'vmpooler'
-  password: 'swimsw1msw!m'
+:providers:
+  :vsphere:
+    server: 'vsphere.company.com'
+    username: 'vmpooler'
+    password: 'swimsw1msw!m'
 
 :redis:
   server: 'redis.company.com'
@@ -47,12 +48,14 @@ The following YAML configuration sets up two pools, `debian-7-i386` and `debian-
     pool: 'Pooled VMs/debian-7-i386'
     datastore: 'vmstorage'
     size: 5
+    provider: vsphere
   - name: 'debian-7-x86_64'
     template: 'Templates/debian-7-x86_64'
     folder: 'Pooled VMs/debian-7-x86_64'
     pool: 'Pooled VMs/debian-7-x86_64'
     datastore: 'vmstorage'
     size: 5
+    provider: vsphere
 ```
 
 See the provided YAML configuration example, [vmpooler.yaml.example](vmpooler.yaml.example), for additional configuration options and parameters.

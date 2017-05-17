@@ -18,7 +18,15 @@ module Vmpooler
           @metrics = metrics
           @provider_name = name
 
+          # Ensure that there is not a nil provider configuration
+          @config[:providers] = {} if @config[:providers].nil?
+          @config[:providers][@provider_name] = {} if provider_config.nil?
+
+          # Ensure that there is not a nil pool configuration
+          @config[:pools] = {} if @config[:pools].nil?
+
           @provider_options = options
+          logger.log('s', "[!] Creating provider '#{name}'")
         end
 
         # Helper Methods
@@ -41,7 +49,7 @@ module Vmpooler
         def provider_config
           @config[:providers].each do |provider|
             # Convert the symbol from the config into a string for comparison
-            return provider[1] if provider[0].to_s == @provider_name
+            return (provider[1].nil? ? {} : provider[1]) if provider[0].to_s == @provider_name
           end
 
           nil
@@ -58,6 +66,16 @@ module Vmpooler
         #   [String] : Name of the provider service
         def name
           @provider_name
+        end
+
+        # returns
+        #   Array[String] : Array of pool names this provider services
+        def provided_pools
+          list = []
+          @config[:pools].each do |pool|
+            list << pool['name'] if pool['provider'] == name
+          end
+          list
         end
 
         # Pool Manager Methods
@@ -146,8 +164,8 @@ module Vmpooler
         #   [String] new_snapshot_name : Name of the new snapshot to create
         # returns
         #   [Boolean] : true if success, false if snapshot could not be created
+        #   Raises RuntimeError if the Pool does not exist
         #   Raises RuntimeError if the VM does not exist
-        #   Raises RuntimeError if the snapshot already exists
         def create_snapshot(_pool_name, _vm_name, _new_snapshot_name)
           raise("#{self.class.name} does not implement create_snapshot")
         end
@@ -158,8 +176,9 @@ module Vmpooler
         #   [String] snapshot_name : Name of the snapshot to restore to
         # returns
         #   [Boolean] : true if success, false if snapshot could not be revertted
+        #   Raises RuntimeError if the Pool does not exist
         #   Raises RuntimeError if the VM does not exist
-        #   Raises RuntimeError if the snapshot already exists
+        #   Raises RuntimeError if the snapshot does not exist
         def revert_snapshot(_pool_name, _vm_name, _snapshot_name)
           raise("#{self.class.name} does not implement revert_snapshot")
         end
