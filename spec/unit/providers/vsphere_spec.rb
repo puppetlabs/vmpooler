@@ -2198,7 +2198,7 @@ EOT
       end
 
       it 'should raise error' do
-        expect{subject.find_least_used_vpshere_compatible_host(vm)}.to raise_error(NoMethodError,/undefined method/)
+        expect{subject.find_least_used_vpshere_compatible_host(vm)}.to raise_error(/There is no host candidate in vcenter that meets all the required conditions/)
       end
     end
 
@@ -2238,7 +2238,7 @@ EOT
       end
 
       it 'should raise error' do
-        expect{subject.find_least_used_vpshere_compatible_host(vm)}.to raise_error(NoMethodError,/undefined method/)
+        expect{subject.find_least_used_vpshere_compatible_host(vm)}.to raise_error(/There is no host candidate in vcenter that meets all the required conditions/)
       end
     end
 
