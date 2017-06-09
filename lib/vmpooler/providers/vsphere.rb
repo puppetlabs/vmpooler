@@ -35,6 +35,7 @@ module Vmpooler
           end
         end
 
+        # name of the provider class
         def name
           'vsphere'
         end

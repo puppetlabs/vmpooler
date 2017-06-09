@@ -32,12 +32,34 @@
 #   - insecure
 #     Whether to ignore any HTTPS negotiation errors (e.g. untrusted self-signed certificates)
 #     (optional: default true)
+#
+#   - provider_class
+#     For multiple providers, specify one of the supported backing services (vsphere or dummy)
+#     (optional: will default to it's parent :key: name eg. 'vsphere')
+#
 # Example:
 
   :vsphere:
     server: 'vsphere.company.com'
     username: 'vmpooler'
     password: 'swimsw1msw!m'
+
+# If you want to support more than one provider with different parameters (server, username or passwords) you have to specify the
+# backing service in the provider_class configuration parameter for example 'vsphere' or 'dummy'. Each pool can specify
+# the provider to use.
+#
+# Multiple providers example:
+
+  :vsphere-pdx:
+    server: 'vsphere.pdx.company.com'
+    username: 'vmpooler-pdx'
+    password: 'swimsw1msw!m'
+    provider_class: 'vsphere'
+  :vsphere-bfs:
+    server: 'vsphere.bfs.company.com'
+    username: 'vmpooler-bfs'
+    password: 'swimsw1msw!m'
+    provider_class: 'vsphere'
 
 # :dummy:
 #
@@ -417,6 +439,8 @@
 #     The name of the VM provider which manage this pool.  This should match
 #     a name in the :providers: section above e.g. vsphere
 #     (required; will default to vsphere for backwards compatibility)
+#     If you have more than one provider, this is where you would choose which
+#     one to use for this pool
 #
 #   - clone_target
 #     Per-pool option to override the global 'clone_target' cluster.

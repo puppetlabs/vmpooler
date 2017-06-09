@@ -58,7 +58,7 @@ The following YAML configuration sets up two pools, `debian-7-i386` and `debian-
     provider: vsphere
 ```
 
-See the provided YAML configuration example, [vmpooler.yaml.example](vmpooler.yaml.example), for additional configuration options and parameters.
+See the provided YAML configuration example, [vmpooler.yaml.example](vmpooler.yaml.example), for additional configuration options and parameters or for supporting multiple providers.
 
 ### Running via Docker
 
