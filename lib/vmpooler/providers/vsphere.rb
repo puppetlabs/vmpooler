@@ -513,6 +513,11 @@ module Vmpooler
         # Params:
         # +model+:: CPU arch version to match on
         # +limit+:: Hard limit for CPU or memory utilization beyond which a host is excluded for deployments
+        # returns nil if one on these conditions is true:
+        #    the model param is defined and cannot be found
+        #    the host is in maintenance mode
+        #    the host status is not 'green'
+        #    the cpu or memory utilization is bigger than the limit param
         def get_host_utilization(host, model = nil, limit = 90)
           if model
             return nil unless host_has_cpu_model?(host, model)
@@ -555,6 +560,7 @@ module Vmpooler
         def find_least_used_host(cluster, connection)
           cluster_object = find_cluster(cluster, connection)
           target_hosts = get_cluster_host_utilization(cluster_object)
+          raise("There is no host candidate in vcenter that meets all the required conditions, check that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory'") if target_hosts.empty?
           least_used_host = target_hosts.sort[0][1]
           least_used_host
         end
@@ -564,10 +570,10 @@ module Vmpooler
           datacenter.hostFolder.children.find { |cluster_object| cluster_object.name == cluster }
         end
 
-        def get_cluster_host_utilization(cluster)
+        def get_cluster_host_utilization(cluster, model=nil)
           cluster_hosts = []
           cluster.host.each do |host|
-            host_usage = get_host_utilization(host)
+            host_usage = get_host_utilization(host, model)
             cluster_hosts << host_usage if host_usage
           end
           cluster_hosts
@@ -577,11 +583,8 @@ module Vmpooler
           source_host = vm.summary.runtime.host
           model = get_host_cpu_arch_version(source_host)
           cluster = source_host.parent
-          target_hosts = []
-          cluster.host.each do |host|
-            host_usage = get_host_utilization(host, model)
-            target_hosts << host_usage if host_usage
-          end
+          target_hosts = get_cluster_host_utilization(cluster, model)
+          raise("There is no host candidate in vcenter that meets all the required conditions, check that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory'") if target_hosts.empty?
           target_host = target_hosts.sort[0][1]
           [target_host, target_host.name]
         end
