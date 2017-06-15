@@ -6,6 +6,27 @@
 # The currently supported backing services are:
 # - vsphere
 # - dummy
+#
+#   - provider_class
+#     For multiple providers, specify one of the supported backing services (vsphere or dummy)
+#     (optional: will default to it's parent :key: name eg. 'vsphere')
+#
+# If you want to support more than one provider with different parameters (server, username or passwords) you have to specify the
+# backing service in the provider_class configuration parameter for example 'vsphere' or 'dummy'. Each pool can specify
+# the provider to use.
+#
+# Multiple providers example:
+
+  :vsphere-pdx:
+    server: 'vsphere.pdx.company.com'
+    username: 'vmpooler-pdx'
+    password: 'swimsw1msw!m'
+    provider_class: 'vsphere'
+  :vsphere-bfs:
+    server: 'vsphere.bfs.company.com'
+    username: 'vmpooler-bfs'
+    password: 'swimsw1msw!m'
+    provider_class: 'vsphere'
 
 # :vsphere:
 #
@@ -33,9 +54,9 @@
 #     Whether to ignore any HTTPS negotiation errors (e.g. untrusted self-signed certificates)
 #     (optional: default true)
 #
-#   - provider_class
-#     For multiple providers, specify one of the supported backing services (vsphere or dummy)
-#     (optional: will default to it's parent :key: name eg. 'vsphere')
+#   - datacenter
+#     The datacenter within vCenter to manage VMs.  This can be overridden in the pool configuration
+#     (optional: default is the first datacenter in vSphere)
 #
 # Example:
 
@@ -43,23 +64,6 @@
     server: 'vsphere.company.com'
     username: 'vmpooler'
     password: 'swimsw1msw!m'
-
-# If you want to support more than one provider with different parameters (server, username or passwords) you have to specify the
-# backing service in the provider_class configuration parameter for example 'vsphere' or 'dummy'. Each pool can specify
-# the provider to use.
-#
-# Multiple providers example:
-
-  :vsphere-pdx:
-    server: 'vsphere.pdx.company.com'
-    username: 'vmpooler-pdx'
-    password: 'swimsw1msw!m'
-    provider_class: 'vsphere'
-  :vsphere-bfs:
-    server: 'vsphere.bfs.company.com'
-    username: 'vmpooler-bfs'
-    password: 'swimsw1msw!m'
-    provider_class: 'vsphere'
 
 # :dummy:
 #
@@ -464,6 +468,10 @@
 #     - datastore
 #       The vSphere 'datastore' destination for spawned clones.
 #       (required)
+#
+#     - datacenter
+#       The datacenter within vCenter to manage VMs.
+#       (optional: default is the first datacenter in vSphere)
 #
 # Example:
 
