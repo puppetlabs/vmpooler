@@ -1236,11 +1236,6 @@ EOT
     let(:reconfig_vm_task) { mock_RbVmomi_VIM_Task() }
 
     before(:each) do
-      # NOTE - This method should not be using `_connection`, instead it should be using `@conection`
-      # This should not be required once https://github.com/puppetlabs/vmpooler/issues/213 is resolved
-      mock_ds = subject.find_datastore(datastorename,connection)
-      allow(mock_ds).to receive(:_connection).and_return(connection) unless mock_ds.nil?
-
       # Mocking for find_vmdks
       allow(connection.serviceContent.propertyCollector).to receive(:collectMultiple).and_return(collectMultiple_response)
 
@@ -2701,23 +2696,7 @@ EOT
     let(:collectMultiple_response) { {} }
 
     before(:each) do
-      # NOTE - This method should not be using `_connection`, instead it should be using `@conection`
-      mock_ds = subject.find_datastore(datastorename,connection)
-      allow(mock_ds).to receive(:_connection).and_return(connection)
       allow(connection.serviceContent.propertyCollector).to receive(:collectMultiple).and_return(collectMultiple_response)
-    end
-
-    it 'should not use _connction to get the underlying connection object' do
-      pending('https://github.com/puppetlabs/vmpooler/issues/213')
-
-      mock_ds = subject.find_datastore(datastorename)
-      expect(mock_ds).to receive(:_connection).exactly(0).times
-
-      begin
-        # ignore all errors. What's important is that it doesn't call _connection
-        subject.find_vmdks(vmname,datastorename,connection)
-      rescue
-      end
     end
 
     context 'Searching all files for all VMs on a Datastore' do
