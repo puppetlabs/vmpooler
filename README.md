@@ -117,7 +117,7 @@ vmpooler provides an API and web front-end (dashboard) on port `:4567`.  See the
 
 ### API
 
-vmpooler provides a REST API for VM management.  See the [API documentation](API.md) for more information.
+vmpooler provides a REST API for VM management.  See the [API documentation](docs/API.md) for more information.
 
 ### Dashboard
 
@@ -135,6 +135,10 @@ A dashboard is provided to offer real-time statistics and historical graphs.  It
 ## Vagrant plugin
 
 - [vagrant-vmpooler](https://github.com/briancain/vagrant-vmpooler) Use Vagrant to create and manage your vmpooler instances.
+
+## Development and further documentation
+
+For more information about setting up a development instance of vmpooler or other subjects, see the [docs/](docs) directory.
 
 ## Build status
 
