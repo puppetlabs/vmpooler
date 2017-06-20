@@ -1,3 +1,4 @@
+.vagrant/
 .ruby-version
 Gemfile.lock
 Gemfile.local
