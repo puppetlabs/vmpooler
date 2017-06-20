@@ -510,6 +510,12 @@ module Vmpooler
           available_unit_numbers.sort[0]
         end
 
+        # Finds the first reference to and returns the folder object for a foldername and an optional datacenter
+        # Params:
+        # +foldername+:: the folder to find (optionally with / in which case the foldername will be split and each element searched for)
+        # +connection+:: the vsphere connection object
+        # +datacentername+:: the datacenter where the folder resides, or nil to return the first datacenter found
+        # returns a ManagedObjectReference for the first folder found or nil if none found
         def find_folder(foldername, connection, datacentername)
           datacenter = connection.serviceInstance.find_datacenter(datacentername)
           raise("Datacenter #{datacentername} does not exist") if datacenter.nil?
