@@ -675,7 +675,7 @@ module Vmpooler
 
           vmdk_datastore = find_datastore(datastore, connection)
 
-          vm_files = vmdk_datastore._connection.serviceContent.propertyCollector.collectMultiple vmdk_datastore.vm, 'layoutEx.file'
+          vm_files = connection.serviceContent.propertyCollector.collectMultiple vmdk_datastore.vm, 'layoutEx.file'
           vm_files.keys.each do |f|
             vm_files[f]['layoutEx.file'].each do |l|
               if l.name =~ /^\[#{vmdk_datastore.name}\] #{vmname}\/#{vmname}_([0-9]+).vmdk/
