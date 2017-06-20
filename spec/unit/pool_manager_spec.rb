@@ -1754,7 +1754,7 @@ EOT
         it 'should call create_provider_object idempotently' do
           # Even though there are two pools using the vsphere provider (the default), it should only
           # create the provider object once.
-          expect(subject).to receive(:create_provider_object).with(Object, Object, Object, 'vsphere', Object).and_return(vsphere_provider)
+          expect(subject).to receive(:create_provider_object).with(Object, Object, Object, 'vsphere', 'vsphere', Object).and_return(vsphere_provider)
 
           subject.execute!(1,0)
         end
@@ -1771,6 +1771,50 @@ EOT
 
           expect{ subject.execute!(1,0) }.to raise_error(/MockError/)
         end
+      end
+    end
+
+    context 'creating multiple vsphere Providers' do
+      let(:vsphere_provider) { double('vsphere_provider') }
+      let(:vsphere_provider2) { double('vsphere_provider') }
+      let(:provider1) { Vmpooler::PoolManager::Provider::Base.new(config, logger, metrics, 'vsphere', provider_options) }
+      let(:provider2) { Vmpooler::PoolManager::Provider::Base.new(config, logger, metrics, 'secondvsphere', provider_options) }
+      let(:config) {
+        YAML.load(<<-EOT
+---
+:providers:
+  :vsphere:
+    server: 'blah1'
+    provider_class: 'vsphere'
+  :secondvsphere:
+    server: 'blah2'
+    provider_class: 'vsphere'
+:pools:
+  - name: #{pool}
+    provider: 'vsphere'
+  - name: 'secondpool'
+    provider: 'secondvsphere'
+EOT
+        )}
+
+      it 'should call create_provider_object twice' do
+        # The two pools use a different provider name, but each provider_class is vsphere
+        expect(subject).to receive(:create_provider_object).with(Object, Object, Object, "vsphere", "vsphere", Object).and_return(vsphere_provider)
+        expect(subject).to receive(:create_provider_object).with(Object, Object, Object, "vsphere", "secondvsphere", Object).and_return(vsphere_provider2)
+        subject.execute!(1,0)
+      end
+
+      it 'should have vsphere providers with different servers' do
+        allow(subject).to receive(:get_provider_for_pool).with(pool).and_return(provider1)
+        result = subject.get_provider_for_pool(pool)
+        allow(provider1).to receive(:provider_config).and_call_original
+        expect(result.provider_config['server']).to eq('blah1')
+
+        allow(subject).to receive(:get_provider_for_pool).with('secondpool').and_return(provider2)
+        result = subject.get_provider_for_pool('secondpool')
+        allow(provider1).to receive(:provider_config).and_call_original
+        expect(result.provider_config['server']).to eq('blah2')
+        subject.execute!(1,0)
       end
     end
 

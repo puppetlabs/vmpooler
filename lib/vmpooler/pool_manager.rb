@@ -694,14 +694,20 @@ module Vmpooler
       raise
     end
 
-    def create_provider_object(config, logger, metrics, provider_name, options)
-      case provider_name
+    # create a provider object based on the providers/*.rb class that implements providers/base.rb
+    # provider_class: needs to match a provider class in providers/*.rb ie Vmpooler::PoolManager::Provider::X
+    # provider_name: should be a unique provider name
+    #
+    # returns an object Vmpooler::PoolManager::Provider::*
+    # or raises an error if the class does not exist
+    def create_provider_object(config, logger, metrics, provider_class, provider_name, options)
+      case provider_class
       when 'vsphere'
         Vmpooler::PoolManager::Provider::VSphere.new(config, logger, metrics, provider_name, options)
       when 'dummy'
         Vmpooler::PoolManager::Provider::Dummy.new(config, logger, metrics, provider_name, options)
       else
-        raise("Provider '#{provider_name}' is unknown")
+        raise("Provider '#{provider_class}' is unknown for pool with provider '#{provider_name}'")
       end
     end
 
@@ -731,8 +737,28 @@ module Vmpooler
       # Create the providers
       $config[:pools].each do |pool|
         provider_name = pool['provider']
+        # The provider_class parameter can be defined in the provider's data eg
+        #:providers:
+        # :vsphere:
+        #  provider_class: 'vsphere'
+        # :another-vsphere:
+        #  provider_class: 'vsphere'
+        # the above would create two providers/vsphere.rb class objects named 'vsphere' and 'another-vsphere'
+        # each pools would then define which provider definition to use: vsphere or another-vsphere
+        #
+        # if provider_class is not defined it will try to use the provider_name as the class, this is to be
+        # backwards compatible for example when there is only one provider listed
+        # :providers:
+        #  :dummy:
+        #   filename: 'db.txs'
+        # the above example would create an object based on the class providers/dummy.rb
+        if $config[:providers].nil? || $config[:providers][provider_name.to_sym].nil? || $config[:providers][provider_name.to_sym]['provider_class'].nil?
+          provider_class = provider_name
+        else
+          provider_class = $config[:providers][provider_name.to_sym]['provider_class']
+        end
         begin
-          $providers[provider_name] = create_provider_object($config, $logger, $metrics, provider_name, {}) if $providers[provider_name].nil?
+          $providers[provider_name] = create_provider_object($config, $logger, $metrics, provider_class, provider_name, {}) if $providers[provider_name].nil?
         rescue => err
           $logger.log('s', "Error while creating provider for pool #{pool['name']}: #{err}")
           raise
