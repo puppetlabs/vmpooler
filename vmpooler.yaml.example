@@ -395,6 +395,27 @@
 #     This is particularly useful for instances with a large number of pools
 #     to prevent a thundering herd when retrying connections.
 #     (optional; default: 10)
+#
+#   - check_loop_delay_min (optional; default: 5) seconds
+#   - check_loop_delay_max (optional; default: 60) seconds
+#   - check_loop_delay_decay (optional; default: 2.0) Must be greater than 1.0
+#     Each pool is polled on a schedule to check whether there are any tasks to perform, for example, provision
+#     new VMs to fill a pool, or destroy VMs which are no longer required. By default this value is every 5 seconds.
+#     However, with a large number of pools, this can cause the provider to be issuing many, many requests which
+#     can cause performance problems, for example, vSphere recommends no more than 100 active connections per vCenter
+#     instance. But if you increase the check interval to a large number, then vmpooler will appear to be slow to
+#     perform tasks.  These settings can be used to tune how often the provider is polling for changes to a pool.
+#     This is done by increasing the polling period when the pool is stable or when unimportant tasks are being
+#     performed.  The polling period is decreased back to the minimum when important tasks happen (newly discovered VMs,
+#     creating new VMs and checking for VMs that have completed cloning but not ready).  This means the pools are
+#     checked appropriately during important events, but as the pool stabilizes it does not need to be checked as often.
+#       - The check_loop_delay_min setting determines the smallest period of time between polls, in seconds.
+#       - The check_loop_delay_max setting determines the longest period of time between polls, in seconds.
+#         Must be greater than or equal to check_loop_delay_min or it will be set to check_loop_delay_min.
+#       - The check_loop_delay_decay setting determines how quickly the delay moves from minimum to maximum. So a value
+#         of 2.0 means each time the pool is checked and nothing important happens, the loop delay is multiplied by 2.0,
+#         for example, the first time is 2 seconds, then 4, 8, 16 etc. until it reaches check_loop_delay_max.
+#         This value must be greater than 1.0.
 
 # Example:
 
@@ -454,6 +475,11 @@
 #   - ready_ttl
 #     How long (in minutes) to keep VMs in 'ready' queues before destroying.
 #     (optional; default: no limit)
+#
+#   - check_loop_delay_min (optional; default: 5) seconds
+#   - check_loop_delay_max (optional; default: same as check_loop_delay_min) seconds
+#   - check_loop_delay_decay (optional; default: 2.0) Must be greater than 1.0
+#     See the :config: section for information about these settings
 #
 #   Provider specific pool settings
 #     vSphere provider

@@ -1912,18 +1912,61 @@ EOT
     end
 
     context 'with dead pool thread' do
-      let(:pool_thread) { double('thread', :alive? => false) }
-      before(:each) do
-        # Reset the global variable - Note this is a code smell
-        $threads = {}
-        $threads[pool] = pool_thread
+      context 'without check_loop_delay_xxx settings' do
+        let(:pool_thread) { double('thread', :alive? => false) }
+        let(:default_check_loop_delay_min) { 5 }
+        let(:default_check_loop_delay_max) { 60 }
+        let(:default_check_loop_delay_decay) { 2.0 }
+        before(:each) do
+          # Reset the global variable - Note this is a code smell
+          $threads = {}
+          $threads[pool] = pool_thread
+        end
+
+        it 'should run the check_pool method and log a message' do
+          expect(subject).to receive(:check_pool).with(a_pool_with_name_of(pool),
+                                                       default_check_loop_delay_min,
+                                                       default_check_loop_delay_max,
+                                                       default_check_loop_delay_decay)
+          expect(logger).to receive(:log).with('d', "[!] [#{pool}] worker thread died, restarting")
+
+          subject.execute!(1,0)
+        end
       end
 
-      it 'should run the check_pool method and log a message' do
-        expect(subject).to receive(:check_pool).with(a_pool_with_name_of(pool))
-        expect(logger).to receive(:log).with('d', "[!] [#{pool}] worker thread died, restarting")
+      context 'with check_loop_delay_xxx settings' do
+        let(:pool_thread) { double('thread', :alive? => false) }
+        let(:check_loop_delay_min) { 7 }
+        let(:check_loop_delay_max) { 20 }
+        let(:check_loop_delay_decay) { 2.1 }
 
-        subject.execute!(1,0)
+        let(:config) {
+      YAML.load(<<-EOT
+---
+:config:
+  check_loop_delay_min: #{check_loop_delay_min}
+  check_loop_delay_max: #{check_loop_delay_max}
+  check_loop_delay_decay: #{check_loop_delay_decay}
+:pools:
+  - name: #{pool}
+EOT
+          )
+        }
+        before(:each) do
+          # Reset the global variable - Note this is a code smell
+          $threads = {}
+          $threads[pool] = pool_thread
+        end
+
+        it 'should run the check_pool method and log a message' do
+          expect(subject).to receive(:check_pool).with(a_pool_with_name_of(pool),
+                                                       check_loop_delay_min,
+                                                       check_loop_delay_max,
+                                                       check_loop_delay_decay)
+          expect(logger).to receive(:log).with('d', "[!] [#{pool}] worker thread died, restarting")
+
+          subject.execute!(1,0)
+        end
       end
     end
 
@@ -1995,6 +2038,15 @@ EOT
     }
 
     let(:pool_object) { config[:pools][0] }
+    let(:check_pool_response) {{
+        :discovered_vms      => 0,
+        :checked_running_vms => 0,
+        :checked_ready_vms   => 0,
+        :checked_pending_vms => 0,
+        :destroyed_vms       => 0,
+        :migrated_vms        => 0,
+        :cloned_vms          => 0,
+    }}
 
     before do
       expect(subject).not_to be_nil
@@ -2004,7 +2056,7 @@ EOT
 
     context 'on startup' do
       before(:each) do
-        allow(subject).to receive(:_check_pool)
+        allow(subject).to receive(:_check_pool).and_return(check_pool_response)
         expect(logger).to receive(:log).with('d', "[*] [#{pool}] starting worker thread")
       end
 
@@ -2032,8 +2084,7 @@ EOT
 
       before(:each) do
         allow(logger).to receive(:log)
-        # Note the Vmpooler::VsphereHelper is not mocked
-        allow(subject).to receive(:_check_pool)
+        allow(subject).to receive(:_check_pool).and_return(check_pool_response)
       end
 
       after(:each) do
@@ -2044,17 +2095,150 @@ EOT
       it 'when a non-default loop delay is specified' do
         expect(subject).to receive(:sleep).with(loop_delay).exactly(maxloop).times
 
+        subject.check_pool(pool_object,maxloop,loop_delay,loop_delay)
+      end
+    end
+
+    context 'delays between loops configured in the pool configuration' do
+      let(:maxloop) { 2 }
+      let(:loop_delay) { 1 }
+      let(:pool_loop_delay) { 2 }
+      let(:config) {
+        YAML.load(<<-EOT
+---
+:pools:
+  - name: #{pool}
+    provider: #{provider_name}
+    check_loop_delay_min: #{pool_loop_delay}
+    check_loop_delay_max: #{pool_loop_delay}
+EOT
+        )
+      }
+
+      before(:each) do
+        allow(logger).to receive(:log)
+        allow(subject).to receive(:_check_pool).and_return(check_pool_response)
+      end
+
+      after(:each) do
+        # Reset the global variable - Note this is a code smell
+        $threads = nil
+      end
+
+      it 'when a non-default loop delay is specified' do
+        expect(subject).to receive(:sleep).with(pool_loop_delay).exactly(maxloop).times
+
         subject.check_pool(pool_object,maxloop,loop_delay)
       end
     end
+
+    context 'delays between loops with a specified min and max value' do
+      let(:maxloop) { 5 }
+      let(:loop_delay_min) { 1 }
+      let(:loop_delay_max) { 60 }
+      # Note a maxloop of zero can not be tested as it never terminates
+
+      before(:each) do
+        allow(logger).to receive(:log)
+        allow(subject).to receive(:_check_pool).and_return(check_pool_response)
+      end
+
+      after(:each) do
+        # Reset the global variable - Note this is a code smell
+        $threads = nil
+      end
+
+      [:checked_pending_vms, :discovered_vms, :cloned_vms].each do |testcase|
+        describe "when #{testcase} is greater than zero" do
+          it "delays the minimum delay time" do
+            expect(subject).to receive(:sleep).with(loop_delay_min).exactly(maxloop).times
+            check_pool_response[testcase] = 1
+
+            subject.check_pool(pool_object,maxloop,loop_delay_min,loop_delay_max)
+          end
+        end
+      end
+
+      [:checked_running_vms, :checked_ready_vms, :destroyed_vms, :migrated_vms].each do |testcase|
+        describe "when #{testcase} is greater than zero" do
+          let(:loop_decay) { 3.0 }
+          it "delays increases with a decay" do
+            expect(subject).to receive(:sleep).with(3).once
+            expect(subject).to receive(:sleep).with(9).once
+            expect(subject).to receive(:sleep).with(27).once
+            expect(subject).to receive(:sleep).with(60).twice
+            check_pool_response[testcase] = 1
+
+            subject.check_pool(pool_object,maxloop,loop_delay_min,loop_delay_max,loop_decay)
+          end
+        end
+      end
+    end
+
+    context 'delays between loops with a specified min and max value configured in the pool configuration' do
+      let(:maxloop) { 5 }
+      let(:loop_delay_min) { 1 }
+      let(:loop_delay_max) { 60 }
+      let(:loop_decay) { 3.0 }
+      let(:pool_loop_delay_min) { 3 }
+      let(:pool_loop_delay_max) { 70 }
+      let(:pool_loop_delay_decay) { 2.5 }
+      let(:config) {
+        YAML.load(<<-EOT
+---
+:pools:
+  - name: #{pool}
+    provider: #{provider_name}
+    check_loop_delay_min: #{pool_loop_delay_min}
+    check_loop_delay_max: #{pool_loop_delay_max}
+    check_loop_delay_decay: #{pool_loop_delay_decay}
+EOT
+        )
+      }
+
+      before(:each) do
+        allow(logger).to receive(:log)
+        allow(subject).to receive(:_check_pool).and_return(check_pool_response)
+      end
+
+      after(:each) do
+        # Reset the global variable - Note this is a code smell
+        $threads = nil
+      end
+
+      [:checked_pending_vms, :discovered_vms, :cloned_vms].each do |testcase|
+        describe "when #{testcase} is greater than zero" do
+          it "delays the minimum delay time" do
+            expect(subject).to receive(:sleep).with(pool_loop_delay_min).exactly(maxloop).times
+            check_pool_response[testcase] = 1
+
+            subject.check_pool(pool_object,maxloop,loop_delay_min,loop_delay_max,loop_decay)
+          end
+        end
+      end
+
+      [:checked_running_vms, :checked_ready_vms, :destroyed_vms, :migrated_vms].each do |testcase|
+        describe "when #{testcase} is greater than zero" do
+          it "delays increases with a decay" do
+            expect(subject).to receive(:sleep).with(7).once
+            expect(subject).to receive(:sleep).with(17).once
+            expect(subject).to receive(:sleep).with(42).once
+            expect(subject).to receive(:sleep).with(70).twice
+            check_pool_response[testcase] = 1
+
+            subject.check_pool(pool_object,maxloop,loop_delay_min,loop_delay_max,loop_decay)
+          end
+        end
+      end
+    end
+
 
     context 'loops specified number of times (5)' do
       let(:maxloop) { 5 }
       # Note a maxloop of zero can not be tested as it never terminates
       before(:each) do
         allow(logger).to receive(:log)
-        # Note the Vmpooler::VsphereHelper is not mocked
-        allow(subject).to receive(:_check_pool)
+        allow(subject).to receive(:_check_pool).and_return(check_pool_response)
       end
 
       after(:each) do
@@ -2200,6 +2384,12 @@ EOT
         subject._check_pool(pool_object,provider)
       end
 
+      it 'should return the number of discovered VMs' do
+        result = subject._check_pool(pool_object,provider)
+
+        expect(result[:discovered_vms]).to be(1)
+      end
+
       it 'should add undiscovered VMs to the completed queue' do
         allow(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue")
 
@@ -2259,6 +2449,12 @@ EOT
         subject._check_pool(pool_object,provider)
       end
 
+      it 'should return the number of checked running VMs' do
+        result = subject._check_pool(pool_object,provider)
+
+        expect(result[:checked_running_vms]).to be(1)
+      end
+
       it 'should use the VM lifetime in preference to defaults' do
         big_lifetime = 2000
 
@@ -2305,6 +2501,12 @@ EOT
         create_ready_vm(pool,vm,token)
       end
 
+      it 'should return the number of checked ready VMs' do
+        result = subject._check_pool(pool_object,provider)
+
+        expect(result[:checked_ready_vms]).to be(1)
+      end
+
       it 'should log an error if one occurs' do
         expect(subject).to receive(:check_ready_vm).and_raise(RuntimeError,'MockError')
         expect(logger).to receive(:log).with('d', "[!] [#{pool}] _check_pool failed with an error while evaluating ready VMs: MockError")
@@ -2349,6 +2551,12 @@ EOT
         expect(provider).to receive(:vms_in_pool).with(pool).and_return(vm_response)
         allow(subject).to receive(:check_pending_vm)
         create_pending_vm(pool,vm,token)
+      end
+
+      it 'should return the number of checked pending VMs' do
+        result = subject._check_pool(pool_object,provider)
+
+        expect(result[:checked_pending_vms]).to be(1)
       end
 
       it 'should log an error if one occurs' do
@@ -2425,6 +2633,12 @@ EOT
         expect(subject).to receive(:destroy_vm)
 
         subject._check_pool(pool_object,provider)
+      end
+
+      it 'should return the number of destroyed VMs' do
+        result = subject._check_pool(pool_object,provider)
+
+        expect(result[:destroyed_vms]).to be(1)
       end
 
       context 'with an error during destroy_vm' do
@@ -2533,6 +2747,13 @@ EOT
         create_migrating_vm(vm,pool)
       end
 
+      it 'should return the number of migrated VMs' do
+        allow(subject).to receive(:migrate_vm).with(vm,pool,provider)
+        result = subject._check_pool(pool_object,provider)
+
+        expect(result[:migrated_vms]).to be(1)
+      end
+
       it 'should log an error if one occurs' do
         expect(subject).to receive(:migrate_vm).and_raise(RuntimeError,'MockError')
         expect(logger).to receive(:log).with('s', "[x] [#{pool}] '#{vm}' failed to migrate: MockError")
@@ -2618,7 +2839,16 @@ EOT
 
       context 'when number of VMs is less than the pool size' do
         before(:each) do
-        expect(provider).to receive(:vms_in_pool).with(pool).and_return([])
+          expect(provider).to receive(:vms_in_pool).with(pool).and_return([])
+        end
+
+        it 'should return the number of cloned VMs' do
+          pool_size = 5
+          config[:pools][0]['size'] = pool_size
+
+          result = subject._check_pool(pool_object,provider)
+
+          expect(result[:cloned_vms]).to be(pool_size)
         end
 
         it 'should call clone_vm to populate the pool' do
