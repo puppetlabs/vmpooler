@@ -42,6 +42,7 @@ describe 'Vmpooler::PoolManager::Provider::VSphere' do
   let(:metrics) { Vmpooler::DummyStatsd.new }
   let(:poolname) { 'pool1'}
   let(:provider_options) { { 'param' => 'value' } }
+  let(:datacenter_name) { 'MockDC' }
   let(:config) { YAML.load(<<-EOT
 ---
 :config:
@@ -55,6 +56,7 @@ describe 'Vmpooler::PoolManager::Provider::VSphere' do
     insecure: true
     # Drop the connection pool timeout way down for spec tests so they fail fast
     connection_pool_timeout: 1
+    datacenter: MockDC
 :pools:
   - name: '#{poolname}'
     alias: [ 'mockpool' ]
@@ -95,7 +97,7 @@ EOT
 
     context 'Given a pool folder that is missing' do
       before(:each) do
-        expect(subject).to receive(:find_folder).with(pool_config['folder'],connection).and_return(nil)
+        expect(subject).to receive(:find_folder).with(pool_config['folder'],connection,datacenter_name).and_return(nil)
       end
 
       it 'should get a connection' do
@@ -113,7 +115,7 @@ EOT
 
     context 'Given an empty pool folder' do
       before(:each) do
-        expect(subject).to receive(:find_folder).with(pool_config['folder'],connection).and_return(folder_object)
+        expect(subject).to receive(:find_folder).with(pool_config['folder'],connection,datacenter_name).and_return(folder_object)
       end
 
       it 'should get a connection' do
@@ -142,7 +144,7 @@ EOT
           folder_object.childEntity << mock_vm
         end
 
-        expect(subject).to receive(:find_folder).with(pool_config['folder'],connection).and_return(folder_object)
+        expect(subject).to receive(:find_folder).with(pool_config['folder'],connection,datacenter_name).and_return(folder_object)
       end
 
       it 'should get a connection' do
@@ -324,7 +326,7 @@ EOT
 
       before(:each) do
         config[:pools][0]['clone_target'] = cluster_name
-        expect(subject).to receive(:find_cluster).with(cluster_name,connection).and_return(nil)
+        expect(subject).to receive(:find_cluster).with(cluster_name,connection,datacenter_name).and_return(nil)
       end
 
       it 'should raise an error' do
@@ -338,7 +340,7 @@ EOT
       before(:each) do
         config[:pools][0]['clone_target'] = nil
         config[:config]['clone_target'] = cluster_name
-        expect(subject).to receive(:find_cluster).with(cluster_name,connection).and_return(nil)
+        expect(subject).to receive(:find_cluster).with(cluster_name,connection,datacenter_name).and_return(nil)
       end
 
       it 'should raise an error' do
@@ -352,7 +354,7 @@ EOT
         mock_cluster = mock_RbVmomi_VIM_ComputeResource({
           :hosts => [ { :name => 'HOST001' },{ :name => dest_host_name} ]
         })
-        expect(subject).to receive(:find_cluster).with(cluster_name,connection).and_return(mock_cluster)
+        expect(subject).to receive(:find_cluster).with(cluster_name,connection,datacenter_name).and_return(mock_cluster)
         expect(subject).to receive(:migrate_vm_host).exactly(0).times
       end
 
@@ -367,7 +369,7 @@ EOT
         mock_cluster = mock_RbVmomi_VIM_ComputeResource({
           :hosts => [ { :name => 'HOST001' },{ :name => dest_host_name} ]
         })
-        expect(subject).to receive(:find_cluster).with(cluster_name,connection).and_return(mock_cluster)
+        expect(subject).to receive(:find_cluster).with(cluster_name,connection,datacenter_name).and_return(mock_cluster)
         expect(subject).to receive(:migrate_vm_host).with(Object,Object).and_raise(RuntimeError,'MockMigrationError')
       end
 
@@ -382,7 +384,7 @@ EOT
         mock_cluster = mock_RbVmomi_VIM_ComputeResource({
           :hosts => [ { :name => 'HOST001' },{ :name => dest_host_name} ]
         })
-        expect(subject).to receive(:find_cluster).with(cluster_name,connection).and_return(mock_cluster)
+        expect(subject).to receive(:find_cluster).with(cluster_name,connection,datacenter_name).and_return(mock_cluster)
         expect(subject).to receive(:migrate_vm_host).with(Object,Object).and_return(nil)
       end
 
@@ -558,7 +560,7 @@ EOT
 
     context 'Given a successful creation' do
       before(:each) do
-        template_vm = subject.find_folder('Templates',connection).find('pool1')
+        template_vm = subject.find_folder('Templates',connection,datacenter_name).find('pool1')
         allow(template_vm).to receive(:CloneVM_Task).and_return(clone_vm_task)
         allow(clone_vm_task).to receive(:wait_for_completion).and_return(new_vm_object)
       end
@@ -570,7 +572,7 @@ EOT
       end
 
       it 'should use the appropriate Create_VM spec' do
-        template_vm = subject.find_folder('Templates',connection).find('pool1')
+        template_vm = subject.find_folder('Templates',connection,datacenter_name).find('pool1')
         expect(template_vm).to receive(:CloneVM_Task)
           .with(create_vm_spec(vmname,'pool1','datastore0'))
           .and_return(clone_vm_task)
@@ -633,7 +635,7 @@ EOT
 
     context 'when adding the disk succeeds' do
       before(:each) do
-        expect(subject).to receive(:add_disk).with(vm_object, disk_size, datastorename, connection)
+        expect(subject).to receive(:add_disk).with(vm_object, disk_size, datastorename, connection, datacenter_name)
       end
 
       it 'should return true' do
@@ -878,6 +880,92 @@ EOT
       allow(subject).to receive(:get_vm).with(poolname,vmname).and_return(nil)
 
       expect(subject.vm_exists?(poolname,vmname)).to eq(false)
+    end
+  end
+
+  # vSphere helper methods
+  describe '#get_target_datacenter_from_config' do
+    let(:pool_dc) { 'PoolDC'}
+    let(:provider_dc) { 'ProvDC'}
+
+    context 'when not specified' do
+      let(:config) { YAML.load(<<-EOT
+---
+:config:
+:providers:
+  :vsphere:
+    server: "vcenter.domain.local"
+    username: "vcenter_user"
+    password: "vcenter_password"
+:pools:
+  - name: '#{poolname}'
+EOT
+        )
+      }
+      it 'returns nil' do
+        expect(subject.get_target_datacenter_from_config(poolname)).to be_nil
+      end
+    end
+
+    context 'when specified only in the pool' do
+      let(:config) { YAML.load(<<-EOT
+---
+:config:
+:providers:
+  :vsphere:
+    server: "vcenter.domain.local"
+    username: "vcenter_user"
+    password: "vcenter_password"
+:pools:
+  - name: '#{poolname}'
+    datacenter: '#{pool_dc}'
+EOT
+        )
+      }
+      it 'returns the pool datacenter' do
+        expect(subject.get_target_datacenter_from_config(poolname)).to eq(pool_dc)
+      end
+    end
+
+    context 'when specified only in the provider' do
+      let(:config) { YAML.load(<<-EOT
+---
+:config:
+:providers:
+  :vsphere:
+    server: "vcenter.domain.local"
+    username: "vcenter_user"
+    password: "vcenter_password"
+    datacenter: '#{provider_dc}'
+:pools:
+  - name: '#{poolname}'
+EOT
+        )
+      }
+      it 'returns the provider datacenter' do
+        expect(subject.get_target_datacenter_from_config(poolname)).to eq(provider_dc)
+      end
+    end
+
+    context 'when specified in the provider and pool' do
+      let(:config) { YAML.load(<<-EOT
+---
+:config:
+:providers:
+  :vsphere:
+    server: "vcenter.domain.local"
+    username: "vcenter_user"
+    password: "vcenter_password"
+    datacenter: '#{provider_dc}'
+:pools:
+  - name: '#{poolname}'
+    datacenter: '#{pool_dc}'
+EOT
+        )
+      }
+      it 'returns the pool datacenter' do
+        expect(subject.get_target_datacenter_from_config(poolname)).to eq(pool_dc)
+      end
     end
   end
 
@@ -1227,7 +1315,7 @@ EOT
     let(:connection_options) {{
       :serviceContent => {
         :datacenters => [
-          { :name => 'MockDC', :datastores => [datastorename] }
+          { :name => datacenter_name, :datastores => [datastorename] }
         ]
       }
     }}
@@ -1240,7 +1328,11 @@ EOT
       allow(connection.serviceContent.propertyCollector).to receive(:collectMultiple).and_return(collectMultiple_response)
 
       # Mocking for creating the disk
-      allow(connection.serviceContent.virtualDiskManager).to receive(:CreateVirtualDisk_Task).and_return(create_virtual_disk_task)
+      allow(connection.serviceContent.virtualDiskManager).to receive(:CreateVirtualDisk_Task) do |options|
+        if options[:datacenter][:name] == datacenter_name
+          create_virtual_disk_task
+        end
+      end
       allow(create_virtual_disk_task).to receive(:wait_for_completion).and_return(true)
 
       # Mocking for adding disk to the VM
@@ -1250,7 +1342,7 @@ EOT
 
     context 'Succesfully addding disk' do
       it 'should return true' do
-        expect(subject.add_disk(vm_object,disk_size,datastorename,connection)).to be true
+        expect(subject.add_disk(vm_object,disk_size,datastorename,connection,datacenter_name)).to be true
       end
 
       it 'should request a disk of appropriate size' do
@@ -1259,13 +1351,13 @@ EOT
           .and_return(create_virtual_disk_task)
 
 
-        subject.add_disk(vm_object,disk_size,datastorename,connection)
+        subject.add_disk(vm_object,disk_size,datastorename,connection,datacenter_name)
       end
     end
 
     context 'Requested disk size is 0' do
       it 'should raise an error' do
-        expect(subject.add_disk(vm_object,0,datastorename,connection)).to be false
+        expect(subject.add_disk(vm_object,0,datastorename,connection,datacenter_name)).to be false
       end
     end
 
@@ -1273,13 +1365,28 @@ EOT
       let(:connection_options) {{
         :serviceContent => {
           :datacenters => [
-            { :name => 'MockDC', :datastores => ['missing_datastore'] }
+            { :name => datacenter_name, :datastores => ['missing_datastore'] }
           ]
         }
       }}
 
-      it 'should return false' do
-        expect{ subject.add_disk(vm_object,disk_size,datastorename,connection) }.to raise_error(NoMethodError)
+      it 'should raise error' do
+        expect{ subject.add_disk(vm_object,disk_size,datastorename,connection,datacenter_name) }.to raise_error(/does not exist/)
+      end
+    end
+
+    context 'Multiple datacenters with multiple datastores' do
+      let(:connection_options) {{
+        :serviceContent => {
+          :datacenters => [
+            { :name => 'AnotherDC', :datastores => ['dc1','dc2'] },
+            { :name => datacenter_name, :datastores => ['dc3',datastorename,'dc4'] },
+          ]
+        }
+      }}
+
+      it 'should return true' do
+        expect(subject.add_disk(vm_object,disk_size,datastorename,connection,datacenter_name)).to be true
       end
     end
 
@@ -1293,7 +1400,7 @@ EOT
       }
 
       it 'should raise an error' do
-        expect{ subject.add_disk(vm_object,disk_size,datastorename,connection) }.to raise_error(NoMethodError)
+        expect{ subject.add_disk(vm_object,disk_size,datastorename,connection,datacenter_name) }.to raise_error(NoMethodError)
       end
     end
   end
@@ -1306,13 +1413,13 @@ EOT
       let(:connection_options) {{
         :serviceContent => {
           :datacenters => [
-            { :name => 'MockDC', :datastores => [] }
+            { :name => datacenter_name, :datastores => [] }
           ]
         }
       }}
 
       it 'should return nil if the datastore is not found' do
-        result = subject.find_datastore(datastorename,connection)
+        result = subject.find_datastore(datastorename,connection,datacenter_name)
         expect(result).to be_nil
       end
     end
@@ -1321,18 +1428,42 @@ EOT
       let(:connection_options) {{
         :serviceContent => {
           :datacenters => [
-            { :name => 'MockDC', :datastores => ['ds1','ds2',datastorename,'ds3'] }
+            { :name => datacenter_name, :datastores => ['ds1','ds2',datastorename,'ds3'] }
           ]
         }
       }}
 
       it 'should return nil if the datastore is not found' do
-        result = subject.find_datastore('missing_datastore',connection)
+        result = subject.find_datastore('missing_datastore',connection,datacenter_name)
         expect(result).to be_nil
       end
 
       it 'should find the datastore in the datacenter' do
-        result = subject.find_datastore(datastorename,connection)
+        result = subject.find_datastore(datastorename,connection,datacenter_name)
+        
+        expect(result).to_not be_nil
+        expect(result.is_a?(RbVmomi::VIM::Datastore)).to be true
+        expect(result.name).to eq(datastorename)
+      end
+    end
+
+    context 'Many datastores in many datacenters' do
+      let(:connection_options) {{
+        :serviceContent => {
+          :datacenters => [
+            { :name => 'AnotherDC', :datastores => ['ds1','ds2','ds3'] },
+            { :name => datacenter_name, :datastores => ['ds3','ds4',datastorename,'ds5'] },
+          ]
+        }
+      }}
+
+      it 'should return nil if the datastore is not found' do
+        result = subject.find_datastore(datastorename,connection,'AnotherDC')
+        expect(result).to be_nil
+      end
+
+      it 'should find the datastore in the datacenter' do
+        result = subject.find_datastore(datastorename,connection,datacenter_name)
         
         expect(result).to_not be_nil
         expect(result.is_a?(RbVmomi::VIM::Datastore)).to be true
@@ -1558,54 +1689,102 @@ EOT
     let(:foldername) { 'folder'}
     let(:missing_foldername) { 'missing_folder'}
 
-    before(:each) do
-      allow(connection.serviceInstance).to receive(:find_datacenter).and_return(datacenter_object)
-    end
-
     context 'with no folder hierarchy' do
-      let(:datacenter_object) { mock_RbVmomi_VIM_Datacenter() }
+      let(:connection_options) {{
+        :serviceContent => {
+          :datacenters => [
+            { :name => datacenter_name }
+          ]
+        }
+      }}
 
       it 'should return nil if the folder is not found' do
-        expect(subject.find_folder(missing_foldername,connection)).to be_nil
+        expect(subject.find_folder(missing_foldername,connection,datacenter_name)).to be_nil
       end
     end
 
     context 'with a single layer folder hierarchy' do
-      let(:datacenter_object) { mock_RbVmomi_VIM_Datacenter({
-        :vmfolder_tree => {
-          'folder1' => nil,
-          'folder2' => nil,
-          foldername => nil,
-          'folder3' => nil,
+      let(:connection_options) {{
+        :serviceContent => {
+          :datacenters => [
+            { :name => datacenter_name,
+              :vmfolder_tree => {
+                'folder1' => nil,
+                'folder2' => nil,
+                foldername => nil,
+                'folder3' => nil,
+              }
+            }
+          ]
         }
-      }) }
+      }}
 
       it 'should return the folder when found' do
-        result = subject.find_folder(foldername,connection)
+        result = subject.find_folder(foldername,connection,datacenter_name)
         expect(result).to_not be_nil
         expect(result.name).to eq(foldername)
       end
 
       it 'should return nil if the folder is not found' do
-        expect(subject.find_folder(missing_foldername,connection)).to be_nil
+        expect(subject.find_folder(missing_foldername,connection,datacenter_name)).to be_nil
+      end
+    end
+
+    context 'with a single layer folder hierarchy in many datacenters' do
+      let(:connection_options) {{
+        :serviceContent => {
+          :datacenters => [
+            { :name => 'AnotherDC',
+              :vmfolder_tree => {
+                'folder1' => nil,
+                'folder2' => nil,
+                'folder3' => nil,
+              }
+            },
+            { :name => datacenter_name,
+              :vmfolder_tree => {
+                'folder4' => nil,
+                'folder5' => nil,
+                foldername => nil,
+                'folder6' => nil,
+              }
+            }
+          ]
+        }
+      }}
+
+      it 'should return the folder when found' do
+        result = subject.find_folder(foldername,connection,datacenter_name)
+        expect(result).to_not be_nil
+        expect(result.name).to eq(foldername)
+      end
+
+      it 'should return nil if the folder is not found' do
+        expect(subject.find_folder(missing_foldername,connection,'AnotherDC')).to be_nil
       end
     end
 
     context 'with a VM with the same name as a folder in a single layer folder hierarchy' do
       # The folder hierarchy should include a VM with same name as folder, and appear BEFORE the
       # folder in the child list.
-      let(:datacenter_object) { mock_RbVmomi_VIM_Datacenter({
-        :vmfolder_tree => {
-          'folder1' => nil,
-          'vm1' => { :object_type => 'vm', :name => foldername },
-          foldername => nil,
-          'folder3' => nil,
+      let(:connection_options) {{
+        :serviceContent => {
+          :datacenters => [
+            { :name => datacenter_name,
+              :vmfolder_tree => {
+                'folder1' => nil,
+                'vm1' => { :object_type => 'vm', :name => foldername },
+                foldername => nil,
+                'folder3' => nil,
+              }
+            }
+          ]
         }
-      }) }
+      }}
 
       it 'should not return a VM' do
         pending('https://github.com/puppetlabs/vmpooler/issues/204')
-        result = subject.find_folder(foldername,connection)
+        result = subject.find_folder(foldername,connection,datacenter_name)
         expect(result).to_not be_nil
         expect(result.name).to eq(foldername)
         expect(result.is_a? RbVmomi::VIM::VirtualMachine).to be false
@@ -1615,31 +1794,37 @@ EOT
     context 'with a multi layer folder hierarchy' do
       let(:end_folder_name) { 'folder'}
       let(:foldername) { 'folder2/folder4/' + end_folder_name}
-      let(:datacenter_object) { mock_RbVmomi_VIM_Datacenter({
-        :vmfolder_tree => {
-          'folder1' => nil,
-          'folder2' => {
-            :children => {
-              'folder3' => nil,
-              'folder4' => {
-                :children => {
-                  end_folder_name => nil,
+      let(:connection_options) {{
+        :serviceContent => {
+          :datacenters => [
+            { :name => datacenter_name,
+              :vmfolder_tree => {
+                'folder1' => nil,
+                'folder2' => {
+                  :children => {
+                    'folder3' => nil,
+                    'folder4' => {
+                      :children => {
+                        end_folder_name => nil,
+                      },
+                    }
+                  },
                 },
+                'folder5' => nil,
               }
-            },
-          },
-          'folder5' => nil,
+            }
+          ]
         }
-      }) }
+      }}
 
       it 'should return the folder when found' do
-        result = subject.find_folder(foldername,connection)
+        result = subject.find_folder(foldername,connection,datacenter_name)
         expect(result).to_not be_nil
         expect(result.name).to eq(end_folder_name)
       end
 
       it 'should return nil if the folder is not found' do
-        expect(subject.find_folder(missing_foldername,connection)).to be_nil
+        expect(subject.find_folder(missing_foldername,connection,datacenter_name)).to be_nil
       end
     end
 
@@ -1648,30 +1833,36 @@ EOT
       # and appear BEFORE the folder in the child list.
       let(:end_folder_name) { 'folder'}
       let(:foldername) { 'folder2/folder4/' + end_folder_name}
-      let(:datacenter_object) { mock_RbVmomi_VIM_Datacenter({
-        :vmfolder_tree => {
-          'folder1' => nil,
-          'folder2' => {
-            :children => {
-              'folder3' => nil,
-              'vm1' => { :object_type => 'vm', :name => 'folder4' },
-              'folder4' => {
-                :children => {
-                  end_folder_name => nil,
+      let(:connection_options) {{
+        :serviceContent => {
+          :datacenters => [
+            { :name => datacenter_name,
+              :vmfolder_tree => {
+                'folder1' => nil,
+                'folder2' => {
+                  :children => {
+                    'folder3' => nil,
+                    'vm1' => { :object_type => 'vm', :name => 'folder4' },
+                    'folder4' => {
+                      :children => {
+                        end_folder_name => nil,
+                      },
+                    }
+                  },
                 },
+                'folder5' => nil,
               }
-            },
-          },
-          'folder5' => nil,
+            }
+          ]
         }
-      }) }
+      }}
 
       it 'should not return a VM' do
         pending('https://github.com/puppetlabs/vmpooler/issues/204')
-        result = subject.find_folder(foldername,connection)
+        result = subject.find_folder(foldername,connection,datacenter_name)
         expect(result).to_not be_nil
         expect(result.name).to eq(foldername)
-        expect(result.is_a? RbVmomi::VIM::VirtualMachine).to be false
+        expect(result.is_a? RbVmomi::VIM::VirtualMachine,datacenter_name).to be false
       end
     end
   end
@@ -1920,9 +2111,9 @@ EOT
           :name => cluster_name,
       }]})}
       let(:expected_host) { cluster_object.host[0] }
-
+#,datacenter_name
       it 'should raise an error' do
-        expect{subject.find_least_used_host(missing_cluster_name,connection)}.to raise_error(NoMethodError,/undefined method/)
+        expect{subject.find_least_used_host(missing_cluster_name,connection,datacenter_name)}.to raise_error(NoMethodError,/undefined method/)
       end
     end
 
@@ -1935,7 +2126,7 @@ EOT
       let(:expected_host) { cluster_object.host[0] }
 
       it 'should return the standalone host' do
-        result = subject.find_least_used_host(cluster_name,connection)
+        result = subject.find_least_used_host(cluster_name,connection,datacenter_name)
 
         expect(result).to be(expected_host)
       end
@@ -1951,7 +2142,7 @@ EOT
       let(:expected_host) { cluster_object.host[0] }
 
       it 'should raise an error' do
-        expect{subject.find_least_used_host(missing_cluster_name,connection)}.to raise_error(NoMethodError,/undefined method/)
+        expect{subject.find_least_used_host(missing_cluster_name,connection,datacenter_name)}.to raise_error(NoMethodError,/undefined method/)
       end
     end
 
@@ -1966,7 +2157,7 @@ EOT
       let(:expected_host) { cluster_object.host[1] }
 
       it 'should return the standalone host' do
-        result = subject.find_least_used_host(cluster_name,connection)
+        result = subject.find_least_used_host(cluster_name,connection,datacenter_name)
 
         expect(result).to be(expected_host)
       end
@@ -1983,7 +2174,7 @@ EOT
       let(:expected_host) { cluster_object.host[1] }
 
       it 'should raise an error' do
-        expect{subject.find_least_used_host(missing_cluster_name,connection)}.to raise_error(NoMethodError,/undefined method/)
+        expect{subject.find_least_used_host(missing_cluster_name,connection,datacenter_name)}.to raise_error(NoMethodError,/undefined method/)
       end
     end
 
@@ -2000,7 +2191,7 @@ EOT
       let(:expected_host) { cluster_object.host[1] }
 
       it 'should return the standalone host' do
-        result = subject.find_least_used_host(cluster_name,connection)
+        result = subject.find_least_used_host(cluster_name,connection,datacenter_name)
 
         expect(result).to be(expected_host)
       end
@@ -2018,7 +2209,7 @@ EOT
 
       it 'should return a host' do
         pending('https://github.com/puppetlabs/vmpooler/issues/206')
-        result = subject.find_least_used_host(missing_cluster_name,connection)
+        result = subject.find_least_used_host(missing_cluster_name,connection,datacenter_name)
         expect(result).to_not be_nil
       end
     end
@@ -2028,66 +2219,109 @@ EOT
     let(:cluster) {'cluster'}
     let(:missing_cluster) {'missing_cluster'}
 
-    before(:each) do
-      allow(connection.serviceInstance).to receive(:find_datacenter).and_return(datacenter_object)
-    end
-
     context 'no clusters in the datacenter' do
-      let(:datacenter_object) { mock_RbVmomi_VIM_Datacenter() }
-
-      before(:each) do
-      end
+      let(:connection_options) {{
+        :serviceContent => {
+          :datacenters => [
+            { :name => datacenter_name }
+          ]
+        }
+      }}
 
       it 'should return nil if the cluster is not found' do
-        expect(subject.find_cluster(missing_cluster,connection)).to be_nil
+        expect(subject.find_cluster(missing_cluster,connection,datacenter_name)).to be_nil
       end
     end
 
     context 'with a single layer folder hierarchy' do
-      let(:datacenter_object) { mock_RbVmomi_VIM_Datacenter({
-        :hostfolder_tree => {
-          'cluster1' =>  {:object_type => 'compute_resource'},
-          'cluster2' => {:object_type => 'compute_resource'},
-          cluster => {:object_type => 'compute_resource'},
-          'cluster3' => {:object_type => 'compute_resource'},
+      let(:connection_options) {{
+        :serviceContent => {
+          :datacenters => [
+            { :name => datacenter_name,
+              :hostfolder_tree => {
+                'cluster1' =>  {:object_type => 'compute_resource'},
+                'cluster2' => {:object_type => 'compute_resource'},
+                cluster => {:object_type => 'compute_resource'},
+                'cluster3' => {:object_type => 'compute_resource'},
+              }
+            }
+          ]
         }
-      }) }
+      }}
 
       it 'should return the cluster when found' do
-        result = subject.find_cluster(cluster,connection)
+        result = subject.find_cluster(cluster,connection,datacenter_name)
 
         expect(result).to_not be_nil
         expect(result.name).to eq(cluster)
       end
 
       it 'should return nil if the cluster is not found' do
-        expect(subject.find_cluster(missing_cluster,connection)).to be_nil
+        expect(subject.find_cluster(missing_cluster,connection,datacenter_name)).to be_nil
+      end
+    end
+
+    context 'with a single layer folder hierarchy with multiple datacenters' do
+      let(:connection_options) {{
+        :serviceContent => {
+          :datacenters => [
+            { :name => 'AnotherDC',
+              :hostfolder_tree => {
+                'cluster1' =>  {:object_type => 'compute_resource'},
+                'cluster2' => {:object_type => 'compute_resource'},
+              }
+            },
+            { :name => datacenter_name,
+              :hostfolder_tree => {
+                cluster => {:object_type => 'compute_resource'},
+                'cluster3' => {:object_type => 'compute_resource'},
+              }
+            }
+          ]
+        }
+      }}
+
+      it 'should return the cluster when found' do
+        result = subject.find_cluster(cluster,connection,datacenter_name)
+
+        expect(result).to_not be_nil
+        expect(result.name).to eq(cluster)
+      end
+
+      it 'should return nil if the cluster is not found' do
+        expect(subject.find_cluster(missing_cluster,connection,'AnotherDC')).to be_nil
       end
     end
 
     context 'with a multi layer folder hierarchy' do
-      let(:datacenter_object) { mock_RbVmomi_VIM_Datacenter({
-        :hostfolder_tree => {
-          'cluster1' =>  {:object_type => 'compute_resource'},
-          'folder2' => {
-            :children => {
-              cluster => {:object_type => 'compute_resource'},
+      let(:connection_options) {{
+        :serviceContent => {
+          :datacenters => [
+            { :name => datacenter_name,
+              :hostfolder_tree => {
+                'cluster1' =>  {:object_type => 'compute_resource'},
+                'folder2' => {
+                  :children => {
+                    cluster => {:object_type => 'compute_resource'},
+                  }
+                },
+                'cluster3' => {:object_type => 'compute_resource'},
+              }
             }
-          },
-          'cluster3' => {:object_type => 'compute_resource'},
+          ]
         }
-      }) }
+      }}
 
       it 'should return the cluster when found' do
         pending('https://github.com/puppetlabs/vmpooler/issues/205')
-        result = subject.find_cluster(cluster,connection)
+        result = subject.find_cluster(cluster,connection,datacenter_name)
 
         expect(result).to_not be_nil
         expect(result.name).to eq(cluster)
       end
 
       it 'should return nil if the cluster is not found' do
-        expect(subject.find_cluster(missing_cluster,connection)).to be_nil
+        expect(subject.find_cluster(missing_cluster,connection,datacenter_name)).to be_nil
       end
     end
   end
@@ -2287,23 +2521,56 @@ EOT
     let(:poolname) { 'pool'}
     let(:missing_poolname) { 'missing_pool'}
 
-    before(:each) do
-      allow(connection.serviceInstance).to receive(:find_datacenter).and_return(datacenter_object)
-    end
-
     context 'with empty folder hierarchy' do
-      let(:datacenter_object) { mock_RbVmomi_VIM_Datacenter() }
+      let(:connection_options) {{
+        :serviceContent => {
+          :datacenters => [
+            { :name => datacenter_name }
+          ] 
+        }
+      }}
 
       it 'should ensure the connection' do
         pending('https://github.com/puppetlabs/vmpooler/issues/209')
         expect(subject).to receive(:ensure_connected)
 
-        subject.find_pool(poolname,connection)
+        subject.find_pool(poolname,connection,datacenter_name)
       end
 
       it 'should return nil if the pool is not found' do
         pending('https://github.com/puppetlabs/vmpooler/issues/209')
-        expect(subject.find_pool(missing_poolname,connection)).to be_nil
+        expect(subject.find_pool(missing_poolname,connection,datacenter_name)).to be_nil
+      end
+    end
+
+    context 'with multiple datacenters' do
+      let(:poolpath) { 'pool' }
+      let(:connection_options) {{
+        :serviceContent => {
+          :datacenters => [
+            { :name => 'AnotherDC',
+              :hostfolder_tree => {
+                'folder1' => nil,
+                'folder2' => nil,
+              },
+            },
+            { :name => datacenter_name,
+              :hostfolder_tree => {
+                'folder3' => nil,
+                'pool' => {:object_type => 'resource_pool'},
+                'folder4' => nil,
+              },
+            }
+          ]
+        }
+      }}
+
+      it 'should return the pool when found' do
+        result = subject.find_pool(poolpath,connection, datacenter_name)
+
+        expect(result).to_not be_nil
+        expect(result.name).to eq('pool')
+        expect(result.is_a?(RbVmomi::VIM::ResourcePool)).to be true
       end
     end
 
@@ -2398,10 +2665,18 @@ EOT
     },
     ].each do |testcase|
       context testcase[:context] do
-        let(:datacenter_object) { mock_RbVmomi_VIM_Datacenter({ :hostfolder_tree => testcase[:hostfolder_tree]}) }
+        let(:connection_options) {{
+          :serviceContent => {
+            :datacenters => [
+              { :name => datacenter_name,
+                :hostfolder_tree => testcase[:hostfolder_tree],
+              }
+            ]
+          }
+        }}
 
         it 'should return the pool when found' do
-          result = subject.find_pool(testcase[:poolpath],connection)
+          result = subject.find_pool(testcase[:poolpath],connection,datacenter_name)
 
           expect(result).to_not be_nil
           expect(result.name).to eq(testcase[:poolname])
@@ -2410,7 +2685,7 @@ EOT
 
         it 'should return nil if the poolname is not found' do
           pending('https://github.com/puppetlabs/vmpooler/issues/209')
-          expect(subject.find_pool(missing_poolname,connection)).to be_nil
+          expect(subject.find_pool(missing_poolname,connection,datacenter_name)).to be_nil
         end
       end
     end
@@ -2455,18 +2730,26 @@ EOT
     },
     ].each do |testcase|
       context testcase[:context] do
-        let(:datacenter_object) { mock_RbVmomi_VIM_Datacenter({ :hostfolder_tree => testcase[:hostfolder_tree]}) }
+        let(:connection_options) {{
+          :serviceContent => {
+            :datacenters => [
+              { :name => datacenter_name,
+                :hostfolder_tree => testcase[:hostfolder_tree],
+              }
+            ]
+          }
+        }}
 
         it 'should ensure the connection' do
           pending('https://github.com/puppetlabs/vmpooler/issues/210')
           expect(subject).to receive(:ensure_connected)
 
-          subject.find_pool(testcase[:poolpath])
+          subject.find_pool(testcase[:poolpath],connection,datacenter_name)
         end
 
         it 'should return the pool when found' do
           pending('https://github.com/puppetlabs/vmpooler/issues/210')
-          result = subject.find_pool(testcase[:poolpath])
+          result = subject.find_pool(testcase[:poolpath],connection,datacenter_name)
 
           expect(result).to_not be_nil
           expect(result.name).to eq(testcase[:poolname])
@@ -2688,7 +2971,7 @@ EOT
     let(:connection_options) {{
       :serviceContent => {
         :datacenters => [
-          { :name => 'MockDC', :datastores => [datastorename] }
+          { :name => datacenter_name, :datastores => [datastorename] }
         ]
       }
     }}
@@ -2719,11 +3002,11 @@ EOT
       } }
 
       it 'should return empty array if no VMDKs match the VM name' do
-        expect(subject.find_vmdks('missing_vm_name',datastorename,connection)).to eq([])
+        expect(subject.find_vmdks('missing_vm_name',datastorename,connection,datacenter_name)).to eq([])
       end
 
       it 'should return matching VMDKs for the VM' do
-        result = subject.find_vmdks(vmname,datastorename,connection)
+        result = subject.find_vmdks(vmname,datastorename,connection,datacenter_name)
         expect(result).to_not be_nil
         expect(result.count).to eq(2)
         # The keys for each VMDK should be less that 100 as per the mocks

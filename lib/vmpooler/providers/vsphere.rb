@@ -45,7 +45,7 @@ module Vmpooler
           @connection_pool.with_metrics do |pool_object|
             connection = ensured_vsphere_connection(pool_object)
             foldername = pool_config(pool_name)['folder']
-            folder_object = find_folder(foldername, connection)
+            folder_object = find_folder(foldername, connection, get_target_datacenter_from_config(pool_name))
 
             return vms if folder_object.nil?
 
@@ -94,7 +94,7 @@ module Vmpooler
             raise("VM #{vm_name} does not exist in Pool #{pool_name} for the provider #{name}") if vm_object.nil?
 
             target_cluster_name = get_target_cluster_from_config(pool_name)
-            cluster = find_cluster(target_cluster_name, connection)
+            cluster = find_cluster(target_cluster_name, connection, get_target_datacenter_from_config(pool_name))
             raise("Pool #{pool_name} specifies cluster #{target_cluster_name} which does not exist for the provider #{name}") if cluster.nil?
 
             # Go through each host and initiate a migration when the correct host name is found
@@ -142,6 +142,7 @@ module Vmpooler
             target_folder_path = pool['folder']
             target_datastore = pool['datastore']
             target_cluster_name = get_target_cluster_from_config(pool_name)
+            target_datacenter_name = get_target_datacenter_from_config(pool_name)
 
             # Extract the template VM name from the full path
             raise("Pool #{pool_name} did specify a full path for the template for the provider #{name}") unless template_path =~ /\//
@@ -149,7 +150,7 @@ module Vmpooler
             template_name = templatefolders.pop
 
             # Get the actual objects from vSphere
-            template_folder_object = find_folder(templatefolders.join('/'), connection)
+            template_folder_object = find_folder(templatefolders.join('/'), connection, target_datacenter_name)
             raise("Pool #{pool_name} specifies a template folder of #{templatefolders.join('/')} which does not exist for the provider #{name}") if template_folder_object.nil?
 
             template_vm_object = template_folder_object.find(template_name)
@@ -170,11 +171,11 @@ module Vmpooler
             )
 
             # Choose a cluster/host to place the new VM on
-            target_host_object = find_least_used_host(target_cluster_name, connection)
+            target_host_object = find_least_used_host(target_cluster_name, connection, target_datacenter_name)
 
             # Put the VM in the specified folder and resource pool
             relocate_spec = RbVmomi::VIM.VirtualMachineRelocateSpec(
-              datastore: find_datastore(target_datastore, connection),
+              datastore: find_datastore(target_datastore, connection, target_datacenter_name),
               host: target_host_object,
               diskMoveType: :moveChildMostDiskBacking
             )
@@ -189,7 +190,7 @@ module Vmpooler
 
             # Create the new VM
             new_vm_object = template_vm_object.CloneVM_Task(
-              folder: find_folder(target_folder_path, connection),
+              folder: find_folder(target_folder_path, connection, target_datacenter_name),
               name: new_vmname,
               spec: clone_spec
             ).wait_for_completion
@@ -211,7 +212,7 @@ module Vmpooler
             vm_object = find_vm(vm_name, connection)
             raise("VM #{vm_name} in pool #{pool_name} does not exist for the provider #{name}") if vm_object.nil?
 
-            add_disk(vm_object, disk_size, datastore_name, connection)
+            add_disk(vm_object, disk_size, datastore_name, connection, get_target_datacenter_from_config(pool_name))
           end
           true
         end
@@ -283,6 +284,16 @@ module Vmpooler
 
           return pool['clone_target'] unless pool['clone_target'].nil?
           return global_config[:config]['clone_target'] unless global_config[:config]['clone_target'].nil?
+
+          nil
+        end
+
+        def get_target_datacenter_from_config(pool_name)
+          pool = pool_config(pool_name)
+          return nil if pool.nil?
+
+          return pool['datacenter']            unless pool['datacenter'].nil?
+          return provider_config['datacenter'] unless provider_config['datacenter'].nil?
 
           nil
         end
@@ -375,11 +386,12 @@ module Vmpooler
           (full_path.reverse.map { |p| p[1] }).join('/')
         end
 
-        def add_disk(vm, size, datastore, connection)
+        def add_disk(vm, size, datastore, connection, datacentername)
           return false unless size.to_i > 0
 
-          vmdk_datastore = find_datastore(datastore, connection)
-          vmdk_file_name = "#{vm['name']}/#{vm['name']}_#{find_vmdks(vm['name'], datastore, connection).length + 1}.vmdk"
+          vmdk_datastore = find_datastore(datastore, connection, datacentername)
+          raise("Datastore '#{datastore}' does not exist in datacenter '#{datacentername}'") if vmdk_datastore.nil?
+          vmdk_file_name = "#{vm['name']}/#{vm['name']}_#{find_vmdks(vm['name'], datastore, connection, datacentername).length + 1}.vmdk"
 
           controller = find_disk_controller(vm)
 
@@ -413,7 +425,7 @@ module Vmpooler
           )
 
           connection.serviceContent.virtualDiskManager.CreateVirtualDisk_Task(
-            datacenter: connection.serviceInstance.find_datacenter,
+            datacenter: connection.serviceInstance.find_datacenter(datacentername),
             name: "[#{vmdk_datastore.name}] #{vmdk_file_name}",
             spec: vmdk_spec
           ).wait_for_completion
@@ -423,8 +435,9 @@ module Vmpooler
           true
         end
 
-        def find_datastore(datastorename, connection)
-          datacenter = connection.serviceInstance.find_datacenter
+        def find_datastore(datastorename, connection, datacentername)
+          datacenter = connection.serviceInstance.find_datacenter(datacentername)
+          raise("Datacenter #{datacentername} does not exist") if datacenter.nil?
           datacenter.find_datastore(datastorename)
         end
 
@@ -497,8 +510,15 @@ module Vmpooler
           available_unit_numbers.sort[0]
         end
 
-        def find_folder(foldername, connection)
-          datacenter = connection.serviceInstance.find_datacenter
+        # Finds the first reference to and returns the folder object for a foldername and an optional datacenter
+        # Params:
+        # +foldername+:: the folder to find (optionally with / in which case the foldername will be split and each element searched for)
+        # +connection+:: the vsphere connection object
+        # +datacentername+:: the datacenter where the folder resides, or nil to return the first datacenter found
+        # returns a ManagedObjectReference for the first folder found or nil if none found
+        def find_folder(foldername, connection, datacentername)
+          datacenter = connection.serviceInstance.find_datacenter(datacentername)
+          raise("Datacenter #{datacentername} does not exist") if datacenter.nil?
           base = datacenter.vmFolder
 
           folders = foldername.split('/')
@@ -558,16 +578,17 @@ module Vmpooler
           (memory_usage.to_f / memory_size.to_f) * 100
         end
 
-        def find_least_used_host(cluster, connection)
-          cluster_object = find_cluster(cluster, connection)
+        def find_least_used_host(cluster, connection, datacentername)
+          cluster_object = find_cluster(cluster, connection, datacentername)
           target_hosts = get_cluster_host_utilization(cluster_object)
           raise("There is no host candidate in vcenter that meets all the required conditions, check that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory'") if target_hosts.empty?
           least_used_host = target_hosts.sort[0][1]
           least_used_host
         end
 
-        def find_cluster(cluster, connection)
-          datacenter = connection.serviceInstance.find_datacenter
+        def find_cluster(cluster, connection, datacentername)
+          datacenter = connection.serviceInstance.find_datacenter(datacentername)
+          raise("Datacenter #{datacentername} does not exist") if datacenter.nil?
           datacenter.hostFolder.children.find { |cluster_object| cluster_object.name == cluster }
         end
 
@@ -590,8 +611,9 @@ module Vmpooler
           [target_host, target_host.name]
         end
 
-        def find_pool(poolname, connection)
-          datacenter = connection.serviceInstance.find_datacenter
+        def find_pool(poolname, connection, datacentername)
+          datacenter = connection.serviceInstance.find_datacenter(datacentername)
+          raise("Datacenter #{datacentername} does not exist") if datacenter.nil?
           base = datacenter.hostFolder
           pools = poolname.split('/')
           pools.each do |pool|
@@ -670,10 +692,10 @@ module Vmpooler
           vms
         end
 
-        def find_vmdks(vmname, datastore, connection)
+        def find_vmdks(vmname, datastore, connection, datacentername)
           disks = []
 
-          vmdk_datastore = find_datastore(datastore, connection)
+          vmdk_datastore = find_datastore(datastore, connection,datacentername)
 
           vm_files = connection.serviceContent.propertyCollector.collectMultiple vmdk_datastore.vm, 'layoutEx.file'
           vm_files.keys.each do |f|

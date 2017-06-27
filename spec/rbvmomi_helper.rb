@@ -123,6 +123,7 @@ MockServiceInstance = Struct.new(
         return child if path.nil? || child.name == path
       end
     end
+    nil
   end
 end
 
