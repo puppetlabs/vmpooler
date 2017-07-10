@@ -1619,7 +1619,7 @@ EOT
 
       context 'and host to migrate to is the same as the current host' do
         before(:each) do
-          expect(provider).to receive(:find_least_used_compatible_host).with(vm).and_return(vm_parent_hostname)
+          expect(provider).to receive(:find_least_used_compatible_host).with(pool, vm).and_return(vm_parent_hostname)
         end
 
         it "should not migrate the VM" do
@@ -1648,7 +1648,7 @@ EOT
       context 'and host to migrate to different to the current host' do
         let(:vm_new_hostname) { 'new_hostname' }
         before(:each) do
-          expect(provider).to receive(:find_least_used_compatible_host).with(vm).and_return(vm_new_hostname)
+          expect(provider).to receive(:find_least_used_compatible_host).with(pool, vm).and_return(vm_new_hostname)
           expect(subject).to receive(:migrate_vm_and_record_timing).with(vm, pool, vm_parent_hostname, vm_new_hostname, provider).and_return('1.00')
         end
 
