@@ -603,6 +603,7 @@ module Vmpooler
         end
       rescue => err
         $logger.log('s', "[!] [#{pool['name']}] _check_pool failed with an error while inspecting inventory: #{err}")
+        return pool_check_response
       end
 
       # RUNNING
@@ -615,6 +616,8 @@ module Vmpooler
           rescue => err
             $logger.log('d', "[!] [#{pool['name']}] _check_pool with an error while evaluating running VMs: #{err}")
           end
+        else
+          move_vm_queue(pool['name'], vm, 'running', 'completed', 'is a running VM but is missing from inventory.  Marking as completed.')
         end
       end
 
@@ -627,6 +630,8 @@ module Vmpooler
           rescue => err
             $logger.log('d', "[!] [#{pool['name']}] _check_pool failed with an error while evaluating ready VMs: #{err}")
           end
+        else
+          move_vm_queue(pool['name'], vm, 'ready', 'completed', 'is a ready VM but is missing from inventory.  Marking as completed.')
         end
       end
 

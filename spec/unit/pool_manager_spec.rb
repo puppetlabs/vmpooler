@@ -2347,12 +2347,13 @@ EOT
   task_limit: 10
 :pools:
   - name: #{pool}
-    size: 0
+    size: 10
 EOT
       )
     }
     let(:pool_object) { config[:pools][0] }
     let(:new_vm) { 'newvm'}
+    let(:pool_name) { pool_object['name'] }
 
     before do
       expect(subject).not_to be_nil
@@ -2376,6 +2377,46 @@ EOT
         expect(logger).to receive(:log).with('s', "[!] [#{pool}] _check_pool failed with an error while inspecting inventory: Mock Error")
 
         subject._check_pool(pool_object,provider)
+      end
+
+      it 'should not perform any other actions if an error occurs' do
+        # Add VMs into redis
+        create_running_vm(pool_name, 'vm1')
+        create_ready_vm(pool_name, 'vm2')
+        create_completed_vm('vm3', pool_name)
+        create_discovered_vm('vm4', pool_name)
+        create_migrating_vm('vm5', pool_name)
+
+        expect(subject).to receive(:move_vm_queue).exactly(0).times
+        expect(subject).to receive(:check_running_vm).exactly(0).times
+        expect(subject).to receive(:check_pending_vm).exactly(0).times
+        expect(subject).to receive(:destroy_vm).exactly(0).times
+        expect(redis).to receive(:srem).exactly(0).times
+        expect(redis).to receive(:del).exactly(0).times
+        expect(redis).to receive(:hdel).exactly(0).times
+        expect(redis).to receive(:smove).exactly(0).times
+        expect(subject).to receive(:migrate_vm).exactly(0).times
+        expect(redis).to receive(:set).exactly(0).times
+        expect(redis).to receive(:incr).exactly(0).times
+        expect(subject).to receive(:clone_vm).exactly(0).times
+        expect(redis).to receive(:decr).exactly(0).times
+
+        expect(provider).to receive(:vms_in_pool).and_raise(RuntimeError,'Mock Error')
+        subject._check_pool(pool_object,provider)
+      end
+
+      it 'should return that no actions were taken' do
+        expect(provider).to receive(:vms_in_pool).and_raise(RuntimeError,'Mock Error')
+
+        result = subject._check_pool(pool_object,provider)
+
+        expect(result[:discovered_vms]).to be(0)
+        expect(result[:checked_running_vms]).to be(0)
+        expect(result[:checked_ready_vms]).to be(0)
+        expect(result[:checked_pending_vms]).to be(0)
+        expect(result[:destroyed_vms]).to be(0)
+        expect(result[:migrated_vms]).to be(0)
+        expect(result[:cloned_vms]).to be(0)
       end
 
       it 'should log the discovery of VMs' do
@@ -2428,8 +2469,14 @@ EOT
         create_running_vm(pool,vm,token)
       end
 
-      it 'should not do anything' do
+      it 'should not call check_running_vm' do
         expect(subject).to receive(:check_running_vm).exactly(0).times
+
+        subject._check_pool(pool_object,provider)
+      end
+
+      it 'should move the VM to completed queue' do
+        expect(subject).to receive(:move_vm_queue).with(pool,vm,'running','completed',String).and_call_original
 
         subject._check_pool(pool_object,provider)
       end
@@ -2487,8 +2534,14 @@ EOT
         create_ready_vm(pool,vm,token)
       end
 
-      it 'should not do anything' do
+      it 'should not call check_ready_vm' do
         expect(subject).to receive(:check_ready_vm).exactly(0).times
+
+        subject._check_pool(pool_object,provider)
+      end
+
+      it 'should move the VM to completed queue' do
+        expect(subject).to receive(:move_vm_queue).with(pool,vm,'ready','completed',String).and_call_original
 
         subject._check_pool(pool_object,provider)
       end
@@ -2770,6 +2823,17 @@ EOT
 
     # REPOPULATE
     context 'Repopulate a pool' do
+    let(:config) {
+      YAML.load(<<-EOT
+---
+:config:
+  task_limit: 10
+:pools:
+  - name: #{pool}
+    size: 0
+EOT
+      )
+    }
       it 'should not call clone_vm when number of VMs is equal to the pool size' do
         expect(provider).to receive(:vms_in_pool).with(pool).and_return([])
         expect(subject).to receive(:clone_vm).exactly(0).times
@@ -2817,18 +2881,24 @@ EOT
       end
 
       context 'when pool is marked as empty' do
+        let(:vm_response) {
+          # Mock response from Base Provider for vms_in_pool
+          [{ 'name' => vm}]
+        }          
+
         before(:each) do
-        expect(provider).to receive(:vms_in_pool).with(pool).and_return([])
           redis.set("vmpooler__empty__#{pool}", 'true')
         end
 
         it 'should not log a message when the pool remains empty' do
+          expect(provider).to receive(:vms_in_pool).with(pool).and_return([])
           expect(logger).to receive(:log).with('s', "[!] [#{pool}] is empty").exactly(0).times
 
           subject._check_pool(pool_object,provider)
         end
 
         it 'should remove the empty pool mark if it is no longer empty' do
+          expect(provider).to receive(:vms_in_pool).with(pool).and_return(vm_response)
           create_ready_vm(pool,vm,token)
 
           expect(redis.get("vmpooler__empty__#{pool}")).to be_truthy
