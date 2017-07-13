@@ -592,7 +592,7 @@ module Vmpooler
           datacenter.hostFolder.children.find { |cluster_object| cluster_object.name == cluster }
         end
 
-        def get_cluster_host_utilization(cluster, model=nil)
+        def get_cluster_host_utilization(cluster, model = nil)
           cluster_hosts = []
           cluster.host.each do |host|
             host_usage = get_host_utilization(host, model)

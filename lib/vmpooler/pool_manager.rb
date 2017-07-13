@@ -1,5 +1,9 @@
 module Vmpooler
   class PoolManager
+    CHECK_LOOP_DELAY_MIN_DEFAULT = 5
+    CHECK_LOOP_DELAY_MAX_DEFAULT = 60
+    CHECK_LOOP_DELAY_DECAY_DEFAULT = 2.0
+
     def initialize(config, logger, redis, metrics)
       $config = config
 
@@ -523,17 +527,36 @@ module Vmpooler
       finish
     end
 
-    def check_pool(pool, maxloop = 0, loop_delay = 5)
+    def check_pool(pool,
+                   maxloop = 0,
+                   loop_delay_min = CHECK_LOOP_DELAY_MIN_DEFAULT,
+                   loop_delay_max = CHECK_LOOP_DELAY_MAX_DEFAULT,
+                   loop_delay_decay = CHECK_LOOP_DELAY_DECAY_DEFAULT)
       $logger.log('d', "[*] [#{pool['name']}] starting worker thread")
+
+      # Use the pool setings if they exist
+      loop_delay_min = pool['check_loop_delay_min'] unless pool['check_loop_delay_min'].nil?
+      loop_delay_max = pool['check_loop_delay_max'] unless pool['check_loop_delay_max'].nil?
+      loop_delay_decay = pool['check_loop_delay_decay'] unless pool['check_loop_delay_decay'].nil?
+
+      loop_delay_decay = 2.0 if loop_delay_decay <= 1.0
+      loop_delay_max = loop_delay_min if loop_delay_max.nil? || loop_delay_max < loop_delay_min
 
       $threads[pool['name']] = Thread.new do
         begin
           loop_count = 1
+          loop_delay = loop_delay_min
           provider = get_provider_for_pool(pool['name'])
           raise("Could not find provider '#{pool['provider']}") if provider.nil?
           loop do
-            _check_pool(pool, provider)
+            result = _check_pool(pool, provider)
 
+            if result[:cloned_vms] > 0 || result[:checked_pending_vms] > 0 || result[:discovered_vms] > 0
+              loop_delay = loop_delay_min
+            else
+              loop_delay = (loop_delay * loop_delay_decay).to_i
+              loop_delay = loop_delay_max if loop_delay > loop_delay_max
+            end
             sleep(loop_delay)
 
             unless maxloop.zero?
@@ -549,6 +572,15 @@ module Vmpooler
     end
 
     def _check_pool(pool, provider)
+      pool_check_response = {
+        discovered_vms: 0,
+        checked_running_vms: 0,
+        checked_ready_vms: 0,
+        checked_pending_vms: 0,
+        destroyed_vms: 0,
+        migrated_vms: 0,
+        cloned_vms: 0
+      }
       # INVENTORY
       inventory = {}
       begin
@@ -561,6 +593,7 @@ module Vmpooler
             (! $redis.sismember('vmpooler__discovered__' + pool['name'], vm['name'])) &&
             (! $redis.sismember('vmpooler__migrating__' + pool['name'], vm['name']))
 
+            pool_check_response[:discovered_vms] += 1
             $redis.sadd('vmpooler__discovered__' + pool['name'], vm['name'])
 
             $logger.log('s', "[?] [#{pool['name']}] '#{vm['name']}' added to 'discovered' queue")
@@ -577,6 +610,7 @@ module Vmpooler
         if inventory[vm]
           begin
             vm_lifetime = $redis.hget('vmpooler__vm__' + vm, 'lifetime') || $config[:config]['vm_lifetime'] || 12
+            pool_check_response[:checked_running_vms] += 1
             check_running_vm(vm, pool['name'], vm_lifetime, provider)
           rescue => err
             $logger.log('d', "[!] [#{pool['name']}] _check_pool with an error while evaluating running VMs: #{err}")
@@ -588,6 +622,7 @@ module Vmpooler
       $redis.smembers("vmpooler__ready__#{pool['name']}").each do |vm|
         if inventory[vm]
           begin
+            pool_check_response[:checked_ready_vms] += 1
             check_ready_vm(vm, pool['name'], pool['ready_ttl'] || 0, provider)
           rescue => err
             $logger.log('d', "[!] [#{pool['name']}] _check_pool failed with an error while evaluating ready VMs: #{err}")
@@ -600,6 +635,7 @@ module Vmpooler
         pool_timeout = pool['timeout'] || $config[:config]['timeout'] || 15
         if inventory[vm]
           begin
+            pool_check_response[:checked_pending_vms] += 1
             check_pending_vm(vm, pool['name'], pool_timeout, provider)
           rescue => err
             $logger.log('d', "[!] [#{pool['name']}] _check_pool failed with an error while evaluating pending VMs: #{err}")
@@ -613,6 +649,7 @@ module Vmpooler
       $redis.smembers("vmpooler__completed__#{pool['name']}").each do |vm|
         if inventory[vm]
           begin
+            pool_check_response[:destroyed_vms] += 1
             destroy_vm(vm, pool['name'], provider)
           rescue => err
             $redis.srem("vmpooler__completed__#{pool['name']}", vm)
@@ -650,6 +687,7 @@ module Vmpooler
       $redis.smembers("vmpooler__migrating__#{pool['name']}").each do |vm|
         if inventory[vm]
           begin
+            pool_check_response[:migrated_vms] += 1
             migrate_vm(vm, pool['name'], provider)
           rescue => err
             $logger.log('s', "[x] [#{pool['name']}] '#{vm}' failed to migrate: #{err}")
@@ -680,6 +718,7 @@ module Vmpooler
           if $redis.get('vmpooler__tasks__clone').to_i < $config[:config]['task_limit'].to_i
             begin
               $redis.incr('vmpooler__tasks__clone')
+              pool_check_response[:cloned_vms] += 1
               clone_vm(pool, provider)
             rescue => err
               $logger.log('s', "[!] [#{pool['name']}] clone failed during check_pool with an error: #{err}")
@@ -689,6 +728,8 @@ module Vmpooler
           end
         end
       end
+
+      pool_check_response
     rescue => err
       $logger.log('d', "[!] [#{pool['name']}] _check_pool failed with an error: #{err}")
       raise
@@ -733,6 +774,12 @@ module Vmpooler
           pool['provider'] = 'vsphere'
         end
       end
+
+      # Get pool loop settings
+      $config[:config] = {} if $config[:config].nil?
+      check_loop_delay_min = $config[:config]['check_loop_delay_min'] || CHECK_LOOP_DELAY_MIN_DEFAULT
+      check_loop_delay_max = $config[:config]['check_loop_delay_max'] || CHECK_LOOP_DELAY_MAX_DEFAULT
+      check_loop_delay_decay = $config[:config]['check_loop_delay_decay'] || CHECK_LOOP_DELAY_DECAY_DEFAULT
 
       # Create the providers
       $config[:pools].each do |pool|
@@ -786,7 +833,7 @@ module Vmpooler
             check_pool(pool)
           elsif ! $threads[pool['name']].alive?
             $logger.log('d', "[!] [#{pool['name']}] worker thread died, restarting")
-            check_pool(pool)
+            check_pool(pool, check_loop_delay_min, check_loop_delay_max, check_loop_delay_decay)
           end
         end
 

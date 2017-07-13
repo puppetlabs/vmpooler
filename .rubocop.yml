@@ -11,6 +11,7 @@ AllCops:
     - 'vendor/**/*'
     - Gemfile
     - Rakefile
+    - Vagrantfile
 
 Style/Documentation:
   Enabled: false
