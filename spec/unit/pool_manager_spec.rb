@@ -2316,7 +2316,7 @@ EOT
     it 'should set checkout_to_migration metric in redis' do
       expect(redis.hget("vmpooler__vm__#{vm}", 'checkout_to_migration')).to be_nil
       subject.migrate_vm_and_record_timing(vm, pool, source_host_name, dest_host_name, provider)
-      expect(redis.hget("vmpooler__vm__#{vm}", 'checkout_to_migration')).to match(/0\.[\d]+/)
+      expect(redis.hget("vmpooler__vm__#{vm}", 'checkout_to_migration')).to match(/[01]\.[\d]+/)
     end
   end
 
