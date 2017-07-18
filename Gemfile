@@ -12,6 +12,9 @@ gem 'puma', '>= 3.6.0'
 gem 'rack', '~> 1.6'
 gem 'rake', '>= 10.4'
 gem 'rbvmomi', '>= 1.8'
+if RUBY_VERSION =~ /^1\.9\./
+  gem 'nokogiri', '< 1.7.0'
+end
 gem 'redis', '>= 3.2'
 gem 'sinatra', '>= 1.4'
 gem 'net-ldap', '<= 0.12.1' # keep compatibility w/ jruby & mri-1.9.3
