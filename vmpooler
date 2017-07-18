@@ -11,26 +11,26 @@ logger_file = config[:config]['logfile']
 
 metrics = Vmpooler.new_metrics(config)
 
-api = Thread.new {
+api = Thread.new do
   thr = Vmpooler::API.new
   thr.helpers.configure(config, Vmpooler.new_redis(redis_host), metrics)
   thr.helpers.execute!
-}
+end
 
-manager = Thread.new {
+manager = Thread.new do
   Vmpooler::PoolManager.new(
     config,
     Vmpooler.new_logger(logger_file),
     Vmpooler.new_redis(redis_host),
     metrics
   ).execute!
-}
-
-if ENV['VMPOOLER_DEBUG']
-  trap("INT") {
-    puts "Shutting down."
-    [api, manager].each { |t| t.exit }
-  }
 end
 
-[api, manager].each { |t| t.join }
+if ENV['VMPOOLER_DEBUG']
+  trap('INT') do
+    puts 'Shutting down.'
+    [api, manager].each(&:exit)
+  end
+end
+
+[api, manager].each(&:join)

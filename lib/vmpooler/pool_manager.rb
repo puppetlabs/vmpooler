@@ -42,7 +42,7 @@ module Vmpooler
 
     def _check_pending_vm(vm, pool, timeout, provider)
       host = provider.get_vm(pool, vm)
-      if ! host
+      unless host
         fail_pending_vm(vm, pool, timeout, false)
         return
       end
@@ -60,7 +60,7 @@ module Vmpooler
 
     def fail_pending_vm(vm, pool, timeout, exists = true)
       clone_stamp = $redis.hget("vmpooler__vm__#{vm}", 'clone')
-      return true if !clone_stamp
+      return true unless clone_stamp
 
       time_since_clone = (Time.now - Time.parse(clone_stamp)) / 60
       if time_since_clone > timeout
@@ -80,12 +80,13 @@ module Vmpooler
     def move_pending_vm_to_ready(vm, pool, host)
       if host['hostname'] == vm
         begin
-          Socket.getaddrinfo(vm, nil)  # WTF? I assume this is just priming the local DNS resolver cache?!?!
-        rescue
+          Socket.getaddrinfo(vm, nil) # WTF? I assume this is just priming the local DNS resolver cache?!?!
+        rescue # rubocop:disable Lint/HandleExceptions
+          # Do not care about errors what-so-ever
         end
 
         clone_time = $redis.hget('vmpooler__vm__' + vm, 'clone')
-        finish = '%.2f' % (Time.now - Time.parse(clone_time)) if clone_time
+        finish = format('%.2f', Time.now - Time.parse(clone_time)) if clone_time
 
         $redis.smove('vmpooler__pending__' + pool, 'vmpooler__ready__' + pool, vm)
         $redis.hset('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm, finish)
@@ -112,7 +113,7 @@ module Vmpooler
 
       host = provider.get_vm(pool, vm)
       # Check if the host even exists
-      if !host
+      unless host
         $redis.srem('vmpooler__ready__' + pool, vm)
         $logger.log('s', "[!] [#{pool}] '#{vm}' not found in inventory, removed from 'ready' queue")
         return
@@ -120,7 +121,7 @@ module Vmpooler
 
       # Check if the hosts TTL has expired
       if ttl > 0
-        if (((Time.now - host['boottime']) / 60).to_s[/^\d+\.\d{1}/].to_f) > ttl
+        if ((Time.now - host['boottime']) / 60).to_s[/^\d+\.\d{1}/].to_f > ttl
           $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
 
           $logger.log('d', "[!] [#{pool}] '#{vm}' reached end of TTL after #{ttl} minutes, removed from 'ready' queue")
@@ -130,14 +131,14 @@ module Vmpooler
 
       $redis.hset('vmpooler__vm__' + vm, 'check', Time.now)
       # Check if the VM is not powered on
-      unless (host['powerstate'].casecmp('poweredon') == 0)
+      unless host['powerstate'].casecmp('poweredon').zero?
         $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
         $logger.log('d', "[!] [#{pool}] '#{vm}' appears to be powered off, removed from 'ready' queue")
         return
       end
 
       # Check if the hostname has magically changed from underneath Pooler
-      if (host['hostname'] != vm)
+      if host['hostname'] != vm
         $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
         $logger.log('d', "[!] [#{pool}] '#{vm}' has mismatched hostname, removed from 'ready' queue")
         return
@@ -145,7 +146,7 @@ module Vmpooler
 
       # Check if the VM is still ready/available
       begin
-        fail "VM #{vm} is not ready" unless provider.vm_ready?(pool, vm)
+        raise("VM #{vm} is not ready") unless provider.vm_ready?(pool, vm)
       rescue
         if $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
           $logger.log('d', "[!] [#{pool}] '#{vm}' is unreachable, removed from 'ready' queue")
@@ -170,16 +171,13 @@ module Vmpooler
       host = provider.get_vm(pool, vm)
 
       if host
-        queue_from, queue_to = 'running', 'completed'
-
         # Check that VM is within defined lifetime
         checkouttime = $redis.hget('vmpooler__active__' + pool, vm)
         if checkouttime
           running = (Time.now - Time.parse(checkouttime)) / 60 / 60
 
-          if (ttl.to_i > 0) &&
-              (running.to_i >= ttl.to_i)
-            move_vm_queue(pool, vm, queue_from, queue_to, "reached end of TTL after #{ttl} hours")
+          if (ttl.to_i > 0) && (running.to_i >= ttl.to_i)
+            move_vm_queue(pool, vm, 'running', 'completed', "reached end of TTL after #{ttl} hours")
           end
         end
       end
@@ -218,7 +216,7 @@ module Vmpooler
         $logger.log('d', "[ ] [#{pool_name}] Starting to clone '#{new_vmname}'")
         start = Time.now
         provider.create_vm(pool_name, new_vmname)
-        finish = '%.2f' % (Time.now - start)
+        finish = format('%.2f', Time.now - start)
 
         $redis.hset('vmpooler__clone__' + Date.today.to_s, pool_name + ':' + new_vmname, finish)
         $redis.hset('vmpooler__vm__' + new_vmname, 'clone_time', finish)
@@ -258,7 +256,7 @@ module Vmpooler
 
       provider.destroy_vm(pool, vm)
 
-      finish = '%.2f' % (Time.now - start)
+      finish = format('%.2f', Time.now - start)
       $logger.log('s', "[-] [#{pool}] '#{vm}' destroyed in #{finish} seconds")
       $metrics.timing("destroy.#{pool}", finish)
     end
@@ -275,7 +273,7 @@ module Vmpooler
     end
 
     def _create_vm_disk(pool_name, vm_name, disk_size, provider)
-      raise("Invalid disk size of '#{disk_size}' passed") if (disk_size.nil?) || (disk_size.empty?) || (disk_size.to_i <= 0)
+      raise("Invalid disk size of '#{disk_size}' passed") if disk_size.nil? || disk_size.empty? || disk_size.to_i <= 0
 
       $logger.log('s', "[ ] [disk_manager] '#{vm_name}' is attaching a #{disk_size}gb disk")
 
@@ -283,7 +281,7 @@ module Vmpooler
 
       result = provider.create_disk(pool_name, vm_name, disk_size.to_i)
 
-      finish = '%.2f' % (Time.now - start)
+      finish = format('%.2f', Time.now - start)
 
       if result
         rdisks = $redis.hget('vmpooler__vm__' + vm_name, 'disk')
@@ -316,7 +314,7 @@ module Vmpooler
 
       result = provider.create_snapshot(pool_name, vm_name, snapshot_name)
 
-      finish = '%.2f' % (Time.now - start)
+      finish = format('%.2f', Time.now - start)
 
       if result
         $redis.hset('vmpooler__vm__' + vm_name, 'snapshot:' + snapshot_name, Time.now.to_s)
@@ -345,7 +343,7 @@ module Vmpooler
 
       result = provider.revert_snapshot(pool_name, vm_name, snapshot_name)
 
-      finish = '%.2f' % (Time.now - start)
+      finish = format('%.2f', Time.now - start)
 
       if result
         $logger.log('s', "[+] [snapshot_manager] '#{vm_name}' reverted to snapshot '#{snapshot_name}' in #{finish} seconds")
@@ -373,7 +371,7 @@ module Vmpooler
     end
 
     def check_disk_queue(maxloop = 0, loop_delay = 5)
-      $logger.log('d', "[*] [disk_manager] starting worker thread")
+      $logger.log('d', '[*] [disk_manager] starting worker thread')
 
       $threads['disk_manager'] = Thread.new do
         loop_count = 1
@@ -408,7 +406,7 @@ module Vmpooler
     end
 
     def check_snapshot_queue(maxloop = 0, loop_delay = 5)
-      $logger.log('d', "[*] [snapshot_manager] starting worker thread")
+      $logger.log('d', '[*] [snapshot_manager] starting worker thread')
 
       $threads['snapshot_manager'] = Thread.new do
         loop_count = 1
@@ -462,7 +460,7 @@ module Vmpooler
 
     def migration_limit(migration_limit)
       # Returns migration_limit setting when enabled
-      return false if migration_limit == 0 || ! migration_limit
+      return false if migration_limit == 0 || !migration_limit # rubocop:disable Style/NumericPredicate
       migration_limit if migration_limit >= 1
     end
 
@@ -485,43 +483,39 @@ module Vmpooler
       migration_limit = migration_limit $config[:config]['migration_limit']
       migration_count = $redis.scard('vmpooler__migration')
 
-      if ! migration_limit
+      if !migration_limit
         $logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{parent_host_name}")
         return
+      elsif migration_count >= migration_limit
+        $logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{parent_host_name}. No migration will be evaluated since the migration_limit has been reached")
+        return
       else
-        if migration_count >= migration_limit
-          $logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{parent_host_name}. No migration will be evaluated since the migration_limit has been reached")
-          return
+        $redis.sadd('vmpooler__migration', vm_name)
+        host_name = provider.find_least_used_compatible_host(pool_name, vm_name)
+        if host_name == parent_host_name
+          $logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{parent_host_name}")
         else
-          $redis.sadd('vmpooler__migration', vm_name)
-          host_name = provider.find_least_used_compatible_host(pool_name, vm_name)
-          if host_name == parent_host_name
-            $logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{parent_host_name}")
-          else
-            finish = migrate_vm_and_record_timing(vm_name, pool_name, parent_host_name, host_name, provider)
-            $logger.log('s', "[>] [#{pool_name}] '#{vm_name}' migrated from #{parent_host_name} to #{host_name} in #{finish} seconds")
-          end
-          remove_vmpooler_migration_vm(pool_name, vm_name)
+          finish = migrate_vm_and_record_timing(vm_name, pool_name, parent_host_name, host_name, provider)
+          $logger.log('s', "[>] [#{pool_name}] '#{vm_name}' migrated from #{parent_host_name} to #{host_name} in #{finish} seconds")
         end
+        remove_vmpooler_migration_vm(pool_name, vm_name)
       end
     end
 
     def remove_vmpooler_migration_vm(pool, vm)
-      begin
-        $redis.srem('vmpooler__migration', vm)
-      rescue => err
-        $logger.log('s', "[x] [#{pool}] '#{vm}' removal from vmpooler__migration failed with an error: #{err}")
-      end
+      $redis.srem('vmpooler__migration', vm)
+    rescue => err
+      $logger.log('s', "[x] [#{pool}] '#{vm}' removal from vmpooler__migration failed with an error: #{err}")
     end
 
     def migrate_vm_and_record_timing(vm_name, pool_name, source_host_name, dest_host_name, provider)
       start = Time.now
       provider.migrate_vm_to_host(pool_name, vm_name, dest_host_name)
-      finish = '%.2f' % (Time.now - start)
+      finish = format('%.2f', Time.now - start)
       $metrics.timing("migrate.#{pool_name}", finish)
       $metrics.increment("migrate_from.#{source_host_name}")
       $metrics.increment("migrate_to.#{dest_host_name}")
-      checkout_to_migration = '%.2f' % (Time.now - Time.parse($redis.hget("vmpooler__vm__#{vm_name}", 'checkout')))
+      checkout_to_migration = format('%.2f', Time.now - Time.parse($redis.hget("vmpooler__vm__#{vm_name}", 'checkout')))
       $redis.hset("vmpooler__vm__#{vm_name}", 'migration_time', finish)
       $redis.hset("vmpooler__vm__#{vm_name}", 'checkout_to_migration', checkout_to_migration)
       finish
@@ -585,13 +579,12 @@ module Vmpooler
       inventory = {}
       begin
         provider.vms_in_pool(pool['name']).each do |vm|
-          if
-            (! $redis.sismember('vmpooler__running__' + pool['name'], vm['name'])) &&
-            (! $redis.sismember('vmpooler__ready__' + pool['name'], vm['name'])) &&
-            (! $redis.sismember('vmpooler__pending__' + pool['name'], vm['name'])) &&
-            (! $redis.sismember('vmpooler__completed__' + pool['name'], vm['name'])) &&
-            (! $redis.sismember('vmpooler__discovered__' + pool['name'], vm['name'])) &&
-            (! $redis.sismember('vmpooler__migrating__' + pool['name'], vm['name']))
+          if !$redis.sismember('vmpooler__running__' + pool['name'], vm['name']) &&
+             !$redis.sismember('vmpooler__ready__' + pool['name'], vm['name']) &&
+             !$redis.sismember('vmpooler__pending__' + pool['name'], vm['name']) &&
+             !$redis.sismember('vmpooler__completed__' + pool['name'], vm['name']) &&
+             !$redis.sismember('vmpooler__discovered__' + pool['name'], vm['name']) &&
+             !$redis.sismember('vmpooler__migrating__' + pool['name'], vm['name'])
 
             pool_check_response[:discovered_vms] += 1
             $redis.sadd('vmpooler__discovered__' + pool['name'], vm['name'])
@@ -703,14 +696,10 @@ module Vmpooler
       $metrics.gauge("running.#{pool['name']}", $redis.scard("vmpooler__running__#{pool['name']}"))
 
       if $redis.get("vmpooler__empty__#{pool['name']}")
-        unless ready == 0
-          $redis.del("vmpooler__empty__#{pool['name']}")
-        end
-      else
-        if ready == 0
-          $redis.set("vmpooler__empty__#{pool['name']}", 'true')
-          $logger.log('s', "[!] [#{pool['name']}] is empty")
-        end
+        $redis.del("vmpooler__empty__#{pool['name']}") unless ready.zero?
+      elsif ready.zero?
+        $redis.set("vmpooler__empty__#{pool['name']}", 'true')
+        $logger.log('s', "[!] [#{pool['name']}] is empty")
       end
 
       if total < pool['size']
@@ -814,24 +803,24 @@ module Vmpooler
 
       loop_count = 1
       loop do
-        if ! $threads['disk_manager']
+        if !$threads['disk_manager']
           check_disk_queue
-        elsif ! $threads['disk_manager'].alive?
-          $logger.log('d', "[!] [disk_manager] worker thread died, restarting")
+        elsif !$threads['disk_manager'].alive?
+          $logger.log('d', '[!] [disk_manager] worker thread died, restarting')
           check_disk_queue
         end
 
-        if ! $threads['snapshot_manager']
+        if !$threads['snapshot_manager']
           check_snapshot_queue
-        elsif ! $threads['snapshot_manager'].alive?
-          $logger.log('d', "[!] [snapshot_manager] worker thread died, restarting")
+        elsif !$threads['snapshot_manager'].alive?
+          $logger.log('d', '[!] [snapshot_manager] worker thread died, restarting')
           check_snapshot_queue
         end
 
         $config[:pools].each do |pool|
-          if ! $threads[pool['name']]
+          if !$threads[pool['name']]
             check_pool(pool)
-          elsif ! $threads[pool['name']].alive?
+          elsif !$threads[pool['name']].alive?
             $logger.log('d', "[!] [#{pool['name']}] worker thread died, restarting")
             check_pool(pool, check_loop_delay_min, check_loop_delay_max, check_loop_delay_decay)
           end

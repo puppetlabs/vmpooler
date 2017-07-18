@@ -60,8 +60,12 @@ Style/ConditionalAssignment:
   Enabled: false
 Next:
   Enabled: false
+Metrics/ParameterLists:
+  Max: 10
+Style/GuardClause:
+  Enabled: false
 
 # Enforce LF line endings, even when on Windows
-Style/EndOfLine:
+Layout/EndOfLine:
   EnforcedStyle: lf
 
