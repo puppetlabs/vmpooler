@@ -695,7 +695,7 @@ module Vmpooler
         def find_vmdks(vmname, datastore, connection, datacentername)
           disks = []
 
-          vmdk_datastore = find_datastore(datastore, connection,datacentername)
+          vmdk_datastore = find_datastore(datastore, connection, datacentername)
 
           vm_files = connection.serviceContent.propertyCollector.collectMultiple vmdk_datastore.vm, 'layoutEx.file'
           vm_files.keys.each do |f|
