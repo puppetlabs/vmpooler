@@ -724,21 +724,20 @@ module Vmpooler
       raise
     end
 
-    # create a provider object based on the providers/*.rb class that implements providers/base.rb
-    # provider_class: needs to match a provider class in providers/*.rb ie Vmpooler::PoolManager::Provider::X
-    # provider_name: should be a unique provider name
+    # Create a provider object, usually based on the providers/*.rb class, that implements providers/base.rb
+    # provider_class: Needs to match a class in the Vmpooler::PoolManager::Provider namespace. This is
+    #                 either as a gem in the LOADPATH or in providers/*.rb ie Vmpooler::PoolManager::Provider::X
+    # provider_name:  Should be a unique provider name
     #
     # returns an object Vmpooler::PoolManager::Provider::*
     # or raises an error if the class does not exist
     def create_provider_object(config, logger, metrics, provider_class, provider_name, options)
-      case provider_class
-      when 'vsphere'
-        Vmpooler::PoolManager::Provider::VSphere.new(config, logger, metrics, provider_name, options)
-      when 'dummy'
-        Vmpooler::PoolManager::Provider::Dummy.new(config, logger, metrics, provider_name, options)
-      else
-        raise("Provider '#{provider_class}' is unknown for pool with provider '#{provider_name}'")
+      provider_klass = Vmpooler::PoolManager::Provider
+      provider_klass.constants.each do |classname|
+        next unless classname.to_s.casecmp(provider_class) == 0
+        return provider_klass.const_get(classname).new(config, logger, metrics, provider_name, options)
       end
+      raise("Provider '#{provider_class}' is unknown for pool with provider name '#{provider_name}'") if provider.nil?
     end
 
     def execute!(maxloop = 0, loop_delay = 1)
