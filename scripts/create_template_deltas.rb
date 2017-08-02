@@ -22,9 +22,9 @@ def create_template_deltas( folder )
   abort 'No config file (./vmpooler.yaml or ~/.vmpooler) found!' unless config
 
   vim = RbVmomi::VIM.connect(
-    :host     => config[ :vsphere ][ "server" ],
-    :user     => config[ :vsphere ][ "username" ],
-    :password => config[ :vsphere ][ "password" ],
+    :host     => config[ :providers ][ :vsphere ][ "server" ],
+    :user     => config[ :providers ][ :vsphere ][ "username" ],
+    :password => config[ :providers ][ :vsphere ][ "password" ],
     :ssl      => true,
     :insecure => true,
   ) or abort "Unable to connect to #{config[ :vsphere ][ "server" ]}!"
