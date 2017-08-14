@@ -83,7 +83,9 @@ MockHostSystem = Struct.new(
   # From HostSystem
   :capability, :config, :configManager, :datastore, :datastoreBrowser, :hardware, :network, :runtime, :summary, :systemResources, :vm,
   # From ManagedEntity
-  :overallStatus, :name, :parent
+  :overallStatus, :name, :parent,
+  # From ManagedObject
+  :configIssue
 )
 
 MockPropertyCollector = Struct.new(
@@ -507,6 +509,7 @@ def mock_RbVmomi_VIM_HostSystem(options = {})
   options[:overall_cpu_usage]    = 1 if options[:overall_cpu_usage].nil?
   options[:overall_memory_usage] = 1 if options[:overall_memory_usage].nil?
   options[:name]                 = 'HOST' + rand(65536).to_s if options[:name].nil?
+  options[:config_issue]         = [] if options[:config_issue].nil?
 
   mock = MockHostSystem.new()
   mock.name = options[:name]
@@ -527,6 +530,7 @@ def mock_RbVmomi_VIM_HostSystem(options = {})
 
   mock.runtime.inMaintenanceMode = options[:maintenance_mode]
   mock.overallStatus = options[:overall_status]
+  mock.configIssue = options[:config_issue]
 
   mock.summary.hardware.memorySize = options[:memory_size]
   mock.hardware.memorySize = options[:memory_size]

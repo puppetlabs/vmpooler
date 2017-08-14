@@ -545,6 +545,7 @@ module Vmpooler
           end
           return nil if host.runtime.inMaintenanceMode
           return nil unless host.overallStatus == 'green'
+          return nil unless host.configIssue.empty?
 
           cpu_utilization = cpu_utilization_for host
           memory_utilization = memory_utilization_for host
