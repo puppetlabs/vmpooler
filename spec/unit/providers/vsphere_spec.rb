@@ -1903,6 +1903,16 @@ EOT
       end
     end
 
+    context "host with configuration issue" do
+      let(:host) { mock_RbVmomi_VIM_HostSystem({
+        :config_issue => 'No quickstats',
+      })
+      }
+      it 'should return nil' do
+        expect(subject.get_host_utilization(host,model,limit)).to be_nil
+      end
+    end
+
     # CPU utilization
     context "host which exceeds limit in CPU utilization" do
       let(:host) { mock_RbVmomi_VIM_HostSystem({
