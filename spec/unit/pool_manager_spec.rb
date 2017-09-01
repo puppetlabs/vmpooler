@@ -2024,7 +2024,61 @@ EOT
     end
   end
 
- describe "#check_pool" do
+  describe "#sleep_with_wakeup_events" do
+    let(:loop_delay) { 10 }
+    before(:each) do
+      allow(Kernel).to receive(:sleep).and_raise("sleep should not be called")
+      allow(subject).to receive(:time_passed?).with(:wakeup_by, Time).and_call_original
+      allow(subject).to receive(:time_passed?).with(:exit_by, Time).and_call_original
+    end
+
+    it 'should not sleep if the loop delay is negative' do
+      expect(subject).to receive(:sleep).exactly(0).times
+
+      subject.sleep_with_wakeup_events(-1)
+    end
+
+    it 'should sleep until the loop delay is exceeded' do
+      # This test is a little brittle as it requires knowledge of the implementation
+      # Basically the number of sleep delays will dictate how often the time_passed? method is called
+
+      expect(subject).to receive(:sleep).exactly(2).times
+      expect(subject).to receive(:time_passed?).with(:exit_by, Time).and_return(false, false, false, true)
+      
+      subject.sleep_with_wakeup_events(loop_delay)
+    end
+
+    describe 'with the pool_size_change wakeup option' do
+      let(:wakeup_option) {{
+        :pool_size_change => true,
+        :poolname => pool,
+      }}
+      let(:wakeup_period) { -1 } # A negative number forces the wakeup evaluation to always occur
+
+      it 'should check the number of VMs ready in Redis' do
+        expect(subject).to receive(:time_passed?).with(:exit_by, Time).and_return(false, true)
+        expect(redis).to receive(:scard).with("vmpooler__ready__#{pool}").once
+
+        subject.sleep_with_wakeup_events(loop_delay, wakeup_period, wakeup_option)
+      end
+
+      it 'should sleep until the number of VMs ready in Redis increases' do
+        expect(subject).to receive(:sleep).exactly(3).times
+        expect(redis).to receive(:scard).with("vmpooler__ready__#{pool}").and_return(1,1,1,2)
+
+        subject.sleep_with_wakeup_events(loop_delay, wakeup_period, wakeup_option)
+      end
+
+      it 'should sleep until the number of VMs ready in Redis decreases' do
+        expect(subject).to receive(:sleep).exactly(3).times
+        expect(redis).to receive(:scard).with("vmpooler__ready__#{pool}").and_return(2,2,2,1)
+
+        subject.sleep_with_wakeup_events(loop_delay, wakeup_period, wakeup_option)
+      end
+    end
+  end
+  
+  describe "#check_pool" do
     let(:threads) {{}}
     let(:provider_name) { 'mock_provider' }
     let(:config) {
@@ -2093,7 +2147,19 @@ EOT
       end
 
       it 'when a non-default loop delay is specified' do
-        expect(subject).to receive(:sleep).with(loop_delay).exactly(maxloop).times
+        expect(subject).to receive(:sleep_with_wakeup_events).with(loop_delay, Numeric, Hash).exactly(maxloop).times
+
+        subject.check_pool(pool_object,maxloop,loop_delay,loop_delay)
+      end
+
+      it 'specifies a wakeup option for pool size change' do
+        expect(subject).to receive(:sleep_with_wakeup_events).with(loop_delay, Numeric, hash_including(:pool_size_change => true)).exactly(maxloop).times
+
+        subject.check_pool(pool_object,maxloop,loop_delay,loop_delay)
+      end
+
+      it 'specifies a wakeup option for poolname' do
+        expect(subject).to receive(:sleep_with_wakeup_events).with(loop_delay, Numeric, hash_including(:poolname => pool)).exactly(maxloop).times
 
         subject.check_pool(pool_object,maxloop,loop_delay,loop_delay)
       end
@@ -2126,7 +2192,7 @@ EOT
       end
 
       it 'when a non-default loop delay is specified' do
-        expect(subject).to receive(:sleep).with(pool_loop_delay).exactly(maxloop).times
+        expect(subject).to receive(:sleep_with_wakeup_events).with(pool_loop_delay, pool_loop_delay, Hash).exactly(maxloop).times
 
         subject.check_pool(pool_object,maxloop,loop_delay)
       end
@@ -2151,7 +2217,7 @@ EOT
       [:checked_pending_vms, :discovered_vms, :cloned_vms].each do |testcase|
         describe "when #{testcase} is greater than zero" do
           it "delays the minimum delay time" do
-            expect(subject).to receive(:sleep).with(loop_delay_min).exactly(maxloop).times
+            expect(subject).to receive(:sleep_with_wakeup_events).with(loop_delay_min, loop_delay_min, Hash).exactly(maxloop).times
             check_pool_response[testcase] = 1
 
             subject.check_pool(pool_object,maxloop,loop_delay_min,loop_delay_max)
@@ -2163,10 +2229,10 @@ EOT
         describe "when #{testcase} is greater than zero" do
           let(:loop_decay) { 3.0 }
           it "delays increases with a decay" do
-            expect(subject).to receive(:sleep).with(3).once
-            expect(subject).to receive(:sleep).with(9).once
-            expect(subject).to receive(:sleep).with(27).once
-            expect(subject).to receive(:sleep).with(60).twice
+            expect(subject).to receive(:sleep_with_wakeup_events).with(3, Numeric, Hash).once
+            expect(subject).to receive(:sleep_with_wakeup_events).with(9, Numeric, Hash).once
+            expect(subject).to receive(:sleep_with_wakeup_events).with(27, Numeric, Hash).once
+            expect(subject).to receive(:sleep_with_wakeup_events).with(60, Numeric, Hash).twice
             check_pool_response[testcase] = 1
 
             subject.check_pool(pool_object,maxloop,loop_delay_min,loop_delay_max,loop_decay)
@@ -2209,7 +2275,7 @@ EOT
       [:checked_pending_vms, :discovered_vms, :cloned_vms].each do |testcase|
         describe "when #{testcase} is greater than zero" do
           it "delays the minimum delay time" do
-            expect(subject).to receive(:sleep).with(pool_loop_delay_min).exactly(maxloop).times
+            expect(subject).to receive(:sleep_with_wakeup_events).with(pool_loop_delay_min, Numeric, Hash).exactly(maxloop).times
             check_pool_response[testcase] = 1
 
             subject.check_pool(pool_object,maxloop,loop_delay_min,loop_delay_max,loop_decay)
@@ -2220,10 +2286,10 @@ EOT
       [:checked_running_vms, :checked_ready_vms, :destroyed_vms, :migrated_vms].each do |testcase|
         describe "when #{testcase} is greater than zero" do
           it "delays increases with a decay" do
-            expect(subject).to receive(:sleep).with(7).once
-            expect(subject).to receive(:sleep).with(17).once
-            expect(subject).to receive(:sleep).with(42).once
-            expect(subject).to receive(:sleep).with(70).twice
+            expect(subject).to receive(:sleep_with_wakeup_events).with(7, Numeric, Hash).once
+            expect(subject).to receive(:sleep_with_wakeup_events).with(17, Numeric, Hash).once
+            expect(subject).to receive(:sleep_with_wakeup_events).with(42, Numeric, Hash).once
+            expect(subject).to receive(:sleep_with_wakeup_events).with(70, Numeric, Hash).twice
             check_pool_response[testcase] = 1
 
             subject.check_pool(pool_object,maxloop,loop_delay_min,loop_delay_max,loop_decay)
