@@ -12,14 +12,33 @@ gem 'puma', '>= 3.6.0'
 gem 'rack', '~> 1.6'
 gem 'rake', '>= 10.4'
 gem 'rbvmomi', '>= 1.8'
-if RUBY_VERSION =~ /^1\.9\./
-  gem 'nokogiri', '< 1.7.0'
-end
-gem 'redis', '>= 3.2'
 gem 'sinatra', '>= 1.4'
 gem 'net-ldap', '<= 0.12.1' # keep compatibility w/ jruby & mri-1.9.3
 gem 'statsd-ruby', '>= 1.3.0', :require => 'statsd'
 gem 'connection_pool', '>= 2.2.1'
+
+# Pin gems against Ruby version
+# Note we can't use platform restrictions easily so use
+# lowest version range any platform
+# ----
+# nokogiri
+# redis
+if RUBY_VERSION =~ /^1\.9\./
+  gem 'nokogiri', '~> 1.6.0'
+  gem 'redis', '~> 3.0'
+elsif RUBY_VERSION =~ /^2\.[0]/
+  gem 'nokogiri', '~> 1.6.0'
+  gem 'redis', '~> 3.0'
+elsif RUBY_VERSION =~ /^2\.[1]/
+  gem 'nokogiri', '~> 1.7.0'
+  gem 'redis', '~> 3.0'
+elsif RUBY_VERSION =~ /^2\.2\.[01]/
+  gem 'nokogiri', "~> 1.7"
+  gem 'redis', '~> 3.0'
+else
+  gem 'nokogiri', "~> 1.7"
+  gem 'redis', '>= 3.2'
+end
 
 # Test deps
 group :test do
