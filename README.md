@@ -104,6 +104,11 @@ cp vmpooler.yaml.dummy-example vmpooler.yaml
 sudo yum -y install redis
 sudo systemctl start redis
 
+# Optional: Choose your ruby version or use jruby
+# ruby 2.4.x is used by default
+rvm list
+rvm use jruby-9.1.7.0
+
 gem install bundler
 bundle install
 bundle exec ruby vmpooler
