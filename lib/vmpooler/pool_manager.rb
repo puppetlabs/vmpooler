@@ -521,6 +521,45 @@ module Vmpooler
       finish
     end
 
+    # Helper method mainly used for unit testing
+    def time_passed?(_event, time)
+      Time.now > time
+    end
+
+    # Possible wakeup events
+    # :pool_size_change
+    #   - Fires when the number of ready VMs changes due to being consumed.
+    #   - Additional options
+    #       :poolname
+    #
+    def sleep_with_wakeup_events(loop_delay, wakeup_period = 5, options = {})
+      exit_by = Time.now + loop_delay
+      wakeup_by = Time.now + wakeup_period
+      return if time_passed?(:exit_by, exit_by)
+
+      if options[:pool_size_change]
+        initial_ready_size = $redis.scard("vmpooler__ready__#{options[:poolname]}")
+      end
+
+      loop do
+        sleep(1)
+        break if time_passed?(:exit_by, exit_by)
+
+        # Check for wakeup events
+        if time_passed?(:wakeup_by, wakeup_by)
+          wakeup_by = Time.now + wakeup_period
+
+          # Wakeup if the number of ready VMs has changed
+          if options[:pool_size_change]
+            ready_size = $redis.scard("vmpooler__ready__#{options[:poolname]}")
+            break unless ready_size == initial_ready_size
+          end
+        end
+
+        break if time_passed?(:exit_by, exit_by)
+      end
+    end
+
     def check_pool(pool,
                    maxloop = 0,
                    loop_delay_min = CHECK_LOOP_DELAY_MIN_DEFAULT,
@@ -551,7 +590,7 @@ module Vmpooler
               loop_delay = (loop_delay * loop_delay_decay).to_i
               loop_delay = loop_delay_max if loop_delay > loop_delay_max
             end
-            sleep(loop_delay)
+            sleep_with_wakeup_events(loop_delay, loop_delay_min, pool_size_change: true, poolname: pool['name'])
 
             unless maxloop.zero?
               break if loop_count >= maxloop
