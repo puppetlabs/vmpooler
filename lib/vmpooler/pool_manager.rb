@@ -119,22 +119,23 @@ module Vmpooler
         return
       end
 
+      $redis.hset('vmpooler__vm__' + vm, 'check', Time.now)
+      # Check if the VM is not powered on, before checking TTL
+      unless host['powerstate'].casecmp('poweredon').zero?
+        $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
+        $logger.log('d', "[!] [#{pool}] '#{vm}' appears to be powered off, removed from 'ready' queue")
+        return
+      end
+
       # Check if the hosts TTL has expired
       if ttl > 0
+        # host['boottime'] may be nil if host is not powered on
         if ((Time.now - host['boottime']) / 60).to_s[/^\d+\.\d{1}/].to_f > ttl
           $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
 
           $logger.log('d', "[!] [#{pool}] '#{vm}' reached end of TTL after #{ttl} minutes, removed from 'ready' queue")
           return
         end
-      end
-
-      $redis.hset('vmpooler__vm__' + vm, 'check', Time.now)
-      # Check if the VM is not powered on
-      unless host['powerstate'].casecmp('poweredon').zero?
-        $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
-        $logger.log('d', "[!] [#{pool}] '#{vm}' appears to be powered off, removed from 'ready' queue")
-        return
       end
 
       # Check if the hostname has magically changed from underneath Pooler

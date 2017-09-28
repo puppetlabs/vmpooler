@@ -322,6 +322,7 @@ EOT
 
       context 'is turned off' do
         before(:each) do
+          host['boottime'] = nil
           host['powerstate'] = 'PoweredOff'
         end
 
