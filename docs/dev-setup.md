@@ -62,17 +62,25 @@ C:\vmpooler > $ENV:VMPOOLER_DEBUG = 'true'
 
 ### `VMPOOLER_CONFIG`
 
-When `VMPOOLER_CONFIG` is set, vmpooler will read its configuration from the content of the environment variable instead of from the `vmpooler.yaml` configuration file.
+When `VMPOOLER_CONFIG` is set, vmpooler will read its configuration from the content of the environment variable.
 
-Note that this variable does not point a different configuration file, but stores the contents of a configuration file.
+Note that this variable does not point to a different configuration file, but stores the contents of a configuration file. You may use `VMPOOLER_CONFIG_FILE` instead to specify a filename.
+
+
+### `VMPOOLER_CONFIG_FILE`
+
+When `VMPOOLER_CONFIG_FILE` is set, vmpooler will read its configuration from the file specified in the environment variable.
+
+Note that this variable points to a different configuration file, unlike `VMPOOLER_CONFIG`.
 
 
 ## Setup vmpooler Configuration
 
-You can either create a `vmpooler.yaml` file or set the `VMPOOLER_CONFIG` environment variable with the equivalent content.
+You can create a `vmpooler.yaml` file, set the `VMPOOLER_CONFIG` environment variable with the equivalent content, or set the `VMPOOLER_CONFIG_FILE` environment variable with the name of another configuration file to use. `VMPOOLER_CONFIG` takes precedence over `VMPOOLER_CONFIG_FILE`.
 
 Example minimal configuration file:
 ```yaml
+
 ---
 :providers:
   :dummy:

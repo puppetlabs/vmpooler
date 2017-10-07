@@ -21,16 +21,18 @@ module Vmpooler
   end
 
   def self.config(filepath = 'vmpooler.yaml')
-    parsed_config = {}
+    # Take the config either from an ENV config variable or from a config file
+    config_string = ENV['VMPOOLER_CONFIG'] || begin
+      # Take the name of the config file either from an ENV variable or from the filepath argument
+	    config_file = ENV['VMPOOLER_CONFIG_FILE'] || filepath
 
-    if ENV['VMPOOLER_CONFIG']
-      # Load configuration from ENV
-      parsed_config = YAML.safe_load(ENV['VMPOOLER_CONFIG'])
-    else
-      # Load the configuration file from disk
-      config_file = File.expand_path(filepath)
-      parsed_config = YAML.load_file(config_file)
+      # Return the contents of the config file
+	    File.read(File.expand_path(config_file))
     end
+
+    # Parse the YAML config into a Hash
+    # Whitelist the Symbol class
+    parsed_config = YAML.safe_load(config_string, [Symbol])
 
     # Bail out if someone attempts to start vmpooler with dummy authentication
     # without enbaling debug mode.

@@ -1,0 +1,41 @@
+---
+:providers:
+  :dummy:
+
+:redis:
+  server: 'localhost'
+
+:auth:
+   provider: dummy
+
+:tagfilter:
+  url: '(.*)\/'
+
+:config:
+  site_name: 'vmpooler'
+  # Need to change this on Windows
+  logfile: '/var/log/vmpooler.log'
+  task_limit: 10
+  timeout: 15
+  vm_checktime: 15
+  vm_lifetime: 12
+  vm_lifetime_auth: 24
+  allowed_tags:
+    - 'created_by'
+    - 'project'
+  domain: 'company.com'
+  prefix: 'poolvm-'
+
+# Uncomment the lines below to suppress metrics to STDOUT
+# :statsd:
+#   server: 'localhost'
+#   prefix: 'vmpooler'
+#   port: 8125
+
+:pools:
+  - name: 'pool01'
+    size: 5
+    provider: dummy
+  - name: 'pool02'
+    size: 5
+    provider: dummy
