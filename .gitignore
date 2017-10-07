@@ -3,6 +3,6 @@
 Gemfile.lock
 Gemfile.local
 vendor
-vmpooler.yaml
+/vmpooler.yaml
 .bundle
 coverage

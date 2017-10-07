@@ -820,7 +820,7 @@ EOT
 
       it 'should honor the insecure setting' do
         pending('Resolution of issue https://github.com/puppetlabs/vmpooler/issues/207')
-        config[:vsphere][:insecure] = false
+        config[:providers][:vsphere][:insecure] = false
 
         expect(RbVmomi::VIM).to receive(:connect).with({
           :host     => credentials['server'],
