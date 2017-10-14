@@ -171,12 +171,12 @@ module Vmpooler
             )
 
             # Choose a cluster/host to place the new VM on
-            target_host_object = find_least_used_host(target_cluster_name, connection, target_datacenter_name)
+            target_cluster_object = find_cluster(target_cluster_name, connection, target_datacenter_name)
 
             # Put the VM in the specified folder and resource pool
             relocate_spec = RbVmomi::VIM.VirtualMachineRelocateSpec(
               datastore: find_datastore(target_datastore, connection, target_datacenter_name),
-              host: target_host_object,
+              pool: target_cluster_object.resourcePool,
               diskMoveType: :moveChildMostDiskBacking
             )
 
