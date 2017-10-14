@@ -542,7 +542,7 @@ module Vmpooler
     def migrate_vm(vm_name, pool_name, provider)
       Thread.new do
         begin
-          _migrate_vm(vm_name, pool_name, provider, $provider_hosts)
+          _migrate_vm(vm_name, pool_name, provider)
         rescue => err
           $logger.log('s', "[x] [#{pool_name}] '#{vm_name}' migration failed with an error: #{err}")
           remove_vmpooler_migration_vm(pool_name, vm_name)
