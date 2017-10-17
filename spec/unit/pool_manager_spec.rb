@@ -322,7 +322,9 @@ EOT
 
       context 'is turned off' do
         before(:each) do
+          host['boottime'] = nil
           host['powerstate'] = 'PoweredOff'
+          ttl = 1440
         end
 
         it 'should move the VM to the completed queue' do
