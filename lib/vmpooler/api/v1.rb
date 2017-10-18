@@ -199,6 +199,7 @@ module Vmpooler
         running = backend.scard('vmpooler__running__' + pool['name']).to_i
         pending = backend.scard('vmpooler__pending__' + pool['name']).to_i
         max     = pool['size']
+        aka     = pool['alias']
 
         result[:pools][pool['name']] = {
           ready:   ready,
@@ -206,6 +207,10 @@ module Vmpooler
           pending: pending,
           max:     max
         }
+
+        if aka
+          result[:pools][pool['name']][:alias] = aka
+        end
 
         # for backwards compatibility, include separate "empty" stats in "status" block
         if ready == 0
