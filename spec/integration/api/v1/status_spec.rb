@@ -32,10 +32,10 @@ describe Vmpooler::API::V1 do
           'vm_lifetime_auth' => 2,
         },
         pools: [
-          {'name' => 'pool1', 'size' => 5},
-          {'name' => 'pool2', 'size' => 10}
-        ],
-        alias: { 'poolone' => 'pool1' },
+          {'name' => 'pool1', 'size' => 5, 'alias' => ['poolone', 'poolun']},
+          {'name' => 'pool2', 'size' => 10},
+          {'name' => 'pool3', 'size' => 10, 'alias' => 'NotArray'}
+        ]
       }
     }
 
@@ -98,13 +98,24 @@ describe Vmpooler::API::V1 do
         expect(result["pools"]["pool2"]["pending"]).to be(4)
       end
 
+      it 'returns aliases if configured in the pool' do
+        get "#{prefix}/status/"
+
+        # of course /status doesn't conform to the weird standard everything else uses...
+        expect(last_response.header['Content-Type']).to eq('application/json')
+        result = JSON.parse(last_response.body)
+        expect(result["pools"]["pool1"]["alias"]).to eq(['poolone', 'poolun'])
+        expect(result["pools"]["pool2"]["alias"]).to be(nil)
+        expect(result["pools"]["pool3"]["alias"]).to eq('NotArray')
+      end
+
       it '(for v1 backwards compatibility) lists any empty pools in the status section' do
         get "#{prefix}/status/"
 
         # of course /status doesn't conform to the weird standard everything else uses...
         expect(last_response.header['Content-Type']).to eq('application/json')
         result = JSON.parse(last_response.body)
-        expect(result["status"]["empty"].sort).to eq(["pool1", "pool2"])
+        expect(result["status"]["empty"].sort).to eq(["pool1", "pool2", "pool3"])
       end
     end
   end
