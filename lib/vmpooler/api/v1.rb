@@ -176,23 +176,33 @@ module Vmpooler
     #     ],
     #     "uptime": 179585.9
     # }
+    #
+    # If the query parameter 'view' is provided, it will be used to select which top level
+    # element to compute and return. Select them by specifying them in a comma separated list.
+    # For example /status?view=capacity,boot
+    # would return only the "capacity" and "boot" statistics. "status" is always returned
+
     get "#{api_prefix}/status/?" do
       content_type :json
 
+      if params[:view]
+        views = params[:view].split(",")
+      end
+
       result = {
-        pools: {},
         status: {
           ok: true,
           message: 'Battle station fully armed and operational.'
         }
       }
 
-      result[:capacity] = get_capacity_metrics(pools, backend)
-      result[:queue] = get_queue_metrics(pools, backend)
-      result[:clone] = get_task_metrics(backend, 'clone', Date.today.to_s)
-      result[:boot] = get_task_metrics(backend, 'boot', Date.today.to_s)
+      result[:capacity] = get_capacity_metrics(pools, backend) unless views and not views.include?("capacity")
+      result[:queue] = get_queue_metrics(pools, backend) unless views and not views.include?("queue")
+      result[:clone] = get_task_metrics(backend, 'clone', Date.today.to_s) unless views and not views.include?("clone")
+      result[:boot] = get_task_metrics(backend, 'boot', Date.today.to_s) unless views and not views.include?("boot")
 
       # Check for empty pools
+      result[:pools] = {} unless views and not views.include?("pools")
       pools.each do |pool|
         # REMIND: move this out of the API and into the back-end
         ready   = backend.scard('vmpooler__ready__' + pool['name']).to_i
@@ -220,7 +230,7 @@ module Vmpooler
           result[:status][:ok] = false
           result[:status][:message] = "Found #{result[:status][:empty].length} empty pools."
         end
-      end
+      end unless views and not views.include?("pools")
 
       result[:status][:uptime] = (Time.now - Vmpooler::API.settings.config[:uptime]).round(1) if Vmpooler::API.settings.config[:uptime]
 

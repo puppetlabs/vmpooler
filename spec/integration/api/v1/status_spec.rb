@@ -118,5 +118,85 @@ describe Vmpooler::API::V1 do
         expect(result["status"]["empty"].sort).to eq(["pool1", "pool2", "pool3"])
       end
     end
+    describe 'GET /status with view query parameter' do
+      it 'returns capacity when specified' do
+        get "#{prefix}/status?view=capacity"
+
+        # of course /status doesn't conform to the weird standard everything else uses...
+        expect(last_response.header['Content-Type']).to eq('application/json')
+        result = JSON.parse(last_response.body)
+        expect(result["capacity"]).to_not be(nil)
+        expect(result["queue"]).to be(nil)
+        expect(result["clone"]).to be(nil)
+        expect(result["boot"]).to be(nil)
+        expect(result["pools"]).to be(nil)
+        expect(result["status"]).to_not be(nil)
+      end
+      it 'returns pools and queue when specified' do
+        get "#{prefix}/status?view=pools,queue"
+
+        # of course /status doesn't conform to the weird standard everything else uses...
+        expect(last_response.header['Content-Type']).to eq('application/json')
+        result = JSON.parse(last_response.body)
+        expect(result["capacity"]).to be(nil)
+        expect(result["queue"]).to_not be(nil)
+        expect(result["clone"]).to be(nil)
+        expect(result["boot"]).to be(nil)
+        expect(result["pools"]).to_not be(nil)
+        expect(result["status"]).to_not be(nil)
+      end
+      it 'does nothing with invalid view names' do
+        get "#{prefix}/status?view=clone,boot,invalidThingToView"
+
+        # of course /status doesn't conform to the weird standard everything else uses...
+        expect(last_response.header['Content-Type']).to eq('application/json')
+        result = JSON.parse(last_response.body)
+        expect(result["capacity"]).to be(nil)
+        expect(result["queue"]).to be(nil)
+        expect(result["clone"]).to_not be(nil)
+        expect(result["boot"]).to_not be(nil)
+        expect(result["pools"]).to be(nil)
+        expect(result["status"]).to_not be(nil)
+      end
+      it 'returns everything when view is not specified' do
+        get "#{prefix}/status"
+
+        # of course /status doesn't conform to the weird standard everything else uses...
+        expect(last_response.header['Content-Type']).to eq('application/json')
+        result = JSON.parse(last_response.body)
+        expect(result["capacity"]).to_not be(nil)
+        expect(result["queue"]).to_not be(nil)
+        expect(result["clone"]).to_not be(nil)
+        expect(result["boot"]).to_not be(nil)
+        expect(result["pools"]).to_not be(nil)
+        expect(result["status"]).to_not be(nil)
+      end
+      it 'returns everything when view is alone' do
+        get "#{prefix}/status?view"
+
+        # of course /status doesn't conform to the weird standard everything else uses...
+        expect(last_response.header['Content-Type']).to eq('application/json')
+        result = JSON.parse(last_response.body)
+        expect(result["capacity"]).to_not be(nil)
+        expect(result["queue"]).to_not be(nil)
+        expect(result["clone"]).to_not be(nil)
+        expect(result["boot"]).to_not be(nil)
+        expect(result["pools"]).to_not be(nil)
+        expect(result["status"]).to_not be(nil)
+      end
+      it 'returns status only when view is empty' do
+        get "#{prefix}/status?view="
+
+        # of course /status doesn't conform to the weird standard everything else uses...
+        expect(last_response.header['Content-Type']).to eq('application/json')
+        result = JSON.parse(last_response.body)
+        expect(result["capacity"]).to be(nil)
+        expect(result["queue"]).to be(nil)
+        expect(result["clone"]).to be(nil)
+        expect(result["boot"]).to be(nil)
+        expect(result["pools"]).to be(nil)
+        expect(result["status"]).to_not be(nil)
+      end
+    end
   end
 end
