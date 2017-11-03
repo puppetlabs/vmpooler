@@ -1480,20 +1480,20 @@ EOT
     end
 
     it 'calls migrate_vm' do
-      expect(provider).to receive(:migrate_vm).with(pool, vm, redis)
+      expect(provider).to receive(:migrate_vm).with(pool, vm)
 
       subject.migrate_vm(vm, pool, provider)
     end
 
     context 'When an error is raised' do
       before(:each) do
-        expect(provider).to receive(:migrate_vm).with(pool, vm, redis).and_raise('MockError')
+        expect(provider).to receive(:migrate_vm).with(pool, vm).and_raise('MockError')
       end
 
       it 'logs a message' do
         allow(logger).to receive(:log)
         expect(logger).to receive(:log).with('s', "[x] [#{pool}] '#{vm}' migration failed with an error: MockError")
-        expect(provider).to receive(:remove_vmpooler_migration_vm).with(pool, vm, redis)
+        expect(provider).to receive(:remove_vmpooler_migration_vm).with(pool, vm)
 
         subject.migrate_vm(vm, pool, provider)
       end
