@@ -56,42 +56,93 @@ module Vmpooler
           vms
         end
 
-        def get_vm_details(_pool_name, vm_name)
-          vm_hash = {}
-
-          @connection_pool.with_metrics do |pool_object|
-            connection = ensured_vsphere_connection(pool_object)
-            vm_object = find_vm(vm_name, connection)
-            return nil if vm_object.nil?
-            parent_host = vm_object.summary.runtime.host if vm_object.summary && vm_object.summary.runtime && vm_object.summary.runtime.host
-            vm_hash['host'] = parent_host.name
-            vm_hash['architecture'] = get_host_cpu_arch_version(parent_host)
-            vm_hash['cluster'] = parent_host.parent.name
-            vm_hash['datacenter'] = parent_host.parent.parent.parent.name
+        def select_target_hosts(target, cluster, datacenter)
+          percentage = 100
+          dc = "#{datacenter}_#{cluster}"
+          @provider_hosts_lock.synchronize do
+            target[dc] = {} unless target.key?(dc)
+            target[dc]['checking'] = true
+            hosts_hash = find_least_used_hosts(cluster, datacenter, percentage)
+            target[dc] = hosts_hash
+            target[dc]['check_time_finished'] = Time.now
           end
-          vm_hash
         end
 
-        def select_target_hosts(cluster, datacenter, percentage)
-          hosts_hash = find_least_used_hosts(cluster, datacenter, percentage)
-          hosts_hash
+        def run_select_hosts(pool_name, target)
+          now = Time.now
+          max_age = 60
+          datacenter = get_target_datacenter_from_config(pool_name)
+          cluster = get_target_cluster_from_config(pool_name)
+          raise("cluster for pool #{pool_name} cannot be identified") if cluster.nil?
+          raise("datacenter for pool #{pool_name} cannot be identified") if datacenter.nil?
+          dc = "#{datacenter}_#{cluster}"
+          if target.key?(dc) and target[dc].key?('checking')
+            wait_for_host_selection(dc, target)
+          elsif target.key?(dc) and target[dc].key?('check_time_finished')
+            select_target_hosts(target, cluster, datacenter) if now - target[dc]['check_time_finished'] > max_age
+          else
+            select_target_hosts(target, cluster, datacenter)
+          end
         end
 
-        def migrate_vm_to_host(pool_name, vm_name, dest_host_name)
-          pool = pool_config(pool_name)
-          raise("Pool #{pool_name} does not exist for the provider #{name}") if pool.nil?
-
-          @connection_pool.with_metrics do |pool_object|
-            connection = ensured_vsphere_connection(pool_object)
-            vm_object = find_vm(vm_name, connection)
-            raise("VM #{vm_name} does not exist in Pool #{pool_name} for the provider #{name}") if vm_object.nil?
-
-            target_host_object = find_host_by_dnsname(connection, dest_host_name)
-            raise("Pool #{pool_name} specifies host #{dest_host_name} which can not be found by the provider #{name}") if target_host_object.nil?
-            migrate_vm_host(vm_object, target_host_object)
-            return true
+        def wait_for_host_selection(dc, target, maxloop = 0, loop_delay = 5, max_age = 60)
+          loop_count = 1
+          until target.key?(dc) and target[dc].key?('check_time_finished')
+            sleep(loop_delay)
+            unless maxloop.zero?
+              break if loop_count >= maxloop
+              loop_count += 1
+            end
           end
-          false
+          return unless target[dc].key?('check_time_finished')
+          loop_count = 1
+          while Time.now - target[dc]['check_time_finished'] > max_age
+            sleep(loop_delay)
+            unless maxloop.zero?
+              break if loop_count >= maxloop
+              loop_count += 1
+            end
+          end
+        end
+
+        def select_next_host(pool_name, target, architecture = nil)
+          datacenter = get_target_datacenter_from_config(pool_name)
+          cluster = get_target_cluster_from_config(pool_name)
+          raise("cluster for pool #{pool_name} cannot be identified") if cluster.nil?
+          raise("datacenter for pool #{pool_name} cannot be identified") if datacenter.nil?
+          dc = "#{datacenter}_#{cluster}"
+          @provider_hosts_lock.synchronize do
+            if architecture
+              raise("no target hosts are available for #{pool_name} configured with datacenter #{datacenter} and cluster #{cluster}") if target[dc]['architectures'][architecture].size == 0
+              host = target[dc]['architectures'][architecture].shift
+              target[dc]['architectures'][architecture] << host
+              if target[dc]['hosts'].include?(host)
+                target[dc]['hosts'].delete(host)
+                target[dc]['hosts'] << host
+              end
+              return host
+            else
+              raise("no target hosts are available for #{pool_name} configured with datacenter #{datacenter} and cluster #{cluster}") if target[dc]['hosts'].size == 0
+              host = target[dc]['hosts'].shift
+              target[dc]['hosts'] << host
+              target[dc]['architectures'].each do |arch|
+                if arch.include?(host)
+                  target[dc]['architectures'][arch] = arch.partition { |v| v != host }.flatten
+                end
+              end
+              return host
+            end
+          end
+        end
+
+        def vm_in_target?(pool_name, parent_host, architecture, target)
+          datacenter = get_target_datacenter_from_config(pool_name)
+          cluster = get_target_cluster_from_config(pool_name)
+          raise("cluster for pool #{pool_name} cannot be identified") if cluster.nil?
+          raise("datacenter for pool #{pool_name} cannot be identified") if datacenter.nil?
+          dc = "#{datacenter}_#{cluster}"
+          return true if target[dc]['architectures'][architecture].include?(parent_host)
+          return false
         end
 
         def get_vm(_pool_name, vm_name)
@@ -156,15 +207,23 @@ module Vmpooler
               ]
             )
 
-            # Choose a cluster/host to place the new VM on
-            target_cluster_object = find_cluster(target_cluster_name, connection, target_datacenter_name)
-
             # Put the VM in the specified folder and resource pool
             relocate_spec = RbVmomi::VIM.VirtualMachineRelocateSpec(
               datastore: find_datastore(target_datastore, connection, target_datacenter_name),
-              pool: target_cluster_object.resourcePool,
               diskMoveType: :moveChildMostDiskBacking
             )
+
+            manage_host_selection = @config[:config]['manage_host_selection'] if @config[:config].key?('manage_host_selection')
+            if manage_host_selection
+              run_select_hosts(pool_name, @provider_hosts)
+              target_host = select_next_host(pool_name, @provider_hosts)
+              host_object = find_host_by_dnsname(connection, target_host)
+              relocate_spec.host = host_object
+            else
+            # Choose a cluster/host to place the new VM on
+              target_cluster_object = find_cluster(target_cluster_name, connection, target_datacenter_name)
+              relocate_spec.pool = target_cluster_object.resourcePool
+            end
 
             # Create a clone spec
             clone_spec = RbVmomi::VIM.VirtualMachineCloneSpec(
@@ -176,14 +235,14 @@ module Vmpooler
 
             begin
               vm_target_folder = find_folder(target_folder_path, connection, target_datacenter_name)
+              if vm_target_folder.nil? and @config[:config].key?('create_folders') and @config[:config]['create_folders'] == true
+                vm_target_folder = create_folder(connection, target_folder_path, target_datacenter_name)
+              end
             rescue => _err
-              if _err =~ /Unexpected object type encountered/
-                if $config[:config]['create_folders'] == true
-                  dc = connection.serviceInstance.find_datacenter(target_datacenter_name)
-                  vm_target_folder = dc.vmFolder.traverse(target_folder_path, type=RbVmomi::VIM::Folder, create=true)
-                else
-                  raise(_err)
-                end
+              if @config[:config].key?('create_folders') and @config[:config]['create_folders'] == true
+                vm_target_folder = create_folder(connection, target_folder_path, target_datacenter_name)
+              else
+                raise(_err)
               end
             end
 
@@ -586,15 +645,21 @@ module Vmpooler
         end
 
         def build_compatible_hosts_lists(hosts, percentage)
-          hosts_with_arch_versions = hosts.map { |host| [host[0], host[1], get_host_cpu_arch_version(host[1])] }
-          versions = hosts_with_arch_versions.map { |host| host[2] }.uniq
+          hosts_with_arch_versions = hosts.map { |h|
+            {
+            'utilization' => h[0],
+            'host_object' => h[1],
+            'architecture' => get_host_cpu_arch_version(h[1])
+            }
+          }
+          versions = hosts_with_arch_versions.map { |host| host['architecture'] }.uniq
           architectures = {}
           versions.each do |version|
             architectures[version] = []
           end
 
-          hosts_with_arch_versions.each do |host|
-            architectures[host[2]] << [host[0], host[1], host[2]]
+          hosts_with_arch_versions.each do |h|
+            architectures[h['architecture']] << [h['utilization'], h['host_object'], h['architecture']]
           end
 
           versions.each do |version|
@@ -612,8 +677,8 @@ module Vmpooler
           hosts.each do |host|
             least_used_hosts << host if host[0] <= average_utilization
           end
-          hosts_to_select = hosts.count - 1 if percentage == 100
           hosts_to_select = (hosts.count * (percentage  / 100.0)).to_int
+          hosts_to_select = hosts.count - 1 if percentage == 100
           least_used_hosts.sort[0..hosts_to_select].map { |host| host[1].name }
         end
 
@@ -621,15 +686,15 @@ module Vmpooler
           @connection_pool.with_metrics do |pool_object|
             connection = ensured_vsphere_connection(pool_object)
             cluster_object = find_cluster(cluster, connection, datacentername)
+            raise("Cluster #{cluster} cannot be found") if cluster_object.nil?
             target_hosts = get_cluster_host_utilization(cluster_object)
             raise("there is no candidate in vcenter that meets all the required conditions, that that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory'") if target_hosts.nil?
             architectures = build_compatible_hosts_lists(target_hosts, percentage)
             least_used_hosts = select_least_used_hosts(target_hosts, percentage)
-            least_used_hosts_list = {
+            {
               'hosts' => least_used_hosts,
-              'architectures' => architectures,
+              'architectures' => architectures
             }
-            least_used_hosts_list
           end
         end
 
@@ -793,9 +858,88 @@ module Vmpooler
           snapshot
         end
 
-        def migrate_vm_host(vm, host)
+        def get_vm_details(vm_name, connection)
+          vm_object = find_vm(vm_name, connection)
+          return nil if vm_object.nil?
+          parent_host_object = vm_object.summary.runtime.host if vm_object.summary && vm_object.summary.runtime && vm_object.summary.runtime.host
+          parent_host = parent_host_object.name
+          raise('Unable to determine which host the VM is running on') if parent_host.nil?
+          architecture = get_host_cpu_arch_version(parent_host_object)
+          {
+            'host_name' => parent_host,
+            'object' => vm_object,
+            'architecture' => architecture
+          }
+        end
+
+        def migration_enabled?(config)
+          migration_limit = config[:config]['migration_limit']
+          return false unless migration_limit.is_a? Integer
+          return true if migration_limit > 0
+          false
+        end
+
+        def migrate_vm(pool_name, vm_name, redis)
+          redis.srem("vmpooler__migrating__#{pool_name}", vm_name)
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool_object)
+            vm_hash = get_vm_details(vm_name, connection)
+            migration_limit = @config[:config]['migration_limit'] if @config[:config].key?('migration_limit')
+            migration_count = redis.scard('vmpooler__migration')
+            if migration_enabled? @config
+              if migration_count >= migration_limit
+                logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{vm_hash['host_name']}. No migration will be evaluated since the migration_limit has been reached")
+                return
+              end
+              run_select_hosts(pool_name, @provider_hosts)
+              if vm_in_target?(pool_name, vm_hash['host_name'], vm_hash['architecture'], @provider_hosts)
+                logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{vm_hash['host_name']}")
+              else
+                migrate_vm_to_new_host(pool_name, vm_name, vm_hash, connection, redis)
+              end
+            end
+          end
+        end
+
+        def migrate_vm_to_new_host(pool_name, vm_name, vm_hash, connection, redis)
+          redis.sadd('vmpooler__migration', vm_name)
+          target_host_name = select_next_host(pool_name, @provider_hosts, vm_hash['architecture'])
+          target_host_object = find_host_by_dnsname(connection, target_host_name)
+          finish = migrate_vm_and_record_timing(pool_name, vm_name, vm_hash, target_host_object, target_host_name, redis)
+          #logger.log('s', "Provider_hosts is: #{provider.provider_hosts}")
+          logger.log('s', "[>] [#{pool_name}] '#{vm_name}' migrated from #{vm_hash['host_name']} to #{target_host_name} in #{finish} seconds")
+          remove_vmpooler_migration_vm(pool_name, vm_name, redis)
+        end
+
+        def migrate_vm_and_record_timing(pool_name, vm_name, vm_hash, target_host_object, dest_host_name, redis)
+          start = Time.now
+          migrate_vm_host(vm_hash['object'], target_host_object)
+          finish = format('%.2f', Time.now - start)
+          metrics.timing("migrate.#{pool_name}", finish)
+          metrics.increment("migrate_from.#{vm_hash['host_name']}")
+          metrics.increment("migrate_to.#{dest_host_name}")
+          checkout_to_migration = format('%.2f', Time.now - Time.parse(redis.hget("vmpooler__vm__#{vm_name}", 'checkout')))
+          redis.hset("vmpooler__vm__#{vm_name}", 'migration_time', finish)
+          redis.hset("vmpooler__vm__#{vm_name}", 'checkout_to_migration', checkout_to_migration)
+          finish
+        end
+
+        def remove_vmpooler_migration_vm(pool_name, vm_name, redis)
+          redis.srem('vmpooler__migration', vm_name)
+        rescue => err
+          logger.log('s', "[x] [#{pool_name}] '#{vm_name}' removal from vmpooler__migration failed with an error: #{err}")
+        end
+
+        def migrate_vm_host(vm_object, host)
           relospec = RbVmomi::VIM.VirtualMachineRelocateSpec(host: host)
-          vm.RelocateVM_Task(spec: relospec).wait_for_completion
+          vm_object.RelocateVM_Task(spec: relospec).wait_for_completion
+        end
+
+        def create_folder(connection, new_folder, datacenter)
+          dc = connection.serviceInstance.find_datacenter(datacenter)
+          folder_object = dc.vmFolder.traverse(new_folder, type=RbVmomi::VIM::Folder, create=true)
+          raise("Cannot create folder #{new_folder}") if folder_object.nil?
+          folder_object
         end
       end
     end
