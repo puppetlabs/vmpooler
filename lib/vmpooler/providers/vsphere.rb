@@ -33,6 +33,8 @@ module Vmpooler
             new_conn = connect_to_vsphere
             { connection: new_conn }
           end
+          @provider_hosts = {}
+          @provider_hosts_lock = Mutex.new
         end
 
         # name of the provider class
@@ -879,13 +881,12 @@ module Vmpooler
           false
         end
 
-        def migrate_vm(pool_name, vm_name, redis)
-          redis.srem("vmpooler__migrating__#{pool_name}", vm_name)
+        def migrate_vm(pool_name, vm_name)
           @connection_pool.with_metrics do |pool_object|
             connection = ensured_vsphere_connection(pool_object)
             vm_hash = get_vm_details(vm_name, connection)
             migration_limit = @config[:config]['migration_limit'] if @config[:config].key?('migration_limit')
-            migration_count = redis.scard('vmpooler__migration')
+            migration_count = $redis.scard('vmpooler__migration')
             if migration_enabled? @config
               if migration_count >= migration_limit
                 logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{vm_hash['host_name']}. No migration will be evaluated since the migration_limit has been reached")
@@ -895,39 +896,33 @@ module Vmpooler
               if vm_in_target?(pool_name, vm_hash['host_name'], vm_hash['architecture'], @provider_hosts)
                 logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{vm_hash['host_name']}")
               else
-                migrate_vm_to_new_host(pool_name, vm_name, vm_hash, connection, redis)
+                migrate_vm_to_new_host(pool_name, vm_name, vm_hash, connection)
               end
             end
           end
         end
 
-        def migrate_vm_to_new_host(pool_name, vm_name, vm_hash, connection, redis)
-          redis.sadd('vmpooler__migration', vm_name)
+        def migrate_vm_to_new_host(pool_name, vm_name, vm_hash, connection)
+          $redis.sadd('vmpooler__migration', vm_name)
           target_host_name = select_next_host(pool_name, @provider_hosts, vm_hash['architecture'])
           target_host_object = find_host_by_dnsname(connection, target_host_name)
-          finish = migrate_vm_and_record_timing(pool_name, vm_name, vm_hash, target_host_object, target_host_name, redis)
+          finish = migrate_vm_and_record_timing(pool_name, vm_name, vm_hash, target_host_object, target_host_name)
           #logger.log('s', "Provider_hosts is: #{provider.provider_hosts}")
           logger.log('s', "[>] [#{pool_name}] '#{vm_name}' migrated from #{vm_hash['host_name']} to #{target_host_name} in #{finish} seconds")
-          remove_vmpooler_migration_vm(pool_name, vm_name, redis)
+          $redis.srem('vmpooler__migration', vm_name)
         end
 
-        def migrate_vm_and_record_timing(pool_name, vm_name, vm_hash, target_host_object, dest_host_name, redis)
+        def migrate_vm_and_record_timing(pool_name, vm_name, vm_hash, target_host_object, dest_host_name)
           start = Time.now
           migrate_vm_host(vm_hash['object'], target_host_object)
           finish = format('%.2f', Time.now - start)
           metrics.timing("migrate.#{pool_name}", finish)
           metrics.increment("migrate_from.#{vm_hash['host_name']}")
           metrics.increment("migrate_to.#{dest_host_name}")
-          checkout_to_migration = format('%.2f', Time.now - Time.parse(redis.hget("vmpooler__vm__#{vm_name}", 'checkout')))
-          redis.hset("vmpooler__vm__#{vm_name}", 'migration_time', finish)
-          redis.hset("vmpooler__vm__#{vm_name}", 'checkout_to_migration', checkout_to_migration)
+          checkout_to_migration = format('%.2f', Time.now - Time.parse($redis.hget("vmpooler__vm__#{vm_name}", 'checkout')))
+          $redis.hset("vmpooler__vm__#{vm_name}", 'migration_time', finish)
+          $redis.hset("vmpooler__vm__#{vm_name}", 'checkout_to_migration', checkout_to_migration)
           finish
-        end
-
-        def remove_vmpooler_migration_vm(pool_name, vm_name, redis)
-          redis.srem('vmpooler__migration', vm_name)
-        rescue => err
-          logger.log('s', "[x] [#{pool_name}] '#{vm_name}' removal from vmpooler__migration failed with an error: #{err}")
         end
 
         def migrate_vm_host(vm_object, host)

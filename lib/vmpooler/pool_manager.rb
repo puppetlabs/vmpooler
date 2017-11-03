@@ -462,7 +462,7 @@ module Vmpooler
     def migrate_vm(vm_name, pool_name, provider)
       Thread.new do
         begin
-          $redis.srem('vmpooler__migrating__' + pool_name, vm_name)
+          $redis.srem("vmpooler__migrating__#{pool_name}", vm_name)
           provider.migrate_vm(pool_name, vm_name)
         rescue => err
           $logger.log('s', "[x] [#{pool_name}] '#{vm_name}' migration failed with an error: #{err}")
