@@ -19,8 +19,6 @@ module Vmpooler
           @logger = logger
           @metrics = metrics
           @provider_name = name
-          @provider_hosts = {}
-          @provider_hosts_lock = Mutex.new
 
           # Ensure that there is not a nil provider configuration
           @config[:providers] = {} if @config[:providers].nil?
