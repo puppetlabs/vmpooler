@@ -161,104 +161,6 @@ EOT
     end
   end
 
-  describe '#migrate_vm_to_host' do
-    let(:dest_host_name) { 'HOST002' }
-    let(:cluster_name) { 'CLUSTER001' }
-    let(:vm_object) { mock_RbVmomi_VIM_VirtualMachine({
-        :name => vmname,
-      })
-    }
-
-    before(:each) do
-      config[:pools][0]['clone_target'] = cluster_name
-      allow(subject).to receive(:connect_to_vsphere).and_return(connection)
-      allow(subject).to receive(:find_vm).and_return(vm_object)
-    end
-
-    context 'Given an invalid pool name' do
-      it 'should raise an error' do
-        expect{ subject.migrate_vm_to_host('missing_pool', vmname, dest_host_name) }.to raise_error(/missing_pool does not exist/)
-      end
-    end
-
-    context 'Given a missing VM name' do
-      before(:each) do
-        expect(subject).to receive(:find_vm).and_return(nil)
-      end
-
-      it 'should raise an error' do
-        expect{ subject.migrate_vm_to_host(poolname, 'missing_vm', dest_host_name) }.to raise_error(/missing_vm does not exist/)
-      end
-    end
-
-    context 'Given a missing host targeted for migration' do
-      let(:host) { mock_RbVmomi_VIM_HostSystem() }
-
-      before(:each) do
-        config[:pools][0]['clone_target'] = cluster_name
-        allow(connection.searchIndex).to receive(:FindByDnsName).and_return(nil)
-      end
-
-      it 'should raise an error' do
-        expect{ subject.migrate_vm_to_host(poolname, vmname, dest_host_name) }.to raise_error(/#{dest_host_name} which can not be found/)
-      end
-    end
-
-    context 'Given a missing cluster name in the global configuration' do
-      let(:host) { mock_RbVmomi_VIM_HostSystem() }
-      let(:cluster_name) { 'missing_cluster' }
-
-      before(:each) do
-        config[:pools][0]['clone_target'] = nil
-        config[:config]['clone_target'] = cluster_name
-        allow(connection.searchIndex).to receive(:FindByDnsName).and_return(nil)
-      end
-
-      it 'should raise an error' do
-        expect{ subject.migrate_vm_to_host(poolname, vmname, dest_host_name) }.to raise_error(/#{dest_host_name} which can not be found/)
-      end
-    end
-
-#   context 'Given a missing hostname in the cluster' do
-#     let(:host) { mock_RbVmomi_VIM_HostSystem() }
-#     before(:each) do
-#       config[:pools][0]['clone_target'] = cluster_name
-#       allow(connection.searchIndex).to receive(:FindByDnsName).and_return(host)
-#       expect(subject).to receive(:migrate_vm_host).exactly(0).times
-#     end
-#
-#     it 'should return true' do
-#       expect(subject.migrate_vm_to_host(poolname, vmname, 'missing_host')).to be false
-#     end
-#   end
-
-    context 'Given an error during migration' do
-      let(:host) { mock_RbVmomi_VIM_HostSystem() }
-      before(:each) do
-        config[:pools][0]['clone_target'] = cluster_name
-        allow(connection.searchIndex).to receive(:FindByDnsName).and_return(host)
-        expect(subject).to receive(:migrate_vm_host).with(Object,Object).and_raise(RuntimeError,'MockMigrationError')
-      end
-
-      it 'should raise an error' do
-        expect{ subject.migrate_vm_to_host(poolname, vmname, dest_host_name) }.to raise_error('MockMigrationError')
-      end
-    end
-
-    context 'Given a successful migration' do
-      let(:host) { mock_RbVmomi_VIM_HostSystem() }
-      before(:each) do
-        config[:pools][0]['clone_target'] = cluster_name
-        allow(connection.searchIndex).to receive(:FindByDnsName).and_return(host)
-        expect(subject).to receive(:migrate_vm_host).with(Object,Object).and_return(nil)
-      end
-
-      it 'should return true' do
-        expect(subject.migrate_vm_to_host(poolname, vmname, dest_host_name)).to be true
-      end
-    end
-  end
-
   describe '#get_vm' do
     let(:vm_object) { nil }
     before(:each) do
@@ -1968,71 +1870,169 @@ EOT
     end
   end
 
-# describe '#get_vm_cluster' do
-#   it 'returns the name of a vm_object parent cluster' do
-#
-#   end
-#
-#   it 'returns nil when cluster_name is not found for the vm_object' do
-#
-#   end
-# end
-#
-# describe '#get_vm_cpu_architecture' do
-#   it 'returns the architecture of a vm_object parent host' do
-#
-#   end
-# end
-#
-# describe '#select_target_hosts' do
-#   it 'returns a hash of the least used hosts by cluster and architecture' do
-#
-#   end
-#
-#   it 'raises an error if the target cluster does not exist' do
-#
-#   end
-#
-#   it 'finds a cluster without a specified datacenter' do
-#
-#   end
-#
-#   it 'finds a cluster with a datacenter specified' do
-#
-#   end
-# end
-#
-# describe '#get_average_cluster_utilization' do
-#   it 'returns the average utilization for a given set of host utilizations assuming the first member of the list for each host is the utilization value' do
-#
-#   end
-# end
-#
-# describe '#build_compatible_hosts_lists' do
-#   it 'returns a hash of target host architecture versions containing lists of target hosts' do
-#
-#   end
-# end
-#
-# describe '#select_least_used_hosts' do
-#   it 'returns the percentage specified of the least used hosts in the cluster determined by selecting from less than or equal to average cluster utilization' do
-#
-#   end
-#
-#   it 'raises an error when the provided hosts list is empty' do
-#
-#   end
-# end
-#
-# describe '#find_host_by_dnsname' do
-#   it 'returns a host object when a matching host is found by dnsname in connection.searchIndex' do
-#
-#   end
-#
-#   it 'returns nil when the host object is not found by dnsname in connection.searchIndex' do
-#
-#   end
-# end
+  describe '#select_target_hosts' do
+    let(:target) { {} }
+    let(:cluster) { 'cluster1' }
+    let(:missing_cluster_name) { 'missing_cluster' }
+    let(:datacenter) { 'dc1' }
+    let(:architecture) { 'v3' }
+    let(:host) { 'host1' }
+    let(:hosts_hash) {
+      {
+        'hosts' => [host],
+        'architectures' => {
+          architecture => [host]
+        }
+      }
+    }
+
+    it 'returns a hash of the least used hosts by cluster and architecture' do
+      expect(subject).to receive(:find_least_used_hosts).and_return(hosts_hash)
+
+      subject.select_target_hosts(target, cluster, datacenter)
+      expect(target["#{datacenter}_#{cluster}"]).to eq(hosts_hash)
+    end
+
+    context 'with a cluster specified that does not exist' do
+      it 'raises an error' do
+        expect(subject).to receive(:find_least_used_hosts).with(missing_cluster_name, datacenter, 100).and_raise("Cluster #{cluster} cannot be found")
+        expect{subject.select_target_hosts(target, missing_cluster_name, datacenter)}.to raise_error(RuntimeError,/Cluster #{cluster} cannot be found/)
+      end
+    end
+  end
+
+  describe '#get_average_cluster_utilization' do
+    let(:hosts) {
+      [
+        [60, 'host1'],
+        [100, 'host2'],
+        [200, 'host3']
+      ]
+    }
+    it 'returns the average utilization for a given set of host utilizations assuming the first member of the list for each host is the utilization value' do
+      expect(subject.get_average_cluster_utilization(hosts)).to eq(120)
+    end
+  end
+
+  describe '#build_compatible_hosts_lists' do
+    let(:host1) { mock_RbVmomi_VIM_HostSystem({ :name => 'HOST1' })}
+    let(:host2) { mock_RbVmomi_VIM_HostSystem({ :name => 'HOST2' })}
+    let(:host3) { mock_RbVmomi_VIM_HostSystem({ :name => 'HOST3' })}
+    let(:architecture) { 'v4' }
+    let(:percentage) { 100 }
+    let(:hosts) {
+      [
+        [60, host1],
+        [100, host2],
+        [200, host3]
+      ]
+    }
+    let(:result) {
+      {
+          architecture => ['HOST1','HOST2']
+      }
+    }
+
+    it 'returns a hash of target host architecture versions containing lists of target hosts' do
+
+      expect(subject.build_compatible_hosts_lists(hosts, percentage)).to eq(result)
+    end
+  end
+
+  describe '#select_least_used_hosts' do
+    let(:percentage) { 100 }
+    let(:host1) { mock_RbVmomi_VIM_HostSystem({ :name => 'HOST1' })}
+    let(:host2) { mock_RbVmomi_VIM_HostSystem({ :name => 'HOST2' })}
+    let(:host3) { mock_RbVmomi_VIM_HostSystem({ :name => 'HOST3' })}
+    let(:hosts) {
+      [
+        [60, host1],
+        [100, host2],
+        [200, host3]
+      ]
+    }
+    let(:result) { ['HOST1','HOST2'] }
+    it 'returns the percentage specified of the least used hosts in the cluster determined by selecting from less than or equal to average cluster utilization' do
+      expect(subject.select_least_used_hosts(hosts, percentage)).to eq(result)
+    end
+
+    context 'when selecting 20 percent of hosts below average' do
+      let(:percentage) { 20 }
+      let(:result) { ['HOST1'] }
+
+      it 'should return the result' do
+        expect(subject.select_least_used_hosts(hosts, percentage)).to eq(result)
+      end
+    end
+
+    it 'should raise' do
+      expect{subject.select_least_used_hosts([], percentage)}.to raise_error(RuntimeError,/Provided hosts list to select_least_used_hosts is empty/)
+    end
+  end
+
+  describe '#run_select_hosts' do
+    it 'should raise an error when cluster cannot be identified' do
+    end
+    it 'should raise an error when datacenter for pool_name cannot be identified' do
+    end
+    it 'should run wait_for_host_selection if the specified target has the key checking' do
+    end
+    it 'should run select_target_hosts if the specified target has the key check_time_finished and the difference between max_age and check_time_finished is greater than max_age' do
+    end
+    context 'when neither checking or check_time_finished key are present in target' do
+      it 'should run select_target_hosts' do
+      end
+      it 'should populate the target with hosts' do
+      end
+    end
+  end
+
+  describe '#wait_for_host_selection' do
+    it 'does things' do
+    end
+  end
+
+  describe '#select_next_host' do
+    it 'does things' do
+    end
+  end
+
+  describe '#vm_in_target?' do
+    it 'checks if vm is in target' do
+    end
+  end
+
+  describe '#get_vm_details' do
+    it 'gets vm details' do
+    end
+  end
+
+  describe '#migrate_vm' do
+    it 'migrates a vm' do
+    end
+  end
+
+  describe '#migrate_vm_to_new_host' do
+    it' migrates a vm' do
+    end
+  end
+
+  describe '#remove_vmpooler_migration_vm' do
+    it 'removes vm from migrating' do
+    end
+  end
+
+  describe '#create_folder' do
+    it 'creates a folder' do
+    end
+  end
+
+  describe '#migration_enabled?' do
+    it 'checks if migration is enabled' do
+    end
+  end
+
+
 
   describe '#find_least_used_hosts' do
     let(:cluster_name) { 'cluster' }
@@ -2058,7 +2058,7 @@ EOT
       let(:expected_host) { cluster_object.host[0] }
 #,datacenter_name
       it 'should raise an error' do
-        expect{subject.find_least_used_hosts(missing_cluster_name,datacenter_name,percentage)}.to raise_error(NoMethodError,/undefined method/)
+        expect{subject.find_least_used_hosts(missing_cluster_name,datacenter_name,percentage)}.to raise_error(RuntimeError,/Cluster #{missing_cluster_name} cannot be found/)
       end
     end
 
@@ -2087,7 +2087,7 @@ EOT
       let(:expected_host) { cluster_object.host[0] }
 
       it 'should raise an error' do
-        expect{subject.find_least_used_hosts(missing_cluster_name,datacenter_name,percentage)}.to raise_error(NoMethodError,/undefined method/)
+        expect{subject.find_least_used_hosts(missing_cluster_name,datacenter_name,percentage)}.to raise_error(RuntimeError,/Cluster #{missing_cluster_name} cannot be found/)
       end
     end
 
@@ -2119,7 +2119,7 @@ EOT
       let(:expected_host) { cluster_object.host[1] }
 
       it 'should raise an error' do
-        expect{subject.find_least_used_hosts(missing_cluster_name,datacenter_name,percentage)}.to raise_error(NoMethodError,/undefined method/)
+        expect{subject.find_least_used_hosts(missing_cluster_name,datacenter_name,percentage)}.to raise_error(RuntimeError,/Cluster #{missing_cluster_name} cannot be found/)
       end
     end
 
@@ -3053,4 +3053,6 @@ EOT
       expect(subject.migrate_vm_host(vm_object,host_object)).to eq('RELOCATE_RESULT')
     end
   end
+
+
 end

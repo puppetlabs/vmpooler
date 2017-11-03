@@ -11,12 +11,16 @@ module Vmpooler
         attr_reader :metrics
         # Provider options passed in during initialization
         attr_reader :provider_options
+        # Hash for tracking hosts for deployment
+        attr_reader :provider_hosts
 
         def initialize(config, logger, metrics, name, options)
           @config = config
           @logger = logger
           @metrics = metrics
           @provider_name = name
+          @provider_hosts = {}
+          @provider_hosts_lock = Mutex.new
 
           # Ensure that there is not a nil provider configuration
           @config[:providers] = {} if @config[:providers].nil?
@@ -117,6 +121,14 @@ module Vmpooler
         #   [Boolean] : true on success or false on failure
         def migrate_vm_to_host(_pool_name, _vm_name, _dest_host_name)
           raise("#{self.class.name} does not implement migrate_vm_to_host")
+        end
+
+        # inputs
+        #   [String] pool_name      : Name of the pool
+        #   [String] vm_name        : Name of the VM to migrate
+        #   [Class] redis           : Redis object
+        def migrate_vm(_pool_name, _vm_name, _redis)
+          raise("#{self.class.name} does not implement migrate_vm")
         end
 
         # inputs
