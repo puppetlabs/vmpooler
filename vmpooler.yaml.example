@@ -380,12 +380,11 @@
 #     a separator.
 #     (optional; default: '')
 #
-#   - migration_limit
+#   - migration_limit (Only affects vSphere Provider)
 #     When set to any value greater than 0 enable VM migration at checkout.
 #     When enabled this capability will evaluate a VM for migration to a different host when it is requested
 #     in an effort to maintain a more even distribution of load across compute resources.
-#     The migration_limit ensures that no more than the specified migrations will be evaluated at any one time
-#     and greatly reduces the possibilty of VMs ending up bunched together on a particular host.
+#     The migration_limit ensures that no more than the specified migrations will take place at any one time.
 #
 #   - max_tries
 #     Set the max number of times a connection should retry in VM providers.
