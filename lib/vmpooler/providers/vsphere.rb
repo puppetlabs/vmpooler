@@ -62,29 +62,37 @@ module Vmpooler
           percentage = 100
           dc = "#{datacenter}_#{cluster}"
           @provider_hosts_lock.synchronize do
-            target[dc] = {} unless target.key?(dc)
-            target[dc]['checking'] = true
-            hosts_hash = find_least_used_hosts(cluster, datacenter, percentage)
-            target[dc] = hosts_hash
-            target[dc]['check_time_finished'] = Time.now
+            begin
+              target[dc] = {} unless target.key?(dc)
+              target[dc]['checking'] = true
+              hosts_hash = find_least_used_hosts(cluster, datacenter, percentage)
+              target[dc] = hosts_hash
+            rescue => _err
+              target[dc] = {}
+              raise(_err)
+            ensure
+              target[dc]['check_time_finished'] = Time.now
+            end
           end
         end
 
         def run_select_hosts(pool_name, target)
           now = Time.now
-          max_age = 60
+          max_age = @config[:config]['host_selection_max_age'] || 60
+          loop_delay = 5
           datacenter = get_target_datacenter_from_config(pool_name)
           cluster = get_target_cluster_from_config(pool_name)
           raise("cluster for pool #{pool_name} cannot be identified") if cluster.nil?
           raise("datacenter for pool #{pool_name} cannot be identified") if datacenter.nil?
           dc = "#{datacenter}_#{cluster}"
           if target.key?(dc) and target[dc].key?('checking')
-            wait_for_host_selection(dc, target)
+            wait_for_host_selection(dc, target, loop_delay, max_age)
           elsif target.key?(dc) and target[dc].key?('check_time_finished')
             select_target_hosts(target, cluster, datacenter) if now - target[dc]['check_time_finished'] > max_age
           else
             select_target_hosts(target, cluster, datacenter)
           end
+          logger.log('s', "Provider_hosts is: #{@provider_hosts[dc]}")
         end
 
         def wait_for_host_selection(dc, target, maxloop = 0, loop_delay = 5, max_age = 60)
@@ -115,7 +123,7 @@ module Vmpooler
           dc = "#{datacenter}_#{cluster}"
           @provider_hosts_lock.synchronize do
             if architecture
-              raise("no target hosts are available for #{pool_name} configured with datacenter #{datacenter} and cluster #{cluster}") if target[dc]['architectures'][architecture].size == 0
+              raise("there is no candidate in vcenter that meets all the required conditions, that that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory") unless target[dc].key?('architectures')
               host = target[dc]['architectures'][architecture].shift
               target[dc]['architectures'][architecture] << host
               if target[dc]['hosts'].include?(host)
@@ -124,7 +132,7 @@ module Vmpooler
               end
               return host
             else
-              raise("no target hosts are available for #{pool_name} configured with datacenter #{datacenter} and cluster #{cluster}") if target[dc]['hosts'].size == 0
+              raise("there is no candidate in vcenter that meets all the required conditions, that that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory") unless target[dc].key?('hosts')
               host = target[dc]['hosts'].shift
               target[dc]['hosts'] << host
               target[dc]['architectures'].each do |arch|
@@ -143,6 +151,7 @@ module Vmpooler
           raise("cluster for pool #{pool_name} cannot be identified") if cluster.nil?
           raise("datacenter for pool #{pool_name} cannot be identified") if datacenter.nil?
           dc = "#{datacenter}_#{cluster}"
+          raise("there is no candidate in vcenter that meets all the required conditions, that that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory") unless target[dc].key?('hosts')
           return true if target[dc]['architectures'][architecture].include?(parent_host)
           return false
         end
@@ -600,6 +609,7 @@ module Vmpooler
         #    the host status is not 'green'
         #    the cpu or memory utilization is bigger than the limit param
         def get_host_utilization(host, model = nil, limit = 80)
+          limit = @config[:config]['utilization_limit'] if @config[:config].key?('utilization_limit')
           if model
             return nil unless host_has_cpu_model?(host, model)
           end
@@ -672,7 +682,7 @@ module Vmpooler
           architectures
         end
 
-        def select_least_used_hosts(hosts, percentage = 20)
+        def select_least_used_hosts(hosts, percentage)
           raise('Provided hosts list to select_least_used_hosts is empty') if hosts.empty?
           average_utilization = get_average_cluster_utilization(hosts)
           least_used_hosts = []
