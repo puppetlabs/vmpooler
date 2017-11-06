@@ -92,7 +92,6 @@ module Vmpooler
           else
             select_target_hosts(target, cluster, datacenter)
           end
-          logger.log('s', "Provider_hosts is: #{@provider_hosts[dc]}")
         end
 
         def wait_for_host_selection(dc, target, maxloop = 0, loop_delay = 5, max_age = 60)
@@ -608,7 +607,7 @@ module Vmpooler
         #    the host is in maintenance mode
         #    the host status is not 'green'
         #    the cpu or memory utilization is bigger than the limit param
-        def get_host_utilization(host, model = nil, limit = 80)
+        def get_host_utilization(host, model = nil, limit = 90)
           limit = @config[:config]['utilization_limit'] if @config[:config].key?('utilization_limit')
           if model
             return nil unless host_has_cpu_model?(host, model)

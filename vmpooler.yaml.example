@@ -419,7 +419,30 @@
 #         of 2.0 means each time the pool is checked and nothing important happens, the loop delay is multiplied by 2.0,
 #         for example, the first time is 2 seconds, then 4, 8, 16 etc. until it reaches check_loop_delay_max.
 #         This value must be greater than 1.0.
-
+#
+#   - manage_host_selection (Only affects vSphere Provider)
+#     Allow host selection to be determined by vmpooler
+#     Hosts are selected based on current CPU utilization and cycled between when there are multiple targets
+#     The hosts tracking list is refreshed on an interval when a host is requested determined by host_selection_max_age
+#     (optional; default: false)
+#
+#   - create_folders (Only affects vSphere Provider)
+#     Create the pool folder specified in the pool configuration
+#     Note: this will only create the last folder when it does not exist. It will not create any parent folders
+#     (optional; default: false)
+#
+#   - host_selection_max_age (Only affects vSphere Provider)
+#     The maximum age of the provider_hosts list in seconds
+#     The list is repopulated when the difference between now and the last time
+#     checking of host utilization finished is greater than the value set.
+#     (optional; default: 60)
+#
+#   - utilization_limit (Only affects vSphere Provider)
+#     The maximum utilization of host resources allowed before the host
+#     is excluded from consideration for VM deployment
+#     The value represents a percentage and applies to both memory and CPU
+#     (optional; default: 90)
+#
 # Example:
 
 :config:
