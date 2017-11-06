@@ -122,7 +122,7 @@ module Vmpooler
           dc = "#{datacenter}_#{cluster}"
           @provider_hosts_lock.synchronize do
             if architecture
-              raise("there is no candidate in vcenter that meets all the required conditions, that that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory") unless target[dc].key?('architectures')
+              raise("there is no candidate in vcenter that meets all the required conditions, that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory") unless target[dc].key?('architectures')
               host = target[dc]['architectures'][architecture].shift
               target[dc]['architectures'][architecture] << host
               if target[dc]['hosts'].include?(host)
@@ -131,7 +131,7 @@ module Vmpooler
               end
               return host
             else
-              raise("there is no candidate in vcenter that meets all the required conditions, that that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory") unless target[dc].key?('hosts')
+              raise("there is no candidate in vcenter that meets all the required conditions, that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory") unless target[dc].key?('hosts')
               host = target[dc]['hosts'].shift
               target[dc]['hosts'] << host
               target[dc]['architectures'].each do |arch|
@@ -150,7 +150,7 @@ module Vmpooler
           raise("cluster for pool #{pool_name} cannot be identified") if cluster.nil?
           raise("datacenter for pool #{pool_name} cannot be identified") if datacenter.nil?
           dc = "#{datacenter}_#{cluster}"
-          raise("there is no candidate in vcenter that meets all the required conditions, that that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory") unless target[dc].key?('hosts')
+          raise("there is no candidate in vcenter that meets all the required conditions, that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory") unless target[dc].key?('hosts')
           return true if target[dc]['architectures'][architecture].include?(parent_host)
           return false
         end
@@ -699,7 +699,7 @@ module Vmpooler
             cluster_object = find_cluster(cluster, connection, datacentername)
             raise("Cluster #{cluster} cannot be found") if cluster_object.nil?
             target_hosts = get_cluster_host_utilization(cluster_object)
-            raise("there is no candidate in vcenter that meets all the required conditions, that that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory'") if target_hosts.nil?
+            raise("there is no candidate in vcenter that meets all the required conditions, that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory'") if target_hosts.empty?
             architectures = build_compatible_hosts_lists(target_hosts, percentage)
             least_used_hosts = select_least_used_hosts(target_hosts, percentage)
             {
@@ -892,21 +892,28 @@ module Vmpooler
 
         def migrate_vm(pool_name, vm_name)
           @connection_pool.with_metrics do |pool_object|
-            connection = ensured_vsphere_connection(pool_object)
-            vm_hash = get_vm_details(vm_name, connection)
-            migration_limit = @config[:config]['migration_limit'] if @config[:config].key?('migration_limit')
-            migration_count = $redis.scard('vmpooler__migration')
-            if migration_enabled? @config
-              if migration_count >= migration_limit
-                logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{vm_hash['host_name']}. No migration will be evaluated since the migration_limit has been reached")
-                return
-              end
-              run_select_hosts(pool_name, @provider_hosts)
-              if vm_in_target?(pool_name, vm_hash['host_name'], vm_hash['architecture'], @provider_hosts)
-                logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{vm_hash['host_name']}")
+            begin
+              connection = ensured_vsphere_connection(pool_object)
+              vm_hash = get_vm_details(vm_name, connection)
+              migration_limit = @config[:config]['migration_limit'] if @config[:config].key?('migration_limit')
+              migration_count = $redis.scard('vmpooler__migration')
+              if migration_enabled? @config
+                if migration_count >= migration_limit
+                  logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{vm_hash['host_name']}. No migration will be evaluated since the migration_limit has been reached")
+                  return
+                end
+                run_select_hosts(pool_name, @provider_hosts)
+                if vm_in_target?(pool_name, vm_hash['host_name'], vm_hash['architecture'], @provider_hosts)
+                  logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{vm_hash['host_name']}")
+                else
+                  migrate_vm_to_new_host(pool_name, vm_name, vm_hash, connection)
+                end
               else
-                migrate_vm_to_new_host(pool_name, vm_name, vm_hash, connection)
+                logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{vm_hash['host_name']}")
               end
+            rescue => _err
+              logger.log('s', "[!] [#{pool_name}] '#{vm_name}' is running on #{vm_hash['host_name']}")
+              raise _err
             end
           end
         end

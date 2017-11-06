@@ -224,10 +224,9 @@ module Vmpooler
         $logger.log('s', "[+] [#{pool_name}] '#{new_vmname}' cloned in #{finish} seconds")
 
         $metrics.timing("clone.#{pool_name}", finish)
-      rescue => err
-        $logger.log('s', "[!] [#{pool_name}] '#{new_vmname}' clone failed with an error: #{err}")
+      rescue => _err
         $redis.srem('vmpooler__pending__' + pool_name, new_vmname)
-        raise
+        raise _err
       ensure
         $redis.decr('vmpooler__tasks__clone')
       end
@@ -712,9 +711,6 @@ module Vmpooler
       end
 
       pool_check_response
-    rescue => err
-      $logger.log('d', "[!] [#{pool['name']}] _check_pool failed with an error: #{err}")
-      raise
     end
 
     # Create a provider object, usually based on the providers/*.rb class, that implements providers/base.rb
