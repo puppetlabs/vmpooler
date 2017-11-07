@@ -1,6 +1,6 @@
 # vim: autoindent tabstop=2 shiftwidth=2 expandtab softtabstop=2 filetype=ruby
 Vagrant.configure("2") do |config|
-  config.vm.box = "genebean/centos-7-rvm-221"
+  config.vm.box = "genebean/centos-7-rvm-multi"
   config.vm.network "forwarded_port", guest: 4567, host: 4567
   config.vm.network "forwarded_port", guest: 8080, host: 8080
   config.vm.provision "shell", inline: <<-SCRIPT
