@@ -619,9 +619,7 @@ EOT
         expect(redis.get('vmpooler__tasks__clone')).to eq('1')
       end
 
-      it 'should log messages that the clone failed' do
-        expect(logger).to receive(:log).with('s', /\[!\] \[#{pool}\] '(.+)' clone failed with an error: MockError/)
-
+      it 'should raise the error' do
         expect{subject._clone_vm(pool_object,provider)}.to raise_error(/MockError/)
       end
     end
@@ -1493,13 +1491,6 @@ EOT
       it 'logs a message' do
         allow(logger).to receive(:log)
         expect(logger).to receive(:log).with('s', "[x] [#{pool}] '#{vm}' migration failed with an error: MockError")
-        expect(provider).to receive(:remove_vmpooler_migration_vm).with(pool, vm)
-
-        subject.migrate_vm(vm, pool, provider)
-      end
-
-      it 'should attempt to remove from vmpooler_migration queue' do
-        expect(provider).to receive(:remove_vmpooler_migration_vm).with(pool, vm, redis)
 
         subject.migrate_vm(vm, pool, provider)
       end
@@ -2783,7 +2774,6 @@ EOT
 
           expect(subject).to receive(:clone_vm).and_raise(RuntimeError,"MockError")
           expect(logger).to receive(:log).with("s", "[!] [#{pool}] clone failed during check_pool with an error: MockError")
-          expect(logger).to receive(:log).with('d', "[!] [#{pool}] _check_pool failed with an error: MockError")
           
           expect{ subject._check_pool(pool_object,provider) }.to raise_error(RuntimeError,'MockError')
         end

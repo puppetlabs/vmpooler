@@ -1639,7 +1639,7 @@ EOT
     let(:model) { 'v4' }
     let(:different_model) { 'different_model' }
     let(:limit) { 75 }
-    let(:default_limit) { 80 }
+    let(:default_limit) { 90 }
 
     context "host with a different model" do
       let(:host) { mock_RbVmomi_VIM_HostSystem() }
@@ -3029,7 +3029,7 @@ EOT
       allow(relocate_task).to receive(:wait_for_completion)
     end
 
-    it 'should call RelovateVM_Task' do
+    it 'should call RelocateVM_Task' do
       expect(vm_object).to receive(:RelocateVM_Task).and_return(relocate_task)
 
       subject.migrate_vm_host(vm_object,host_object)
