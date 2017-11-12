@@ -925,6 +925,7 @@ module Vmpooler
           finish = migrate_vm_and_record_timing(pool_name, vm_name, vm_hash, target_host_object, target_host_name)
           #logger.log('s', "Provider_hosts is: #{provider.provider_hosts}")
           logger.log('s', "[>] [#{pool_name}] '#{vm_name}' migrated from #{vm_hash['host_name']} to #{target_host_name} in #{finish} seconds")
+        ensure
           $redis.srem('vmpooler__migration', vm_name)
         end
 
