@@ -18,7 +18,7 @@ matrix:
     - rvm: 2.3.3
       env: "CHECK=test"
 
-    - rvm: jruby-1.7.8
+    - rvm: jruby-1.7.13
       env: "CHECK=test"
 
   # Remove the allow_failures section once
@@ -27,12 +27,11 @@ matrix:
     - rvm: 2.3.3
       env: "CHECK=rubocop"
   
-# This below is a temporary shim to bypass these bundler+jruby bugs:
-# 
-#   https://github.com/bundler/bundler/issues/4975
-#   https://github.com/bundler/bundler/issues/4984
+# Pin to specific rubygem and bundler for jruby tests
 install:
-  - gem install bundler --version 1.12.5
-  - bundle _1.12.5_ install --jobs=3 --retry=3 --path=${BUNDLE_PATH:-vendor/bundle}
+  - gem update --system 2.6.14
+  - gem install bundler --version 1.15.4
+  - bundle _1.15.4_ --version
+  - bundle _1.15.4_ install --jobs=3 --retry=3 --path=${BUNDLE_PATH:-vendor/bundle}
 script: 
-  - "bundle _1.12.5_ exec rake $CHECK"
+  - "bundle _1.15.4_ exec rake $CHECK"
