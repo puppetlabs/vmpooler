@@ -18,7 +18,7 @@ matrix:
     - rvm: 2.3.3
       env: "CHECK=test"
 
-    - rvm: jruby-1.7.8
+    - rvm: jruby-1.7.13
       env: "CHECK=test"
 
   # Remove the allow_failures section once
