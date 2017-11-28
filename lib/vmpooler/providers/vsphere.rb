@@ -85,12 +85,14 @@ module Vmpooler
           raise("cluster for pool #{pool_name} cannot be identified") if cluster.nil?
           raise("datacenter for pool #{pool_name} cannot be identified") if datacenter.nil?
           dc = "#{datacenter}_#{cluster}"
-          if target.key?(dc) and target[dc].key?('checking')
+          select_target_hosts(target, cluster, datacenter) unless target.key?(dc)
+          if target[dc].key?('checking')
             wait_for_host_selection(dc, target, loop_delay, max_age)
-          elsif target.key?(dc) and target[dc].key?('check_time_finished')
-            select_target_hosts(target, cluster, datacenter) if now - target[dc]['check_time_finished'] > max_age
-          else
-            select_target_hosts(target, cluster, datacenter)
+          end
+          if target[dc].key?('check_time_finished')
+            if now - target[dc]['check_time_finished'] > max_age
+              select_target_hosts(target, cluster, datacenter)
+            end
           end
         end
 
