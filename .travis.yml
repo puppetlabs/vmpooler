@@ -32,6 +32,7 @@ matrix:
 #   https://github.com/bundler/bundler/issues/4975
 #   https://github.com/bundler/bundler/issues/4984
 install:
+  - gem update --system 2.6.14
   - gem install bundler --version 1.12.5
   - bundle _1.12.5_ install --jobs=3 --retry=3 --path=${BUNDLE_PATH:-vendor/bundle}
 script: 
