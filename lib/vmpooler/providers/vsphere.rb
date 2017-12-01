@@ -96,7 +96,7 @@ module Vmpooler
           end
         end
 
-        def wait_for_host_selection(dc, target, maxloop = 0, loop_delay = 5, max_age = 60)
+        def wait_for_host_selection(dc, target, maxloop = 0, loop_delay = 1, max_age = 60)
           loop_count = 1
           until target.key?(dc) and target[dc].key?('check_time_finished')
             sleep(loop_delay)
