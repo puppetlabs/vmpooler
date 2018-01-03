@@ -1971,68 +1971,576 @@ EOT
   end
 
   describe '#run_select_hosts' do
-    it 'should raise an error when cluster cannot be identified' do
+    let(:target) { {} }
+    let(:cluster) { 'cluster1' }
+    let(:missing_cluster_name) { 'missing_cluster' }
+    let(:datacenter) { 'dc1' }
+    let(:architecture) { 'v3' }
+    let(:host) { 'host1' }
+    let(:loop_delay) { 5 }
+    let(:max_age) { 60 }
+    let(:dc) { "#{datacenter}_#{cluster}" }
+    let(:hosts_hash) {
+      {
+       dc => {
+          'hosts' => [host],
+          'architectures' => {
+            architecture => [host]
+          }
+        }
+      }
+    }
+    let(:config) { YAML.load(<<-EOT
+---
+:config:
+  max_age: 60
+:pools:
+  - name: '#{poolname}'
+    datacenter: '#{datacenter}'
+    clone_target: '#{cluster}'
+EOT
+      )
+    }
+
+    before(:each) do
+      allow(subject).to receive(:connect_to_vsphere).and_return(connection)
     end
-    it 'should raise an error when datacenter for pool_name cannot be identified' do
-    end
-    it 'should run wait_for_host_selection if the specified target has the key checking' do
-    end
-    it 'should run select_target_hosts if the specified target has the key check_time_finished and the difference between max_age and check_time_finished is greater than max_age' do
-    end
-    context 'when neither checking or check_time_finished key are present in target' do
+
+    context 'target does not have key dc' do
+      let(:hosts_hash) { { } }
       it 'should run select_target_hosts' do
+        expect(subject).to receive(:select_target_hosts).with(hosts_hash, cluster, datacenter)
+        subject.run_select_hosts(poolname, hosts_hash)
       end
-      it 'should populate the target with hosts' do
+    end
+
+    context 'when check_time_finished is greater than max_age' do
+      before(:each) do
+        hosts_hash[dc]['check_time_finished'] = Time.now - (max_age + 10)
+      end
+
+      it 'should run select_target_hosts' do
+        expect(subject).to receive(:select_target_hosts).with(hosts_hash, cluster, datacenter)
+        subject.run_select_hosts(poolname, hosts_hash)
+      end
+    end
+
+    context 'when check_time_finished is not greater than max_age' do
+      before(:each) do
+        hosts_hash[dc]['check_time_finished'] = Time.now - (max_age / 2)
+      end
+
+      it 'should not run select_target_hosts' do
+        expect(subject).to_not receive(:select_target_hosts).with(hosts_hash, cluster, datacenter)
+        subject.run_select_hosts(poolname, hosts_hash)
+      end
+    end
+
+    context 'when hosts are being selected' do
+      before(:each) do
+        hosts_hash[dc]['checking'] = true
+      end
+
+      it 'should run wait_for_host_selection' do
+        expect(subject).to receive(:wait_for_host_selection).with(dc, hosts_hash, loop_delay, max_age)
+        subject.run_select_hosts(poolname, hosts_hash)
+      end
+
+    end
+
+    context 'with no clone_target' do
+      before(:each) do
+        config[:pools][0].delete('clone_target')
+      end
+
+      it 'should raise an error' do
+        expect{subject.run_select_hosts(poolname, hosts_hash)}.to raise_error(/cluster for pool #{poolname} cannot be identified/)
+      end
+    end
+
+    context 'with no datacenter' do
+      before(:each) do
+        config[:pools][0].delete('datacenter')
+      end
+
+      it 'should raise an error' do
+        expect{subject.run_select_hosts(poolname, hosts_hash)}.to raise_error(/datacenter for pool #{poolname} cannot be identified/)
       end
     end
   end
 
   describe '#wait_for_host_selection' do
-    it 'does things' do
+    let(:datacenter) { 'dc1' }
+    let(:cluster) { 'cluster1' }
+    let(:dc) { "#{datacenter}_#{cluster}" }
+    let(:maxloop) { 1 }
+    let(:loop_delay) { 1 }
+    let(:max_age) { 60 }
+    let(:target) {
+      {
+        dc => { }
+      }
+    }
+
+    context 'when target does not have key check_time_finished' do
+      it 'should sleep for loop_delay maxloop times' do
+        expect(subject).to receive(:sleep).with(loop_delay).once
+
+        subject.wait_for_host_selection(dc, target, maxloop, loop_delay, max_age)
+      end
+    end
+
+    context 'when target has dc and check_time_finished is greater than max_age' do
+      before(:each) do
+        target[dc]['check_time_finished'] = Time.now - (max_age + 10)
+      end
+
+      it 'should sleep for loop_delay maxloop times' do
+        expect(subject).to receive(:sleep).with(loop_delay).once
+
+        subject.wait_for_host_selection(dc, target, maxloop, loop_delay, max_age)
+      end
+    end
+
+    context 'when target has dc and check_time_finished difference from now is less than max_age' do
+      before(:each) do
+        target[dc]['check_time_finished'] = Time.now - (max_age / 2)
+      end
+
+      it 'should not wait' do
+        expect(subject).to_not receive(:sleep).with(loop_delay)
+
+        subject.wait_for_host_selection(dc, target, maxloop, loop_delay, max_age)
+      end
     end
   end
 
   describe '#select_next_host' do
-    it 'does things' do
+    let(:cluster) { 'cluster1' }
+    let(:datacenter) { 'dc1' }
+    let(:architecture) { 'v3' }
+    let(:host) { 'host1' }
+    let(:loop_delay) { 5 }
+    let(:max_age) { 60 }
+    let(:dc) { "#{datacenter}_#{cluster}" }
+    let(:hosts_hash) {
+      {
+       dc => {
+          'hosts' => [host, 'host2'],
+          'architectures' => {
+            architecture => ['host3', 'host4']
+          }
+        }
+      }
+    }
+    let(:config) { YAML.load(<<-EOT
+---
+:config:
+  max_age: 60
+:pools:
+  - name: '#{poolname}'
+    datacenter: '#{datacenter}'
+    clone_target: '#{cluster}'
+EOT
+      )
+    }
+
+    context 'when host is requested' do
+      it 'should return the first host' do
+        result = subject.select_next_host(poolname, hosts_hash)
+        expect(result).to eq(host)
+      end
+
+      it 'should return the second host if called twice' do
+        result = subject.select_next_host(poolname, hosts_hash)
+        result2 = subject.select_next_host(poolname, hosts_hash)
+        expect(result2).to eq('host2')
+      end
+    end
+
+    context 'when host and architecture are requested' do
+      it 'should return the first host' do
+        result = subject.select_next_host(poolname, hosts_hash, architecture)
+        expect(result).to eq('host3')
+      end
+
+      it 'should return the second host if called twice' do
+        result = subject.select_next_host(poolname, hosts_hash, architecture)
+        result2 = subject.select_next_host(poolname, hosts_hash, architecture)
+        expect(result2).to eq('host4')
+      end
+    end
+
+    context 'with no hosts available' do
+      before(:each) do
+        hosts_hash[dc].delete('hosts')
+        hosts_hash[dc].delete('architectures')
+      end
+      it 'should raise an error' do
+        expect{subject.select_next_host(poolname, hosts_hash)}.to raise_error("there is no candidate in vcenter that meets all the required conditions, that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory")
+      end
+
+      it 'should raise an error when selecting with architecture' do
+        expect{subject.select_next_host(poolname, hosts_hash, architecture)}.to raise_error("there is no candidate in vcenter that meets all the required conditions, that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory")
+      end
+    end
+
+    context 'with no datacenter set for pool' do
+      before(:each) do
+        config[:pools][0].delete('datacenter')
+      end
+
+      it 'should raise an error' do
+        expect{subject.select_next_host(poolname, hosts_hash)}.to raise_error("datacenter for pool #{poolname} cannot be identified")
+      end
+    end
+
+    context 'with no clone_target set for pool' do
+      before(:each) do
+        config[:pools][0].delete('clone_target')
+      end
+
+      it 'should raise an error' do
+        expect{subject.select_next_host(poolname, hosts_hash)}.to raise_error("cluster for pool #{poolname} cannot be identified")
+      end
     end
   end
 
   describe '#vm_in_target?' do
-    it 'checks if vm is in target' do
+    let(:parent_host) { 'host1' }
+    let(:architecture) { 'v3' }
+    let(:datacenter) { 'dc1' }
+    let(:cluster) { 'cluster1' }
+    let(:dc) { "#{datacenter}_#{cluster}" }
+    let(:maxloop) { 1 }
+    let(:loop_delay) { 1 }
+    let(:max_age) { 60 }
+    let(:target) {
+      {
+        dc => {
+          'hosts' => [parent_host],
+          'architectures' => {
+            architecture => [parent_host]
+          }
+        }
+      }
+    }
+    let(:config) { YAML.load(<<-EOT
+---
+:pools:
+  - name: '#{poolname}'
+    datacenter: '#{datacenter}'
+    clone_target: '#{cluster}'
+EOT
+      )
+    }
+
+    it 'returns true when parent_host is in hosts' do
+      result = subject.vm_in_target?(poolname, parent_host, architecture, target)
+      expect(result).to be true
+    end
+
+    context 'with parent_host only in architectures' do
+      before(:each) do
+        target[dc]['hosts'] = ['host2']
+      end
+
+      it 'returns true when parent_host is in architectures' do
+        result = subject.vm_in_target?(poolname, parent_host, architecture, target)
+        expect(result).to be true
+      end
+    end
+
+    it 'returns false when parent_host is not in hosts or architectures' do
+      result = subject.vm_in_target?(poolname, 'host3', architecture, target)
+      expect(result).to be false
+    end
+
+    context 'with no hosts key' do
+      before(:each) do
+        target[dc].delete('hosts')
+      end
+
+      it 'should raise an error' do
+        expect{subject.vm_in_target?(poolname, parent_host, architecture, target)}.to raise_error("there is no candidate in vcenter that meets all the required conditions, that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory")
+      end
     end
   end
 
   describe '#get_vm_details' do
-    it 'gets vm details' do
+    let(:parent_host) { 'host1' }
+    let(:host_object) { mock_RbVmomi_VIM_HostSystem({ :name => parent_host })}
+    let(:vm_object) { mock_RbVmomi_VIM_VirtualMachine({ :name => vmname })}
+    let(:architecture) { 'v4' }
+    let(:vm_details) {
+      {
+        'host_name' => parent_host,
+        'object' => vm_object,
+        'architecture' => architecture
+      }
+    }
+
+    before(:each) do
+      allow(subject).to receive(:connect_to_vsphere).and_return(connection)
+    end
+
+    it 'returns nil when vm_object is not found' do
+      expect(subject).to receive(:find_vm).with(vmname, connection).and_return(nil)
+      result = subject.get_vm_details(vmname, connection)
+      expect(result).to be nil
+    end
+
+    it 'raises an error when unable to determine parent_host' do
+      expect(subject).to receive(:find_vm).with(vmname, connection).and_return(vm_object)
+      expect{subject.get_vm_details(vmname, connection)}.to raise_error('Unable to determine which host the VM is running on')
+    end
+
+    context 'when it can find parent host' do
+      before(:each) do
+        # This mocking is a little fragile but hard to do without a real vCenter instance
+        vm_object.summary.runtime.host = host_object
+      end
+
+      it 'returns vm details hash' do
+        expect(subject).to receive(:find_vm).with(vmname, connection).and_return(vm_object)
+        result = subject.get_vm_details(vmname, connection)
+        expect(result).to eq(vm_details)
+      end
     end
   end
 
   describe '#migrate_vm' do
-    it 'migrates a vm' do
+    let(:parent_host) { 'host1' }
+    let(:new_host) { 'host2' }
+    let(:datacenter) { 'dc1' }
+    let(:architecture) { 'v4' }
+    let(:cluster) { 'cluster1' }
+    let(:vm_details) {
+      {
+        'host_name' => parent_host,
+        'object' => vm_object,
+        'architecture' => architecture
+      }
+    }
+    let(:host_object) { mock_RbVmomi_VIM_HostSystem({ :name => parent_host })}
+    let(:new_host_object) { mock_RbVmomi_VIM_HostSystem({ :name => new_host })}
+    let(:vm_object) { mock_RbVmomi_VIM_VirtualMachine({ :name => vmname })}
+    let(:config) { YAML.load(<<-EOT
+---
+:config:
+  migration_limit: 5
+:pools:
+  - name: '#{poolname}'
+    datacenter: '#{datacenter}'
+    clone_target: '#{cluster}'
+EOT
+      )
+    }
+    let(:dc) { "#{datacenter}_#{cluster}" }
+    let(:provider_hosts) {
+      {
+        dc => {
+          'hosts' => [new_host],
+          'architectures' => {
+            architecture => [new_host]
+          },
+          'check_time_finished' => Time.now
+        }
+      }
+    }
+
+    before(:each) do
+      allow(subject).to receive(:connect_to_vsphere).and_return(connection)
+    end
+
+    context 'when vm should be migrated' do
+      before(:each) do
+        subject.connection_pool.with_metrics do |pool_object|
+          expect(subject).to receive(:ensured_vsphere_connection).with(pool_object).and_return(connection)
+          expect(subject).to receive(:get_vm_details).and_return(vm_details)
+          expect(subject).to receive(:run_select_hosts).with(poolname, {})
+          expect(subject).to receive(:vm_in_target?).and_return false
+          expect(subject).to receive(:migration_enabled?).and_return true
+        end
+        vm_object.summary.runtime.host = host_object
+      end
+
+      it 'logs a message' do
+        expect(subject).to receive(:select_next_host).and_return(new_host)
+        expect(subject).to receive(:find_host_by_dnsname).and_return(new_host_object)
+        expect(subject).to receive(:migrate_vm_host).with(vm_object, new_host_object)
+        expect($redis).to receive(:hget).with("vmpooler__vm__#{vmname}", 'checkout').and_return((Time.now - 1).to_s)
+        expect(logger).to receive(:log).with('s', "[>] [#{poolname}] '#{vmname}' migrated from #{parent_host} to #{new_host} in 0.00 seconds")
+
+        subject.migrate_vm(poolname, vmname)
+      end
+
+      it 'migrates a vm' do
+        expect(subject).to receive(:migrate_vm_to_new_host).with(poolname, vmname, vm_details, connection)
+
+        subject.migrate_vm(poolname, vmname)
+      end
+    end
+
+    context 'current host is in the list of target hosts' do
+      before(:each) do
+        subject.connection_pool.with_metrics do |pool_object|
+          expect(subject).to receive(:ensured_vsphere_connection).with(pool_object).and_return(connection)
+          expect(subject).to receive(:get_vm_details).and_return(vm_details)
+          expect(subject).to receive(:run_select_hosts).with(poolname, {})
+          expect(subject).to receive(:vm_in_target?).and_return true
+          expect(subject).to receive(:migration_enabled?).and_return true
+        end
+        vm_object.summary.runtime.host = host_object
+      end
+
+      it 'logs a message that no migration is required' do
+        expect(logger).to receive(:log).with('s', "[ ] [#{poolname}] No migration required for '#{vmname}' running on #{parent_host}")
+
+        subject.migrate_vm(poolname, vmname)
+      end
+    end
+
+    context 'with migration limit exceeded' do
+      before(:each) do
+        subject.connection_pool.with_metrics do |pool_object|
+          expect(subject).to receive(:ensured_vsphere_connection).with(pool_object).and_return(connection)
+          expect($redis).to receive(:scard).with('vmpooler__migration').and_return(5)
+          expect(subject).to receive(:get_vm_details).and_return(vm_details)
+          expect(subject).to_not receive(:run_select_hosts)
+          expect(subject).to_not receive(:vm_in_target?)
+          expect(subject).to receive(:migration_enabled?).and_return true
+        end
+        vm_object.summary.runtime.host = host_object
+      end
+
+      it 'should log the current host' do
+        expect(logger).to receive(:log).with('s', "[ ] [#{poolname}] '#{vmname}' is running on #{parent_host}. No migration will be evaluated since the migration_limit has been reached")
+
+        subject.migrate_vm(poolname, vmname)
+      end
+    end
+
+    context 'when an error occurs' do
+      before(:each) do
+        subject.connection_pool.with_metrics do |pool_object|
+          expect(subject).to receive(:ensured_vsphere_connection).with(pool_object).and_return(connection)
+          expect(subject).to receive(:get_vm_details).and_return(vm_details)
+          expect(subject).to receive(:run_select_hosts)
+          expect(subject).to receive(:vm_in_target?).and_return false
+          expect(subject).to receive(:migration_enabled?).and_return true
+          expect(subject).to receive(:select_next_host).and_raise(RuntimeError,'Mock migration error')
+        end
+        vm_object.summary.runtime.host = host_object
+      end
+      it 'should log the current host' do
+        expect(logger).to receive(:log).with('s', "[!] [#{poolname}] '#{vmname}' is running on #{parent_host}")
+
+        expect{subject.migrate_vm(poolname, vmname)}.to raise_error(RuntimeError, 'Mock migration error')
+      end
     end
   end
 
   describe '#migrate_vm_to_new_host' do
-    it' migrates a vm' do
-    end
-  end
+    let(:parent_host) { 'host1' }
+    let(:new_host) { 'host2' }
+    let(:datacenter) { 'dc1' }
+    let(:cluster) { 'cluster1' }
+    let(:architecture) { 'v4' }
+    let(:host_object) { mock_RbVmomi_VIM_HostSystem({ :name => parent_host })}
+    let(:new_host_object) { mock_RbVmomi_VIM_HostSystem({ :name => new_host })}
+    let(:vm_object) { mock_RbVmomi_VIM_VirtualMachine({ :name => vmname })}
+    let(:config) { YAML.load(<<-EOT
+---
+:config:
+  migration_limit: 5
+:pools:
+  - name: '#{poolname}'
+    datacenter: '#{datacenter}'
+    clone_target: '#{cluster}'
+EOT
+      )
+    }
+    let(:vm_details) {
+      {
+        'host_name' => parent_host,
+        'object' => vm_object,
+        'architecture' => architecture
+      }
+    }
 
-  describe '#remove_vmpooler_migration_vm' do
-    it 'removes vm from migrating' do
+    before(:each) do
+      allow(subject).to receive(:connect_to_vsphere).and_return(connection)
+    end
+
+    it' migrates a vm' do
+      expect($redis).to receive(:sadd).with('vmpooler__migration', vmname)
+      expect(subject).to receive(:select_next_host).and_return(new_host)
+      expect(subject).to receive(:find_host_by_dnsname).and_return(new_host_object)
+      expect(subject).to receive(:migrate_vm_and_record_timing).and_return(format('%.2f', (Time.now - (Time.now - 15))))
+      expect(logger).to receive(:log).with('s', "[>] [#{poolname}] '#{vmname}' migrated from host1 to host2 in 15.00 seconds")
+      expect($redis).to receive(:srem).with('vmpooler__migration', vmname)
+      subject.migrate_vm_to_new_host(poolname, vmname, vm_details, connection)
     end
   end
 
   describe '#create_folder' do
+    let(:datacenter) { 'dc1' }
+    let(:datacenter_object) { mock_RbVmomi_VIM_Datacenter() }
+    let(:folder_object) { mock_RbVmomi_VIM_Folder({ :name => 'pool1'}) }
+    let(:new_folder) { poolname }
+
+    before(:each) do
+      allow(subject).to receive(:connect_to_vsphere).and_return(connection)
+    end
+
     it 'creates a folder' do
+      expect(connection.serviceInstance).to receive(:find_datacenter).with(datacenter).and_return(datacenter_object)
+      expect(datacenter_object.vmFolder).to receive(:traverse).with(new_folder, type=RbVmomi::VIM::Folder, create=true).and_return(folder_object)
+
+      result = subject.create_folder(connection, new_folder, datacenter)
+      expect(result).to eq(folder_object)
+    end
+
+    context 'with folder_object returning nil' do
+      it 'shoud raise an error' do
+        expect(connection.serviceInstance).to receive(:find_datacenter).with(datacenter).and_return(datacenter_object)
+        expect(datacenter_object.vmFolder).to receive(:traverse).with(new_folder, type=RbVmomi::VIM::Folder, create=true).and_return(nil)
+
+        expect{subject.create_folder(connection, new_folder, datacenter)}.to raise_error("Cannot create folder #{new_folder}")
+      end
     end
   end
 
   describe '#migration_enabled?' do
-    it 'checks if migration is enabled' do
+    let(:config) {
+      { :config => { 'migration_limit' => 5 } }
+    }
+    it 'returns true if migration is enabled' do
+      result = subject.migration_enabled?(config)
+      expect(result).to be true
+    end
+
+    context 'with migration disabled' do
+      let(:config) {
+        { :config => { } }
+      }
+      it 'should return false' do
+        result = subject.migration_enabled?(config)
+        expect(result).to be false
+      end
+    end
+
+    context 'with non-integer value for migration limit' do
+      let(:config) {
+        { :config => { 'migration_limit' => 1.0 } }
+      }
+      it 'should return false' do
+        result = subject.migration_enabled?(config)
+        expect(result).to be false
+      end
     end
   end
-
-
 
   describe '#find_least_used_hosts' do
     let(:cluster_name) { 'cluster' }
@@ -2045,8 +2553,6 @@ EOT
       allow(subject).to receive(:connect_to_vsphere).and_return(connection)
       allow(connection.serviceInstance).to receive(:find_datacenter).and_return(datacenter_object)
       datacenter_object.hostFolder.childEntity = [cluster_object]
-      #allow(connection.serviceInstance).to receive(:find_cluster).and_return(nil)
-      #allow(connection.serviceInstance).to receive(:find_least_used_hosts)
     end
 
     context 'missing cluster' do
