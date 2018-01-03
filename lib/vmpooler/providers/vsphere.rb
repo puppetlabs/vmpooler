@@ -85,7 +85,10 @@ module Vmpooler
           raise("cluster for pool #{pool_name} cannot be identified") if cluster.nil?
           raise("datacenter for pool #{pool_name} cannot be identified") if datacenter.nil?
           dc = "#{datacenter}_#{cluster}"
-          select_target_hosts(target, cluster, datacenter) unless target.key?(dc)
+          unless target.key?(dc)
+            select_target_hosts(target, cluster, datacenter)
+            return
+          end
           if target[dc].key?('checking')
             wait_for_host_selection(dc, target, loop_delay, max_age)
           end
@@ -153,6 +156,7 @@ module Vmpooler
           raise("datacenter for pool #{pool_name} cannot be identified") if datacenter.nil?
           dc = "#{datacenter}_#{cluster}"
           raise("there is no candidate in vcenter that meets all the required conditions, that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory") unless target[dc].key?('hosts')
+          return true if target[dc]['hosts'].include?(parent_host)
           return true if target[dc]['architectures'][architecture].include?(parent_host)
           return false
         end
@@ -875,8 +879,8 @@ module Vmpooler
           vm_object = find_vm(vm_name, connection)
           return nil if vm_object.nil?
           parent_host_object = vm_object.summary.runtime.host if vm_object.summary && vm_object.summary.runtime && vm_object.summary.runtime.host
+          raise('Unable to determine which host the VM is running on') if parent_host_object.nil?
           parent_host = parent_host_object.name
-          raise('Unable to determine which host the VM is running on') if parent_host.nil?
           architecture = get_host_cpu_arch_version(parent_host_object)
           {
             'host_name' => parent_host,
