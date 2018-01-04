@@ -1,11 +1,6 @@
 source ENV['GEM_SOURCE'] || 'https://rubygems.org'
 
-if RUBY_VERSION =~ /^1\.9\./
-  gem 'json', '~> 1.8'
-else
-  gem 'json', '>= 1.8'
-end
-
+gem 'json', '>= 1.8'
 gem 'puma', '>= 3.6.0'
 # Rack 2.x requires ruby 2.2 or above.
 # As VMPooler should work in older jruby, we need to be Ruby 1.9.3 compatible.
@@ -23,13 +18,7 @@ gem 'connection_pool', '>= 2.2.1'
 # ----
 # nokogiri
 # redis
-if RUBY_VERSION =~ /^1\.9\./
-  gem 'nokogiri', '~> 1.6.0'
-  gem 'redis', '~> 3.0'
-elsif RUBY_VERSION =~ /^2\.[0]/
-  gem 'nokogiri', '~> 1.6.0'
-  gem 'redis', '~> 3.0'
-elsif RUBY_VERSION =~ /^2\.[1]/
+if RUBY_VERSION =~ /^2\.[1]/
   gem 'nokogiri', '~> 1.7.0'
   gem 'redis', '~> 3.0'
 elsif RUBY_VERSION =~ /^2\.2\.[01]/
