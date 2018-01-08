@@ -1772,6 +1772,24 @@ EOT
         expect(subject.get_host_utilization(host,model,limit)[1]).to eq(host)
       end
     end
+
+    context 'host with no quickstats' do
+      let(:host) { mock_RbVmomi_VIM_HostSystem({
+        :cpu_speed => 100,
+        :num_cores_per_cpu => 1,
+        :num_cpu => 1,
+        :memory_size => 100.0 * 1024 * 1024
+        })
+      }
+      before(:each) do
+        host.summary.quickStats.overallCpuUsage = nil
+      end
+
+      it 'should return nil' do
+        result = subject.get_host_utilization(host,model,limit)
+        expect(result).to be nil
+      end
+    end
   end
 
   describe '#host_has_cpu_model?' do

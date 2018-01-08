@@ -625,8 +625,11 @@ module Vmpooler
           cpu_utilization = cpu_utilization_for host
           memory_utilization = memory_utilization_for host
 
-          return nil if cpu_utilization == 0
-          return nil if memory_utilization == 0
+          return nil if cpu_utilization.nil?
+          return nil if cpu_utilization == 0.0
+          return nil if memory_utilization.nil?
+          return nil if memory_utilization == 0.0
+
           return nil if cpu_utilization > limit
           return nil if memory_utilization > limit
 
@@ -646,12 +649,14 @@ module Vmpooler
 
         def cpu_utilization_for(host)
           cpu_usage = host.summary.quickStats.overallCpuUsage
+          return nil if cpu_usage.nil?
           cpu_size = host.summary.hardware.cpuMhz * host.summary.hardware.numCpuCores
           (cpu_usage.to_f / cpu_size.to_f) * 100
         end
 
         def memory_utilization_for(host)
           memory_usage = host.summary.quickStats.overallMemoryUsage
+          return nil if memory_usage.nil?
           memory_size = host.summary.hardware.memorySize / 1024 / 1024
           (memory_usage.to_f / memory_size.to_f) * 100
         end
