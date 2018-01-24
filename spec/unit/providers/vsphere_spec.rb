@@ -301,7 +301,7 @@ EOT
       end
 
       it 'should raise an error' do
-        expect{ subject.create_vm(poolname, vmname) }.to raise_error(/did specify a full path for the template/)
+        expect{ subject.create_vm(poolname, vmname) }.to raise_error(/did not specify a full path for the template/)
       end
     end
 
