@@ -198,7 +198,7 @@ module Vmpooler
             target_datacenter_name = get_target_datacenter_from_config(pool_name)
 
             # Extract the template VM name from the full path
-            raise("Pool #{pool_name} did specify a full path for the template for the provider #{name}") unless template_path =~ /\//
+            raise("Pool #{pool_name} did not specify a full path for the template for the provider #{name}") unless template_path =~ /\//
             templatefolders = template_path.split('/')
             template_name = templatefolders.pop
 
