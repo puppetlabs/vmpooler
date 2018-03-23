@@ -205,17 +205,19 @@ module Vmpooler
       result[:pools] = {} unless views and not views.include?("pools")
       pools.each do |pool|
         # REMIND: move this out of the API and into the back-end
-        ready   = backend.scard('vmpooler__ready__' + pool['name']).to_i
-        running = backend.scard('vmpooler__running__' + pool['name']).to_i
-        pending = backend.scard('vmpooler__pending__' + pool['name']).to_i
-        max     = pool['size']
-        aka     = pool['alias']
+        ready    = backend.scard('vmpooler__ready__' + pool['name']).to_i
+        running  = backend.scard('vmpooler__running__' + pool['name']).to_i
+        pending  = backend.scard('vmpooler__pending__' + pool['name']).to_i
+        max      = pool['size']
+        lastBoot = backend.hget('vmpooler__lastboot',pool['name']).to_s
+        aka      = pool['alias']
 
         result[:pools][pool['name']] = {
-          ready:   ready,
-          running: running,
-          pending: pending,
-          max:     max
+          ready:    ready,
+          running:  running,
+          pending:  pending,
+          max:      max,
+          lastBoot: lastBoot
         }
 
         if aka
