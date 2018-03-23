@@ -222,6 +222,12 @@ EOT
         redis.hset("vmpooler__vm__#{vm}", 'clone','iamnotparsable_asdate')
         expect{subject.move_pending_vm_to_ready(vm, pool, host)}.to raise_error(/iamnotparsable_asdate/)
       end
+
+      it 'should save the last boot time' do
+        expect(redis.hget('vmpooler__lastboot', pool)).to be(nil)
+        subject.move_pending_vm_to_ready(vm, pool, host)
+        expect(redis.hget('vmpooler__lastboot', pool)).to_not be(nil)
+      end
     end
   end
 

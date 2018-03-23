@@ -33,7 +33,7 @@ module Vmpooler
         begin
           _check_pending_vm(vm, pool, timeout, provider)
         rescue => err
-          $logger.log('s', "[!] [#{pool}] '#{vm}' errored while checking a pending vm : #{err}")
+          $logger.log('s', "[!] [#{pool}] '#{vm}' #{timeout} #{provider} errored while checking a pending vm : #{err}")
           fail_pending_vm(vm, pool, timeout)
           raise
         end
@@ -89,7 +89,10 @@ module Vmpooler
         finish = format('%.2f', Time.now - Time.parse(clone_time)) if clone_time
 
         $redis.smove('vmpooler__pending__' + pool, 'vmpooler__ready__' + pool, vm)
-        $redis.hset('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm, finish)
+        $redis.hset('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm, finish) # maybe remove as this is never used by vmpooler itself?
+
+        # last boot time is displayed in API, and used by alarming script
+        $redis.hset('vmpooler__lastboot', pool, Time.now)
 
         $logger.log('s', "[>] [#{pool}] '#{vm}' moved from 'pending' to 'ready' queue")
       end
