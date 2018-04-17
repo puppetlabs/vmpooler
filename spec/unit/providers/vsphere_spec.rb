@@ -165,7 +165,7 @@ EOT
     let(:vm_object) { nil }
     before(:each) do
       allow(subject).to receive(:connect_to_vsphere).and_return(connection)
-      expect(subject).to receive(:find_vm).with(vmname,connection).and_return(vm_object)
+      expect(subject).to receive(:find_vm).with(poolname,vmname,connection).and_return(vm_object)
     end
 
     context 'when VM does not exist' do
@@ -361,7 +361,7 @@ EOT
     let(:disk_size) { 10 }
     before(:each) do
       allow(subject).to receive(:connect_to_vsphere).and_return(connection)
-      allow(subject).to receive(:find_vm).with(vmname, connection).and_return(vm_object)
+      allow(subject).to receive(:find_vm).with(poolname, vmname, connection).and_return(vm_object)
     end
 
     context 'Given an invalid pool name' do
@@ -382,7 +382,7 @@ EOT
 
     context 'when VM does not exist' do
       before(:each) do
-        expect(subject).to receive(:find_vm).with(vmname, connection).and_return(nil)
+        expect(subject).to receive(:find_vm).with(poolname, vmname, connection).and_return(nil)
       end
 
       it 'should raise an error' do
@@ -419,12 +419,12 @@ EOT
 
     before(:each) do
       allow(subject).to receive(:connect_to_vsphere).and_return(connection)
-      allow(subject).to receive(:find_vm).with(vmname,connection).and_return(vm_object)
+      allow(subject).to receive(:find_vm).with(poolname, vmname,connection).and_return(vm_object)
     end
 
     context 'when VM does not exist' do
       before(:each) do
-        expect(subject).to receive(:find_vm).with(vmname, connection).and_return(nil)
+        expect(subject).to receive(:find_vm).with(poolname, vmname, connection).and_return(nil)
       end
 
       it 'should raise an error' do
@@ -474,12 +474,12 @@ EOT
 
     before(:each) do
       allow(subject).to receive(:connect_to_vsphere).and_return(connection)
-      allow(subject).to receive(:find_vm).with(vmname,connection).and_return(vm_object)
+      allow(subject).to receive(:find_vm).with(poolname,vmname,connection).and_return(vm_object)
     end
 
     context 'when VM does not exist' do
       before(:each) do
-        expect(subject).to receive(:find_vm).with(vmname,connection).and_return(nil)
+        expect(subject).to receive(:find_vm).with(poolname,vmname,connection).and_return(nil)
       end
 
       it 'should raise an error' do
@@ -2303,14 +2303,14 @@ EOT
     end
 
     it 'returns nil when vm_object is not found' do
-      expect(subject).to receive(:find_vm).with(vmname, connection).and_return(nil)
-      result = subject.get_vm_details(vmname, connection)
+      expect(subject).to receive(:find_vm).with(poolname, vmname, connection).and_return(nil)
+      result = subject.get_vm_details(poolname, vmname, connection)
       expect(result).to be nil
     end
 
     it 'raises an error when unable to determine parent_host' do
-      expect(subject).to receive(:find_vm).with(vmname, connection).and_return(vm_object)
-      expect{subject.get_vm_details(vmname, connection)}.to raise_error('Unable to determine which host the VM is running on')
+      expect(subject).to receive(:find_vm).with(poolname, vmname, connection).and_return(vm_object)
+      expect{subject.get_vm_details(poolname, vmname, connection)}.to raise_error('Unable to determine which host the VM is running on')
     end
 
     context 'when it can find parent host' do
@@ -2320,8 +2320,8 @@ EOT
       end
 
       it 'returns vm details hash' do
-        expect(subject).to receive(:find_vm).with(vmname, connection).and_return(vm_object)
-        result = subject.get_vm_details(vmname, connection)
+        expect(subject).to receive(:find_vm).with(poolname, vmname, connection).and_return(vm_object)
+        result = subject.get_vm_details(poolname, vmname, connection)
         expect(result).to eq(vm_details)
       end
     end
@@ -3291,147 +3291,30 @@ EOT
   end
 
   describe '#find_vm' do
-    before(:each) do
-      allow(subject).to receive(:find_vm_light).and_return('vmlight')
-      allow(subject).to receive(:find_vm_heavy).and_return( { vmname => 'vmheavy' })
-    end
-
-    it 'should call find_vm_light' do
-      expect(subject).to receive(:find_vm_light).and_return('vmlight')
-
-      expect(subject.find_vm(vmname,connection)).to eq('vmlight')
-    end
-
-    it 'should not call find_vm_heavy if find_vm_light finds the VM' do
-      expect(subject).to receive(:find_vm_light).and_return('vmlight')
-      expect(subject).to receive(:find_vm_heavy).exactly(0).times
-
-      expect(subject.find_vm(vmname,connection)).to eq('vmlight')
-    end
-
-    it 'should call find_vm_heavy when find_vm_light returns nil' do
-      expect(subject).to receive(:find_vm_light).and_return(nil)
-      expect(subject).to receive(:find_vm_heavy).and_return( { vmname => 'vmheavy' })
-
-      expect(subject.find_vm(vmname,connection)).to eq('vmheavy')
-    end
-  end
-
-  describe '#find_vm_light' do
     let(:missing_vm) { 'missing_vm' }
+    let(:folder) { 'Pooler/pool1' }
+    let(:vm_object) { mock_RbVmomi_VIM_VirtualMachine() }
 
     before(:each) do
-      allow(connection.searchIndex).to receive(:FindByDnsName).and_return(nil)
+      allow(connection.searchIndex).to receive(:FindByInventoryPath)
     end
 
-    it 'should call FindByDnsName with the correct parameters' do
-      expect(connection.searchIndex).to receive(:FindByDnsName).with({
-        :vmSearch => true,
-        dnsName: vmname,
-      })
+    it 'should call FindByInventoryPath with the correct parameters' do
+      expect(connection.searchIndex).to receive(:FindByInventoryPath)
 
-      subject.find_vm_light(vmname,connection)
+      subject.find_vm(poolname,vmname,connection)
     end
 
     it 'should return the VM object when found' do
-      vm_object = mock_RbVmomi_VIM_VirtualMachine()
-      expect(connection.searchIndex).to receive(:FindByDnsName).with({
-        :vmSearch => true,
-        dnsName: vmname,
-      }).and_return(vm_object)
+      expect(connection.searchIndex).to receive(:FindByInventoryPath).and_return(vm_object)
 
-      expect(subject.find_vm_light(vmname,connection)).to be(vm_object)
+      expect(subject.find_vm(poolname,vmname,connection)).to be(vm_object)
     end
 
     it 'should return nil if the VM is not found' do
-      expect(connection.searchIndex).to receive(:FindByDnsName).with({
-        :vmSearch => true,
-        dnsName: missing_vm,
-      }).and_return(nil)
+      expect(connection.searchIndex).to receive(:FindByInventoryPath).and_return(nil)
 
-      expect(subject.find_vm_light(missing_vm,connection)).to be_nil
-    end
-  end
-
-  describe '#find_vm_heavy' do
-    let(:missing_vm) { 'missing_vm' }
-    # Return an empty result by default
-    let(:retrieve_result) {{}}
-
-    before(:each) do
-      allow(connection.propertyCollector).to receive(:RetrievePropertiesEx).and_return(mock_RbVmomi_VIM_RetrieveResult(retrieve_result))
-    end
-
-    context 'Search result is empty' do
-      it 'should return empty hash' do
-        expect(subject.find_vm_heavy(vmname,connection)).to eq({})
-      end
-    end
-
-    context 'Search result contains VMs but no matches' do
-      let(:retrieve_result) {
-        { :response => [
-          { 'name' => 'no_match001'},
-          { 'name' => 'no_match002'},
-          { 'name' => 'no_match003'},
-          { 'name' => 'no_match004'},
-        ]
-        }
-      }
-
-      it 'should return empty hash' do
-        expect(subject.find_vm_heavy(vmname,connection)).to eq({})
-      end
-    end
-
-    context 'Search contains a single match' do
-      let(:vm_object) { mock_RbVmomi_VIM_VirtualMachine({ :name => vmname })}
-      let(:retrieve_result) {
-        { :response => [
-          { 'name' => 'no_match001'},
-          { 'name' => 'no_match002'},
-          { 'name' => vmname, :object => vm_object },
-          { 'name' => 'no_match003'},
-          { 'name' => 'no_match004'},
-        ]
-        }
-      }
-
-      it 'should return single result' do
-        result = subject.find_vm_heavy(vmname,connection)
-        expect(result.keys.count).to eq(1)
-      end
-
-      it 'should return the matching VM Object' do
-        result = subject.find_vm_heavy(vmname,connection)
-        expect(result[vmname]).to be(vm_object)
-      end
-    end
-
-    context 'Search contains a two matches' do
-      let(:vm_object1) { mock_RbVmomi_VIM_VirtualMachine({ :name => vmname })}
-      let(:vm_object2) { mock_RbVmomi_VIM_VirtualMachine({ :name => vmname })}
-      let(:retrieve_result) {
-        { :response => [
-          { 'name' => 'no_match001'},
-          { 'name' => 'no_match002'},
-          { 'name' => vmname, :object => vm_object1 },
-          { 'name' => 'no_match003'},
-          { 'name' => 'no_match004'},
-          { 'name' => vmname, :object => vm_object2 },
-        ]
-        }
-      }
-
-      it 'should return one result' do
-        result = subject.find_vm_heavy(vmname,connection)
-        expect(result.keys.count).to eq(1)
-      end
-
-      it 'should return the last matching VM Object' do
-        result = subject.find_vm_heavy(vmname,connection)
-        expect(result[vmname]).to be(vm_object2)
-      end
+      expect(subject.find_vm(poolname,missing_vm,connection)).to be_nil
     end
   end
 
