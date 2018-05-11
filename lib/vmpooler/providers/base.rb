@@ -217,6 +217,14 @@ module Vmpooler
         def vm_exists?(pool_name, vm_name)
           !get_vm(pool_name, vm_name).nil?
         end
+
+        # inputs
+        #   [Hash] pool : Configuration for the pool
+        # returns
+        #   nil when successful. Raises error when encountered
+        def create_template_delta_disks(pool)
+          raise("#{self.class.name} does not implement create_template_delta_disks")
+        end
       end
     end
   end

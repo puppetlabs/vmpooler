@@ -21,6 +21,9 @@ module Vmpooler
 
       # Our thread-tracker object
       $threads = {}
+
+      # Pool mutex
+      @reconfigure_pool = {}
     end
 
     def config
@@ -187,9 +190,9 @@ module Vmpooler
       end
     end
 
-    def move_vm_queue(pool, vm, queue_from, queue_to, msg)
+    def move_vm_queue(pool, vm, queue_from, queue_to, msg = nil)
       $redis.smove("vmpooler__#{queue_from}__#{pool}", "vmpooler__#{queue_to}__#{pool}", vm)
-      $logger.log('d', "[!] [#{pool}] '#{vm}' #{msg}")
+      $logger.log('d', "[!] [#{pool}] '#{vm}' #{msg}") if msg
     end
 
     # Clone a VM
@@ -482,6 +485,10 @@ module Vmpooler
     #   - Fires when the number of ready VMs changes due to being consumed.
     #   - Additional options
     #       :poolname
+    # :pool_template_change
+    #   - Fires when a template configuration update is requested
+    #   - Additional options
+    #       :poolname
     #
     def sleep_with_wakeup_events(loop_delay, wakeup_period = 5, options = {})
       exit_by = Time.now + loop_delay
@@ -490,6 +497,10 @@ module Vmpooler
 
       if options[:pool_size_change]
         initial_ready_size = $redis.scard("vmpooler__ready__#{options[:poolname]}")
+      end
+
+      if options[:pool_template_change]
+        initial_template = $redis.hget('vmpooler__template__prepared', options[:poolname])
       end
 
       loop do
@@ -505,6 +516,14 @@ module Vmpooler
             ready_size = $redis.scard("vmpooler__ready__#{options[:poolname]}")
             break unless ready_size == initial_ready_size
           end
+
+          if options[:pool_template_change]
+            configured_template = $redis.hget('vmpooler__config__template', options[:poolname])
+            if configured_template
+              break unless initial_template == configured_template
+            end
+          end
+
         end
 
         break if time_passed?(:exit_by, exit_by)
@@ -532,6 +551,7 @@ module Vmpooler
           loop_delay = loop_delay_min
           provider = get_provider_for_pool(pool['name'])
           raise("Could not find provider '#{pool['provider']}") if provider.nil?
+          sync_pool_template(pool)
           loop do
             result = _check_pool(pool, provider)
 
@@ -541,7 +561,7 @@ module Vmpooler
               loop_delay = (loop_delay * loop_delay_decay).to_i
               loop_delay = loop_delay_max if loop_delay > loop_delay_max
             end
-            sleep_with_wakeup_events(loop_delay, loop_delay_min, pool_size_change: true, poolname: pool['name'])
+            sleep_with_wakeup_events(loop_delay, loop_delay_min, pool_size_change: true, poolname: pool['name'], pool_template_change: true)
 
             unless maxloop.zero?
               break if loop_count >= maxloop
@@ -552,6 +572,101 @@ module Vmpooler
           $logger.log('s', "[!] [#{pool['name']}] Error while checking the pool: #{err}")
           raise
         end
+      end
+    end
+
+    def pool_mutex(poolname)
+      @reconfigure_pool[poolname] || @reconfigure_pool[poolname] = Mutex.new
+    end
+
+    def sync_pool_template(pool)
+      pool_template = $redis.hget('vmpooler__config__template', pool['name'])
+      if pool_template
+        unless pool['template'] == pool_template
+          pool['template'] = pool_template
+        end
+      end
+    end
+
+    def prepare_template(pool, provider)
+      provider.create_template_delta_disks(pool) if $config[:config]['create_template_delta_disks']
+      $redis.hset('vmpooler__template__prepared', pool['name'], pool['template'])
+    end
+
+    def evaluate_template(pool, provider)
+      mutex = pool_mutex(pool['name'])
+      prepared_template = $redis.hget('vmpooler__template__prepared', pool['name'])
+      configured_template = $redis.hget('vmpooler__config__template', pool['name'])
+      return if mutex.locked?
+      if prepared_template.nil?
+        mutex.synchronize do
+          prepare_template(pool, provider)
+          prepared_template = $redis.hget('vmpooler__template__prepared', pool['name'])
+        end
+      end
+      return if configured_template.nil?
+      return if configured_template == prepared_template
+      mutex.synchronize do
+        update_pool_template(pool, provider, configured_template, prepared_template)
+      end
+    end
+
+    def drain_pool(poolname)
+      # Clear a pool of ready and pending instances
+      if $redis.scard("vmpooler__ready__#{poolname}") > 0
+        $logger.log('s', "[*] [#{poolname}] removing ready instances")
+        $redis.smembers("vmpooler__ready__#{poolname}").each do |vm|
+          move_vm_queue(poolname, vm, 'ready', 'completed')
+        end
+      end
+      if $redis.scard("vmpooler__pending__#{poolname}") > 0
+        $logger.log('s', "[*] [#{poolname}] removing pending instances")
+        $redis.smembers("vmpooler__pending__#{poolname}").each do |vm|
+          move_vm_queue(poolname, vm, 'pending', 'completed')
+        end
+      end
+    end
+
+    def update_pool_template(pool, provider, configured_template, prepared_template)
+      pool['template'] = configured_template
+      $logger.log('s', "[*] [#{pool['name']}] template updated from #{prepared_template} to #{configured_template}")
+      # Remove all ready and pending VMs so new instances are created from the new template
+      drain_pool(pool['name'])
+      # Prepare template for deployment
+      $logger.log('s', "[*] [#{pool['name']}] preparing pool template for deployment")
+      prepare_template(pool, provider)
+      $logger.log('s', "[*] [#{pool['name']}] is ready for use")
+    end
+
+    def remove_excess_vms(pool, provider, ready, total)
+      return if total.nil?
+      return if total == 0
+      mutex = pool_mutex(pool['name'])
+      return if mutex.locked?
+      return unless ready > pool['size']
+      mutex.synchronize do
+        difference = ready - pool['size']
+        difference.times do
+          next_vm = $redis.spop("vmpooler__ready__#{pool['name']}")
+          move_vm_queue(pool['name'], next_vm, 'ready', 'completed')
+        end
+        if total > ready
+          $redis.smembers("vmpooler__pending__#{pool['name']}").each do |vm|
+            move_vm_queue(pool['name'], vm, 'pending', 'completed')
+          end
+        end
+      end
+    end
+
+    def update_pool_size(pool)
+      mutex = pool_mutex(pool['name'])
+      return if mutex.locked?
+      poolsize = $redis.hget('vmpooler__config__poolsize', pool['name'])
+      return if poolsize.nil?
+      poolsize = Integer(poolsize)
+      return if poolsize == pool['size']
+      mutex.synchronize do
+        pool['size'] = poolsize
       end
     end
 
@@ -683,35 +798,52 @@ module Vmpooler
         end
       end
 
+      # UPDATE TEMPLATE
+      # Evaluates a pool template to ensure templates are prepared adequately for the configured provider
+      # If a pool template configuration change is detected then template preparation is repeated for the new template
+      # Additionally, a pool will drain ready and pending instances
+      evaluate_template(pool, provider)
+
       # REPOPULATE
-      ready = $redis.scard("vmpooler__ready__#{pool['name']}")
-      total = $redis.scard("vmpooler__pending__#{pool['name']}") + ready
+      # Do not attempt to repopulate a pool while a template is updating
+      unless pool_mutex(pool['name']).locked?
+        ready = $redis.scard("vmpooler__ready__#{pool['name']}")
+        total = $redis.scard("vmpooler__pending__#{pool['name']}") + ready
 
-      $metrics.gauge("ready.#{pool['name']}", $redis.scard("vmpooler__ready__#{pool['name']}"))
-      $metrics.gauge("running.#{pool['name']}", $redis.scard("vmpooler__running__#{pool['name']}"))
+        $metrics.gauge("ready.#{pool['name']}", $redis.scard("vmpooler__ready__#{pool['name']}"))
+        $metrics.gauge("running.#{pool['name']}", $redis.scard("vmpooler__running__#{pool['name']}"))
 
-      if $redis.get("vmpooler__empty__#{pool['name']}")
-        $redis.del("vmpooler__empty__#{pool['name']}") unless ready.zero?
-      elsif ready.zero?
-        $redis.set("vmpooler__empty__#{pool['name']}", 'true')
-        $logger.log('s', "[!] [#{pool['name']}] is empty")
-      end
+        if $redis.get("vmpooler__empty__#{pool['name']}")
+          $redis.del("vmpooler__empty__#{pool['name']}") unless ready.zero?
+        elsif ready.zero?
+          $redis.set("vmpooler__empty__#{pool['name']}", 'true')
+          $logger.log('s', "[!] [#{pool['name']}] is empty")
+        end
 
-      if total < pool['size']
-        (1..(pool['size'] - total)).each do |_i|
-          if $redis.get('vmpooler__tasks__clone').to_i < $config[:config]['task_limit'].to_i
-            begin
-              $redis.incr('vmpooler__tasks__clone')
-              pool_check_response[:cloned_vms] += 1
-              clone_vm(pool, provider)
-            rescue => err
-              $logger.log('s', "[!] [#{pool['name']}] clone failed during check_pool with an error: #{err}")
-              $redis.decr('vmpooler__tasks__clone')
-              raise
+        # Check to see if a pool size change has been made via the configuration API
+        # Since check_pool runs in a loop it does not
+        # otherwise identify this change when running
+        update_pool_size(pool)
+
+        if total < pool['size']
+          (1..(pool['size'] - total)).each do |_i|
+            if $redis.get('vmpooler__tasks__clone').to_i < $config[:config]['task_limit'].to_i
+              begin
+                $redis.incr('vmpooler__tasks__clone')
+                pool_check_response[:cloned_vms] += 1
+                clone_vm(pool, provider)
+              rescue => err
+                $logger.log('s', "[!] [#{pool['name']}] clone failed during check_pool with an error: #{err}")
+                $redis.decr('vmpooler__tasks__clone')
+                raise
+              end
             end
           end
         end
       end
+
+      # Remove VMs in excess of the configured pool size
+      remove_excess_vms(pool, provider, ready, total)
 
       pool_check_response
     end
@@ -739,6 +871,8 @@ module Vmpooler
       $redis.set('vmpooler__tasks__clone', 0)
       # Clear out vmpooler__migrations since stale entries may be left after a restart
       $redis.del('vmpooler__migration')
+      # Ensure template deltas are created on each startup
+      $redis.del('vmpooler__template__prepared')
 
       # Copy vSphere settings to correct location.  This happens with older configuration files
       if !$config[:vsphere].nil? && ($config[:providers].nil? || $config[:providers][:vsphere].nil?)
