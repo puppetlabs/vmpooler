@@ -378,6 +378,16 @@ module Vmpooler
         result
       end
 
+      def pool_index(pools)
+        pools_hash = {}
+        index = 0
+        for pool in pools
+          pools_hash[pool['name']] = index
+          index += 1
+        end
+        pools_hash
+      end
+
     end
   end
 end

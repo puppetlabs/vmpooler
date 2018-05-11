@@ -120,6 +120,44 @@ module Vmpooler
       result
     end
 
+    def update_pool_size(payload)
+      result = { 'ok' => false }
+
+      pool_index = pool_index(pools)
+      pools_updated = 0
+
+      payload.each do |poolname, size|
+        unless pools[pool_index[poolname]]['size'] == size.to_i
+          pools[pool_index[poolname]]['size'] = size.to_i
+          backend.hset('vmpooler__config__poolsize', poolname, size)
+          pools_updated += 1
+          status 201
+        end
+      end
+      status 200 unless pools_updated > 0
+      result['ok'] = true
+      result
+    end
+
+    def update_pool_template(payload)
+      result = { 'ok' => false }
+
+      pool_index = pool_index(pools)
+      pools_updated = 0
+
+      payload.each do |poolname, template|
+        unless pools[pool_index[poolname]]['template'] == template
+          pools[pool_index[poolname]]['template'] = template
+          backend.hset('vmpooler__config__template', poolname, template)
+          pools_updated += 1
+          status 201
+        end
+      end
+      status 200 unless pools_updated > 0
+      result['ok'] = true
+      result
+    end
+
     # Provide run-time statistics
     #
     # Example:
@@ -502,6 +540,24 @@ module Vmpooler
       invalid
     end
 
+    def invalid_template_or_size(payload)
+      invalid = []
+      payload.each do |pool, size|
+        invalid << pool unless pool_exists?(pool)
+        Integer(size) rescue invalid << pool
+      end
+      invalid
+    end
+
+    def invalid_template_or_path(payload)
+      invalid = []
+      payload.each do |pool, template|
+        invalid << pool unless pool_exists?(pool)
+        invalid << pool unless template.include? '/'
+      end
+      invalid
+    end
+
     post "#{api_prefix}/vm/:template/?" do
       content_type :json
       result = { 'ok' => false }
@@ -743,6 +799,58 @@ module Vmpooler
 
         status 202
         result['ok'] = true
+      end
+
+      JSON.pretty_generate(result)
+    end
+
+    post "#{api_prefix}/config/poolsize/?" do
+      content_type :json
+      result = { 'ok' => false }
+
+      need_token! if Vmpooler::API.settings.config[:auth]
+
+      payload = JSON.parse(request.body.read)
+
+      if payload
+        invalid = invalid_template_or_size(payload)
+        if invalid.empty?
+          result = update_pool_size(payload)
+        else
+          invalid.each do |bad_template|
+            metrics.increment("config.invalid.#{bad_template}")
+          end
+          status 404
+        end
+      else
+        metrics.increment('config.invalid.unknown')
+        status 404
+      end
+
+      JSON.pretty_generate(result)
+    end
+
+    post "#{api_prefix}/config/pooltemplate/?" do
+      content_type :json
+      result = { 'ok' => false }
+
+      need_token! if Vmpooler::API.settings.config[:auth]
+
+      payload = JSON.parse(request.body.read)
+
+      if payload
+        invalid = invalid_template_or_path(payload)
+        if invalid.empty?
+          result = update_pool_template(payload)
+        else
+          invalid.each do |bad_template|
+            metrics.increment("config.invalid.#{bad_template}")
+          end
+          status 404
+        end
+      else
+        metrics.increment('config.invalid.unknown')
+        status 404
       end
 
       JSON.pretty_generate(result)

@@ -540,3 +540,59 @@ $ curl -G -d 'from=2015-03-10' -d 'to=2015-03-11' --url vmpooler.company.com/api
   ]
 }
 ```
+
+#### Changing configuration via API
+
+##### POST /config/poolsize
+
+Change pool size without having to restart the service.
+
+All pool template changes requested must be for pools that exist in the vmpooler configuration running, or a 404 code will be returned
+
+When a pool size is changed due to the configuration posted a 201 status will be returned. When the pool configuration is valid, but will not result in any changes, 200 is returned.
+
+Pool size configuration changes persist through application restarts, and take precedence over a pool size value configured in the pool configuration provided when the application starts. This persistence is dependent on redis. So, if the redis data is lost then the configuration updates revert to those provided at startup at the next application start.
+
+An authentication token is required in order to change pool configuration when authentication is configured.
+Responses:
+* 200 - No changes required
+* 201 - Changes made on at least one pool with changes requested
+* 404 - An error was encountered while evaluating requested changes
+```
+$ curl -X POST -H "Content-Type: application/json" -d '{"debian-7-i386":"2","debian-7-x86_64":"1"}' --url https://vmpooler.company.com/api/v1/config/poolsize
+```
+```json
+{
+  "ok": true
+}
+```
+
+##### POST /config/pooltemplate
+
+Change the template configured for a pool, and replenish the pool with instances built from the new template.
+
+All pool template changes requested must be for pools that exist in the vmpooler configuration running, or a 404 code will be returned
+
+When a pool template is changed due to the configuration posted a 201 status will be returned. When the pool configuration is valid, but will not result in any changes, 200 is returned.
+
+A pool template being updated will cause the following actions, which are logged in vmpooler.log:
+* Destroy all instances for the pool template being updated that are in the ready and pending state
+* Halt repopulating the pool while creating template deltas for the newly configured template
+* Unblock pool population and let the pool replenish with instances based on the newly configured template
+
+Pool template changes persist through application restarts, and take precedence over a pool template configured in the pool configuration provided when the application starts. This persistence is dependent on redis. As a result, if the redis data is lost then the configuration values revert to those provided at startup at the next application start.
+
+An authentication token is required in order to change pool configuration when authentication is configured.
+
+Responses:
+* 200 - No changes required
+* 201 - Changes made on at least one pool with changes requested
+* 404 - An error was encountered while evaluating requested changes
+```
+$ curl -X POST -H "Content-Type: application/json" -d '{"debian-7-i386":"templates/debian-7-i386"}' --url https://vmpooler.company.com/api/v1/config/pooltemplate
+```
+```json
+{
+  "ok": true
+}
+```

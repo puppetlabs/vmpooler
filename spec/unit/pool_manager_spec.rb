@@ -1503,6 +1503,220 @@ EOT
     end
   end
 
+  describe 'update_pool_template' do
+    let(:template) { 'templates/pool_template' }
+    let(:new_template) { 'templates/new_pool_template' }
+    let(:vsphere_provider) { double('vsphere_provider') }
+    let(:config) {
+      YAML.load(<<-EOT
+---
+:pools:
+  - name: #{pool}
+    template: "#{template}"
+EOT
+      )
+    }
+
+    before(:each) do
+      expect(subject).not_to be_nil
+      redis.del('vmpooler__template')
+      redis.del('vmpooler__config__template')
+      redis.del('vmpooler__config__updating')
+    end
+
+    it 'returns when vmpooler config template is not set' do
+      expect(subject.update_pool_template(config[:pools][0], provider)).to be_nil
+    end
+
+    context 'with template that requires no change' do
+      before(:each) do
+        redis.hset('vmpooler__template', pool, template)
+        redis.hset('vmpooler__config__template', pool, template)
+      end
+
+      it 'should return' do
+        expect(subject.update_pool_template(config[:pools][0], provider)).to be_nil
+      end
+    end
+
+    context 'with a pool that requires an update' do
+      before(:each) do
+        redis.hset('vmpooler__template', pool, template)
+        redis.hset('vmpooler__config__template', pool, new_template)
+        allow(logger).to receive(:log)
+        allow(redis).to receive(:hset)
+        expect(provider).to receive(:create_template_delta_disks).with(config[:pools][0])
+      end
+
+      it 'should update the configuration value' do
+        expect(redis).to receive(:hset).with('vmpooler__template', pool, new_template)
+
+        subject.update_pool_template(config[:pools][0], provider)
+      end
+
+      it 'should log a message for updating the template' do
+        expect(logger).to receive(:log).with('s', "[*] [#{pool}] template updated from #{template} to #{new_template}")
+
+        subject.update_pool_template(config[:pools][0], provider)
+      end
+
+      it 'should log messages for creating template deltas' do
+        expect(logger).to receive(:log).with('s', "[*] [#{pool}] creating template deltas")
+        expect(logger).to receive(:log).with('s', "[*] [#{pool}] template deltas have been created")
+
+        subject.update_pool_template(config[:pools][0], provider)
+      end
+    end
+
+    context 'with ready and pending vms' do
+      let(:vmname) { 'vm2' }
+      before(:each) do
+        create_ready_vm(pool,vmname)
+        create_pending_vm(pool,vmname)
+        redis.hset('vmpooler__template', pool, template)
+        redis.hset('vmpooler__config__template', pool, new_template)
+        allow(logger).to receive(:log)
+        allow(redis).to receive(:smove)
+        expect(provider).to receive(:create_template_delta_disks).with(config[:pools][0])
+      end
+
+      it 'should log a message for removing ready vms' do
+
+        expect(logger).to receive(:log).with('s', "[*] [#{pool}] removing ready and pending instances")
+
+        subject.update_pool_template(config[:pools][0], provider)
+      end
+      it 'should remove ready vms' do
+        expect(redis).to receive(:smove).with("vmpooler__ready__#{pool}", "vmpooler__completed__#{pool}", vmname)
+
+        subject.update_pool_template(config[:pools][0], provider)
+      end
+
+      it 'should remove pending vms' do
+        expect(redis).to receive(:smove).with("vmpooler__pending__#{pool}", "vmpooler__completed__#{pool}", vmname)
+
+        subject.update_pool_template(config[:pools][0], provider)
+      end
+    end
+
+    context 'when already updating' do
+      before(:each) do
+        redis.hset('vmpooler__template', pool, template)
+        redis.hset('vmpooler__config__template', pool, new_template)
+        redis.hset('vmpooler__config__updating', pool, 1)
+      end
+
+      it 'should return' do
+        expect(subject.update_pool_template(config[:pools][0], provider)).to be_nil
+      end
+    end
+  end
+
+  describe 'remove_excess_vms' do
+    let(:config) {
+      YAML.load(<<-EOT
+---
+:pools:
+  - name: #{pool}
+    size: 2
+EOT
+      )
+    }
+
+    before(:each) do
+      expect(subject).not_to be_nil
+    end
+
+    context 'with a nil ready value' do
+      it 'should return nil' do
+        expect(subject.remove_excess_vms(config[:pools][0], provider, nil, nil)).to be_nil
+      end
+    end
+
+    context 'with a total size less than the pool size' do
+      it 'should return nil' do
+        expect(subject.remove_excess_vms(config[:pools][0], provider, 1, 2)).to be_nil
+      end
+    end
+
+    context 'with a total size greater than the pool size' do
+      it 'should remove excess ready vms' do
+        expect(subject).to receive(:move_vm_queue).exactly(2).times
+
+        subject.remove_excess_vms(config[:pools][0], provider, 4, 4)
+      end
+
+      it 'should remove excess pending vms' do
+        create_pending_vm(pool,'vm1')
+        create_pending_vm(pool,'vm2')
+        create_pending_vm(pool,'vm3')
+        expect(subject).to receive(:move_vm_queue).exactly(3).times
+
+        subject.remove_excess_vms(config[:pools][0], provider, 2, 5)
+      end
+    end
+  end
+
+  describe 'prepare_template' do
+    let(:config) { YAML.load(<<-EOT
+---
+:config:
+  create_template_delta_disks: true
+:providers:
+  :mock:
+:pools:
+  - name: '#{pool}'
+    size: 1
+    template: 'templates/pool1'
+EOT
+      )
+    }
+
+    it 'should return if a pool configuration is updating' do
+      redis.hset('vmpooler__config__updating', pool, 1)
+
+      expect(subject.prepare_template(config[:pools][0], provider)).to be_nil
+    end
+
+    it 'should return when a template is prepared' do
+      redis.hset('vmpooler__template__prepared', pool, pool['template'])
+
+      expect(subject.prepare_template(config[:pools][0], provider)).to be_nil
+    end
+
+    context 'when creating the template delta disks' do
+      before(:each) do
+        allow(redis).to receive(:hset)
+        allow(redis).to receive(:hdel)
+        allow(provider).to receive(:create_template_delta_disks)
+      end
+
+      it 'should mark the pool as updating' do
+        expect(redis).to receive(:hset).with('vmpooler__config__updating', pool, 1)
+
+        subject.prepare_template(config[:pools][0], provider)
+      end
+
+      it 'should run create template delta disks' do
+        expect(provider).to receive(:create_template_delta_disks).with(config[:pools][0])
+
+        subject.prepare_template(config[:pools][0], provider)
+      end
+
+      it 'should mark the template as prepared' do
+        expect(redis).to receive(:hset).with('vmpooler__template__prepared', pool, config[:pools][0]['template'])
+
+        subject.prepare_template(config[:pools][0], provider)
+      end
+
+      it' should mark the configuration as completed' do
+        expect(redis).to receive(:hdel).with('vmpooler__config__updating', pool)
+
+        subject.prepare_template(config[:pools][0], provider)
+      end
+    end
+  end
+
   describe "#execute!" do
     let(:config) {
       YAML.load(<<-EOT
@@ -1824,6 +2038,8 @@ EOT
       it 'should run startup tasks only once' do
         expect(redis).to receive(:set).with('vmpooler__tasks__clone', 0).once
         expect(redis).to receive(:del).with('vmpooler__migration').once
+        expect(redis).to receive(:del).with('vmpooler__config__updating').once
+        expect(redis).to receive(:del).with('vmpooler__template__prepared').once
 
         subject.execute!(maxloop,0)
       end
@@ -2782,6 +2998,54 @@ EOT
           expect(logger).to receive(:log).with("s", "[!] [#{pool}] clone failed during check_pool with an error: MockError")
           
           expect{ subject._check_pool(pool_object,provider) }.to raise_error(RuntimeError,'MockError')
+        end
+      end
+
+      context 'when a pool size configuration change is detected' do
+        let(:poolsize) { 2 }
+        let(:newpoolsize) { 3 }
+        before(:each) do
+          config[:pools][0]['size'] = poolsize
+          redis.hset('vmpooler__config__poolsize', pool, newpoolsize)
+          expect(provider).to receive(:vms_in_pool).with(pool).and_return([])
+        end
+
+        it 'should change the pool size configuration' do
+          subject._check_pool(config[:pools][0],provider)
+
+          expect(config[:pools][0]['size']).to be(newpoolsize)
+        end
+      end
+
+      context 'when a pool template is updating' do
+        before(:each) do
+          redis.hset('vmpooler__config__updating', pool, 1)
+          expect(provider).to receive(:vms_in_pool).with(pool).and_return([])
+        end
+
+        it 'should not call clone_vm to populate the pool' do
+          pool_size = 5
+          config[:pools][0]['size'] = pool_size
+
+          expect(subject).to_not receive(:clone_vm)
+
+          subject._check_pool(pool_object,provider)
+        end
+      end
+
+      context 'when an excess number of ready vms exist' do
+
+        before(:each) do
+          allow(redis).to receive(:scard)
+          expect(redis).to receive(:scard).with("vmpooler__ready__#{pool}").and_return(1)
+          expect(redis).to receive(:scard).with("vmpooler__pending__#{pool}").and_return(1)
+          expect(provider).to receive(:vms_in_pool).with(pool).and_return([])
+        end
+
+        it 'should call remove_excess_vms' do
+          expect(subject).to receive(:remove_excess_vms).with(config[:pools][0], provider, 1, 2)
+
+          subject._check_pool(config[:pools][0],provider)
         end
       end
 
