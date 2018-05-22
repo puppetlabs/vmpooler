@@ -1,8 +1,17 @@
-### API
+# Table of contents
+1. [API](#API)
+2. [Token operations](#token)
+3. [VM operations](#vmops)
+4. [Add disks](#adddisks)
+5. [VM snapshots](#vmsnapshots)
+6. [Status and metrics](#statusmetrics)
+7. [Pool configuration changes](#poolconfig)
+
+### API <a name="API"></a>
 
 vmpooler provides a REST API for VM management.  The following examples use `curl` for communication.
 
-#### Token operations
+#### Token operations <a name="token"></a>
 
 Token-based authentication can be used when requesting or modifying VMs.  The `/token` route can be used to create, query, or delete tokens.  See the provided YAML configuration example, [vmpooler.yaml.example](vmpooler.yaml.example), for information on configuring an authentication store to use when performing token operations.
 
@@ -76,7 +85,7 @@ Enter host password for user 'jdoe':
 }
 ```
 
-#### VM operations
+#### VM operations <a name="vmops"></a>
 
 ##### GET /vm
 
@@ -230,7 +239,7 @@ $ curl -X DELETE --url vmpooler.company.com/api/v1/vm/fq6qlpjlsskycq6
 }
 ```
 
-#### Adding additional disk(s)
+#### Adding additional disk(s) <a name="adddisks"></a>
 
 ##### POST /vm/&lt;hostname&gt;/disk/&lt;size&gt;
 
@@ -270,7 +279,7 @@ $ curl --url vmpooler.company.com/api/v1/vm/fq6qlpjlsskycq6
 
 ````
 
-#### VM snapshots
+#### VM snapshots <a name="vmsnapshots"></a>
 
 ##### POST /vm/&lt;hostname&gt;/snapshot
 
@@ -322,7 +331,7 @@ $ curl X POST -H X-AUTH-TOKEN:a9znth9dn01t416hrguu56ze37t790bl --url vmpooler.co
 }
 ````
 
-#### Status and metrics
+#### Status and metrics <a name="statusmetrics"></a>
 
 ##### GET /status
 
@@ -541,7 +550,7 @@ $ curl -G -d 'from=2015-03-10' -d 'to=2015-03-11' --url vmpooler.company.com/api
 }
 ```
 
-#### Changing configuration via API
+#### Changing configuration via API <a name="poolconfig"></a>
 
 ##### POST /config/poolsize
 
