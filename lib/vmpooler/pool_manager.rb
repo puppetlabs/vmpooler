@@ -617,18 +617,20 @@ module Vmpooler
     end
 
     def remove_excess_vms(pool, provider, ready, total)
-      unless total == 0
-        mutex = @reconfigure_pool[pool['name']] || @reconfigure_pool[pool['name']] = Mutex.new
-        mutex.synchronize do
-          if total > pool['size']
-            difference = ready - pool['size']
-            difference.times do
-              next_vm = $redis.spop("vmpooler__ready__#{pool['name']}")
-              move_vm_queue(pool['name'], next_vm, 'ready', 'completed')
-            end
-            if total > ready
-              $redis.smembers("vmpooler__pending__#{pool['name']}").each do |vm|
-                move_vm_queue(pool['name'], vm, 'pending', 'completed')
+      if total
+        unless total == 0
+          mutex = @reconfigure_pool[pool['name']] || @reconfigure_pool[pool['name']] = Mutex.new
+          mutex.synchronize do
+            if total > pool['size']
+              difference = ready - pool['size']
+              difference.times do
+                next_vm = $redis.spop("vmpooler__ready__#{pool['name']}")
+                move_vm_queue(pool['name'], next_vm, 'ready', 'completed')
+              end
+              if total > ready
+                $redis.smembers("vmpooler__pending__#{pool['name']}").each do |vm|
+                  move_vm_queue(pool['name'], vm, 'pending', 'completed')
+                end
               end
             end
           end

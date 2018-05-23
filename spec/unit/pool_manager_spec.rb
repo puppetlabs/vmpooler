@@ -1581,11 +1581,17 @@ EOT
       end
 
       it 'should log a message for removing ready vms' do
-
-        expect(logger).to receive(:log).with('s', "[*] [#{pool}] removing ready and pending instances")
+        expect(logger).to receive(:log).with('s', "[*] [#{pool}] removing ready instances")
 
         subject.update_pool_template(config[:pools][0], provider)
       end
+
+      it 'should log a message for removing pending vms' do
+        expect(logger).to receive(:log).with('s', "[*] [#{pool}] removing pending instances")
+
+        subject.update_pool_template(config[:pools][0], provider)
+      end
+
       it 'should remove ready vms' do
         expect(redis).to receive(:smove).with("vmpooler__ready__#{pool}", "vmpooler__completed__#{pool}", vmname)
 
@@ -1627,23 +1633,29 @@ EOT
       expect(subject).not_to be_nil
     end
 
-    context 'with a nil ready value' do
+    context 'with a 0 total value' do
+      let(:ready) { 0 }
+      let(:total) { 0 }
       it 'should return nil' do
-        expect(subject.remove_excess_vms(config[:pools][0], provider, nil, nil)).to be_nil
+        expect(subject.remove_excess_vms(config[:pools][0], provider, ready, total)).to be_nil
       end
     end
 
     context 'with a total size less than the pool size' do
+      let(:ready) { 1 }
+      let(:total) { 2 }
       it 'should return nil' do
-        expect(subject.remove_excess_vms(config[:pools][0], provider, 1, 2)).to be_nil
+        expect(subject.remove_excess_vms(config[:pools][0], provider, ready, total)).to be_nil
       end
     end
 
     context 'with a total size greater than the pool size' do
+      let(:ready) { 4 }
+      let(:total) { 4 }
       it 'should remove excess ready vms' do
         expect(subject).to receive(:move_vm_queue).exactly(2).times
 
-        subject.remove_excess_vms(config[:pools][0], provider, 4, 4)
+        subject.remove_excess_vms(config[:pools][0], provider, ready, total)
       end
 
       it 'should remove excess pending vms' do
@@ -3018,18 +3030,16 @@ EOT
       end
 
       context 'when a pool template is updating' do
+        let(:poolsize) { 2 }
         before(:each) do
           redis.hset('vmpooler__config__updating', pool, 1)
           expect(provider).to receive(:vms_in_pool).with(pool).and_return([])
         end
 
         it 'should not call clone_vm to populate the pool' do
-          pool_size = 5
-          config[:pools][0]['size'] = pool_size
-
           expect(subject).to_not receive(:clone_vm)
 
-          subject._check_pool(pool_object,provider)
+          subject._check_pool(config[:pools][0],provider)
         end
       end
 
