@@ -820,7 +820,8 @@ module Vmpooler
           invalid.each do |bad_template|
             metrics.increment("config.invalid.#{bad_template}")
           end
-          status 404
+          result[:bad_templates] = invalid
+          status 400
         end
       else
         metrics.increment('config.invalid.unknown')
@@ -846,7 +847,8 @@ module Vmpooler
           invalid.each do |bad_template|
             metrics.increment("config.invalid.#{bad_template}")
           end
-          status 404
+          result[:bad_templates] = invalid
+          status 400
         end
       else
         metrics.increment('config.invalid.unknown')
@@ -863,9 +865,12 @@ module Vmpooler
 
       if pools
         result = {
-          'ok' => true,
-          'pool configuration' => pools
+          pool_configuration: pools,
+          status: {
+            ok: true
+          }
         }
+
         status 200
       end
       JSON.pretty_generate(result)
