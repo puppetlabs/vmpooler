@@ -1606,13 +1606,16 @@ EOT
     end
 
     context 'when already updating' do
+      let(:mutex) { Mutex.new }
       before(:each) do
         redis.hset('vmpooler__template', pool, template)
         redis.hset('vmpooler__config__template', pool, new_template)
-        redis.hset('vmpooler__config__updating', pool, 1)
+        expect(subject).to receive(:pool_mutex).with(pool).and_return(mutex)
       end
 
       it 'should return' do
+        mutex.lock
+
         expect(subject.update_pool_template(config[:pools][0], provider)).to be_nil
       end
     end
@@ -1670,6 +1673,7 @@ EOT
   end
 
   describe 'prepare_template' do
+    let(:mutex) { Mutex.new }
     let(:config) { YAML.load(<<-EOT
 ---
 :config:
@@ -1685,7 +1689,8 @@ EOT
     }
 
     it 'should return if a pool configuration is updating' do
-      redis.hset('vmpooler__config__updating', pool, 1)
+      expect(subject).to receive(:pool_mutex).with(pool).and_return(mutex)
+      mutex.lock
 
       expect(subject.prepare_template(config[:pools][0], provider)).to be_nil
     end
@@ -1701,10 +1706,11 @@ EOT
         allow(redis).to receive(:hset)
         allow(redis).to receive(:hdel)
         allow(provider).to receive(:create_template_delta_disks)
+        expect(subject).to receive(:pool_mutex).with(pool).and_return(mutex)
       end
 
       it 'should mark the pool as updating' do
-        expect(redis).to receive(:hset).with('vmpooler__config__updating', pool, 1)
+        mutex.lock
 
         subject.prepare_template(config[:pools][0], provider)
       end
@@ -1717,12 +1723,6 @@ EOT
 
       it 'should mark the template as prepared' do
         expect(redis).to receive(:hset).with('vmpooler__template__prepared', pool, config[:pools][0]['template'])
-
-        subject.prepare_template(config[:pools][0], provider)
-      end
-
-      it' should mark the configuration as completed' do
-        expect(redis).to receive(:hdel).with('vmpooler__config__updating', pool)
 
         subject.prepare_template(config[:pools][0], provider)
       end
@@ -2050,7 +2050,6 @@ EOT
       it 'should run startup tasks only once' do
         expect(redis).to receive(:set).with('vmpooler__tasks__clone', 0).once
         expect(redis).to receive(:del).with('vmpooler__migration').once
-        expect(redis).to receive(:del).with('vmpooler__config__updating').once
         expect(redis).to receive(:del).with('vmpooler__template__prepared').once
 
         subject.execute!(maxloop,0)

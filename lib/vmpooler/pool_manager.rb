@@ -558,20 +558,28 @@ module Vmpooler
       end
     end
 
+    def pool_mutex(poolname)
+      mutex = @reconfigure_pool[poolname] || @reconfigure_pool[poolname] = Mutex.new
+    end
+
+    def set_pool_template(pool)
+      pool_template = $redis.hget('vmpooler__config__template', pool['name'])
+      if pool_template
+        unless pool['template'] == pool_template
+          pool['template'] = pool_template
+        end
+      end
+    end
+
     def prepare_template(pool, provider)
       if $config[:config]['create_template_delta_disks']
         # Ensure templates are evaluated for delta disk creation on startup
-        return if $redis.hget('vmpooler__config__updating', pool['name'])
         unless $redis.hget('vmpooler__template__prepared', pool['name'])
-          mutex = @reconfigure_pool[pool['name']] || @reconfigure_pool[pool['name']] = Mutex.new
+          mutex = pool_mutex(pool['name'])
+          return if mutex.locked?
           mutex.synchronize do
-            begin
-              $redis.hset('vmpooler__config__updating', pool['name'], 1)
-              provider.create_template_delta_disks(pool)
-              $redis.hset('vmpooler__template__prepared', pool['name'], pool['template'])
-            ensure
-              $redis.hdel('vmpooler__config__updating', pool['name'])
-            end
+            provider.create_template_delta_disks(pool)
+            $redis.hset('vmpooler__template__prepared', pool['name'], pool['template'])
           end
         end
       end
@@ -581,37 +589,32 @@ module Vmpooler
       $redis.hset('vmpooler__template', pool['name'], pool['template']) unless $redis.hget('vmpooler__template', pool['name'])
       return unless $redis.hget('vmpooler__config__template', pool['name'])
       unless $redis.hget('vmpooler__config__template', pool['name']) == $redis.hget('vmpooler__template', pool['name'])
-        return if $redis.hget('vmpooler__config__updating', pool['name'])
         # Ensure we are only updating a template once
-        mutex = @reconfigure_pool[pool['name']] || @reconfigure_pool[pool['name']] = Mutex.new
+        mutex = pool_mutex(pool['name'])
+        return if mutex.locked?
         mutex.synchronize do
-          begin
-            $redis.hset('vmpooler__config__updating', pool['name'], 1)
-            old_template_name = $redis.hget('vmpooler__template', pool['name'])
-            new_template_name = $redis.hget('vmpooler__config__template', pool['name'])
-            pool['template'] = new_template_name
-            $redis.hset('vmpooler__template', pool['name'], new_template_name)
-            $logger.log('s', "[*] [#{pool['name']}] template updated from #{old_template_name} to #{new_template_name}")
-            # Remove all ready and pending VMs so new instances are created from the new template
-            if $redis.scard("vmpooler__ready__#{pool['name']}") > 0
-              $logger.log('s', "[*] [#{pool['name']}] removing ready instances")
-              $redis.smembers("vmpooler__ready__#{pool['name']}").each do |vm|
-                move_vm_queue(pool['name'], vm, 'ready', 'completed')
-              end
+          old_template_name = $redis.hget('vmpooler__template', pool['name'])
+          new_template_name = $redis.hget('vmpooler__config__template', pool['name'])
+          pool['template'] = new_template_name
+          $redis.hset('vmpooler__template', pool['name'], new_template_name)
+          $logger.log('s', "[*] [#{pool['name']}] template updated from #{old_template_name} to #{new_template_name}")
+          # Remove all ready and pending VMs so new instances are created from the new template
+          if $redis.scard("vmpooler__ready__#{pool['name']}") > 0
+            $logger.log('s', "[*] [#{pool['name']}] removing ready instances")
+            $redis.smembers("vmpooler__ready__#{pool['name']}").each do |vm|
+              move_vm_queue(pool['name'], vm, 'ready', 'completed')
             end
-            if $redis.scard("vmpooler__pending__#{pool['name']}") > 0
-              $logger.log('s', "[*] [#{pool['name']}] removing pending instances")
-              $redis.smembers("vmpooler__pending__#{pool['name']}").each do |vm|
-                move_vm_queue(pool['name'], vm, 'pending', 'completed')
-              end
-            end
-            # Prepare template for deployment
-            $logger.log('s', "[*] [#{pool['name']}] creating template deltas")
-            provider.create_template_delta_disks(pool)
-            $logger.log('s', "[*] [#{pool['name']}] template deltas have been created")
-          ensure
-            $redis.hdel('vmpooler__config__updating', pool['name'])
           end
+          if $redis.scard("vmpooler__pending__#{pool['name']}") > 0
+            $logger.log('s', "[*] [#{pool['name']}] removing pending instances")
+            $redis.smembers("vmpooler__pending__#{pool['name']}").each do |vm|
+              move_vm_queue(pool['name'], vm, 'pending', 'completed')
+            end
+          end
+          # Prepare template for deployment
+          $logger.log('s', "[*] [#{pool['name']}] creating template deltas")
+          provider.create_template_delta_disks(pool)
+          $logger.log('s', "[*] [#{pool['name']}] template deltas have been created")
         end
       end
     end
@@ -619,7 +622,7 @@ module Vmpooler
     def remove_excess_vms(pool, provider, ready, total)
       if total
         unless total == 0
-          mutex = @reconfigure_pool[pool['name']] || @reconfigure_pool[pool['name']] = Mutex.new
+          mutex = pool_mutex(pool['name'])
           mutex.synchronize do
             if total > pool['size']
               difference = ready - pool['size']
@@ -776,7 +779,8 @@ module Vmpooler
 
       # REPOPULATE
       # Do not attempt to repopulate a pool while a template is updating
-      unless $redis.hget('vmpooler__config__updating', pool['name'])
+      mutex = pool_mutex(pool['name'])
+      unless mutex.locked?
         ready = $redis.scard("vmpooler__ready__#{pool['name']}")
         total = $redis.scard("vmpooler__pending__#{pool['name']}") + ready
 
@@ -845,8 +849,6 @@ module Vmpooler
       $redis.set('vmpooler__tasks__clone', 0)
       # Clear out vmpooler__migrations since stale entries may be left after a restart
       $redis.del('vmpooler__migration')
-      # Clear out any configuration changes in flight that were interrupted
-      $redis.del('vmpooler__config__updating')
       # Ensure template deltas are created on each startup
       $redis.del('vmpooler__template__prepared')
 
