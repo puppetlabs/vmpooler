@@ -855,6 +855,21 @@ module Vmpooler
 
       JSON.pretty_generate(result)
     end
+
+    get "#{api_prefix}/config/?" do
+      content_type :json
+      result = { 'ok' => false }
+      status 404
+
+      if pools
+        result = {
+          'ok' => true,
+          'pool configuration' => pools
+        }
+        status 200
+      end
+      JSON.pretty_generate(result)
+    end
   end
   end
 end

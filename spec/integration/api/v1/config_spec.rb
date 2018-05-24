@@ -156,5 +156,12 @@ describe Vmpooler::API::V1 do
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
       end
     end
+
+    describe 'GET /config' do
+      it 'returns pool configuration when set' do
+        get "#{prefix}/config"
+        expect_json(ok = true, http = 200)
+      end
+    end
   end
 end
