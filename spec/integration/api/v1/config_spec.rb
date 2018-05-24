@@ -18,24 +18,25 @@ describe Vmpooler::API::V1 do
     Vmpooler::API
   end
 
+  let(:config) {
+    {
+      config: {
+        'site_name' => 'test pooler',
+        'vm_lifetime_auth' => 2,
+      },
+      pools: [
+        {'name' => 'pool1', 'size' => 5, 'template' => 'templates/pool1'},
+        {'name' => 'pool2', 'size' => 10}
+      ],
+      statsd: { 'prefix' => 'stats_prefix'},
+      alias: { 'poolone' => 'pool1' },
+      pool_names: [ 'pool1', 'pool2', 'poolone' ]
+    }
+  }
+
   describe '/config/pooltemplate' do
     let(:prefix) { '/api/v1' }
     let(:metrics) { Vmpooler::DummyStatsd.new }
-    let(:config) {
-      {
-        config: {
-          'site_name' => 'test pooler',
-          'vm_lifetime_auth' => 2,
-        },
-        pools: [
-          {'name' => 'pool1', 'size' => 5, 'template' => 'templates/pool1'},
-          {'name' => 'pool2', 'size' => 10}
-        ],
-        statsd: { 'prefix' => 'stats_prefix'},
-        alias: { 'poolone' => 'pool1' },
-        pool_names: [ 'pool1', 'pool2', 'poolone' ]
-      }
-    }
 
     let(:current_time) { Time.now }
 
@@ -170,15 +171,6 @@ describe Vmpooler::API::V1 do
 
     describe 'GET /config' do
       let(:prefix) { '/api/v1' }
-      let(:config) {
-        {
-          config: {},
-          pools: [
-            {'name' => 'pool1', 'size' => 5, 'template' => 'templates/pool1'},
-            {'name' => 'pool2', 'size' => 10}
-          ],
-        }
-      }
 
       it 'returns pool configuration when set' do
         get "#{prefix}/config"

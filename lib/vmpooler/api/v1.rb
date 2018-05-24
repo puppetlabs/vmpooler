@@ -125,6 +125,7 @@ module Vmpooler
 
       pool_index = pool_index(pools)
       pools_updated = 0
+      sync_pool_sizes
 
       payload.each do |poolname, size|
         unless pools[pool_index[poolname]]['size'] == size.to_i
@@ -144,6 +145,7 @@ module Vmpooler
 
       pool_index = pool_index(pools)
       pools_updated = 0
+      sync_pool_templates
 
       payload.each do |poolname, template|
         unless pools[pool_index[poolname]]['template'] == template
@@ -156,6 +158,34 @@ module Vmpooler
       status 200 unless pools_updated > 0
       result['ok'] = true
       result
+    end
+
+    def sync_pool_templates
+      pool_index = pool_index(pools)
+      template_configs = backend.hgetall('vmpooler__config__template')
+      unless template_configs.nil?
+        template_configs.each do |poolname, template|
+          if pool_index.include? poolname
+            unless pools[pool_index[poolname]]['template'] == template
+              pools[pool_index[poolname]]['template'] = template
+            end
+          end
+        end
+      end
+    end
+
+    def sync_pool_sizes
+      pool_index = pool_index(pools)
+      poolsize_configs = backend.hgetall('vmpooler__config__poolsize')
+      unless poolsize_configs.nil?
+        poolsize_configs.each do |poolname, size|
+          if pool_index.include? poolname
+            unless pools[pool_index[poolname]]['size'] == size.to_i
+              pools[pool_index[poolname]]['size'] == size.to_i
+            end
+          end
+        end
+      end
     end
 
     # Provide run-time statistics
@@ -233,6 +263,8 @@ module Vmpooler
           message: 'Battle station fully armed and operational.'
         }
       }
+
+      sync_pool_sizes
 
       result[:capacity] = get_capacity_metrics(pools, backend) unless views and not views.include?("capacity")
       result[:queue] = get_queue_metrics(pools, backend) unless views and not views.include?("queue")
@@ -864,6 +896,9 @@ module Vmpooler
       status 404
 
       if pools
+        sync_pool_sizes
+        sync_pool_templates
+
         result = {
           pool_configuration: pools,
           status: {
