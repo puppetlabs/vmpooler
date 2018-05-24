@@ -61,7 +61,7 @@ describe Vmpooler::API::V1 do
 
       it 'fails on nonexistent pools' do
         post "#{prefix}/config/pooltemplate", '{"poolpoolpool":"templates/newtemplate"}'
-        expect_json(ok = false, http = 404)
+        expect_json(ok = false, http = 400)
       end
 
       it 'updates multiple pools' do
@@ -75,9 +75,12 @@ describe Vmpooler::API::V1 do
 
       it 'fails when not all pools exist' do
         post "#{prefix}/config/pooltemplate", '{"pool1":"templates/new_template","pool3":"templates/new_template2"}'
-        expect_json(ok = false, http = 404)
+        expect_json(ok = false, http = 400)
 
-        expected = { ok: false }
+        expected = {
+          ok: false,
+          bad_templates: ['pool3']
+        }
 
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
       end
@@ -93,9 +96,12 @@ describe Vmpooler::API::V1 do
 
       it 'fails when a invalid template parameter is provided' do
         post "#{prefix}/config/pooltemplate", '{"pool1":"template1"}'
-        expect_json(ok = false, http = 404)
+        expect_json(ok = false, http = 400)
 
-        expected = { ok: false }
+        expected = {
+          ok: false,
+          bad_templates: ['pool1']
+        }
 
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
       end
@@ -122,9 +128,11 @@ describe Vmpooler::API::V1 do
 
       it 'fails when a specified pool does not exist' do
         post "#{prefix}/config/poolsize", '{"pool10":"2"}'
-        expect_json(ok = false, http = 404)
-
-        expected = { ok: false }
+        expect_json(ok = false, http = 400)
+        expected = {
+          ok: false,
+          bad_templates: ['pool10']
+        }
 
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
       end
@@ -149,18 +157,35 @@ describe Vmpooler::API::V1 do
 
       it 'fails when a non-integer value is provided for size' do
         post "#{prefix}/config/poolsize", '{"pool1":"four"}'
-        expect_json(ok = false, http = 404)
+        expect_json(ok = false, http = 400)
 
-        expected = { ok: false }
+        expected = {
+          ok: false,
+          bad_templates: ['pool1']
+        }
 
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
       end
     end
 
     describe 'GET /config' do
+      let(:prefix) { '/api/v1' }
+      let(:config) {
+        {
+          config: {},
+          pools: [
+            {'name' => 'pool1', 'size' => 5, 'template' => 'templates/pool1'},
+            {'name' => 'pool2', 'size' => 10}
+          ],
+        }
+      }
+
       it 'returns pool configuration when set' do
         get "#{prefix}/config"
-        expect_json(ok = true, http = 200)
+
+        expect(last_response.header['Content-Type']).to eq('application/json')
+        result = JSON.parse(last_response.body)
+        expect(result['pool_configuration']).to eq(config[:pools])
       end
     end
   end
