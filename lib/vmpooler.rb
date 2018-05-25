@@ -86,8 +86,8 @@ module Vmpooler
     parsed_config
   end
 
-  def self.new_redis(host = 'localhost')
-    Redis.new(host: host)
+  def self.new_redis(host = 'localhost', port = nil, password = nil)
+    Redis.new(host: host, port: port, password: password)
   end
 
   def self.new_logger(logfile)

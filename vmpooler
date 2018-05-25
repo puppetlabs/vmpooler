@@ -7,13 +7,15 @@ require 'lib/vmpooler'
 
 config = Vmpooler.config
 redis_host = config[:redis]['server']
+redis_port = config[:redis]['port']
+redis_password = config[:redis]['password']
 logger_file = config[:config]['logfile']
 
 metrics = Vmpooler.new_metrics(config)
 
 api = Thread.new do
   thr = Vmpooler::API.new
-  thr.helpers.configure(config, Vmpooler.new_redis(redis_host), metrics)
+  thr.helpers.configure(config, Vmpooler.new_redis(redis_host, redis_port, redis_password), metrics)
   thr.helpers.execute!
 end
 
@@ -21,7 +23,7 @@ manager = Thread.new do
   Vmpooler::PoolManager.new(
     config,
     Vmpooler.new_logger(logger_file),
-    Vmpooler.new_redis(redis_host),
+    Vmpooler.new_redis(redis_host, redis_port, redis_password),
     metrics
   ).execute!
 end
