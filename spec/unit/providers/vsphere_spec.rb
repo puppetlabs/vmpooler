@@ -3435,57 +3435,6 @@ EOT
     end
   end
 
-  describe '#find_vmdks' do
-    let(:datastorename) { 'datastore' }
-    let(:connection_options) {{
-      :serviceContent => {
-        :datacenters => [
-          { :name => datacenter_name, :datastores => [datastorename] }
-        ]
-      }
-    }}
-
-    let(:collectMultiple_response) { {} }
-
-    before(:each) do
-      allow(connection.serviceContent.propertyCollector).to receive(:collectMultiple).and_return(collectMultiple_response)
-    end
-
-    context 'Searching all files for all VMs on a Datastore' do
-      # This is fairly fragile mocking
-      let(:collectMultiple_response) { {
-        'FakeVMObject1' => { 'layoutEx.file' =>
-        [
-          mock_RbVmomi_VIM_VirtualMachineFileLayoutExFileInfo({ :key => 101, :name => "[#{datastorename}] mock1/mock1_0.vmdk"})
-        ]},
-        vmname => { 'layoutEx.file' =>
-        [
-          # VMDKs which should match
-          mock_RbVmomi_VIM_VirtualMachineFileLayoutExFileInfo({ :key => 1, :name => "[#{datastorename}] #{vmname}/#{vmname}_0.vmdk"}),
-          mock_RbVmomi_VIM_VirtualMachineFileLayoutExFileInfo({ :key => 2, :name => "[#{datastorename}] #{vmname}/#{vmname}_1.vmdk"}),
-          # VMDKs which should not match
-          mock_RbVmomi_VIM_VirtualMachineFileLayoutExFileInfo({ :key => 102, :name => "[otherdatastore] #{vmname}/#{vmname}_0.vmdk"}),
-          mock_RbVmomi_VIM_VirtualMachineFileLayoutExFileInfo({ :key => 103, :name => "[otherdatastore] #{vmname}/#{vmname}.vmdk"}),
-          mock_RbVmomi_VIM_VirtualMachineFileLayoutExFileInfo({ :key => 104, :name => "[otherdatastore] #{vmname}/#{vmname}_abc.vmdk"}),
-        ]},
-      } }
-
-      it 'should return empty array if no VMDKs match the VM name' do
-        expect(subject.find_vmdks('missing_vm_name',datastorename,connection,datacenter_name)).to eq([])
-      end
-
-      it 'should return matching VMDKs for the VM' do
-        result = subject.find_vmdks(vmname,datastorename,connection,datacenter_name)
-        expect(result).to_not be_nil
-        expect(result.count).to eq(2)
-        # The keys for each VMDK should be less that 100 as per the mocks
-        result.each do |fileinfo|
-          expect(fileinfo.key).to be < 100
-        end
-      end
-    end
-  end
-
   describe '#get_base_vm_container_from' do
     it 'should return a recursive view of type VirtualMachine' do
       result = subject.get_base_vm_container_from(connection)
