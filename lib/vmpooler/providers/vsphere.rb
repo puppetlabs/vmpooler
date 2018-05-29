@@ -161,11 +161,11 @@ module Vmpooler
           return false
         end
 
-        def get_vm(_pool_name, vm_name)
+        def get_vm(pool_name, vm_name)
           vm_hash = nil
           @connection_pool.with_metrics do |pool_object|
             connection = ensured_vsphere_connection(pool_object)
-            vm_object = find_vm(vm_name, connection)
+            vm_object = find_vm(pool_name, vm_name, connection)
             return vm_hash if vm_object.nil?
 
             vm_folder_path = get_vm_folder_path(vm_object)
@@ -283,7 +283,7 @@ module Vmpooler
 
           @connection_pool.with_metrics do |pool_object|
             connection = ensured_vsphere_connection(pool_object)
-            vm_object = find_vm(vm_name, connection)
+            vm_object = find_vm(pool_name, vm_name, connection)
             raise("VM #{vm_name} in pool #{pool_name} does not exist for the provider #{name}") if vm_object.nil?
 
             add_disk(vm_object, disk_size, datastore_name, connection, get_target_datacenter_from_config(pool_name))
@@ -294,7 +294,7 @@ module Vmpooler
         def create_snapshot(pool_name, vm_name, new_snapshot_name)
           @connection_pool.with_metrics do |pool_object|
             connection = ensured_vsphere_connection(pool_object)
-            vm_object = find_vm(vm_name, connection)
+            vm_object = find_vm(pool_name, vm_name, connection)
             raise("VM #{vm_name} in pool #{pool_name} does not exist for the provider #{name}") if vm_object.nil?
 
             old_snap = find_snapshot(vm_object, new_snapshot_name)
@@ -313,7 +313,7 @@ module Vmpooler
         def revert_snapshot(pool_name, vm_name, snapshot_name)
           @connection_pool.with_metrics do |pool_object|
             connection = ensured_vsphere_connection(pool_object)
-            vm_object = find_vm(vm_name, connection)
+            vm_object = find_vm(pool_name, vm_name, connection)
             raise("VM #{vm_name} in pool #{pool_name} does not exist for the provider #{name}") if vm_object.nil?
 
             snapshot_object = find_snapshot(vm_object, snapshot_name)
@@ -324,10 +324,10 @@ module Vmpooler
           true
         end
 
-        def destroy_vm(_pool_name, vm_name)
+        def destroy_vm(pool_name, vm_name)
           @connection_pool.with_metrics do |pool_object|
             connection = ensured_vsphere_connection(pool_object)
-            vm_object = find_vm(vm_name, connection)
+            vm_object = find_vm(pool_name, vm_name, connection)
             # If a VM doesn't exist then it is effectively deleted
             return true if vm_object.nil?
 
@@ -784,60 +784,29 @@ module Vmpooler
           get_snapshot_list(vm.snapshot.rootSnapshotList, snapshotname) if vm.snapshot
         end
 
-        def find_vm(vmname, connection)
-          find_vm_light(vmname, connection) || find_vm_heavy(vmname, connection)[vmname]
+        def build_propSpecs(datacenter, folder, vmname)
+          propSpecs = {
+            entity => self,
+            :inventoryPath => "#{datacenter}/vm/#{folder}/#{vmname}"
+          }
+          propSpecs
         end
 
-        def find_vm_light(vmname, connection)
-          connection.searchIndex.FindByDnsName(vmSearch: true, dnsName: vmname)
-        end
+        def find_vm(pool_name, vmname, connection)
+          # Find a VM by its inventory path and return the VM object
+          # Returns nil when a VM, or pool configuration, cannot be found
+          pool_configuration = pool_config(pool_name)
+          return nil if pool_configuration.nil?
+          folder = pool_configuration['folder']
+          datacenter = get_target_datacenter_from_config(pool_name)
+          return nil if datacenter.nil?
 
-        def find_vm_heavy(vmname, connection)
-          vmname = vmname.is_a?(Array) ? vmname : [vmname]
-          container_view = get_base_vm_container_from(connection)
-          property_collector = connection.propertyCollector
+          propSpecs = {
+            :entity => self,
+            :inventoryPath => "#{datacenter}/vm/#{folder}/#{vmname}"
+          }
 
-          object_set = [{
-            obj: container_view,
-            skip: true,
-            selectSet: [RbVmomi::VIM::TraversalSpec.new(
-              name: 'gettingTheVMs',
-              path: 'view',
-              skip: false,
-              type: 'ContainerView'
-            )]
-          }]
-
-          prop_set = [{
-            pathSet: ['name'],
-            type: 'VirtualMachine'
-          }]
-
-          results = property_collector.RetrievePropertiesEx(
-            specSet: [{
-              objectSet: object_set,
-              propSet: prop_set
-            }],
-            options: { maxObjects: nil }
-          )
-
-          vms = {}
-          results.objects.each do |result|
-            name = result.propSet.first.val
-            next unless vmname.include? name
-            vms[name] = result.obj
-          end
-
-          while results.token
-            results = property_collector.ContinueRetrievePropertiesEx(token: results.token)
-            results.objects.each do |result|
-              name = result.propSet.first.val
-              next unless vmname.include? name
-              vms[name] = result.obj
-            end
-          end
-
-          vms
+          connection.searchIndex.FindByInventoryPath(propSpecs)
         end
 
         def find_vmdks(vmname, datastore, connection, datacentername)
@@ -880,8 +849,8 @@ module Vmpooler
           snapshot
         end
 
-        def get_vm_details(vm_name, connection)
-          vm_object = find_vm(vm_name, connection)
+        def get_vm_details(pool_name, vm_name, connection)
+          vm_object = find_vm(pool_name, vm_name, connection)
           return nil if vm_object.nil?
           parent_host_object = vm_object.summary.runtime.host if vm_object.summary && vm_object.summary.runtime && vm_object.summary.runtime.host
           raise('Unable to determine which host the VM is running on') if parent_host_object.nil?
@@ -905,7 +874,7 @@ module Vmpooler
           @connection_pool.with_metrics do |pool_object|
             begin
               connection = ensured_vsphere_connection(pool_object)
-              vm_hash = get_vm_details(vm_name, connection)
+              vm_hash = get_vm_details(pool_name, vm_name, connection)
               migration_limit = @config[:config]['migration_limit'] if @config[:config].key?('migration_limit')
               migration_count = $redis.scard('vmpooler__migration')
               if migration_enabled? @config
