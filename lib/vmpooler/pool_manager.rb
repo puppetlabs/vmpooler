@@ -631,8 +631,10 @@ module Vmpooler
                 move_vm_queue(pool['name'], next_vm, 'ready', 'completed')
               end
               if total > ready
-                $redis.smembers("vmpooler__pending__#{pool['name']}").each do |vm|
+                max_to_remove = total - pool['size']
+                $redis.smembers("vmpooler__pending__#{pool['name']}").each_with_index do |vm, i|
                   move_vm_queue(pool['name'], vm, 'pending', 'completed')
+                  if max_to_remove == (i+1) then break end
                 end
               end
             end
