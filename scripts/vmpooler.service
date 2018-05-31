@@ -6,7 +6,7 @@ After=basic.target network.target
 [Service]
 EnvironmentFile=-/etc/default/vmpooler
 WorkingDirectory=/opt/vmpooler
-ExecStart=/opt/jruby/bin/jruby /opt/vmpooler/vmpooler -s Puma -E production
+ExecStart=/opt/vmpooler/vmpooler -s Puma -E production
 ExecReload=/bin/kill -HUP $MAINPID
 KillMode=process
 
