@@ -1,6 +1,5 @@
 source ENV['GEM_SOURCE'] || 'https://rubygems.org'
 
-gem 'json', '>= 1.8'
 gem 'puma', '>= 3.6.0'
 # Rack 2.x requires ruby 2.2 or above.
 # As VMPooler should work in older jruby, we need to be Ruby 1.9.3 compatible.
@@ -12,7 +11,7 @@ gem 'net-ldap', '>= 0.16.1'
 gem 'statsd-ruby', '>= 1.3.0', :require => 'statsd'
 gem 'connection_pool', '>= 2.2.1'
 gem 'nokogiri', '>= 1.8.2'
-
+gem 'vmpooler', path: './'
 # Pin gems against Ruby version
 # Note we can't use platform restrictions easily so use
 # lowest version range any platform
@@ -24,6 +23,10 @@ elsif RUBY_VERSION =~ /^2\.2\.[01]/
   gem 'redis', '~> 3.0'
 else
   gem 'redis', '>= 3.2'
+end
+
+group :development do
+  gem 'pry'
 end
 
 # Test deps

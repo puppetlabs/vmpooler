@@ -1,4 +1,5 @@
 .vagrant/
+results.xml
 .ruby-version
 Gemfile.lock
 Gemfile.local
