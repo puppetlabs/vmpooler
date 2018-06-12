@@ -18,6 +18,8 @@ end
 
 # Test deps
 group :test do
+  # required in order for the providers auto detect mechanism to work
+  gem 'vmpooler', path: './'
   gem 'mock_redis', '>= 0.17.0'
   gem 'rack-test', '>= 0.6'
   gem 'rspec', '>= 3.2'

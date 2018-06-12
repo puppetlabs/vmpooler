@@ -1,4 +1,5 @@
 require 'spec_helper'
+require 'vmpooler/providers/dummy'
 
 describe 'Vmpooler::PoolManager::Provider::Dummy' do
   let(:logger) { MockLogger.new }

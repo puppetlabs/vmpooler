@@ -13,10 +13,15 @@ git logs & PR history.
 
 # [Unreleased](https://github.com/puppetlabs/vmpooler/compare/0.1.0...master)
 
+### Fixed
+
+### Added
+- Adds a new mechanism to load providers from any gem or file path 
+
+
 # [0.1.0](https://github.com/puppetlabs/vmpooler/compare/4c858d012a262093383e57ea6db790521886d8d4...master)
 
 ### Fixed
-
 - Remove unused method `find_pool` and related pending tests
 - Setting `max_tries` results in an infinite loop (POOLER-124)
 - Do not evaluate folders as VMs in `get_pool_vms` (POOLER-40)

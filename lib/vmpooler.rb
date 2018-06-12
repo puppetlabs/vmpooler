@@ -11,7 +11,7 @@ module Vmpooler
   require 'yaml'
   require 'set'
 
-  %w[api graphite logger pool_manager statsd dummy_statsd generic_connection_pool providers].each do |lib|
+  %w[api graphite logger pool_manager statsd dummy_statsd generic_connection_pool].each do |lib|
     require "vmpooler/#{lib}"
   end
 

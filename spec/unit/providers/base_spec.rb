@@ -1,4 +1,5 @@
 require 'spec_helper'
+require 'vmpooler/providers/base'
 
 # This spec does not really exercise code paths but is merely used
 # to enforce that certain methods are defined in the base classes
