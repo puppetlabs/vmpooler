@@ -2221,25 +2221,21 @@ EOT
         subject._check_pool(pool_object, provider)
       end
 
-      it 'passes #create_inventory errors correctly' do
+      it 'captures #create_inventory errors correctly' do
         allow(subject).to receive(:create_inventory).and_raise(
           RuntimeError,'Mock Error'
         )
         expect {
           subject._check_pool(pool_object, provider)
-        }.to raise_error(RuntimeError, /Mock Error/)
+        }.to_not raise_error(RuntimeError, /Mock Error/)
       end
 
-      it 'should not perform any other actions if an error occurs' do
+      it 'should return early if an error occurs' do
         allow(subject).to receive(:create_inventory).and_raise(
           RuntimeError,'Mock Error'
         )
-
-        expect {
-          subject._check_pool(pool_object, provider)
-        }.to raise_error(RuntimeError, /Mock Error/)
-
         expect(subject).to_not receive(:check_running_pool_vms)
+        subject._check_pool(pool_object, provider)
       end
 
       it 'should return that no actions were taken' do
