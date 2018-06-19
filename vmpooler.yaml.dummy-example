@@ -14,7 +14,7 @@
 
 :config:
   site_name: 'vmpooler'
-  logfile: '/var/log/vmpooler/vmpooler.log'
+  logfile: '/var/log/vmpooler.log'
   task_limit: 10
   timeout: 15
   vm_checktime: 15
