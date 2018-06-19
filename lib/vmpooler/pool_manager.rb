@@ -555,17 +555,7 @@ module Vmpooler
       end
     end
 
-    def _check_pool(pool, provider)
-      pool_check_response = {
-        discovered_vms: 0,
-        checked_running_vms: 0,
-        checked_ready_vms: 0,
-        checked_pending_vms: 0,
-        destroyed_vms: 0,
-        migrated_vms: 0,
-        cloned_vms: 0
-      }
-      # INVENTORY
+    def create_inventory(pool, provider)
       inventory = {}
       begin
         provider.vms_in_pool(pool['name']).each do |vm|
@@ -585,9 +575,23 @@ module Vmpooler
           inventory[vm['name']] = 1
         end
       rescue => err
-        $logger.log('s', "[!] [#{pool['name']}] _check_pool failed with an error while inspecting inventory: #{err}")
-        return pool_check_response
+        $logger.log('s', "[!] [#{pool['name']}] _check_pool failed with an error while running create_inventory: #{err}")
+        raise(err)
       end
+      inventory
+    end
+
+    def _check_pool(pool, provider)
+      pool_check_response = {
+        discovered_vms: 0,
+        checked_running_vms: 0,
+        checked_ready_vms: 0,
+        checked_pending_vms: 0,
+        destroyed_vms: 0,
+        migrated_vms: 0,
+        cloned_vms: 0
+      }
+      inventory = create_inventory(pool, provider)
 
       # RUNNING
       $redis.smembers("vmpooler__running__#{pool['name']}").each do |vm|
