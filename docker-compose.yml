@@ -1,0 +1,15 @@
+# For local development run with a dummy provider
+version: '3'
+services:
+  aio-local:
+    build:
+      context: .
+      dockerfile: Dockerfile-aio
+    volumes:
+      - ".:/var/lib/vmpooler"
+    ports:
+      - "80:4567"
+    environment:
+      - VMPOOLER_DEBUG=true # for use of dummy auth
+      - VMPOOLER_CONFIG_FILE=vmpooler.yaml.dummy-example
+    image: vmpooler-aio-local
