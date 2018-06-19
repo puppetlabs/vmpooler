@@ -2231,29 +2231,15 @@ EOT
       end
 
       it 'should not perform any other actions if an error occurs' do
-        # Add VMs into redis
-        create_running_vm(pool_name, 'vm1')
-        create_ready_vm(pool_name, 'vm2')
-        create_completed_vm('vm3', pool_name)
-        create_discovered_vm('vm4', pool_name)
-        create_migrating_vm('vm5', pool_name)
+        allow(subject).to receive(:create_inventory).and_raise(
+          RuntimeError,'Mock Error'
+        )
 
-        expect(subject).to receive(:move_vm_queue).exactly(0).times
-        expect(subject).to receive(:check_running_vm).exactly(0).times
-        expect(subject).to receive(:check_pending_vm).exactly(0).times
-        expect(subject).to receive(:destroy_vm).exactly(0).times
-        expect(redis).to receive(:srem).exactly(0).times
-        expect(redis).to receive(:del).exactly(0).times
-        expect(redis).to receive(:hdel).exactly(0).times
-        expect(redis).to receive(:smove).exactly(0).times
-        expect(subject).to receive(:migrate_vm).exactly(0).times
-        expect(redis).to receive(:set).exactly(0).times
-        expect(redis).to receive(:incr).exactly(0).times
-        expect(subject).to receive(:clone_vm).exactly(0).times
-        expect(redis).to receive(:decr).exactly(0).times
+        expect {
+          subject._check_pool(pool_object, provider)
+        }.to raise_error(RuntimeError, /Mock Error/)
 
-        expect(provider).to receive(:vms_in_pool).and_raise(RuntimeError,'Mock Error')
-        subject._check_pool(pool_object,provider)
+        expect(subject).to_not receive(:check_running_pool_vms)
       end
 
       it 'should return that no actions were taken' do
