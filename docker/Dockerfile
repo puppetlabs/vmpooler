@@ -10,7 +10,7 @@
 
 FROM jruby:9.1-jdk
 
-COPY ./docker/docker-entrypoint.sh /usr/local/bin/
+COPY docker/docker-entrypoint.sh /usr/local/bin/
 
 ENV LOGFILE=/dev/stdout \
       RACK_ENV=production
@@ -19,5 +19,3 @@ RUN gem install vmpooler && \
       chmod +x /usr/local/bin/docker-entrypoint.sh
 
 ENTRYPOINT ["docker-entrypoint.sh"]
-
-CMD ["vmpooler"]

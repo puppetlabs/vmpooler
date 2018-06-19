@@ -83,6 +83,14 @@ To run only the manager component
 docker run -it vmpooler manager
 ```
 
+### docker-compose
+
+A docker-compose file is provided to support running vmpooler easily via docker-compose.
+
+```
+docker-compose -f docker/docker-compose.yml up
+```
+
 ### Running Docker inside Vagrant
 
 A vagrantfile is included in this repository. Please see [vagrant instructions](docs/vagrant.md) for details.
