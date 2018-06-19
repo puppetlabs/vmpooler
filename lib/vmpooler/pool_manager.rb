@@ -695,7 +695,7 @@ module Vmpooler
       end
     end
 
-    def create_inventory(pool, provider)
+    def create_inventory(pool, provider, pool_check_response)
       inventory = {}
       begin
         provider.vms_in_pool(pool['name']).each do |vm|
@@ -721,6 +721,10 @@ module Vmpooler
       inventory
     end
 
+    def check_running_pool_vms(pool, provider, pool_check_response)
+      # do stuff here
+    end
+
     def _check_pool(pool, provider)
       pool_check_response = {
         discovered_vms: 0,
@@ -731,9 +735,20 @@ module Vmpooler
         migrated_vms: 0,
         cloned_vms: 0
       }
-      inventory = create_inventory(pool, provider)
+
+      begin
+        inventory = create_inventory(pool, provider, pool_check_response)
+      rescue => err
+        return(pool_check_response)
+      end
 
       # RUNNING
+      begin
+        check_running_pool_vms(pool, provider, pool_check_response)
+      rescue => err
+        return(pool_check_response)
+      end
+
       $redis.smembers("vmpooler__running__#{pool['name']}").each do |vm|
         if inventory[vm]
           begin
