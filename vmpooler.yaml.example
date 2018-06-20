@@ -52,7 +52,7 @@
 #
 #   - insecure
 #     Whether to ignore any HTTPS negotiation errors (e.g. untrusted self-signed certificates)
-#     (optional: default true)
+#     (optional: default false)
 #
 #   - datacenter
 #     The datacenter within vCenter to manage VMs.  This can be overridden in the pool configuration

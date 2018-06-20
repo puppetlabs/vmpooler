@@ -403,7 +403,7 @@ module Vmpooler
             connection = RbVmomi::VIM.connect host: provider_config['server'],
                                               user: provider_config['username'],
                                               password: provider_config['password'],
-                                              insecure: provider_config['insecure'] || true
+                                              insecure: provider_config['insecure'] || false
             metrics.increment('connect.open')
             return connection
           rescue => err
