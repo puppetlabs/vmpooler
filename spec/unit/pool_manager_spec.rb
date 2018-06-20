@@ -92,6 +92,19 @@ EOT
         subject._check_pending_vm(vm, pool, timeout, provider)
       end
     end
+
+    context 'with a locked vm mutex' do
+      let(:mutex) { Mutex.new }
+      before(:each) do
+        mutex.lock
+      end
+
+      it 'should return' do
+        expect(subject).to receive(:vm_mutex).and_return(mutex)
+
+        expect(subject._check_pending_vm(vm, pool, timeout, provider)).to be_nil
+      end
+    end
   end
 
   describe '#remove_nonexistent_vm' do
@@ -404,6 +417,19 @@ EOT
         end
       end
     end
+
+    context 'with a locked vm mutex' do
+      let(:mutex) { Mutex.new }
+      before(:each) do
+        mutex.lock
+      end
+
+      it 'should return' do
+        expect(subject).to receive(:vm_mutex).and_return(mutex)
+
+        expect(subject._check_ready_vm(vm, pool, ttl, provider)).to be_nil
+      end
+    end
   end
 
   describe '#check_running_vm' do
@@ -477,6 +503,19 @@ EOT
         subject._check_running_vm(vm, pool, timeout, provider)
         expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(false)
         expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
+      end
+    end
+
+    context 'with a locked vm mutex' do
+      let(:mutex) { Mutex.new }
+      before(:each) do
+        mutex.lock
+      end
+
+      it 'should return' do
+        expect(subject).to receive(:vm_mutex).and_return(mutex)
+
+        expect(subject._check_running_vm(vm, pool, timeout, provider)).to be_nil
       end
     end
   end
@@ -681,7 +720,7 @@ EOT
       before(:each) do
         config[:redis] = nil
       end
-      
+
       it 'should raise an error' do
         expect{ subject._destroy_vm(vm,pool,provider) }.to raise_error(NoMethodError)
       end
@@ -730,6 +769,19 @@ EOT
         expect(metrics).to receive(:timing).with("destroy.#{pool}", String).exactly(0).times
 
         expect{ subject._destroy_vm(vm,pool,provider) }.to raise_error(/MockError/)
+      end
+    end
+
+    context 'when the VM mutex is locked' do
+      let(:mutex) { Mutex.new }
+      before(:each) do
+        mutex.lock
+      end
+
+      it 'should return' do
+        expect(subject).to receive(:vm_mutex).with(vm).and_return(mutex)
+
+        expect(subject._destroy_vm(vm,pool,provider)).to eq(nil)
       end
     end
   end
@@ -1500,6 +1552,31 @@ EOT
 
         subject.migrate_vm(vm, pool, provider)
       end
+    end
+
+    context 'with a locked vm mutex' do
+      let(:mutex) { Mutex.new }
+      before(:each) do
+        mutex.lock
+      end
+
+      it 'should return' do
+        expect(subject).to receive(:vm_mutex).and_return(mutex)
+
+        expect(subject.migrate_vm(vm, pool, provider)).to be_nil
+      end
+    end
+  end
+
+  describe '#vm_mutex' do
+    it 'should return a mutex' do
+      expect(subject.vm_mutex(vm)).to be_a(Mutex)
+    end
+
+    it 'should return the same mutex when called twice' do
+      first = subject.vm_mutex(vm)
+      second = subject.vm_mutex(vm)
+      expect(first).to be(second)
     end
   end
 
