@@ -168,4 +168,74 @@ describe Vmpooler::API::Helpers do
     end
   end
 
+  describe '#pool_index' do
+    let(:pools) {
+      [
+        {
+          'name' => 'pool1'
+        },
+        {
+          'name' => 'pool2'
+        }
+      ]
+    }
+
+    it 'should return a hash' do
+      pools_hash = subject.pool_index(pools)
+
+      expect(pools_hash).to be_a(Hash)
+    end
+
+    it 'should return the correct index for each pool' do
+      pools_hash = subject.pool_index(pools)
+
+      expect(pools[pools_hash['pool1']]['name']).to eq('pool1')
+      expect(pools[pools_hash['pool2']]['name']).to eq('pool2')
+    end
+  end
+
+  describe '#template_ready?' do
+    let(:redis) { double('redis') }
+    let(:template) { 'template/test1' }
+    let(:poolname) { 'pool1' }
+    let(:pool) {
+      {
+        'name' => poolname,
+        'template' => template
+      }
+    }
+
+    it 'returns false when there is no prepared template' do
+      expect(redis).to receive(:hget).with('vmpooler__template__prepared', poolname).and_return(nil)
+
+      expect(subject.template_ready?(pool, redis)).to be false
+    end
+
+    it 'returns true when configured and prepared templates match' do
+      expect(redis).to receive(:hget).with('vmpooler__template__prepared', poolname).and_return(template)
+
+      expect(subject.template_ready?(pool, redis)).to be true
+    end
+
+    it 'returns false when configured and prepared templates do not match' do
+      expect(redis).to receive(:hget).with('vmpooler__template__prepared', poolname).and_return('template3')
+
+      expect(subject.template_ready?(pool, redis)).to be false
+    end
+  end
+
+  describe '#is_integer?' do
+    it 'returns true when input is an integer' do
+      expect(subject.is_integer? 4).to be true
+    end
+
+    it 'returns true when input is a string containing an integer' do
+      expect(subject.is_integer? '4').to be true
+    end
+
+    it 'returns false when input is a string containing word characters' do
+      expect(subject.is_integer? 'four').to be false
+    end
+  end
+
 end

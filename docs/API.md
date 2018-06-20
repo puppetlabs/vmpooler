@@ -1,8 +1,17 @@
-### API
+# Table of contents
+1. [API](#API)
+2. [Token operations](#token)
+3. [VM operations](#vmops)
+4. [Add disks](#adddisks)
+5. [VM snapshots](#vmsnapshots)
+6. [Status and metrics](#statusmetrics)
+7. [Pool configuration](#poolconfig)
+
+### API <a name="API"></a>
 
 vmpooler provides a REST API for VM management.  The following examples use `curl` for communication.
 
-#### Token operations
+#### Token operations <a name="token"></a>
 
 Token-based authentication can be used when requesting or modifying VMs.  The `/token` route can be used to create, query, or delete tokens.  See the provided YAML configuration example, [vmpooler.yaml.example](vmpooler.yaml.example), for information on configuring an authentication store to use when performing token operations.
 
@@ -76,7 +85,7 @@ Enter host password for user 'jdoe':
 }
 ```
 
-#### VM operations
+#### VM operations <a name="vmops"></a>
 
 ##### GET /vm
 
@@ -230,7 +239,7 @@ $ curl -X DELETE --url vmpooler.company.com/api/v1/vm/fq6qlpjlsskycq6
 }
 ```
 
-#### Adding additional disk(s)
+#### Adding additional disk(s) <a name="adddisks"></a>
 
 ##### POST /vm/&lt;hostname&gt;/disk/&lt;size&gt;
 
@@ -270,7 +279,7 @@ $ curl --url vmpooler.company.com/api/v1/vm/fq6qlpjlsskycq6
 
 ````
 
-#### VM snapshots
+#### VM snapshots <a name="vmsnapshots"></a>
 
 ##### POST /vm/&lt;hostname&gt;/snapshot
 
@@ -322,7 +331,7 @@ $ curl X POST -H X-AUTH-TOKEN:a9znth9dn01t416hrguu56ze37t790bl --url vmpooler.co
 }
 ````
 
-#### Status and metrics
+#### Status and metrics <a name="statusmetrics"></a>
 
 ##### GET /status
 
@@ -538,5 +547,99 @@ $ curl -G -d 'from=2015-03-10' -d 'to=2015-03-11' --url vmpooler.company.com/api
       "tag": { }
     }
   ]
+}
+```
+
+#### Managing pool configuration via API <a name="poolconfig"></a>
+
+##### GET /config
+
+Returns the running pool configuration
+
+Responses:
+* 200 - OK
+* 404 - No configuration found
+```
+$ curl https://vmpooler.company.com/api/v1/config
+```
+```json
+{
+  "pool_configuration": [
+    {
+      "name": "redhat-7-x86_64",
+      "template": "templates/redhat-7.2-x86_64-0.0.3",
+      "folder": "vmpooler/redhat-7-x86_64",
+      "datastore": "stor1",
+      "size": 1,
+      "datacenter": "dc1",
+      "provider": "vsphere",
+      "capacity": 1,
+      "major": "redhat",
+      "template_ready": true
+    }
+  ],
+  "status": {
+    "ok": true
+  }
+}
+```
+
+Note: to enable poolsize and pooltemplate config endpoints it is necessary to set 'experimental_features: true' in your vmpooler configuration. A 405 is returned when you attempt to interact with these endpoints when this configuration option is not set.
+
+##### POST /config/poolsize
+
+Change pool size without having to restart the service.
+
+All pool template changes requested must be for pools that exist in the vmpooler configuration running, or a 404 code will be returned
+
+When a pool size is changed due to the configuration posted a 201 status will be returned. When the pool configuration is valid, but will not result in any changes, 200 is returned.
+
+Pool size configuration changes persist through application restarts, and take precedence over a pool size value configured in the pool configuration provided when the application starts. This persistence is dependent on redis. So, if the redis data is lost then the configuration updates revert to those provided at startup at the next application start.
+
+An authentication token is required in order to change pool configuration when authentication is configured.
+Responses:
+* 200 - No changes required
+* 201 - Changes made on at least one pool with changes requested
+* 400 - An invalid configuration was provided causing requested changes to fail
+* 404 - An unknown error occurred
+* 405 - The endpoint is disabled because experimental features are disabled
+```
+$ curl -X POST -H "Content-Type: application/json" -d '{"debian-7-i386":"2","debian-7-x86_64":"1"}' --url https://vmpooler.company.com/api/v1/config/poolsize
+```
+```json
+{
+  "ok": true
+}
+```
+
+##### POST /config/pooltemplate
+
+Change the template configured for a pool, and replenish the pool with instances built from the new template.
+
+All pool template changes requested must be for pools that exist in the vmpooler configuration running, or a 404 code will be returned
+
+When a pool template is changed due to the configuration posted a 201 status will be returned. When the pool configuration is valid, but will not result in any changes, 200 is returned.
+
+A pool template being updated will cause the following actions, which are logged in vmpooler.log:
+* Destroy all instances for the pool template being updated that are in the ready and pending state
+* Halt repopulating the pool while creating template deltas for the newly configured template
+* Unblock pool population and let the pool replenish with instances based on the newly configured template
+
+Pool template changes persist through application restarts, and take precedence over a pool template configured in the pool configuration provided when the application starts. This persistence is dependent on redis. As a result, if the redis data is lost then the configuration values revert to those provided at startup at the next application start.
+
+An authentication token is required in order to change pool configuration when authentication is configured.
+
+Responses:
+* 200 - No changes required
+* 201 - Changes made on at least one pool with changes requested
+* 400 - An invalid configuration was provided causing requested changes to fail
+* 404 - An unknown error occurred
+* 405 - The endpoint is disabled because experimental features are disabled
+```
+$ curl -X POST -H "Content-Type: application/json" -d '{"debian-7-i386":"templates/debian-7-i386"}' --url https://vmpooler.company.com/api/v1/config/pooltemplate
+```
+```json
+{
+  "ok": true
 }
 ```

@@ -120,6 +120,74 @@ module Vmpooler
       result
     end
 
+    def update_pool_size(payload)
+      result = { 'ok' => false }
+
+      pool_index = pool_index(pools)
+      pools_updated = 0
+      sync_pool_sizes
+
+      payload.each do |poolname, size|
+        unless pools[pool_index[poolname]]['size'] == size.to_i
+          pools[pool_index[poolname]]['size'] = size.to_i
+          backend.hset('vmpooler__config__poolsize', poolname, size)
+          pools_updated += 1
+          status 201
+        end
+      end
+      status 200 unless pools_updated > 0
+      result['ok'] = true
+      result
+    end
+
+    def update_pool_template(payload)
+      result = { 'ok' => false }
+
+      pool_index = pool_index(pools)
+      pools_updated = 0
+      sync_pool_templates
+
+      payload.each do |poolname, template|
+        unless pools[pool_index[poolname]]['template'] == template
+          pools[pool_index[poolname]]['template'] = template
+          backend.hset('vmpooler__config__template', poolname, template)
+          pools_updated += 1
+          status 201
+        end
+      end
+      status 200 unless pools_updated > 0
+      result['ok'] = true
+      result
+    end
+
+    def sync_pool_templates
+      pool_index = pool_index(pools)
+      template_configs = backend.hgetall('vmpooler__config__template')
+      unless template_configs.nil?
+        template_configs.each do |poolname, template|
+          if pool_index.include? poolname
+            unless pools[pool_index[poolname]]['template'] == template
+              pools[pool_index[poolname]]['template'] = template
+            end
+          end
+        end
+      end
+    end
+
+    def sync_pool_sizes
+      pool_index = pool_index(pools)
+      poolsize_configs = backend.hgetall('vmpooler__config__poolsize')
+      unless poolsize_configs.nil?
+        poolsize_configs.each do |poolname, size|
+          if pool_index.include? poolname
+            unless pools[pool_index[poolname]]['size'] == size.to_i
+              pools[pool_index[poolname]]['size'] == size.to_i
+            end
+          end
+        end
+      end
+    end
+
     # Provide run-time statistics
     #
     # Example:
@@ -195,6 +263,8 @@ module Vmpooler
           message: 'Battle station fully armed and operational.'
         }
       }
+
+      sync_pool_sizes
 
       result[:capacity] = get_capacity_metrics(pools, backend) unless views and not views.include?("capacity")
       result[:queue] = get_queue_metrics(pools, backend) unless views and not views.include?("queue")
@@ -502,6 +572,30 @@ module Vmpooler
       invalid
     end
 
+    def invalid_template_or_size(payload)
+      invalid = []
+      payload.each do |pool, size|
+        invalid << pool unless pool_exists?(pool)
+        unless is_integer?(size)
+          invalid << pool
+          next
+        end
+        invalid << pool unless Integer(size) >= 0
+      end
+      invalid
+    end
+
+    def invalid_template_or_path(payload)
+      invalid = []
+      payload.each do |pool, template|
+        invalid << pool unless pool_exists?(pool)
+        invalid << pool unless template.include? '/'
+        invalid << pool if template[0] == '/'
+        invalid << pool if template[-1] == '/'
+      end
+      invalid
+    end
+
     post "#{api_prefix}/vm/:template/?" do
       content_type :json
       result = { 'ok' => false }
@@ -745,6 +839,95 @@ module Vmpooler
         result['ok'] = true
       end
 
+      JSON.pretty_generate(result)
+    end
+
+    post "#{api_prefix}/config/poolsize/?" do
+      content_type :json
+      result = { 'ok' => false }
+
+      if config['experimental_features']
+        need_token! if Vmpooler::API.settings.config[:auth]
+
+        payload = JSON.parse(request.body.read)
+
+        if payload
+          invalid = invalid_template_or_size(payload)
+          if invalid.empty?
+            result = update_pool_size(payload)
+          else
+            invalid.each do |bad_template|
+              metrics.increment("config.invalid.#{bad_template}")
+            end
+            result[:bad_templates] = invalid
+            status 400
+          end
+        else
+          metrics.increment('config.invalid.unknown')
+          status 404
+        end
+      else
+        status 405
+      end
+
+      JSON.pretty_generate(result)
+    end
+
+    post "#{api_prefix}/config/pooltemplate/?" do
+      content_type :json
+      result = { 'ok' => false }
+
+      if config['experimental_features']
+        need_token! if Vmpooler::API.settings.config[:auth]
+
+        payload = JSON.parse(request.body.read)
+
+        if payload
+          invalid = invalid_template_or_path(payload)
+          if invalid.empty?
+            result = update_pool_template(payload)
+          else
+            invalid.each do |bad_template|
+              metrics.increment("config.invalid.#{bad_template}")
+            end
+            result[:bad_templates] = invalid
+            status 400
+          end
+        else
+          metrics.increment('config.invalid.unknown')
+          status 404
+        end
+      else
+        status 405
+      end
+
+      JSON.pretty_generate(result)
+    end
+
+    get "#{api_prefix}/config/?" do
+      content_type :json
+      result = { 'ok' => false }
+      status 404
+
+      if pools
+        sync_pool_sizes
+        sync_pool_templates
+
+        pool_configuration = []
+        pools.each do |pool|
+          pool['template_ready'] = template_ready?(pool, backend)
+          pool_configuration << pool
+        end
+
+        result = {
+          pool_configuration: pool_configuration,
+          status: {
+            ok: true
+          }
+        }
+
+        status 200
+      end
       JSON.pretty_generate(result)
     end
   end

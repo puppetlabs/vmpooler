@@ -378,6 +378,29 @@ module Vmpooler
         result
       end
 
+      def pool_index(pools)
+        pools_hash = {}
+        index = 0
+        for pool in pools
+          pools_hash[pool['name']] = index
+          index += 1
+        end
+        pools_hash
+      end
+
+      def template_ready?(pool, backend)
+        prepared_template = backend.hget('vmpooler__template__prepared', pool['name'])
+        return false if prepared_template.nil?
+        return true if pool['template'] == prepared_template
+        return false
+      end
+
+      def is_integer?(x)
+        Integer(x)
+        true
+      rescue
+        false
+      end
     end
   end
 end
