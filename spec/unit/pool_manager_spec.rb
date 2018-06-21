@@ -583,6 +583,7 @@ EOT
 
   describe '#_clone_vm' do
     let (:pool_object) { { 'name' => pool } }
+    let (:redis_ttl) { 1 }
 
     before do
       expect(subject).not_to be_nil
@@ -593,6 +594,8 @@ EOT
 ---
 :config:
   prefix: "prefix"
+:redis:
+  ttl: #{redis_ttl}
 EOT
       )
     }
@@ -662,6 +665,11 @@ EOT
         expect(redis.get('vmpooler__tasks__clone')).to eq('2')
         expect{subject._clone_vm(pool_object,provider)}.to raise_error(/MockError/)
         expect(redis.get('vmpooler__tasks__clone')).to eq('1')
+      end
+
+      it 'should expire the vm metadata' do
+        expect(redis).to receive(:expire)
+        expect{subject._clone_vm(pool_object,provider)}.to raise_error(/MockError/)
       end
 
       it 'should raise the error' do

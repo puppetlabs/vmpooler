@@ -245,7 +245,9 @@ module Vmpooler
 
         $metrics.timing("clone.#{pool_name}", finish)
       rescue => _err
-        $redis.srem('vmpooler__pending__' + pool_name, new_vmname)
+        $redis.srem("vmpooler__pending__#{pool_name}", new_vmname)
+        expiration_ttl = $config[:redis]['data_ttl'].to_i * 60 * 60
+        $redis.expire("vmpooler__vm__#{new_vmname}", expiration_ttl)
         raise _err
       ensure
         $redis.decr('vmpooler__tasks__clone')
