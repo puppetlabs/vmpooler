@@ -1,16 +1,6 @@
 require 'spec_helper'
 require 'rack/test'
 
-module Vmpooler
-  class API
-    module Helpers
-      def authenticate(auth, username_str, password_str)
-        username_str == 'admin' and password_str == 's3cr3t'
-      end
-    end
-  end
-end
-
 def has_set_tag?(vm, tag, value)
   value == redis.hget("vmpooler__vm__#{vm}", "tag:#{tag}")
 end

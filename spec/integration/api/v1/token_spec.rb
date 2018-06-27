@@ -1,16 +1,6 @@
 require 'spec_helper'
 require 'rack/test'
 
-module Vmpooler
-  class API
-    module Helpers
-      def authenticate(auth, username_str, password_str)
-        username_str == 'admin' and password_str == 's3cr3t'
-      end
-    end
-  end
-end
-
 describe Vmpooler::API::V1 do
   include Rack::Test::Methods
 
@@ -39,7 +29,15 @@ describe Vmpooler::API::V1 do
       end
 
       context '(auth configured)' do
-        let(:config) { { auth: true } }
+        let(:config) {
+          {
+            auth: {
+              'provider' => 'dummy'
+            }
+          }
+        }
+        let(:username_str) { 'admin' }
+        let(:password_str) { 's3cr3t' }
 
         it 'returns a 401 if not authed' do
           get "#{prefix}/token"
@@ -69,7 +67,13 @@ describe Vmpooler::API::V1 do
       end
 
       context '(auth configured)' do
-        let(:config) { { auth: true } }
+        let(:config) {
+          {
+            auth: {
+              'provider' => 'dummy'
+            }
+          }
+        }
 
         it 'returns a 401 if not authed' do
           post "#{prefix}/token"
@@ -146,7 +150,13 @@ describe Vmpooler::API::V1 do
       end
 
       context '(auth configured)' do
-        let(:config) { { auth: true } }
+        let(:config) {
+          {
+            auth: {
+              'provider' => 'dummy'
+            }
+          }
+        }
 
         it 'returns a 401 if not authed' do
           delete "#{prefix}/token/this"
