@@ -4,6 +4,7 @@ module Vmpooler
   require 'date'
   require 'json'
   require 'open-uri'
+  require 'net/ldap'
   require 'rbvmomi'
   require 'redis'
   require 'sinatra/base'

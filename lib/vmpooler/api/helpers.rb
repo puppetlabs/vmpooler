@@ -55,9 +55,6 @@ module Vmpooler
       end
 
       def authenticate_ldap(port, host, user_object, base, username_str, password_str)
-        require 'rubygems'
-        require 'net/ldap'
-
         ldap = Net::LDAP.new(
           :host => host,
           :port => port,
