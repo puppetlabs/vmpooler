@@ -97,7 +97,7 @@ EOT
 
     context 'Given a pool folder that is missing' do
       before(:each) do
-        expect(subject).to receive(:find_folder).with(pool_config['folder'],connection,datacenter_name).and_return(nil)
+        expect(subject).to receive(:find_folder).with(poolname,connection).and_return(nil)
       end
 
       it 'should get a connection' do
@@ -115,7 +115,7 @@ EOT
 
     context 'Given an empty pool folder' do
       before(:each) do
-        expect(subject).to receive(:find_folder).with(pool_config['folder'],connection,datacenter_name).and_return(folder_object)
+        expect(subject).to receive(:find_folder).with(poolname,connection).and_return(folder_object)
       end
 
       it 'should get a connection' do
@@ -144,7 +144,7 @@ EOT
           folder_object.childEntity << mock_vm
         end
 
-        expect(subject).to receive(:find_folder).with(pool_config['folder'],connection,datacenter_name).and_return(folder_object)
+        expect(subject).to receive(:find_folder).with(poolname,connection).and_return(folder_object)
       end
 
       it 'should get a connection' do
@@ -338,11 +338,13 @@ EOT
     end
 
     context 'Given a successful creation' do
+      let(:folder_object) { mock_RbVmomi_VIM_Folder({ :name => 'pool1'}) }
       before(:each) do
         template_vm = new_template_object
         allow(subject).to receive(:find_template_vm).and_return(new_template_object)
         allow(template_vm).to receive(:CloneVM_Task).and_return(clone_vm_task)
         allow(clone_vm_task).to receive(:wait_for_completion).and_return(new_vm_object)
+        allow(subject).to receive(:find_folder).and_return(folder_object)
       end
 
       it 'should return a hash' do
@@ -1467,100 +1469,48 @@ EOT
 
   describe '#find_folder' do
     let(:foldername) { 'folder'}
-    let(:missing_foldername) { 'missing_folder'}
 
     context 'with no folder hierarchy' do
-      let(:connection_options) {{
-        :serviceContent => {
-          :datacenters => [
-            { :name => datacenter_name }
-          ]
-        }
-      }}
 
       it 'should return nil if the folder is not found' do
-        expect(subject.find_folder(missing_foldername,connection,datacenter_name)).to be_nil
+        allow(connection.searchIndex).to receive(:FindByInventoryPath).and_return(nil)
+        expect(subject.find_folder(poolname,connection)).to be_nil
       end
     end
 
     context 'with a single layer folder hierarchy' do
-      let(:connection_options) {{
-        :serviceContent => {
-          :datacenters => [
-            { :name => datacenter_name,
-              :vmfolder_tree => {
-                'folder1' => nil,
-                'folder2' => nil,
-                foldername => nil,
-                'folder3' => nil,
-              }
-            }
-          ]
-        }
-      }}
+      let(:folder_object) { mock_RbVmomi_VIM_Folder({ :name => foldername}) }
 
       it 'should return the folder when found' do
-        result = subject.find_folder(foldername,connection,datacenter_name)
-        expect(result).to_not be_nil
+        allow(connection.searchIndex).to receive(:FindByInventoryPath).and_return(folder_object)
+        allow(folder_object).to receive(:class).and_return(RbVmomi::VIM::Folder)
+        result = subject.find_folder(poolname,connection)
         expect(result.name).to eq(foldername)
       end
 
       it 'should return nil if the folder is not found' do
-        expect(subject.find_folder(missing_foldername,connection,datacenter_name)).to be_nil
+        allow(connection.searchIndex).to receive(:FindByInventoryPath).and_return(nil)
+        expect(subject.find_folder(poolname,connection)).to be_nil
       end
     end
 
     context 'with a single layer folder hierarchy in many datacenters' do
-      let(:connection_options) {{
-        :serviceContent => {
-          :datacenters => [
-            { :name => 'AnotherDC',
-              :vmfolder_tree => {
-                'folder1' => nil,
-                'folder2' => nil,
-                'folder3' => nil,
-              }
-            },
-            { :name => datacenter_name,
-              :vmfolder_tree => {
-                'folder4' => nil,
-                'folder5' => nil,
-                foldername => nil,
-                'folder6' => nil,
-              }
-            }
-          ]
-        }
-      }}
+      let(:folder_object) { mock_RbVmomi_VIM_Folder({ :name => foldername}) }
 
       it 'should return the folder when found' do
-        result = subject.find_folder(foldername,connection,datacenter_name)
-        expect(result).to_not be_nil
+        allow(connection.searchIndex).to receive(:FindByInventoryPath).and_return(folder_object)
+        allow(folder_object).to receive(:class).and_return(RbVmomi::VIM::Folder)
+        result = subject.find_folder(poolname,connection)
         expect(result.name).to eq(foldername)
       end
 
       it 'should return nil if the folder is not found' do
-        expect(subject.find_folder(missing_foldername,connection,'AnotherDC')).to be_nil
+        allow(connection.searchIndex).to receive(:FindByInventoryPath).and_return(nil)
+        expect(subject.find_folder(poolname,connection)).to be_nil
       end
     end
 
     context 'with a VM with the same name as a folder in a single layer folder hierarchy' do
-      # The folder hierarchy should include a VM with same name as folder, and appear BEFORE the
-      # folder in the child list.
-      let(:connection_options) {{
-        :serviceContent => {
-          :datacenters => [
-            { :name => datacenter_name,
-              :vmfolder_tree => {
-                'folder1' => nil,
-                'vm1' => { :object_type => 'vm', :name => foldername },
-                foldername => nil,
-                'folder3' => nil,
-              }
-            }
-          ]
-        }
-      }}
 
       it 'should not return a VM' do
         pending('https://github.com/puppetlabs/vmpooler/issues/204')
@@ -1572,77 +1522,19 @@ EOT
     end
 
     context 'with a multi layer folder hierarchy' do
-      let(:end_folder_name) { 'folder'}
-      let(:foldername) { 'folder2/folder4/' + end_folder_name}
-      let(:connection_options) {{
-        :serviceContent => {
-          :datacenters => [
-            { :name => datacenter_name,
-              :vmfolder_tree => {
-                'folder1' => nil,
-                'folder2' => {
-                  :children => {
-                    'folder3' => nil,
-                    'folder4' => {
-                      :children => {
-                        end_folder_name => nil,
-                      },
-                    }
-                  },
-                },
-                'folder5' => nil,
-              }
-            }
-          ]
-        }
-      }}
+      let(:foldername) { 'folder2/folder4/folder' }
+      let(:folder_object) { mock_RbVmomi_VIM_Folder({ :name => foldername}) }
 
       it 'should return the folder when found' do
-        result = subject.find_folder(foldername,connection,datacenter_name)
-        expect(result).to_not be_nil
-        expect(result.name).to eq(end_folder_name)
+        allow(connection.searchIndex).to receive(:FindByInventoryPath).and_return(folder_object)
+        allow(folder_object).to receive(:class).and_return(RbVmomi::VIM::Folder)
+        result = subject.find_folder(poolname,connection)
+        expect(result.name).to eq(foldername)
       end
 
       it 'should return nil if the folder is not found' do
-        expect(subject.find_folder(missing_foldername,connection,datacenter_name)).to be_nil
-      end
-    end
-
-    context 'with a VM with the same name as a folder in a multi layer folder hierarchy' do
-      # The folder hierarchy should include a VM with same name as folder mid-hierarchy (i.e. not at the end level)
-      # and appear BEFORE the folder in the child list.
-      let(:end_folder_name) { 'folder'}
-      let(:foldername) { 'folder2/folder4/' + end_folder_name}
-      let(:connection_options) {{
-        :serviceContent => {
-          :datacenters => [
-            { :name => datacenter_name,
-              :vmfolder_tree => {
-                'folder1' => nil,
-                'folder2' => {
-                  :children => {
-                    'folder3' => nil,
-                    'vm1' => { :object_type => 'vm', :name => 'folder4' },
-                    'folder4' => {
-                      :children => {
-                        end_folder_name => nil,
-                      },
-                    }
-                  },
-                },
-                'folder5' => nil,
-              }
-            }
-          ]
-        }
-      }}
-
-      it 'should not return a VM' do
-        pending('https://github.com/puppetlabs/vmpooler/issues/204')
-        result = subject.find_folder(foldername,connection,datacenter_name)
-        expect(result).to_not be_nil
-        expect(result.name).to eq(foldername)
-        expect(result.is_a? RbVmomi::VIM::VirtualMachine,datacenter_name).to be false
+        allow(connection.searchIndex).to receive(:FindByInventoryPath).and_return(nil)
+        expect(subject.find_folder(poolname,connection)).to be_nil
       end
     end
   end

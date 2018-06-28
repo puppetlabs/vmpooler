@@ -47,7 +47,7 @@ module Vmpooler
           @connection_pool.with_metrics do |pool_object|
             connection = ensured_vsphere_connection(pool_object)
             foldername = pool_config(pool_name)['folder']
-            folder_object = find_folder(foldername, connection, get_target_datacenter_from_config(pool_name))
+            folder_object = find_folder(pool_name, connection)
 
             return vms if folder_object.nil?
 
@@ -232,7 +232,7 @@ module Vmpooler
             )
 
             begin
-              vm_target_folder = find_folder(target_folder_path, connection, target_datacenter_name)
+              vm_target_folder = find_folder(pool_name, connection)
               if vm_target_folder.nil? and @config[:config].key?('create_folders') and @config[:config]['create_folders'] == true
                 vm_target_folder = create_folder(connection, target_folder_path, target_datacenter_name)
               end
@@ -576,24 +576,28 @@ module Vmpooler
           available_unit_numbers.sort[0]
         end
 
-        # Finds the first reference to and returns the folder object for a foldername and an optional datacenter
+        # Finds a folder object by inventory path
         # Params:
-        # +foldername+:: the folder to find (optionally with / in which case the foldername will be split and each element searched for)
+        # +pool_name+:: the pool to find the folder for
         # +connection+:: the vsphere connection object
-        # +datacentername+:: the datacenter where the folder resides, or nil to return the first datacenter found
-        # returns a ManagedObjectReference for the first folder found or nil if none found
-        def find_folder(foldername, connection, datacentername)
-          datacenter = connection.serviceInstance.find_datacenter(datacentername)
-          raise("Datacenter #{datacentername} does not exist") if datacenter.nil?
-          base = datacenter.vmFolder
+        # returns a ManagedObjectReference for the folder found or nil if not found
+        def find_folder(pool_name, connection)
+          # Find a folder by its inventory path and return the object
+          # Returns nil when the object found is not a folder
+          pool_configuration = pool_config(pool_name)
+          return nil if pool_configuration.nil?
+          folder = pool_configuration['folder']
+          datacenter = get_target_datacenter_from_config(pool_name)
+          return nil if datacenter.nil?
 
-          folders = foldername.split('/')
-          folders.each do |folder|
-            raise("Unexpected object type encountered (#{base.class}) while finding folder") unless base.is_a? RbVmomi::VIM::Folder
-            base = base.childEntity.find { |f| f.name == folder }
-          end
+          propSpecs = {
+            :entity => self,
+            :inventoryPath => "#{datacenter}/vm/#{folder}"
+          }
 
-          base
+          folder_object = connection.searchIndex.FindByInventoryPath(propSpecs)
+          return nil unless folder_object.class == RbVmomi::VIM::Folder
+          folder_object
         end
 
         # Returns an array containing cumulative CPU and memory utilization of a host, and its object reference
