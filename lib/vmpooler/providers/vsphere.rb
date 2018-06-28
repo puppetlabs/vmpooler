@@ -168,18 +168,7 @@ module Vmpooler
             vm_object = find_vm(pool_name, vm_name, connection)
             return vm_hash if vm_object.nil?
 
-            vm_folder_path = get_vm_folder_path(vm_object)
-            # Find the pool name based on the folder path
-            pool_name = nil
-            template_name = nil
-            global_config[:pools].each do |pool|
-              if pool['folder'] == vm_folder_path
-                pool_name = pool['name']
-                template_name = pool['template']
-              end
-            end
-
-            vm_hash = generate_vm_hash(vm_object, template_name, pool_name)
+            vm_hash = generate_vm_hash(vm_object, pool_name)
           end
           vm_hash
         end
@@ -262,7 +251,7 @@ module Vmpooler
               spec: clone_spec
             ).wait_for_completion
 
-            vm_hash = generate_vm_hash(new_vm_object, template_path, pool_name)
+            vm_hash = generate_vm_hash(new_vm_object, pool_name)
           end
           vm_hash
         end
@@ -365,15 +354,22 @@ module Vmpooler
           nil
         end
 
-        def generate_vm_hash(vm_object, template_name, pool_name)
-          hash = { 'name' => nil, 'hostname' => nil, 'template' => nil, 'poolname' => nil, 'boottime' => nil, 'powerstate' => nil }
+        def generate_vm_hash(vm_object, pool_name)
+          pool_configuration = pool_config(pool_name)
+          return nil if pool_configuration.nil?
 
-          hash['name']     = vm_object.name
-          hash['hostname'] = vm_object.summary.guest.hostName if vm_object.summary && vm_object.summary.guest && vm_object.summary.guest.hostName
-          hash['template'] = template_name
-          hash['poolname'] = pool_name
-          hash['boottime']   = vm_object.runtime.bootTime if vm_object.runtime && vm_object.runtime.bootTime
-          hash['powerstate'] = vm_object.runtime.powerState if vm_object.runtime && vm_object.runtime.powerState
+          hostname = vm_object.summary.guest.hostName if vm_object.summary && vm_object.summary.guest && vm_object.summary.guest.hostName
+          boottime = vm_object.runtime.bootTime if vm_object.runtime && vm_object.runtime.bootTime
+          powerstate = vm_object.runtime.powerState if vm_object.runtime && vm_object.runtime.powerState
+
+          hash = {
+            'name' => vm_object.name,
+            'hostname' => hostname,
+            'template' => pool_configuration['template'],
+            'poolname' => pool_name,
+            'boottime' => boottime,
+            'powerstate' => powerstate,
+          }
 
           hash
         end

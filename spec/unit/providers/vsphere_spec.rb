@@ -190,7 +190,7 @@ EOT
         expect(result['name']).to eq(vmname)
       end
 
-      ['hostname','template','poolname','boottime','powerstate'].each do |testcase|
+      ['hostname','boottime','powerstate'].each do |testcase|
         it "should return nil for #{testcase}" do
           result = subject.get_vm(poolname,vmname)
 
