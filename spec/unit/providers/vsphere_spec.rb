@@ -97,7 +97,7 @@ EOT
 
     context 'Given a pool folder that is missing' do
       before(:each) do
-        expect(subject).to receive(:find_folder).with(poolname,connection).and_return(nil)
+        expect(subject).to receive(:find_vm_folder).with(poolname,connection).and_return(nil)
       end
 
       it 'should get a connection' do
@@ -115,7 +115,7 @@ EOT
 
     context 'Given an empty pool folder' do
       before(:each) do
-        expect(subject).to receive(:find_folder).with(poolname,connection).and_return(folder_object)
+        expect(subject).to receive(:find_vm_folder).with(poolname,connection).and_return(folder_object)
       end
 
       it 'should get a connection' do
@@ -144,7 +144,7 @@ EOT
           folder_object.childEntity << mock_vm
         end
 
-        expect(subject).to receive(:find_folder).with(poolname,connection).and_return(folder_object)
+        expect(subject).to receive(:find_vm_folder).with(poolname,connection).and_return(folder_object)
       end
 
       it 'should get a connection' do
@@ -344,7 +344,7 @@ EOT
         allow(subject).to receive(:find_template_vm).and_return(new_template_object)
         allow(template_vm).to receive(:CloneVM_Task).and_return(clone_vm_task)
         allow(clone_vm_task).to receive(:wait_for_completion).and_return(new_vm_object)
-        allow(subject).to receive(:find_folder).and_return(folder_object)
+        allow(subject).to receive(:find_vm_folder).and_return(folder_object)
       end
 
       it 'should return a hash' do
@@ -1467,14 +1467,14 @@ EOT
     end
   end
 
-  describe '#find_folder' do
+  describe '#find_vm_folder' do
     let(:foldername) { 'folder'}
 
     context 'with no folder hierarchy' do
 
       it 'should return nil if the folder is not found' do
         allow(connection.searchIndex).to receive(:FindByInventoryPath).and_return(nil)
-        expect(subject.find_folder(poolname,connection)).to be_nil
+        expect(subject.find_vm_folder(poolname,connection)).to be_nil
       end
     end
 
@@ -1484,13 +1484,13 @@ EOT
       it 'should return the folder when found' do
         allow(connection.searchIndex).to receive(:FindByInventoryPath).and_return(folder_object)
         allow(folder_object).to receive(:class).and_return(RbVmomi::VIM::Folder)
-        result = subject.find_folder(poolname,connection)
+        result = subject.find_vm_folder(poolname,connection)
         expect(result.name).to eq(foldername)
       end
 
       it 'should return nil if the folder is not found' do
         allow(connection.searchIndex).to receive(:FindByInventoryPath).and_return(nil)
-        expect(subject.find_folder(poolname,connection)).to be_nil
+        expect(subject.find_vm_folder(poolname,connection)).to be_nil
       end
     end
 
@@ -1500,13 +1500,13 @@ EOT
       it 'should return the folder when found' do
         allow(connection.searchIndex).to receive(:FindByInventoryPath).and_return(folder_object)
         allow(folder_object).to receive(:class).and_return(RbVmomi::VIM::Folder)
-        result = subject.find_folder(poolname,connection)
+        result = subject.find_vm_folder(poolname,connection)
         expect(result.name).to eq(foldername)
       end
 
       it 'should return nil if the folder is not found' do
         allow(connection.searchIndex).to receive(:FindByInventoryPath).and_return(nil)
-        expect(subject.find_folder(poolname,connection)).to be_nil
+        expect(subject.find_vm_folder(poolname,connection)).to be_nil
       end
     end
 
@@ -1514,7 +1514,7 @@ EOT
 
       it 'should not return a VM' do
         pending('https://github.com/puppetlabs/vmpooler/issues/204')
-        result = subject.find_folder(foldername,connection,datacenter_name)
+        result = subject.find_vm_folder(foldername,connection,datacenter_name)
         expect(result).to_not be_nil
         expect(result.name).to eq(foldername)
         expect(result.is_a? RbVmomi::VIM::VirtualMachine).to be false
@@ -1528,13 +1528,13 @@ EOT
       it 'should return the folder when found' do
         allow(connection.searchIndex).to receive(:FindByInventoryPath).and_return(folder_object)
         allow(folder_object).to receive(:class).and_return(RbVmomi::VIM::Folder)
-        result = subject.find_folder(poolname,connection)
+        result = subject.find_vm_folder(poolname,connection)
         expect(result.name).to eq(foldername)
       end
 
       it 'should return nil if the folder is not found' do
         allow(connection.searchIndex).to receive(:FindByInventoryPath).and_return(nil)
-        expect(subject.find_folder(poolname,connection)).to be_nil
+        expect(subject.find_vm_folder(poolname,connection)).to be_nil
       end
     end
   end

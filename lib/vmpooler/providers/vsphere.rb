@@ -46,8 +46,7 @@ module Vmpooler
           vms = []
           @connection_pool.with_metrics do |pool_object|
             connection = ensured_vsphere_connection(pool_object)
-            foldername = pool_config(pool_name)['folder']
-            folder_object = find_folder(pool_name, connection)
+            folder_object = find_vm_folder(pool_name, connection)
 
             return vms if folder_object.nil?
 
@@ -232,7 +231,7 @@ module Vmpooler
             )
 
             begin
-              vm_target_folder = find_folder(pool_name, connection)
+              vm_target_folder = find_vm_folder(pool_name, connection)
               if vm_target_folder.nil? and @config[:config].key?('create_folders') and @config[:config]['create_folders'] == true
                 vm_target_folder = create_folder(connection, target_folder_path, target_datacenter_name)
               end
@@ -581,7 +580,7 @@ module Vmpooler
         # +pool_name+:: the pool to find the folder for
         # +connection+:: the vsphere connection object
         # returns a ManagedObjectReference for the folder found or nil if not found
-        def find_folder(pool_name, connection)
+        def find_vm_folder(pool_name, connection)
           # Find a folder by its inventory path and return the object
           # Returns nil when the object found is not a folder
           pool_configuration = pool_config(pool_name)
