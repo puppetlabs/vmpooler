@@ -287,6 +287,54 @@ module Vmpooler
       end
     end
 
+    def purge_unused_vms_and_folders
+      global_purge = $config[:config]['purge_unconfigured_folders']
+      providers = $config[:providers].keys
+      providers.each do |provider|
+        provider_purge = $config[:providers][provider]['purge_unconfigured_folders']
+        provider_purge = global_purge if provider_purge.nil?
+        if provider_purge
+          Thread.new do
+            begin
+              purge_vms_and_folders($providers[provider.to_s])
+            rescue => err
+              $logger.log('s', "[!] failed while purging provider #{provider.to_s} VMs and folders with an error: #{err}")
+            end
+          end
+        end
+      end
+      return
+    end
+
+    # Return a list of pool folders
+    def pool_folders(provider)
+      provider_name = provider.name
+      folders = {}
+      $config[:pools].each do |pool|
+        next unless pool['provider'] == provider_name
+        folder_parts = pool['folder'].split('/')
+        datacenter = provider.get_target_datacenter_from_config(pool['name'])
+        folders[folder_parts.pop] = "#{datacenter}/vm/#{folder_parts.join('/')}"
+      end
+      folders
+    end
+
+    def get_base_folders(folders)
+      base = []
+      folders.each do |key, value|
+        base << value
+      end
+      base.uniq
+    end
+
+    def purge_vms_and_folders(provider)
+      provider_name = provider.name
+      configured_folders = pool_folders(provider)
+      base_folders = get_base_folders(configured_folders)
+      whitelist = $config[:providers][provider_name.to_sym]['folder_whitelist']
+      provider.purge_unconfigured_folders(base_folders, configured_folders, whitelist)
+    end
+
     def create_vm_disk(pool_name, vm, disk_size, provider)
       Thread.new do
         begin
@@ -960,6 +1008,8 @@ module Vmpooler
           raise
         end
       end
+
+      purge_unused_vms_and_folders
 
       loop_count = 1
       loop do

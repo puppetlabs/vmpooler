@@ -42,6 +42,109 @@ module Vmpooler
           'vsphere'
         end
 
+        def folder_configured?(folder_title, base_folder, configured_folders, whitelist)
+          if whitelist
+            return true if whitelist.include?(folder_title)
+          end
+          return false unless configured_folders.keys.include?(folder_title)
+          return false unless configured_folders[folder_title] == base_folder
+          return true
+        end
+
+        def destroy_vm_and_log(vm_name, vm_object, pool, data_ttl)
+          try = 0 if try.nil?
+          max_tries = 3
+          $redis.srem("vmpooler__completed__#{pool}", vm_name)
+          $redis.hdel("vmpooler__active__#{pool}", vm_name)
+          $redis.hset("vmpooler__vm__#{vm_name}", 'destroy', Time.now)
+
+          # Auto-expire metadata key
+          $redis.expire('vmpooler__vm__' + vm_name, (data_ttl * 60 * 60))
+
+          start = Time.now
+
+          if vm_object.is_a? RbVmomi::VIM::Folder
+            logger.log('s', "[!] [#{pool}] '#{vm_name}' is a folder, bailing on destroying")
+            raise('Expected VM, but received a folder object')
+          end
+          vm_object.PowerOffVM_Task.wait_for_completion if vm_object.runtime && vm_object.runtime.powerState && vm_object.runtime.powerState == 'poweredOn'
+          vm_object.Destroy_Task.wait_for_completion
+
+          finish = format('%.2f', Time.now - start)
+          logger.log('s', "[-] [#{pool}] '#{vm_name}' destroyed in #{finish} seconds")
+          metrics.timing("destroy.#{pool}", finish)
+        rescue RuntimeError
+          raise
+        rescue => err
+          try += 1
+          logger.log('s', "[!] [#{pool}] failed to destroy '#{vm_name}' with an error: #{err}")
+          try >= max_tries ? raise : retry
+        end
+
+        def destroy_folder_and_children(folder_object)
+          vms = {}
+          data_ttl = $config[:redis]['data_ttl'].to_i
+          folder_name = folder_object.name
+          unless folder_object.childEntity.count == 0
+            folder_object.childEntity.each do |vm|
+              vms[vm.name] = vm
+            end
+
+            vms.each do |vm_name, vm_object|
+              destroy_vm_and_log(vm_name, vm_object, folder_name, data_ttl)
+            end
+          end
+          destroy_folder(folder_object)
+        end
+
+        def destroy_folder(folder_object)
+          try = 0 if try.nil?
+          max_tries = 3
+          logger.log('s', "[-] [#{folder_object.name}] removing unconfigured folder")
+          folder_object.Destroy_Task.wait_for_completion
+        rescue
+          try += 1
+          try >= max_tries ? raise : retry
+        end
+
+        def purge_unconfigured_folders(base_folders, configured_folders, whitelist)
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool_object)
+
+            base_folders.each do |base_folder|
+              folder_children = get_folder_children(base_folder, connection)
+              unless folder_children.empty?
+                folder_children.each do |folder_hash|
+                  folder_hash.each do |folder_title, folder_object|
+                    unless folder_configured?(folder_title, base_folder, configured_folders, whitelist)
+                      destroy_folder_and_children(folder_object)
+                    end
+                  end
+                end
+              end
+            end
+          end
+        end
+
+        def get_folder_children(folder_name, connection)
+          folders = []
+
+          propSpecs = {
+            :entity => self,
+            :inventoryPath => folder_name
+          }
+          folder_object = connection.searchIndex.FindByInventoryPath(propSpecs)
+
+          return folders if folder_object.nil?
+
+          folder_object.childEntity.each do |folder|
+            next unless folder.is_a? RbVmomi::VIM::Folder
+            folders << { folder.name => folder }
+          end
+
+          folders
+        end
+
         def vms_in_pool(pool_name)
           vms = []
           @connection_pool.with_metrics do |pool_object|
