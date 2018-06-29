@@ -230,6 +230,7 @@ EOT
 
   describe '#check_ready_vm' do
     let(:ttl) { 0 }
+    let(:poolconfig) { config[:pools][0] }
 
     before do
       expect(subject).not_to be_nil
@@ -237,15 +238,16 @@ EOT
 
     it 'calls _check_ready_vm' do
       expect(Thread).to receive(:new).and_yield
-      expect(subject).to receive(:_check_ready_vm).with(vm, pool, ttl, provider)
+      expect(subject).to receive(:_check_ready_vm).with(vm, poolconfig, ttl, provider)
 
-      subject.check_ready_vm(vm, pool, ttl, provider)
+      subject.check_ready_vm(vm, poolconfig, ttl, provider)
     end
   end
 
   describe '#_check_ready_vm' do
     let(:ttl) { 0 }
     let(:host) { {} }
+    let(:poolconfig) { config[:pools][0] }
 
     before(:each) do
       create_ready_vm(pool,vm)
@@ -263,7 +265,7 @@ EOT
         check_stamp = (Time.now - 60).to_s
         redis.hset("vmpooler__vm__#{vm}", 'check', check_stamp)
         expect(provider).to receive(:get_vm).exactly(0).times
-        subject._check_ready_vm(vm, pool, ttl, provider)
+        subject._check_ready_vm(vm, poolconfig, ttl, provider)
         expect(redis.hget("vmpooler__vm__#{vm}", 'check')).to eq(check_stamp)
       end
     end
@@ -273,7 +275,7 @@ EOT
 
       it 'should set the current check timestamp' do
         expect(redis.hget("vmpooler__vm__#{vm}", 'check')).to be_nil
-        subject._check_ready_vm(vm, pool, ttl, provider)
+        subject._check_ready_vm(vm, poolconfig, ttl, provider)
         expect(redis.hget("vmpooler__vm__#{vm}", 'check')).to_not be_nil
       end
     end
@@ -286,7 +288,7 @@ EOT
 
       it 'should set the current check timestamp' do
         expect(redis.hget("vmpooler__vm__#{vm}", 'check')).to eq(last_check_date)
-        subject._check_ready_vm(vm, pool, ttl, provider)
+        subject._check_ready_vm(vm, poolconfig, ttl, provider)
         expect(redis.hget("vmpooler__vm__#{vm}", 'check')).to_not eq(last_check_date)
       end
 
@@ -296,35 +298,11 @@ EOT
         end
 
         it 'should only set the next check interval' do
-          subject._check_ready_vm(vm, pool, ttl, provider)
+          subject._check_ready_vm(vm, poolconfig, ttl, provider)
         end
       end
 
-      context 'is turned off' do
-
-        it 'should move the VM to the completed queue' do
-          expect(subject).to receive(:move_vm_queue).with(pool, vm, 'ready', 'completed', "is unreachable, removed from 'ready' queue")
-
-          subject._check_ready_vm(vm, pool, ttl, provider)
-        end
-
-        it 'should move the VM to the completed queue in Redis' do
-          expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(true)
-          expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(false)
-          subject._check_ready_vm(vm, pool, ttl, provider)
-          expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(false)
-          expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
-        end
-
-        it 'should log messages about being powered off' do
-          expect(provider).to receive(:vm_ready?).and_return(false)
-          expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' is unreachable, removed from 'ready' queue")
-
-          subject._check_ready_vm(vm, pool, ttl, provider)
-        end
-      end
-
-      context 'is turned on, with correct name and is not ready' do
+      context 'has correct name and is not ready' do
         before(:each) do
           expect(provider).to receive(:vm_ready?).with(pool, vm).and_return(false)
         end
@@ -332,13 +310,13 @@ EOT
         it 'should move the VM to the completed queue' do
           expect(redis).to receive(:smove).with("vmpooler__ready__#{pool}", "vmpooler__completed__#{pool}", vm)
 
-          subject._check_ready_vm(vm, pool, ttl, provider)
+          subject._check_ready_vm(vm, poolconfig, ttl, provider)
         end
 
         it 'should move the VM to the completed queue in Redis' do
           expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(true)
           expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(false)
-          subject._check_ready_vm(vm, pool, ttl, provider)
+          subject._check_ready_vm(vm, poolconfig, ttl, provider)
           expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(false)
           expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
         end
@@ -346,7 +324,63 @@ EOT
         it 'should log messages about being unreachable' do
           expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' is unreachable, removed from 'ready' queue")
 
-          subject._check_ready_vm(vm, pool, ttl, provider)
+          subject._check_ready_vm(vm, poolconfig, ttl, provider)
+        end
+      end
+
+      context 'with hostname mismatch checking enabled' do
+        before(:each) do
+          expect(provider).to receive(:get_vm).with(pool,vm).and_return(host)
+        end
+
+        context 'with a hostname mismatch' do
+          before(:each) do
+            host['hostname'] = 'different_name'
+          end
+
+          it 'should move the VM to the completed queue' do
+            expect(redis).to receive(:smove).with("vmpooler__ready__#{pool}", "vmpooler__completed__#{pool}", vm)
+
+            subject._check_ready_vm(vm, poolconfig, ttl, provider)
+          end
+
+          it 'should move the VM to the completed queue in Redis' do
+            expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(true)
+            expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(false)
+            subject._check_ready_vm(vm, poolconfig, ttl, provider)
+            expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(false)
+            expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
+          end
+
+          it 'should log messages about being misnamed' do
+            expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' has mismatched hostname, removed from 'ready' queue")
+
+            subject._check_ready_vm(vm, poolconfig, ttl, provider)
+          end
+        end
+      end
+
+      context 'with hostname mismatch checking disabled on the pool' do
+        before(:each) do
+          config[:pools][0]['check_hostname_for_mismatch'] = false
+        end
+
+        it 'should not run get_vm' do
+          expect(provider).to_not receive(:get_vm)
+
+          subject._check_ready_vm(vm, poolconfig, ttl, provider)
+        end
+      end
+
+      context 'with hostname mismatch checking disabled in config' do
+        before(:each) do
+          config[:config]['check_ready_vm_hostname_for_mismatch'] = false
+        end
+
+        it 'should not run get_vm' do
+          expect(provider).to_not receive(:get_vm)
+
+          subject._check_ready_vm(vm, poolconfig, ttl, provider)
         end
       end
     end
@@ -360,7 +394,7 @@ EOT
       it 'should return' do
         expect(subject).to receive(:vm_mutex).and_return(mutex)
 
-        expect(subject._check_ready_vm(vm, pool, ttl, provider)).to be_nil
+        expect(subject._check_ready_vm(vm, poolconfig, ttl, provider)).to be_nil
       end
     end
   end
@@ -2860,6 +2894,7 @@ EOT
     end
 
     context 'Ready VM in the inventory' do
+      let(:poolconfig) { config[:pools][0] }
       before(:each) do
         expect(provider).to receive(:vms_in_pool).with(pool).and_return(vm_response)
         allow(subject).to receive(:check_ready_vm)
@@ -2883,13 +2918,13 @@ EOT
         big_lifetime = 2000
 
         config[:pools][0]['ready_ttl'] = big_lifetime
-        expect(subject).to receive(:check_ready_vm).with(vm,pool,big_lifetime,provider)
+        expect(subject).to receive(:check_ready_vm).with(vm,poolconfig,big_lifetime,provider)
 
         subject._check_pool(pool_object,provider)
       end
 
       it 'should use a pool TTL of zero if none set' do
-        expect(subject).to receive(:check_ready_vm).with(vm,pool,0,provider)
+        expect(subject).to receive(:check_ready_vm).with(vm,poolconfig,0,provider)
 
         subject._check_pool(pool_object,provider)
       end

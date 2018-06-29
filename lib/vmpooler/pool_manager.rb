@@ -108,7 +108,7 @@ module Vmpooler
         begin
           _check_ready_vm(vm, pool, ttl, provider)
         rescue => err
-          $logger.log('s', "[!] [#{pool}] '#{vm}' failed while checking a ready vm : #{err}")
+          $logger.log('s', "[!] [#{pool['name']}] '#{vm}' failed while checking a ready vm : #{err}")
           raise
         end
       end
@@ -127,14 +127,27 @@ module Vmpooler
         if ttl > 0
           # host['boottime'] may be nil if host is not powered on
           if ((Time.now - host['boottime']) / 60).to_s[/^\d+\.\d{1}/].to_f > ttl
-            $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
+            $redis.smove('vmpooler__ready__' + pool['name'], 'vmpooler__completed__' + pool['name'], vm)
 
-            $logger.log('d', "[!] [#{pool}] '#{vm}' reached end of TTL after #{ttl} minutes, removed from 'ready' queue")
+            $logger.log('d', "[!] [#{pool['name']}] '#{vm}' reached end of TTL after #{ttl} minutes, removed from 'ready' queue")
             return
           end
         end
 
-        vm_still_ready?(pool, vm, provider)
+        check_hostname = pool['check_hostname_for_mismatch']
+        check_hostname = $config[:config]['check_ready_vm_hostname_for_mismatch'] if check_hostname.nil?
+        check_hostname = true if check_hostname.nil?
+        if check_hostname
+          # Check if the hostname has magically changed from underneath Pooler
+          host = provider.get_vm(pool['name'], vm)
+          if host['hostname'] != vm
+            $redis.smove('vmpooler__ready__' + pool['name'], 'vmpooler__completed__' + pool['name'], vm)
+            $logger.log('d', "[!] [#{pool['name']}] '#{vm}' has mismatched hostname, removed from 'ready' queue")
+            return
+          end
+        end
+
+        vm_still_ready?(pool['name'], vm, provider)
       end
     end
 
@@ -735,7 +748,7 @@ module Vmpooler
         if inventory[vm]
           begin
             pool_check_response[:checked_ready_vms] += 1
-            check_ready_vm(vm, pool['name'], pool['ready_ttl'] || 0, provider)
+            check_ready_vm(vm, pool, pool['ready_ttl'] || 0, provider)
           rescue => err
             $logger.log('d', "[!] [#{pool['name']}] _check_pool failed with an error while evaluating ready VMs: #{err}")
           end
