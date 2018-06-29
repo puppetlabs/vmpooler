@@ -24,7 +24,7 @@ describe 'Pool Manager' do
 
   let(:config) { YAML.load(<<-EOT
 ---
-:config:
+:config: {}
 :providers:
   :mock:
 :pools:
@@ -2664,6 +2664,86 @@ EOT
     end
   end
 
+  describe '#check_running_pool_vms' do
+    let(:new_vm_response) {
+      # Mock response from Base Provider for vms_in_pool
+      [{ 'name' => vm}]
+    }
+    let(:inventory) {
+      # mock response from create_inventory
+      {vm => 1}
+    }
+    let(:pool_check_response) {
+      {:checked_running_vms => 0}
+    }
+
+    context 'Running VM not in the inventory' do
+      before(:each) do
+        expect(provider).to receive(:vms_in_pool).with(pool).and_return(new_vm_response)
+        expect(logger).to receive(:log).with('s', "[?] [#{pool}] '#{vm}' added to 'discovered' queue")
+        create_running_vm(pool,vm,token)
+      end
+
+      it 'should not call check_running_vm' do
+        expect(subject).to receive(:check_running_vm).exactly(0).times
+
+        subject.check_running_pool_vms(pool, provider, pool_check_response, inventory)
+      end
+
+      it 'should move the VM to completed queue' do
+        expect(subject).to receive(:move_vm_queue).with(pool,vm,'running','completed',String).and_call_original
+
+        subject._check_pool(pool_object,provider)
+      end
+    end
+
+    context 'Running VM in the inventory' do
+      before(:each) do
+        expect(provider).to receive(:vms_in_pool).with(pool).and_return(vm_response)
+        allow(subject).to receive(:check_running_vm)
+        create_running_vm(pool,vm,token)
+      end
+
+      it 'should log an error if one occurs' do
+        expect(subject).to receive(:check_running_vm).and_raise(RuntimeError,'MockError')
+        expect(logger).to receive(:log).with('d', "[!] [#{pool}] _check_pool with an error while evaluating running VMs: MockError")
+
+        subject._check_pool(pool_object,provider)
+      end
+
+      it 'should return the number of checked running VMs' do
+        result = subject._check_pool(pool_object,provider)
+
+        expect(result[:checked_running_vms]).to be(1)
+      end
+
+      it 'should use the VM lifetime in preference to defaults' do
+        big_lifetime = 2000
+
+        redis.hset("vmpooler__vm__#{vm}", 'lifetime',big_lifetime)
+        # The lifetime comes in as string
+        expect(subject).to receive(:check_running_vm).with(vm,pool,"#{big_lifetime}",provider)
+
+        subject._check_pool(pool_object,provider)
+      end
+
+      it 'should use the configuration default if the VM lifetime is not set' do
+        config[:config]['vm_lifetime'] = 50
+        expect(subject).to receive(:check_running_vm).with(vm,pool,50,provider)
+
+        subject._check_pool(pool_object,provider)
+      end
+
+      it 'should use a lifetime of 12 if nothing is set' do
+        expect(subject).to receive(:check_running_vm).with(vm,pool,12,provider)
+
+        subject._check_pool(pool_object,provider)
+      end
+    end
+
+
+  end
+
   describe '#_check_pool' do
     let(:new_vm_response) {
       # Mock response from Base Provider for vms_in_pool
@@ -2794,69 +2874,69 @@ EOT
     end
 
     # RUNNING
-    context 'Running VM not in the inventory' do
-      before(:each) do
-        expect(provider).to receive(:vms_in_pool).with(pool).and_return(new_vm_response)
-        expect(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue")
-        create_running_vm(pool,vm,token)
-      end
+    # context 'Running VM not in the inventory' do
+    #   before(:each) do
+    #     expect(provider).to receive(:vms_in_pool).with(pool).and_return(new_vm_response)
+    #     expect(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue")
+    #     create_running_vm(pool,vm,token)
+    #   end
 
-      it 'should not call check_running_vm' do
-        expect(subject).to receive(:check_running_vm).exactly(0).times
+    #   it 'should not call check_running_vm' do
+    #     expect(subject).to receive(:check_running_vm).exactly(0).times
 
-        subject._check_pool(pool_object,provider)
-      end
+    #     subject._check_pool(pool_object,provider)
+    #   end
 
-      it 'should move the VM to completed queue' do
-        expect(subject).to receive(:move_vm_queue).with(pool,vm,'running','completed',String).and_call_original
+    #   it 'should move the VM to completed queue' do
+    #     expect(subject).to receive(:move_vm_queue).with(pool,vm,'running','completed',String).and_call_original
 
-        subject._check_pool(pool_object,provider)
-      end
-    end
+    #     subject._check_pool(pool_object,provider)
+    #   end
+    # end
 
-    context 'Running VM in the inventory' do
-      before(:each) do
-        expect(provider).to receive(:vms_in_pool).with(pool).and_return(vm_response)
-        allow(subject).to receive(:check_running_vm)
-        create_running_vm(pool,vm,token)
-      end
+    # context 'Running VM in the inventory' do
+    #   before(:each) do
+    #     expect(provider).to receive(:vms_in_pool).with(pool).and_return(vm_response)
+    #     allow(subject).to receive(:check_running_vm)
+    #     create_running_vm(pool,vm,token)
+    #   end
 
-      it 'should log an error if one occurs' do
-        expect(subject).to receive(:check_running_vm).and_raise(RuntimeError,'MockError')
-        expect(logger).to receive(:log).with('d', "[!] [#{pool}] _check_pool with an error while evaluating running VMs: MockError")
+    #   it 'should log an error if one occurs' do
+    #     expect(subject).to receive(:check_running_vm).and_raise(RuntimeError,'MockError')
+    #     expect(logger).to receive(:log).with('d', "[!] [#{pool}] _check_pool with an error while evaluating running VMs: MockError")
 
-        subject._check_pool(pool_object,provider)
-      end
+    #     subject._check_pool(pool_object,provider)
+    #   end
 
-      it 'should return the number of checked running VMs' do
-        result = subject._check_pool(pool_object,provider)
+    #   it 'should return the number of checked running VMs' do
+    #     result = subject._check_pool(pool_object,provider)
 
-        expect(result[:checked_running_vms]).to be(1)
-      end
+    #     expect(result[:checked_running_vms]).to be(1)
+    #   end
 
-      it 'should use the VM lifetime in preference to defaults' do
-        big_lifetime = 2000
+    #   it 'should use the VM lifetime in preference to defaults' do
+    #     big_lifetime = 2000
 
-        redis.hset("vmpooler__vm__#{vm}", 'lifetime',big_lifetime)
-        # The lifetime comes in as string
-        expect(subject).to receive(:check_running_vm).with(vm,pool,"#{big_lifetime}",provider)
+    #     redis.hset("vmpooler__vm__#{vm}", 'lifetime',big_lifetime)
+    #     # The lifetime comes in as string
+    #     expect(subject).to receive(:check_running_vm).with(vm,pool,"#{big_lifetime}",provider)
 
-        subject._check_pool(pool_object,provider)
-      end
+    #     subject._check_pool(pool_object,provider)
+    #   end
 
-      it 'should use the configuration default if the VM lifetime is not set' do
-        config[:config]['vm_lifetime'] = 50
-        expect(subject).to receive(:check_running_vm).with(vm,pool,50,provider)
+    #   it 'should use the configuration default if the VM lifetime is not set' do
+    #     config[:config]['vm_lifetime'] = 50
+    #     expect(subject).to receive(:check_running_vm).with(vm,pool,50,provider)
 
-        subject._check_pool(pool_object,provider)
-      end
+    #     subject._check_pool(pool_object,provider)
+    #   end
 
-      it 'should use a lifetime of 12 if nothing is set' do
-        expect(subject).to receive(:check_running_vm).with(vm,pool,12,provider)
+    #   it 'should use a lifetime of 12 if nothing is set' do
+    #     expect(subject).to receive(:check_running_vm).with(vm,pool,12,provider)
 
-        subject._check_pool(pool_object,provider)
-      end
-    end
+    #     subject._check_pool(pool_object,provider)
+    #   end
+    # end
 
     # READY
     context 'Ready VM not in the inventory' do

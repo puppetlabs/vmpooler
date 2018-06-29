@@ -737,6 +737,22 @@ module Vmpooler
       end
     end
 
+    def check_ready_pool_vms(pool_name, provider, pool_check_response, inventory, pool_ttl)
+      # READY
+      $redis.smembers("vmpooler__ready__#{pool_name}").each do |vm|
+        if inventory[vm]
+          begin
+            pool_check_response[:checked_ready_vms] += 1
+            check_ready_vm(vm, pool_name, pool_ttl || 0, provider)
+          rescue => err
+            $logger.log('d', "[!] [#{pool_name}] _check_pool failed with an error while evaluating ready VMs: #{err}")
+          end
+        else
+          move_vm_queue(pool_name, vm, 'ready', 'completed', 'is a ready VM but is missing from inventory.  Marking as completed.')
+        end
+      end
+    end
+
     def _check_pool(pool, provider)
       pool_check_response = {
         discovered_vms: 0,
@@ -756,20 +772,7 @@ module Vmpooler
 
       check_running_pool_vms(pool['name'], provider, pool_check_response, inventory)
 
-
-      # READY
-      $redis.smembers("vmpooler__ready__#{pool['name']}").each do |vm|
-        if inventory[vm]
-          begin
-            pool_check_response[:checked_ready_vms] += 1
-            check_ready_vm(vm, pool['name'], pool['ready_ttl'] || 0, provider)
-          rescue => err
-            $logger.log('d', "[!] [#{pool['name']}] _check_pool failed with an error while evaluating ready VMs: #{err}")
-          end
-        else
-          move_vm_queue(pool['name'], vm, 'ready', 'completed', 'is a ready VM but is missing from inventory.  Marking as completed.')
-        end
-      end
+      check_ready_pool_vms(pool['name'], provider, pool_check_response, inventory, pool['ready_ttl'])
 
       # PENDING
       $redis.smembers("vmpooler__pending__#{pool['name']}").each do |vm|
