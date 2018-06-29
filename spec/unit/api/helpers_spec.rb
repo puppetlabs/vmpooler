@@ -1,4 +1,5 @@
 require 'spec_helper'
+require 'net/ldap'
 
 # A class for testing purposes that includes the Helpers.
 # this is impersonating V1's `helpers do include Helpers end`
@@ -165,6 +166,244 @@ describe Vmpooler::API::Helpers do
       allow(redis).to receive(:hgetall).with('vmpooler__tag__2015-01-01').and_return({"abcdefghijklmno:tag" => "value", "pqrstuvwxyz12345:tag" => "another_value"})
 
       expect(subject.get_tag_metrics(redis, '2015-01-01')).to eq({"tag"=>{"value"=>1, "total"=>2, "another_value"=>1}})
+    end
+  end
+
+  describe '#pool_index' do
+    let(:pools) {
+      [
+        {
+          'name' => 'pool1'
+        },
+        {
+          'name' => 'pool2'
+        }
+      ]
+    }
+
+    it 'should return a hash' do
+      pools_hash = subject.pool_index(pools)
+
+      expect(pools_hash).to be_a(Hash)
+    end
+
+    it 'should return the correct index for each pool' do
+      pools_hash = subject.pool_index(pools)
+
+      expect(pools[pools_hash['pool1']]['name']).to eq('pool1')
+      expect(pools[pools_hash['pool2']]['name']).to eq('pool2')
+    end
+  end
+
+  describe '#template_ready?' do
+    let(:redis) { double('redis') }
+    let(:template) { 'template/test1' }
+    let(:poolname) { 'pool1' }
+    let(:pool) {
+      {
+        'name' => poolname,
+        'template' => template
+      }
+    }
+
+    it 'returns false when there is no prepared template' do
+      expect(redis).to receive(:hget).with('vmpooler__template__prepared', poolname).and_return(nil)
+
+      expect(subject.template_ready?(pool, redis)).to be false
+    end
+
+    it 'returns true when configured and prepared templates match' do
+      expect(redis).to receive(:hget).with('vmpooler__template__prepared', poolname).and_return(template)
+
+      expect(subject.template_ready?(pool, redis)).to be true
+    end
+
+    it 'returns false when configured and prepared templates do not match' do
+      expect(redis).to receive(:hget).with('vmpooler__template__prepared', poolname).and_return('template3')
+
+      expect(subject.template_ready?(pool, redis)).to be false
+    end
+  end
+
+  describe '#is_integer?' do
+    it 'returns true when input is an integer' do
+      expect(subject.is_integer? 4).to be true
+    end
+
+    it 'returns true when input is a string containing an integer' do
+      expect(subject.is_integer? '4').to be true
+    end
+
+    it 'returns false when input is a string containing word characters' do
+      expect(subject.is_integer? 'four').to be false
+    end
+  end
+
+  describe '#authenticate' do
+    let(:username_str) { 'admin' }
+    let(:password_str) { 's3cr3t' }
+
+    context 'with dummy provider' do
+      let(:auth) {
+        {
+          'provider': 'dummy'
+        }
+      }
+      it 'should return true' do
+        expect(subject).to receive(:authenticate).with(auth, username_str, password_str).and_return(true)
+
+        subject.authenticate(auth, username_str, password_str)
+      end
+    end
+
+    context 'with ldap provider' do
+      let(:host) { 'ldap.example.com' }
+      let(:base) { 'ou=user,dc=test,dc=com' }
+      let(:user_object) { 'uid' }
+      let(:auth) {
+        {
+          'provider' => 'ldap',
+          ldap: {
+            'host' => host,
+            'base' => base,
+            'user_object' => user_object
+          }
+        }
+      }
+      let(:default_port) { 389 }
+      it 'should attempt ldap authentication' do
+        expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object, base, username_str, password_str)
+
+        subject.authenticate(auth, username_str, password_str)
+      end
+
+      it 'should return true when authentication is successful' do
+        expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object, base, username_str, password_str).and_return(true)
+
+        expect(subject.authenticate(auth, username_str, password_str)).to be true
+      end
+
+      it 'should return false when authentication fails' do
+        expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object, base, username_str, password_str).and_return(false)
+
+        expect(subject.authenticate(auth, username_str, password_str)).to be false
+      end
+
+      context 'with an alternate port' do
+        let(:alternate_port) { 636 }
+        before(:each) do
+          auth[:ldap]['port'] = alternate_port
+        end
+
+        it 'should specify the alternate port when authenticating' do
+          expect(subject).to receive(:authenticate_ldap).with(alternate_port, host, user_object, base, username_str, password_str)
+
+          subject.authenticate(auth, username_str, password_str)
+        end
+      end
+
+      context 'with multiple search bases' do
+        let(:base) {
+          [
+            'ou=user,dc=test,dc=com',
+            'ou=service,ou=user,dc=test,dc=com'
+          ]
+        }
+        before(:each) do
+          auth[:ldap]['base'] = base
+        end
+
+        it 'should attempt to bind with each base' do
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object, base[0], username_str, password_str)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object, base[1], username_str, password_str)
+
+          subject.authenticate(auth, username_str, password_str)
+        end
+
+        it 'should not search the second base when the first binds' do
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object, base[0], username_str, password_str).and_return(true)
+          expect(subject).to_not receive(:authenticate_ldap).with(default_port, host, user_object, base[1], username_str, password_str)
+
+          subject.authenticate(auth, username_str, password_str)
+        end
+
+        it 'should search the second base when the first bind fails' do
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object, base[0], username_str, password_str).and_return(false)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object, base[1], username_str, password_str)
+
+          subject.authenticate(auth, username_str, password_str)
+        end
+
+        it 'should return true when any bind succeeds' do
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object, base[0], username_str, password_str).and_return(false)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object, base[1], username_str, password_str).and_return(true)
+
+          expect(subject.authenticate(auth, username_str, password_str)).to be true
+        end
+
+        it 'should return false when all bind attempts fail' do
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object, base[0], username_str, password_str).and_return(false)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object, base[1], username_str, password_str).and_return(false)
+
+          expect(subject.authenticate(auth, username_str, password_str)).to be false
+        end
+      end
+
+    end
+
+    context 'with unknown provider' do
+      let(:auth) {
+        {
+          'provider': 'mystery'
+        }
+      }
+      it 'should return false' do
+        expect(subject).to receive(:authenticate).with(auth, username_str, password_str).and_return(false)
+        subject.authenticate(auth, username_str, password_str)
+      end
+    end
+  end
+
+  describe '#authenticate_ldap' do
+    let(:port) { 389 }
+    let(:host) { 'ldap.example.com' }
+    let(:user_object) { 'uid' }
+    let(:base) { 'ou=users,dc=example,dc=com' }
+    let(:username_str) { 'admin' }
+    let(:password_str) { 's3cr3t' }
+    let(:ldap) { double('ldap') }
+    it 'should create a new ldap connection' do
+      allow(ldap).to receive(:bind)
+      expect(Net::LDAP).to receive(:new).with(
+        :host => host,
+        :port => port,
+        :encryption => {
+          :method => :start_tls,
+          :tls_options => { :ssl_version => 'TLSv1' }
+        },
+        :base => base,
+        :auth => {
+          :method => :simple,
+          :username => "#{user_object}=#{username_str},#{base}",
+          :password => password_str
+        }
+      ).and_return(ldap)
+
+      subject.authenticate_ldap(port, host, user_object, base, username_str, password_str)
+    end
+
+    it 'should return true when a bind is successful' do
+      expect(Net::LDAP).to receive(:new).and_return(ldap)
+      expect(ldap).to receive(:bind).and_return(true)
+
+      expect(subject.authenticate_ldap(port, host, user_object, base, username_str, password_str)).to be true
+    end
+
+    it 'should return false when a bind fails' do
+      expect(Net::LDAP).to receive(:new).and_return(ldap)
+      expect(ldap).to receive(:bind).and_return(false)
+
+      expect(subject.authenticate_ldap(port, host, user_object, base, username_str, password_str)).to be false
     end
   end
 

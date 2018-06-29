@@ -54,35 +54,60 @@ module Vmpooler
         return false
       end
 
+      def authenticate_ldap(port, host, user_object, base, username_str, password_str)
+        ldap = Net::LDAP.new(
+          :host => host,
+          :port => port,
+          :encryption => {
+            :method => :start_tls,
+            :tls_options => { :ssl_version => 'TLSv1' }
+          },
+          :base => base,
+          :auth => {
+            :method => :simple,
+            :username => "#{user_object}=#{username_str},#{base}",
+            :password => password_str
+          }
+        )
+
+        return true if ldap.bind
+        return false
+      end
+
       def authenticate(auth, username_str, password_str)
         case auth['provider']
           when 'dummy'
             return (username_str != password_str)
           when 'ldap'
-            require 'rubygems'
-            require 'net/ldap'
+            ldap_base = auth[:ldap]['base']
+            ldap_port = auth[:ldap]['port'] || 389
 
-            ldap = Net::LDAP.new(
-              :host => auth[:ldap]['host'],
-              :port => auth[:ldap]['port'] || 389,
-              :encryption => {
-                :method => :start_tls,
-                :tls_options => { :ssl_version => 'TLSv1' }
-              },
-              :base => auth[:ldap]['base'],
-              :auth => {
-                :method => :simple,
-                :username => "#{auth[:ldap]['user_object']}=#{username_str},#{auth[:ldap]['base']}",
-                :password => password_str
-              }
-            )
-
-            if ldap.bind
-              return true
+            if ldap_base.is_a? Array
+              ldap_base.each do |search_base|
+                result = authenticate_ldap(
+                  ldap_port,
+                  auth[:ldap]['host'],
+                  auth[:ldap]['user_object'],
+                  search_base,
+                  username_str,
+                  password_str,
+                )
+                return true if result == true
+              end
+            else
+              result = authenticate_ldap(
+                ldap_port,
+                auth[:ldap]['host'],
+                auth[:ldap]['user_object'],
+                ldap_base,
+                username_str,
+                password_str,
+              )
+              return result
             end
-        end
 
-        return false
+            return false
+          end
       end
 
       def export_tags(backend, hostname, tags)
@@ -378,6 +403,29 @@ module Vmpooler
         result
       end
 
+      def pool_index(pools)
+        pools_hash = {}
+        index = 0
+        for pool in pools
+          pools_hash[pool['name']] = index
+          index += 1
+        end
+        pools_hash
+      end
+
+      def template_ready?(pool, backend)
+        prepared_template = backend.hget('vmpooler__template__prepared', pool['name'])
+        return false if prepared_template.nil?
+        return true if pool['template'] == prepared_template
+        return false
+      end
+
+      def is_integer?(x)
+        Integer(x)
+        true
+      rescue
+        false
+      end
     end
   end
 end

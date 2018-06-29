@@ -283,6 +283,7 @@ EOT
 
     let(:clone_vm_task) { mock_RbVmomi_VIM_Task() }
     let(:new_vm_object)  { mock_RbVmomi_VIM_VirtualMachine({ :name => vmname }) }
+    let(:new_template_object)  { mock_RbVmomi_VIM_VirtualMachine({ :name => vmname }) }
 
     before(:each) do
       allow(subject).to receive(:connect_to_vsphere).and_return(connection)
@@ -305,19 +306,30 @@ EOT
       end
     end
 
-    context 'Given a template path that does not exist' do
+    context 'Given a template that starts with /' do
       before(:each) do
-        config[:pools][0]['template'] = 'missing_Templates/pool1'
+        config[:pools][0]['template'] = '/bad_template'
       end
 
       it 'should raise an error' do
-        expect{ subject.create_vm(poolname, vmname) }.to raise_error(/specifies a template folder of .+ which does not exist/)
+        expect{ subject.create_vm(poolname, vmname) }.to raise_error(/did not specify a full path for the template/)
+      end
+    end
+
+    context 'Given a template that ends with /' do
+      before(:each) do
+        config[:pools][0]['template'] = 'bad_template/'
+      end
+
+      it 'should raise an error' do
+        expect{ subject.create_vm(poolname, vmname) }.to raise_error(/did not specify a full path for the template/)
       end
     end
 
     context 'Given a template VM that does not exist' do
       before(:each) do
         config[:pools][0]['template'] = 'Templates/missing_template'
+        expect(subject).to receive(:find_template_vm).and_raise("specifies a template VM of #{vmname} which does not exist")
       end
 
       it 'should raise an error' do
@@ -327,7 +339,8 @@ EOT
 
     context 'Given a successful creation' do
       before(:each) do
-        template_vm = subject.find_folder('Templates',connection,datacenter_name).find('pool1')
+        template_vm = new_template_object
+        allow(subject).to receive(:find_template_vm).and_return(new_template_object)
         allow(template_vm).to receive(:CloneVM_Task).and_return(clone_vm_task)
         allow(clone_vm_task).to receive(:wait_for_completion).and_return(new_vm_object)
       end
@@ -339,7 +352,7 @@ EOT
       end
 
       it 'should use the appropriate Create_VM spec' do
-        template_vm = subject.find_folder('Templates',connection,datacenter_name).find('pool1')
+        template_vm = new_template_object
         expect(template_vm).to receive(:CloneVM_Task)
           .with(create_vm_spec(vmname,'pool1','datastore0'))
           .and_return(clone_vm_task)
@@ -3318,57 +3331,6 @@ EOT
     end
   end
 
-  describe '#find_vmdks' do
-    let(:datastorename) { 'datastore' }
-    let(:connection_options) {{
-      :serviceContent => {
-        :datacenters => [
-          { :name => datacenter_name, :datastores => [datastorename] }
-        ]
-      }
-    }}
-
-    let(:collectMultiple_response) { {} }
-
-    before(:each) do
-      allow(connection.serviceContent.propertyCollector).to receive(:collectMultiple).and_return(collectMultiple_response)
-    end
-
-    context 'Searching all files for all VMs on a Datastore' do
-      # This is fairly fragile mocking
-      let(:collectMultiple_response) { {
-        'FakeVMObject1' => { 'layoutEx.file' =>
-        [
-          mock_RbVmomi_VIM_VirtualMachineFileLayoutExFileInfo({ :key => 101, :name => "[#{datastorename}] mock1/mock1_0.vmdk"})
-        ]},
-        vmname => { 'layoutEx.file' =>
-        [
-          # VMDKs which should match
-          mock_RbVmomi_VIM_VirtualMachineFileLayoutExFileInfo({ :key => 1, :name => "[#{datastorename}] #{vmname}/#{vmname}_0.vmdk"}),
-          mock_RbVmomi_VIM_VirtualMachineFileLayoutExFileInfo({ :key => 2, :name => "[#{datastorename}] #{vmname}/#{vmname}_1.vmdk"}),
-          # VMDKs which should not match
-          mock_RbVmomi_VIM_VirtualMachineFileLayoutExFileInfo({ :key => 102, :name => "[otherdatastore] #{vmname}/#{vmname}_0.vmdk"}),
-          mock_RbVmomi_VIM_VirtualMachineFileLayoutExFileInfo({ :key => 103, :name => "[otherdatastore] #{vmname}/#{vmname}.vmdk"}),
-          mock_RbVmomi_VIM_VirtualMachineFileLayoutExFileInfo({ :key => 104, :name => "[otherdatastore] #{vmname}/#{vmname}_abc.vmdk"}),
-        ]},
-      } }
-
-      it 'should return empty array if no VMDKs match the VM name' do
-        expect(subject.find_vmdks('missing_vm_name',datastorename,connection,datacenter_name)).to eq([])
-      end
-
-      it 'should return matching VMDKs for the VM' do
-        result = subject.find_vmdks(vmname,datastorename,connection,datacenter_name)
-        expect(result).to_not be_nil
-        expect(result.count).to eq(2)
-        # The keys for each VMDK should be less that 100 as per the mocks
-        result.each do |fileinfo|
-          expect(fileinfo.key).to be < 100
-        end
-      end
-    end
-  end
-
   describe '#get_base_vm_container_from' do
     it 'should return a recursive view of type VirtualMachine' do
       result = subject.get_base_vm_container_from(connection)
@@ -3461,5 +3423,71 @@ EOT
     end
   end
 
+  describe 'find_template_vm' do
+    let(:vm_object) { mock_RbVmomi_VIM_VirtualMachine() }
 
+    before(:each) do
+      allow(connection.searchIndex).to receive(:FindByInventoryPath)
+    end
+    it 'should raise an error when the datacenter cannot be found' do
+      config[:providers][:vsphere]['datacenter'] = nil
+
+      expect{ subject.find_template_vm(config[:pools][0],connection) }.to raise_error('cannot find datacenter')
+    end
+
+    it 'should raise an error when the template specified cannot be found' do
+      expect(connection.searchIndex).to receive(:FindByInventoryPath).and_return(nil)
+
+      expect{ subject.find_template_vm(config[:pools][0],connection) }.to raise_error("Pool #{poolname} specifies a template VM of #{config[:pools][0]['template']} which does not exist for the provider vsphere")
+    end
+
+    it 'should return the vm object' do
+      expect(connection.searchIndex).to receive(:FindByInventoryPath).and_return(vm_object)
+
+      subject.find_template_vm(config[:pools][0],connection)
+    end
+  end
+
+  describe 'valid_template_path?' do
+
+    it 'should return true with a valid template path' do
+      expect(subject.valid_template_path?('test/template')).to eq(true)
+    end
+
+    it 'should return false when no / is found' do
+      expect(subject.valid_template_path?('testtemplate')).to eq(false)
+    end
+
+    it 'should return false when template path begins with /' do
+      expect(subject.valid_template_path?('/testtemplate')).to eq(false)
+    end
+
+    it 'should return false when template path ends with /' do
+      expect(subject.valid_template_path?('testtemplate/')).to eq(false)
+    end
+  end
+
+  describe 'create_template_delta_disks' do
+    let(:template_object) { mock_RbVmomi_VIM_VirtualMachine({
+        :name => vmname,
+      })
+    }
+
+    before(:each) do
+      allow(subject).to receive(:connect_to_vsphere).and_return(connection)
+    end
+
+    context 'with a template VM found' do
+
+      before(:each) do
+        expect(subject).to receive(:find_template_vm).and_return(template_object)
+      end
+
+      it 'should reconfigure the VM creating delta disks' do
+        expect(template_object).to receive(:add_delta_disk_layer_on_all_disks)
+
+        subject.create_template_delta_disks(config[:pools][0])
+      end
+    end
+  end
 end

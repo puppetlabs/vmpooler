@@ -197,17 +197,10 @@ module Vmpooler
             target_cluster_name = get_target_cluster_from_config(pool_name)
             target_datacenter_name = get_target_datacenter_from_config(pool_name)
 
-            # Extract the template VM name from the full path
-            raise("Pool #{pool_name} did not specify a full path for the template for the provider #{name}") unless template_path =~ /\//
-            templatefolders = template_path.split('/')
-            template_name = templatefolders.pop
+            # Get the template VM object
+            raise("Pool #{pool_name} did not specify a full path for the template for the provider #{name}") unless valid_template_path? template_path
 
-            # Get the actual objects from vSphere
-            template_folder_object = find_folder(templatefolders.join('/'), connection, target_datacenter_name)
-            raise("Pool #{pool_name} specifies a template folder of #{templatefolders.join('/')} which does not exist for the provider #{name}") if template_folder_object.nil?
-
-            template_vm_object = template_folder_object.find(template_name)
-            raise("Pool #{pool_name} specifies a template VM of #{template_name} which does not exist for the provider #{name}") if template_vm_object.nil?
+            template_vm_object = find_template_vm(pool, connection)
 
             # Annotate with creation time, origin template, etc.
             # Add extraconfig options that can be queried by vmtools
@@ -410,7 +403,7 @@ module Vmpooler
             connection = RbVmomi::VIM.connect host: provider_config['server'],
                                               user: provider_config['username'],
                                               password: provider_config['password'],
-                                              insecure: provider_config['insecure'] || true
+                                              insecure: provider_config['insecure'] || false
             metrics.increment('connect.open')
             return connection
           rescue => err
@@ -465,9 +458,12 @@ module Vmpooler
 
           vmdk_datastore = find_datastore(datastore, connection, datacentername)
           raise("Datastore '#{datastore}' does not exist in datacenter '#{datacentername}'") if vmdk_datastore.nil?
-          vmdk_file_name = "#{vm['name']}/#{vm['name']}_#{find_vmdks(vm['name'], datastore, connection, datacentername).length + 1}.vmdk"
 
+          datacenter = connection.serviceInstance.find_datacenter(datacentername)
           controller = find_disk_controller(vm)
+          disk_unit_number = find_disk_unit_number(vm, controller)
+          disk_count = vm.config.hardware.device.grep(RbVmomi::VIM::VirtualDisk).count
+          vmdk_file_name = "#{vm['name']}/#{vm['name']}_#{disk_count}.vmdk"
 
           vmdk_spec = RbVmomi::VIM::FileBackedVirtualDiskSpec(
             capacityKb: size.to_i * 1024 * 1024,
@@ -478,7 +474,7 @@ module Vmpooler
           vmdk_backing = RbVmomi::VIM::VirtualDiskFlatVer2BackingInfo(
             datastore: vmdk_datastore,
             diskMode: DISK_MODE,
-            fileName: "[#{vmdk_datastore.name}] #{vmdk_file_name}"
+            fileName: "[#{datastore}] #{vmdk_file_name}"
           )
 
           device = RbVmomi::VIM::VirtualDisk(
@@ -486,7 +482,7 @@ module Vmpooler
             capacityInKB: size.to_i * 1024 * 1024,
             controllerKey: controller.key,
             key: -1,
-            unitNumber: find_disk_unit_number(vm, controller)
+            unitNumber: disk_unit_number
           )
 
           device_config_spec = RbVmomi::VIM::VirtualDeviceConfigSpec(
@@ -499,8 +495,8 @@ module Vmpooler
           )
 
           connection.serviceContent.virtualDiskManager.CreateVirtualDisk_Task(
-            datacenter: connection.serviceInstance.find_datacenter(datacentername),
-            name: "[#{vmdk_datastore.name}] #{vmdk_file_name}",
+            datacenter: datacenter,
+            name: "[#{datastore}] #{vmdk_file_name}",
             spec: vmdk_spec
           ).wait_for_completion
 
@@ -809,23 +805,6 @@ module Vmpooler
           connection.searchIndex.FindByInventoryPath(propSpecs)
         end
 
-        def find_vmdks(vmname, datastore, connection, datacentername)
-          disks = []
-
-          vmdk_datastore = find_datastore(datastore, connection, datacentername)
-
-          vm_files = connection.serviceContent.propertyCollector.collectMultiple vmdk_datastore.vm, 'layoutEx.file'
-          vm_files.keys.each do |f|
-            vm_files[f]['layoutEx.file'].each do |l|
-              if l.name =~ /^\[#{vmdk_datastore.name}\] #{vmname}\/#{vmname}_([0-9]+).vmdk/
-                disks.push(l)
-              end
-            end
-          end
-
-          disks
-        end
-
         def get_base_vm_container_from(connection)
           view_manager = connection.serviceContent.viewManager
           view_manager.CreateContainerView(
@@ -932,6 +911,37 @@ module Vmpooler
           folder_object = dc.vmFolder.traverse(new_folder, type=RbVmomi::VIM::Folder, create=true)
           raise("Cannot create folder #{new_folder}") if folder_object.nil?
           folder_object
+        end
+
+        def find_template_vm(pool, connection)
+          datacenter = get_target_datacenter_from_config(pool['name'])
+          raise('cannot find datacenter') if datacenter.nil?
+
+          propSpecs = {
+            :entity => self,
+            :inventoryPath => "#{datacenter}/vm/#{pool['template']}"
+          }
+
+          template_vm_object = connection.searchIndex.FindByInventoryPath(propSpecs)
+          raise("Pool #{pool['name']} specifies a template VM of #{pool['template']} which does not exist for the provider #{name}") if template_vm_object.nil?
+
+          template_vm_object
+        end
+
+        def create_template_delta_disks(pool)
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool_object)
+            template_vm_object = find_template_vm(pool, connection)
+
+            template_vm_object.add_delta_disk_layer_on_all_disks
+          end
+        end
+
+        def valid_template_path?(template)
+          return false unless template.include?('/')
+          return false if template[0] == '/'
+          return false if template[-1] == '/'
+          return true
         end
       end
     end

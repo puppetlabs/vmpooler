@@ -52,7 +52,7 @@
 #
 #   - insecure
 #     Whether to ignore any HTTPS negotiation errors (e.g. untrusted self-signed certificates)
-#     (optional: default true)
+#     (optional: default false)
 #
 #   - datacenter
 #     The datacenter within vCenter to manage VMs.  This can be overridden in the pool configuration
@@ -443,6 +443,11 @@
 #     The value represents a percentage and applies to both memory and CPU
 #     (optional; default: 90)
 #
+#   - experimental_features (Only affects API config endpoints)
+#     Enable experimental API capabilities such as changing pool template and size without application restart
+#     Expects a boolean value
+#     (optional; default: false)
+#
 # Example:
 
 :config:
@@ -458,6 +463,7 @@
     - 'project'
   domain: 'company.com'
   prefix: 'poolvm-'
+  experimental_features: true
 
 # :pools:
 #
