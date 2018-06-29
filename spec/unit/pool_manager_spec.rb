@@ -2653,13 +2653,15 @@ EOT
 
   describe '#create_inventory' do
 
-    it 'should log an error if one occurs' # do
-#       expect(provider).to receive(:vms_in_pool).and_raise(RuntimeError,'Mock Error')
-#       expect(logger).to receive(:log).with('s', "[!] [#{pool}] _check_pool failed with an error while running create_inventory: Mock Error")
-# 
-#       subject._check_pool(pool_object,provider)
-#     end
+    it 'should log an error if one occurs' do
+      allow(provider).to receive(:vms_in_pool).and_raise(
+        RuntimeError,'Mock Error'
+      )
 
+      expect {
+        subject.create_inventory(config[:pools].first, provider, {})
+      }.to raise_error(RuntimeError, 'Mock Error')
+    end
   end
 
   describe '#_check_pool' do
@@ -2719,13 +2721,11 @@ EOT
         subject._check_pool(pool_object, provider)
       end
 
-      it 'passes #create_inventory errors correctly' do
+      it 'returns a hash when #create_inventory errors' do
         allow(subject).to receive(:create_inventory).and_raise(
           RuntimeError,'Mock Error'
         )
-        expect {
-          subject._check_pool(pool_object, provider)
-        }.to raise_error(RuntimeError, /Mock Error/)
+        expect(subject._check_pool(pool_object, provider)).to be_kind_of(Hash)
       end
 
       it 'should not perform any other actions if an error occurs' do
@@ -2733,11 +2733,8 @@ EOT
           RuntimeError,'Mock Error'
         )
 
-        expect {
-          subject._check_pool(pool_object, provider)
-        }.to raise_error(RuntimeError, /Mock Error/)
-
         expect(subject).to_not receive(:check_running_pool_vms)
+        subject._check_pool(pool_object, provider)
       end
 
       it 'should return that no actions were taken' do

@@ -721,8 +721,20 @@ module Vmpooler
       inventory
     end
 
-    def check_running_pool_vms(pool, provider, pool_check_response)
-      # do stuff here
+    def check_running_pool_vms(pool_name, provider, pool_check_response, inventory)
+      $redis.smembers("vmpooler__running__#{pool_name}").each do |vm|
+        if inventory[vm]
+          begin
+            vm_lifetime = $redis.hget('vmpooler__vm__' + vm, 'lifetime') || $config[:config]['vm_lifetime'] || 12
+            pool_check_response[:checked_running_vms] += 1
+            check_running_vm(vm, pool_name, vm_lifetime, provider)
+          rescue => err
+            $logger.log('d', "[!] [#{pool_name}] _check_pool with an error while evaluating running VMs: #{err}")
+          end
+        else
+          move_vm_queue(pool_name, vm, 'running', 'completed', 'is a running VM but is missing from inventory.  Marking as completed.')
+        end
+      end
     end
 
     def _check_pool(pool, provider)
@@ -742,26 +754,8 @@ module Vmpooler
         return(pool_check_response)
       end
 
-      # RUNNING
-      begin
-        check_running_pool_vms(pool, provider, pool_check_response)
-      rescue => err
-        return(pool_check_response)
-      end
+      check_running_pool_vms(pool['name'], provider, pool_check_response, inventory)
 
-      $redis.smembers("vmpooler__running__#{pool['name']}").each do |vm|
-        if inventory[vm]
-          begin
-            vm_lifetime = $redis.hget('vmpooler__vm__' + vm, 'lifetime') || $config[:config]['vm_lifetime'] || 12
-            pool_check_response[:checked_running_vms] += 1
-            check_running_vm(vm, pool['name'], vm_lifetime, provider)
-          rescue => err
-            $logger.log('d', "[!] [#{pool['name']}] _check_pool with an error while evaluating running VMs: #{err}")
-          end
-        else
-          move_vm_queue(pool['name'], vm, 'running', 'completed', 'is a running VM but is missing from inventory.  Marking as completed.')
-        end
-      end
 
       # READY
       $redis.smembers("vmpooler__ready__#{pool['name']}").each do |vm|
