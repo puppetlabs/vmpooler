@@ -708,21 +708,24 @@ module Vmpooler
       # INVENTORY
       inventory = {}
       begin
-        provider.vms_in_pool(pool['name']).each do |vm|
-          if !$redis.sismember('vmpooler__running__' + pool['name'], vm['name']) &&
-             !$redis.sismember('vmpooler__ready__' + pool['name'], vm['name']) &&
-             !$redis.sismember('vmpooler__pending__' + pool['name'], vm['name']) &&
-             !$redis.sismember('vmpooler__completed__' + pool['name'], vm['name']) &&
-             !$redis.sismember('vmpooler__discovered__' + pool['name'], vm['name']) &&
-             !$redis.sismember('vmpooler__migrating__' + pool['name'], vm['name'])
+        mutex = pool_mutex(pool['name'])
+        mutex.synchronize do
+          provider.vms_in_pool(pool['name']).each do |vm|
+            if !$redis.sismember('vmpooler__running__' + pool['name'], vm['name']) &&
+               !$redis.sismember('vmpooler__ready__' + pool['name'], vm['name']) &&
+               !$redis.sismember('vmpooler__pending__' + pool['name'], vm['name']) &&
+               !$redis.sismember('vmpooler__completed__' + pool['name'], vm['name']) &&
+               !$redis.sismember('vmpooler__discovered__' + pool['name'], vm['name']) &&
+               !$redis.sismember('vmpooler__migrating__' + pool['name'], vm['name'])
 
-            pool_check_response[:discovered_vms] += 1
-            $redis.sadd('vmpooler__discovered__' + pool['name'], vm['name'])
+              pool_check_response[:discovered_vms] += 1
+              $redis.sadd('vmpooler__discovered__' + pool['name'], vm['name'])
 
-            $logger.log('s', "[?] [#{pool['name']}] '#{vm['name']}' added to 'discovered' queue")
+              $logger.log('s', "[?] [#{pool['name']}] '#{vm['name']}' added to 'discovered' queue")
+            end
+
+            inventory[vm['name']] = 1
           end
-
-          inventory[vm['name']] = 1
         end
       rescue => err
         $logger.log('s', "[!] [#{pool['name']}] _check_pool failed with an error while inspecting inventory: #{err}")

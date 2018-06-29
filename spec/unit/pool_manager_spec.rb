@@ -2685,6 +2685,7 @@ EOT
     let(:pool_object) { config[:pools][0] }
     let(:new_vm) { 'newvm'}
     let(:pool_name) { pool_object['name'] }
+    let(:mutex) { Mutex.new }
 
     before do
       expect(subject).not_to be_nil
@@ -2789,6 +2790,27 @@ EOT
             expect(redis.sismember("vmpooler__#{queue_name}__#{pool}", new_vm)).to be(true)
           end
         end
+      end
+
+      it 'should get the pool mutex' do
+        expect(subject).to receive(:pool_mutex).and_return(mutex).at_least(:once)
+
+        subject._check_pool(pool_object,provider)
+      end
+
+      it 'should run synchronize' do
+        expect(subject).to receive(:pool_mutex).and_return(mutex).at_least(:once)
+        expect(mutex).to receive(:synchronize).at_least(:once)
+
+        subject._check_pool(pool_object,provider)
+      end
+
+      it 'should yield when locked' do
+        expect(subject).to receive(:pool_mutex).and_return(mutex).at_least(:once)
+        mutex.lock
+        expect(mutex).to receive(:synchronize).and_yield
+
+        subject._check_pool(pool_object,provider)
       end
     end
 
