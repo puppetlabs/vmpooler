@@ -628,10 +628,12 @@ module Vmpooler
           prepare_template(pool, provider)
           prepared_template = $redis.hget('vmpooler__template__prepared', pool['name'])
         end
-      elsif not prepared_template == pool['template']
-        mutex.synchronize do
-          prepare_template(pool, provider)
-          prepared_template = $redis.hget('vmpooler__template__prepared', pool['name'])
+      elsif prepared_template != pool['template']
+        if configured_template.nil?
+          mutex.synchronize do
+            prepare_template(pool, provider)
+            prepared_template = $redis.hget('vmpooler__template__prepared', pool['name'])
+          end
         end
       end
       return if configured_template.nil?

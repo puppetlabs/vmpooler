@@ -1849,13 +1849,22 @@ EOT
     context 'when the configured pool template does not match the prepared template' do
       before(:each) do
         config[:pools][0]['template'] = new_template
+        expect(redis).to receive(:hget).with('vmpooler__template__prepared', pool).and_return(current_template)
       end
 
       it 'should prepare the template' do
-        expect(redis).to receive(:hget).with('vmpooler__template__prepared', pool).and_return(current_template)
         expect(subject).to receive(:prepare_template).with(config[:pools][0], provider)
 
         subject.evaluate_template(config[:pools][0], provider)
+      end
+
+      context 'if configured_template is provided' do
+        it 'should not run prepare_template' do
+          expect(redis).to receive(:hget).with('vmpooler__config__template', pool).and_return(current_template)
+          expect(subject).to_not receive(:prepare_template)
+
+          subject.evaluate_template(config[:pools][0], provider)
+        end
       end
     end
 
