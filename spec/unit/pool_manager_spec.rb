@@ -197,7 +197,7 @@ EOT
         redis.hset("vmpooler__vm__#{vm}", 'clone',Time.now.to_s)
         expect(metrics).to receive(:timing).with(/time_to_ready_state\./,/0/)
 
-        subject.move_pending_vm_to_ready(vm, pool, host)
+        subject.move_pending_vm_to_ready(vm, pool)
       end
 
 
@@ -329,13 +329,22 @@ EOT
       end
 
       context 'with hostname mismatch checking enabled' do
-        before(:each) do
-          expect(provider).to receive(:get_vm).with(pool,vm).and_return(host)
+
+        context 'when less than 60 seconds since a VM moved to ready' do
+          before(:each) do
+            redis.hset("vmpooler__vm__#{vm}", 'ready', Time.now)
+          end
+
+          it 'should return nil' do
+            expect(subject._check_ready_vm(vm, poolconfig, ttl, provider)).to be_nil
+          end
         end
 
         context 'with a hostname mismatch' do
+          let(:different_hostname) { 'different_name' }
           before(:each) do
-            host['hostname'] = 'different_name'
+            expect(provider).to receive(:get_vm).with(pool,vm).and_return(host)
+            host['hostname'] = different_hostname
           end
 
           it 'should move the VM to the completed queue' do
@@ -353,7 +362,7 @@ EOT
           end
 
           it 'should log messages about being misnamed' do
-            expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' has mismatched hostname, removed from 'ready' queue")
+            expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' has mismatched hostname #{different_hostname}, removed from 'ready' queue")
 
             subject._check_ready_vm(vm, poolconfig, ttl, provider)
           end

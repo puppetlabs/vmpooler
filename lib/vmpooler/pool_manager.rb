@@ -87,6 +87,7 @@ module Vmpooler
 
       $redis.smove('vmpooler__pending__' + pool, 'vmpooler__ready__' + pool, vm)
       $redis.hset('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm, finish) # maybe remove as this is never used by vmpooler itself?
+      $redis.hset("vmpooler__vm__#{vm}", 'ready', Time.now)
 
       # last boot time is displayed in API, and used by alarming script
       $redis.hset('vmpooler__lastboot', pool, Time.now)
@@ -145,6 +146,16 @@ module Vmpooler
       check_hostname = $config[:config]['check_ready_vm_hostname_for_mismatch'] if check_hostname.nil?
       return if check_hostname == false
 
+      # Wait one minute before checking a VM for hostname mismatch
+      # When checking as soon as the VM passes the ready test the instance
+      # often doesn't report its hostname yet causing the VM to be removed immediately
+      vm_ready_time = $redis.hget("vmpooler__vm__#{vm}", 'ready')
+      if vm_ready_time
+        wait_before_checking = 60
+        time_since_ready = (Time.now - Time.parse(vm_ready_time)).to_i
+        return unless time_since_ready > wait_before_checking
+      end
+
       # Check if the hostname has magically changed from underneath Pooler
       vm_hash = provider.get_vm(pool['name'], vm)
       hostname = vm_hash['hostname']
@@ -152,7 +163,7 @@ module Vmpooler
       return if hostname.empty?
       return if hostname == vm
       $redis.smove('vmpooler__ready__' + pool['name'], 'vmpooler__completed__' + pool['name'], vm)
-      $logger.log('d', "[!] [#{pool['name']}] '#{vm}' has mismatched hostname, removed from 'ready' queue")
+      $logger.log('d', "[!] [#{pool['name']}] '#{vm}' has mismatched hostname #{hostname}, removed from 'ready' queue")
       return true
     end
 
