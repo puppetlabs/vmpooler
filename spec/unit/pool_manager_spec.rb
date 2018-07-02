@@ -1830,11 +1830,29 @@ EOT
     end
 
     context 'when prepared template is nil' do
-      before(:each) do
+
+      it 'should prepare the template' do
         expect(redis).to receive(:hget).with('vmpooler__template__prepared', pool).and_return(nil)
+        expect(subject).to receive(:prepare_template).with(config[:pools][0], provider)
+
+        subject.evaluate_template(config[:pools][0], provider)
+      end
+
+      it 'should not prepare the template again' do
+        expect(redis).to receive(:hget).with('vmpooler__template__prepared', pool).and_return(current_template)
+        expect(subject).to_not receive(:prepare_template).with(config[:pools][0], provider)
+
+        subject.evaluate_template(config[:pools][0], provider)
+      end
+    end
+
+    context 'when the configured pool template does not match the prepared template' do
+      before(:each) do
+        config[:pools][0]['template'] = new_template
       end
 
       it 'should prepare the template' do
+        expect(redis).to receive(:hget).with('vmpooler__template__prepared', pool).and_return(current_template)
         expect(subject).to receive(:prepare_template).with(config[:pools][0], provider)
 
         subject.evaluate_template(config[:pools][0], provider)
@@ -2291,7 +2309,6 @@ EOT
       it 'should run startup tasks only once' do
         expect(redis).to receive(:set).with('vmpooler__tasks__clone', 0).once
         expect(redis).to receive(:del).with('vmpooler__migration').once
-        expect(redis).to receive(:del).with('vmpooler__template__prepared').once
 
         subject.execute!(maxloop,0)
       end

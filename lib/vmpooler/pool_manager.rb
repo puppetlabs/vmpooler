@@ -628,6 +628,11 @@ module Vmpooler
           prepare_template(pool, provider)
           prepared_template = $redis.hget('vmpooler__template__prepared', pool['name'])
         end
+      elsif not prepared_template == pool['template']
+        mutex.synchronize do
+          prepare_template(pool, provider)
+          prepared_template = $redis.hget('vmpooler__template__prepared', pool['name'])
+        end
       end
       return if configured_template.nil?
       return if configured_template == prepared_template
@@ -896,8 +901,6 @@ module Vmpooler
       $redis.set('vmpooler__tasks__clone', 0)
       # Clear out vmpooler__migrations since stale entries may be left after a restart
       $redis.del('vmpooler__migration')
-      # Ensure template deltas are created on each startup
-      $redis.del('vmpooler__template__prepared')
 
       # Copy vSphere settings to correct location.  This happens with older configuration files
       if !$config[:vsphere].nil? && ($config[:providers].nil? || $config[:providers][:vsphere].nil?)
