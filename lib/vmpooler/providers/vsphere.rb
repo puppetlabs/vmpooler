@@ -353,6 +353,8 @@ module Vmpooler
           nil
         end
 
+        # Return a hash of VM data
+        # Provides vmname, hostname, template, poolname, boottime and powerstate information
         def generate_vm_hash(vm_object, pool_name)
           pool_configuration = pool_config(pool_name)
           return nil if pool_configuration.nil?
