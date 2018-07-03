@@ -159,6 +159,30 @@ EOT
         expect(result).to eq(expected_vm_list)
       end
     end
+
+    context 'given a pool folder with a folder and vms' do
+      let(:expected_vm_list) {[
+        { 'name' => 'vm1'},
+        { 'name' => 'vm2'},
+        { 'name' => 'vm3'}
+      ]}
+      let(:folder_object2) { mock_RbVmomi_VIM_Folder({ :name => 'pool2'}) }
+      before(:each) do
+        expected_vm_list.each do |vm_hash|
+          mock_vm = mock_RbVmomi_VIM_VirtualMachine({ :name => vm_hash['name'] })
+          # Add the mocked VM to the folder
+          folder_object.childEntity << mock_vm
+        end
+        folder_object.childEntity << folder_object2
+        expect(subject).to receive(:find_folder).with(pool_config['folder'],connection,datacenter_name).and_return(folder_object)
+      end
+
+      it 'should return the vms without the folder' do
+        result = subject.vms_in_pool(poolname)
+
+        expect(result).to eq(expected_vm_list)
+      end
+    end
   end
 
   describe '#get_vm' do
