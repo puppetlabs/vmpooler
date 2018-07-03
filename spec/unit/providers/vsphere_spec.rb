@@ -897,13 +897,8 @@ EOT
         allow(subject).to receive(:sleep)
       end
 
-      it 'should raise an error' do
-        expect{subject.connect_to_vsphere}.to raise_error(RuntimeError,'MockError')
-      end
-
       it 'should retry the connection attempt config.max_tries times' do
-        pending('Resolution of issue https://github.com/puppetlabs/vmpooler/issues/199')
-        expect(RbVmomi::VIM).to receive(:connect).exactly(config[:config]['max_tries']).times.and_raise(RuntimeError,'MockError')
+        expect(RbVmomi::VIM).to receive(:connect).exactly(config[:config]['max_tries']).times
 
         begin
           # Swallow any errors
@@ -913,7 +908,6 @@ EOT
       end
 
       it 'should increment the connect.fail counter config.max_tries times' do
-        pending('Resolution of issue https://github.com/puppetlabs/vmpooler/issues/199')
         expect(metrics).to receive(:increment).with('connect.fail').exactly(config[:config]['max_tries']).times
 
         begin
@@ -928,7 +922,6 @@ EOT
       ].each do |testcase|
         context "Configuration set for max_tries of #{testcase[:max_tries]} and retry_facter of #{testcase[:retry_factor]}" do
           it "should sleep #{testcase[:max_tries] - 1} times between attempts with increasing timeout" do
-            pending('Resolution of issue https://github.com/puppetlabs/vmpooler/issues/199')
             config[:config]['max_tries'] = testcase[:max_tries]
             config[:config]['retry_factor'] = testcase[:retry_factor]
 
