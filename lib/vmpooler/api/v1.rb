@@ -645,6 +645,9 @@ module Vmpooler
           result[params[:hostname]]['state'] = 'destroyed'
         elsif rdata['checkout']
           result[params[:hostname]]['running'] = ((Time.now - Time.parse(rdata['checkout'])) / 60 / 60).round(2)
+          result[params[:hostname]]['remaining'] = ((Time.parse(rdata['checkout']) + rdata['lifetime'].to_i*60*60 - Time.now) / 60 / 60).round(2).abs
+          result[params[:hostname]]['start_time'] = Time.parse(rdata['checkout'])
+          result[params[:hostname]]['end_time'] = Time.parse(rdata['checkout']) + rdata['lifetime'].to_i*60*60
           result[params[:hostname]]['state'] = 'running'
         elsif rdata['check']
           result[params[:hostname]]['state'] = 'ready'
