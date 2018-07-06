@@ -24,6 +24,9 @@ matrix:
     - rvm: jruby-9.1.17.0
       env: "CHECK=test"
 
+    - rvm: jruby-9.2.0.0
+      env: "CHECK=test"
+
   # Remove the allow_failures section once
   # Rubocop is required for Travis to pass a build
   allow_failures:
