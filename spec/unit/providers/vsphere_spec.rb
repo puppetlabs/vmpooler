@@ -174,7 +174,7 @@ EOT
           folder_object.childEntity << mock_vm
         end
         folder_object.childEntity << folder_object2
-        expect(subject).to receive(:find_folder).with(pool_config['folder'],connection,datacenter_name).and_return(folder_object)
+        expect(subject).to receive(:find_vm_folder).with(poolname,connection).and_return(folder_object)
       end
 
       it 'should return the vms without the folder' do
