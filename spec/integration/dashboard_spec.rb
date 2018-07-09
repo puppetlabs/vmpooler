@@ -22,12 +22,9 @@ describe Vmpooler::API do
     end
 
     context '/dashboard/' do
-      let(:config) { {
-          config: {'site_name' => 'test pooler'}
-      } }
+      ENV['SITE_NAME'] = 'test pooler'
 
       before do
-        $config = config
         get '/dashboard/'
       end
 

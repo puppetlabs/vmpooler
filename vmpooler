@@ -10,29 +10,49 @@ redis_host = config[:redis]['server']
 redis_port = config[:redis]['port']
 redis_password = config[:redis]['password']
 logger_file = config[:config]['logfile']
+api_logger_file = config[:config]['api_logfile']
 
 metrics = Vmpooler.new_metrics(config)
 
-api = Thread.new do
-  thr = Vmpooler::API.new
-  thr.helpers.configure(config, Vmpooler.new_redis(redis_host, redis_port, redis_password), metrics)
-  thr.helpers.execute!
+torun_threads = []
+if ARGV.count == 0
+  torun = ['api', 'manager']
+else
+  torun = []
+  torun << 'api' if ARGV.include? 'api'
+  torun << 'manager' if ARGV.include? 'manager'
+  exit(2) if torun.empty?
 end
 
-manager = Thread.new do
-  Vmpooler::PoolManager.new(
-    config,
-    Vmpooler.new_logger(logger_file),
-    Vmpooler.new_redis(redis_host, redis_port, redis_password),
-    metrics
-  ).execute!
+if torun.include? 'api'
+  api = Thread.new do
+    thr = Vmpooler::API.new
+    redis = Vmpooler.new_redis(redis_host, redis_port, redis_password)
+    thr.helpers.configure(config, redis, metrics)
+    thr.helpers.execute!
+  end
+  torun_threads << api
+end
+
+if torun.include? 'manager'
+  manager = Thread.new do
+    Vmpooler::PoolManager.new(
+      config,
+      Vmpooler.new_logger(logger_file),
+      Vmpooler.new_redis(redis_host, redis_port, redis_password),
+      metrics
+    ).execute!
+  end
+  torun_threads << manager
 end
 
 if ENV['VMPOOLER_DEBUG']
   trap('INT') do
     puts 'Shutting down.'
-    [api, manager].each(&:exit)
+    torun_threads.each(&:exit)
   end
 end
 
-[api, manager].each(&:join)
+torun_threads.each do |th|
+  th.join
+end

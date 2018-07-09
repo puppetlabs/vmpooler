@@ -1,8 +1,13 @@
 module Vmpooler
   class Dashboard < Sinatra::Base
+
+    def config
+      Vmpooler.config
+    end
+
     get '/dashboard/?' do
       erb :dashboard, locals: {
-        site_name: $config[:config]['site_name'] || '<b>vmpooler</b>'
+        site_name: config[:config]['site_name'] || '<b>vmpooler</b>'
       }
     end
   end

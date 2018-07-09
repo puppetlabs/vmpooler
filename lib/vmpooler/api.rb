@@ -4,8 +4,6 @@ module Vmpooler
       super
     end
 
-    set :environment, :production
-
     not_found do
       content_type :json
 
@@ -42,11 +40,10 @@ module Vmpooler
     use Vmpooler::API::Reroute
     use Vmpooler::API::V1
 
-    def configure(config, redis, metrics, environment = :production)
+    def configure(config, redis, metrics)
       self.settings.set :config, config
       self.settings.set :redis, redis
       self.settings.set :metrics, metrics
-      self.settings.set :environment, environment
     end
 
     def execute!

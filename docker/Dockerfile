@@ -15,14 +15,16 @@ RUN mkdir -p /var/lib/vmpooler
 WORKDIR /var/lib/vmpooler
 
 ADD Gemfile* /var/lib/vmpooler/
-RUN bundle install --system
-
-RUN ln -s /opt/jruby/bin/jruby /usr/bin/jruby
 
 COPY . /var/lib/vmpooler
+COPY ./docker/docker-entrypoint.sh /usr/local/bin/
 
-ENV VMPOOLER_LOG /var/log/vmpooler.log
-CMD \
-    /var/lib/vmpooler/scripts/vmpooler_init.sh start \
-    && while [ ! -f ${VMPOOLER_LOG} ]; do sleep 1; done ; \
-    tail -f ${VMPOOLER_LOG}
+ENV LOGFILE=/dev/stdout \
+      RACK_ENV=production
+
+RUN bundle install --system ; \
+      ln -s /opt/jruby/bin/jruby /usr/bin/jruby ; \
+      chmod +x /usr/local/bin/docker-entrypoint.sh \
+      /var/lib/vmpooler/vmpooler
+
+ENTRYPOINT ["docker-entrypoint.sh"]
