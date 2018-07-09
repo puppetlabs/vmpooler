@@ -404,10 +404,10 @@ module Vmpooler
             metrics.increment('connect.open')
             return connection
           rescue => err
-            try += 1
             metrics.increment('connect.fail')
-            raise err if try == max_tries
+            raise err if try >= max_tries
             sleep(try * retry_factor)
+            try += 1
             retry
           end
         end
