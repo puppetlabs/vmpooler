@@ -51,7 +51,7 @@ module Vmpooler
             return vms if folder_object.nil?
 
             folder_object.childEntity.each do |vm|
-              vms << { 'name' => vm.name }
+              vms << { 'name' => vm.name } if vm.is_a? RbVmomi::VIM::VirtualMachine
             end
           end
           vms
