@@ -217,6 +217,14 @@ EOT
         subject.move_pending_vm_to_ready(vm, pool, host)
       end
 
+      it 'should receive time_to_ready_state metric' do
+        redis.hset("vmpooler__vm__#{vm}", 'clone',Time.now.to_s)
+        expect(metrics).to receive(:timing).with(/time_to_ready_state\./,/0/)
+
+        subject.move_pending_vm_to_ready(vm, pool, host)
+      end
+
+
       it 'should set the boot time in redis' do
         redis.hset("vmpooler__vm__#{vm}", 'clone',Time.now.to_s)
         expect(redis.hget('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm)).to be_nil

@@ -102,7 +102,7 @@ module Vmpooler
 
         # last boot time is displayed in API, and used by alarming script
         $redis.hset('vmpooler__lastboot', pool, Time.now)
-
+        $metrics.timing("time_to_ready_state.#{pool}", finish)
         $logger.log('s', "[>] [#{pool}] '#{vm}' moved from 'pending' to 'ready' queue")
       end
     end
