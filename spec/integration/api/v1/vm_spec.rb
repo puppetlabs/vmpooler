@@ -44,20 +44,16 @@ describe Vmpooler::API::V1 do
         create_running_vm 'pool1', 'abcdefghijklmnop'
         get "#{prefix}/vm/abcdefghijklmnop"
         expect_json(ok = true, http = 200)
-        expected = {
-          ok: true,
-          abcdefghijklmnop: {
-              template: "pool1",
-              lifetime: 0,
-              running: 0.0,
-              remaining: 0.0,
-              start_time: "#{current_time}",
-              end_time: "#{current_time}",
-              state: "running",
-              ip: ""
-          }
-        }
-        expect(last_response.body).to match(JSON.pretty_generate(expected))
+        response_body = (JSON.parse(last_response.body)["abcdefghijklmnop"])
+
+        expect(response_body["template"]).to eq("pool1")
+        expect(response_body["lifetime"]).to eq(0)
+        expect(response_body["running"]).to be >= 0
+        expect(response_body["remaining"]).to be <= 0
+        expect(response_body["start_time"]).to eq("#{current_time}")
+        expect(response_body["end_time"]).to eq("#{current_time}")
+        expect(response_body["state"]).to eq("running")
+        expect(response_body["ip"]).to eq("")
       end
     end
 
