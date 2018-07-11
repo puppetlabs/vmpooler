@@ -50,8 +50,8 @@ describe Vmpooler::API::V1 do
         expect(response_body["lifetime"]).to eq(0)
         expect(response_body["running"]).to be >= 0
         expect(response_body["remaining"]).to be <= 0
-        expect(response_body["start_time"]).to eq("#{current_time}")
-        expect(response_body["end_time"]).to eq("#{current_time}")
+        expect(response_body["start_time"]).to eq(current_time.to_datetime.rfc3339)
+        expect(response_body["end_time"]).to eq(current_time.to_datetime.rfc3339)
         expect(response_body["state"]).to eq("running")
         expect(response_body["ip"]).to eq("")
       end
