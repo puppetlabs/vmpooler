@@ -23,6 +23,7 @@ describe Vmpooler::API do
 
     context '/dashboard/' do
       ENV['SITE_NAME'] = 'test pooler'
+      ENV['VMPOOLER_CONFIG'] = 'thing'
 
       before do
         get '/dashboard/'

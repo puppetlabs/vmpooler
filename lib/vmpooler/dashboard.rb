@@ -7,7 +7,7 @@ module Vmpooler
 
     get '/dashboard/?' do
       erb :dashboard, locals: {
-        site_name: config[:config]['site_name'] || '<b>vmpooler</b>'
+        site_name: ENV['SITE_NAME'] || config[:config]['site_name'] || '<b>vmpooler</b>'
       }
     end
   end
