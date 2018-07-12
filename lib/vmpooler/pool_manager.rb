@@ -328,10 +328,9 @@ module Vmpooler
     end
 
     def purge_vms_and_folders(provider)
-      provider_name = provider.name
       configured_folders = pool_folders(provider)
       base_folders = get_base_folders(configured_folders)
-      whitelist = $config[:providers][provider_name.to_sym]['folder_whitelist']
+      whitelist = provider.provider_config['folder_whitelist']
       provider.purge_unconfigured_folders(base_folders, configured_folders, whitelist)
     end
 
