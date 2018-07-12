@@ -39,6 +39,24 @@ describe Vmpooler::API::V1 do
       create_token('abcdefghijklmnopqrstuvwxyz012345', 'jdoe', current_time)
     end
 
+    describe 'GET /vm/:hostname' do
+      it 'returns correct information on a running vm' do
+        create_running_vm 'pool1', 'abcdefghijklmnop'
+        get "#{prefix}/vm/abcdefghijklmnop"
+        expect_json(ok = true, http = 200)
+        response_body = (JSON.parse(last_response.body)["abcdefghijklmnop"])
+
+        expect(response_body["template"]).to eq("pool1")
+        expect(response_body["lifetime"]).to eq(0)
+        expect(response_body["running"]).to be >= 0
+        expect(response_body["remaining"]).to be <= 0
+        expect(response_body["start_time"]).to eq(current_time.to_datetime.rfc3339)
+        expect(response_body["end_time"]).to eq(current_time.to_datetime.rfc3339)
+        expect(response_body["state"]).to eq("running")
+        expect(response_body["ip"]).to eq("")
+      end
+    end
+
     describe 'POST /vm' do
       it 'returns a single VM' do
         create_ready_vm 'pool1', 'abcdefghijklmnop'
