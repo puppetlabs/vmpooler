@@ -1,5 +1,3 @@
-require 'rubygems' unless defined?(Gem)
-
 module Vmpooler
   require 'date'
   require 'json'
@@ -14,11 +12,7 @@ module Vmpooler
   require 'set'
 
   %w[api graphite logger pool_manager statsd dummy_statsd generic_connection_pool providers].each do |lib|
-    begin
-      require "vmpooler/#{lib}"
-    rescue LoadError
-      require File.expand_path(File.join(File.dirname(__FILE__), 'vmpooler', lib))
-    end
+    require "vmpooler/#{lib}"
   end
 
   def self.config(filepath = 'vmpooler.yaml')
@@ -31,21 +25,23 @@ module Vmpooler
     else
       # Take the name of the config file either from an ENV variable or from the filepath argument
       config_file = ENV['VMPOOLER_CONFIG_FILE'] || filepath
-      parsed_config = YAML.load_file(config_file)
+      parsed_config = YAML.load_file(config_file) if File.exist? config_file
     end
 
-    exit unless parsed_config
+    parsed_config ||= { config: {} }
 
     # Bail out if someone attempts to start vmpooler with dummy authentication
     # without enbaling debug mode.
-    if parsed_config[:auth]['provider'] == 'dummy'
-      unless ENV['VMPOOLER_DEBUG']
-        warning = [
-          'Dummy authentication should not be used outside of debug mode',
-          'please set environment variable VMPOOLER_DEBUG to \'true\' if you want to use dummy authentication'
-        ]
+    if parsed_config.has_key? :auth
+      if parsed_config[:auth]['provider'] == 'dummy'
+        unless ENV['VMPOOLER_DEBUG']
+          warning = [
+            'Dummy authentication should not be used outside of debug mode',
+            'please set environment variable VMPOOLER_DEBUG to \'true\' if you want to use dummy authentication'
+          ]
 
-        raise warning.join(";\s")
+          raise warning.join(";\s")
+        end
       end
     end
 
@@ -70,7 +66,7 @@ module Vmpooler
     parsed_config[:config]['create_template_delta_disks'] = ENV['CREATE_TEMPLATE_DELTA_DISKS'] if ENV['CREATE_TEMPLATE_DELTA_DISKS']
     parsed_config[:config]['experimental_features'] = ENV['EXPERIMENTAL_FEATURES'] if ENV['EXPERIMENTAL_FEATURES']
 
-    parsed_config[:redis] = parsed_config[:redis] || {} if ENV['REDIS_SERVER']
+    parsed_config[:redis] = parsed_config[:redis] || {}
     parsed_config[:redis]['server'] = ENV['REDIS_SERVER'] || parsed_config[:redis]['server'] || 'localhost'
     parsed_config[:redis]['port'] = ENV['REDIS_PORT'] if ENV['REDIS_PORT']
     parsed_config[:redis]['password'] = ENV['REDIS_PASSWORD'] if ENV['REDIS_PASSWORD']
@@ -85,12 +81,14 @@ module Vmpooler
     parsed_config[:graphite]['server'] = ENV['GRAPHITE_SERVER'] if ENV['GRAPHITE_SERVER']
 
     parsed_config[:auth] = parsed_config[:auth] || {} if ENV['AUTH_PROVIDER']
-    parsed_config[:auth]['provider'] = ENV['AUTH_PROVIDER'] if ENV['AUTH_PROVIDER']
-    parsed_config[:auth][:ldap] = parsed_config[:auth][:ldap] || {} if parsed_config[:auth]['provider'] == 'ldap'
-    parsed_config[:auth][:ldap]['server'] = ENV['LDAP_SERVER'] if ENV['LDAP_SERVER']
-    parsed_config[:auth][:ldap]['port'] = ENV['LDAP_PORT'] if ENV['LDAP_PORT']
-    parsed_config[:auth][:ldap]['base'] = ENV['LDAP_BASE'] if ENV['LDAP_BASE']
-    parsed_config[:auth][:ldap]['user_object'] = ENV['LDAP_USER_OBJECT'] if ENV['LDAP_USER_OBJECT']
+    if parsed_config.has_key? :auth
+      parsed_config[:auth]['provider'] = ENV['AUTH_PROVIDER'] if ENV['AUTH_PROVIDER']
+      parsed_config[:auth][:ldap] = parsed_config[:auth][:ldap] || {} if parsed_config[:auth]['provider'] == 'ldap'
+      parsed_config[:auth][:ldap]['server'] = ENV['LDAP_SERVER'] if ENV['LDAP_SERVER']
+      parsed_config[:auth][:ldap]['port'] = ENV['LDAP_PORT'] if ENV['LDAP_PORT']
+      parsed_config[:auth][:ldap]['base'] = ENV['LDAP_BASE'] if ENV['LDAP_BASE']
+      parsed_config[:auth][:ldap]['user_object'] = ENV['LDAP_USER_OBJECT'] if ENV['LDAP_USER_OBJECT']
+    end
 
     # Create an index of pool aliases
     parsed_config[:pool_names] = Set.new
