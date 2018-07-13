@@ -1,6 +1,9 @@
 #!/usr/bin/env ruby
 
-require 'vmpooler'
+$LOAD_PATH.unshift(File.dirname(__FILE__))
+
+require 'rubygems' unless defined?(Gem)
+require 'lib/vmpooler'
 
 config = Vmpooler.config
 redis_host = config[:redis]['server']
@@ -43,7 +46,7 @@ if torun.include? 'manager'
   torun_threads << manager
 end
 
-if ENV['VMPOOLER_DEBUG'] || torun_threads.count == 2
+if ENV['VMPOOLER_DEBUG']
   trap('INT') do
     puts 'Shutting down.'
     torun_threads.each(&:exit)
