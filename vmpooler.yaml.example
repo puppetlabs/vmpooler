@@ -11,6 +11,22 @@
 #     For multiple providers, specify one of the supported backing services (vsphere or dummy)
 #     (optional: will default to it's parent :key: name eg. 'vsphere')
 #
+#   - purge_unconfigured_folders
+#     Enable purging of VMs and folders detected within the base folder path that are not configured for the provider
+#     Only a single layer of folders and their child VMs are evaluated from detected base folder paths
+#     Nested child folders will not be destroyed. An optional whitelist can be provided to exclude folders
+#     A base folder path for 'vmpooler/redhat-7' would be 'vmpooler'
+#     Setting this on the provider will enable folder purging for the provider
+#     Expects a boolean value
+#     (optional; default: false)
+#
+#   - folder_whitelist
+#     Specify folders that are within the base folder path, not in the configuration, and should not be destroyed
+#     To exclude 'vmpooler/myfolder' from being destroyed when the base path is 'vmpooler' you would specify 'myfolder' in the whitelist
+#     This option is only evaluated when 'purge_unconfigured_folders' is enabled
+#     Expects an array of strings specifying the whitelisted folders by name
+#     (optional; default: nil)
+#
 # If you want to support more than one provider with different parameters (server, username or passwords) you have to specify the
 # backing service in the provider_class configuration parameter for example 'vsphere' or 'dummy'. Each pool can specify
 # the provider to use.
@@ -298,6 +314,7 @@
 #
 #   - base
 #     The base DN used for LDAP searches.
+#     This can be a string providing a single DN, or an array of DNs to search.
 #
 #   - user_object
 #     The LDAP object-type used to designate a user object.
@@ -445,6 +462,14 @@
 #
 #   - experimental_features (Only affects API config endpoints)
 #     Enable experimental API capabilities such as changing pool template and size without application restart
+#     Expects a boolean value
+#     (optional; default: false)
+#
+#   - purge_unconfigured_folders (vSphere Provider only)
+#     Enable purging of VMs and folders detected within the base folder path that are not configured for the provider
+#     Only a single layer of folders and their child VMs are evaluated from detected base folder paths
+#     A base folder path for 'vmpooler/redhat-7' would be 'vmpooler'
+#     When enabled in the global configuration then purging is enabled for all providers
 #     Expects a boolean value
 #     (optional; default: false)
 #
