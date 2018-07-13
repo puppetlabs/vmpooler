@@ -49,13 +49,8 @@ module Vmpooler
       mutex = vm_mutex(vm)
       return if mutex.locked?
       mutex.synchronize do
-        host = provider.get_vm(pool, vm)
-        unless host
-          fail_pending_vm(vm, pool, timeout, false)
-          return
-        end
         if provider.vm_ready?(pool, vm)
-          move_pending_vm_to_ready(vm, pool, host)
+          move_pending_vm_to_ready(vm, pool)
         else
           fail_pending_vm(vm, pool, timeout)
         end
@@ -86,25 +81,27 @@ module Vmpooler
       false
     end
 
-    def move_pending_vm_to_ready(vm, pool, host)
-      if host['hostname'] == vm
-        begin
-          Socket.getaddrinfo(vm, nil) # WTF? I assume this is just priming the local DNS resolver cache?!?!
-        rescue # rubocop:disable Lint/HandleExceptions
-          # Do not care about errors what-so-ever
-        end
+    def move_pending_vm_to_ready(vm, pool)
+      clone_time = $redis.hget('vmpooler__vm__' + vm, 'clone')
+      finish = format('%.2f', Time.now - Time.parse(clone_time)) if clone_time
 
-        clone_time = $redis.hget('vmpooler__vm__' + vm, 'clone')
-        finish = format('%.2f', Time.now - Time.parse(clone_time)) if clone_time
+      $redis.smove('vmpooler__pending__' + pool, 'vmpooler__ready__' + pool, vm)
+      $redis.hset('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm, finish) # maybe remove as this is never used by vmpooler itself?
+      $redis.hset("vmpooler__vm__#{vm}", 'ready', Time.now)
 
-        $redis.smove('vmpooler__pending__' + pool, 'vmpooler__ready__' + pool, vm)
-        $redis.hset('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm, finish) # maybe remove as this is never used by vmpooler itself?
+      # last boot time is displayed in API, and used by alarming script
+      $redis.hset('vmpooler__lastboot', pool, Time.now)
 
-        # last boot time is displayed in API, and used by alarming script
-        $redis.hset('vmpooler__lastboot', pool, Time.now)
-        $metrics.timing("time_to_ready_state.#{pool}", finish)
-        $logger.log('s', "[>] [#{pool}] '#{vm}' moved from 'pending' to 'ready' queue")
-      end
+      $metrics.timing("time_to_ready_state.#{pool}", finish)
+      $logger.log('s', "[>] [#{pool}] '#{vm}' moved from 'pending' to 'ready' queue")
+    end
+
+    def vm_still_ready?(pool_name, vm_name, provider)
+      # Check if the VM is still ready/available
+      return true if provider.vm_ready?(pool_name, vm_name)
+      raise("VM #{vm_name} is not ready")
+    rescue
+      move_vm_queue(pool_name, vm_name, 'ready', 'completed', "is unreachable, removed from 'ready' queue")
     end
 
     def check_ready_vm(vm, pool, ttl, provider)
@@ -112,7 +109,7 @@ module Vmpooler
         begin
           _check_ready_vm(vm, pool, ttl, provider)
         rescue => err
-          $logger.log('s', "[!] [#{pool}] '#{vm}' failed while checking a ready vm : #{err}")
+          $logger.log('s', "[!] [#{pool['name']}] '#{vm}' failed while checking a ready vm : #{err}")
           raise
         end
       end
@@ -126,51 +123,48 @@ module Vmpooler
         check_stamp = $redis.hget('vmpooler__vm__' + vm, 'check')
         return if check_stamp && (((Time.now - Time.parse(check_stamp)) / 60) <= $config[:config]['vm_checktime'])
 
-        host = provider.get_vm(pool, vm)
-        # Check if the host even exists
-        unless host
-          $redis.srem('vmpooler__ready__' + pool, vm)
-          $logger.log('s', "[!] [#{pool}] '#{vm}' not found in inventory, removed from 'ready' queue")
-          return
-        end
-
         $redis.hset('vmpooler__vm__' + vm, 'check', Time.now)
-        # Check if the VM is not powered on, before checking TTL
-        unless host['powerstate'].casecmp('poweredon').zero?
-          $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
-          $logger.log('d', "[!] [#{pool}] '#{vm}' appears to be powered off, removed from 'ready' queue")
-          return
-        end
-
         # Check if the hosts TTL has expired
         if ttl > 0
           # host['boottime'] may be nil if host is not powered on
           if ((Time.now - host['boottime']) / 60).to_s[/^\d+\.\d{1}/].to_f > ttl
-            $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
+            $redis.smove('vmpooler__ready__' + pool['name'], 'vmpooler__completed__' + pool['name'], vm)
 
-            $logger.log('d', "[!] [#{pool}] '#{vm}' reached end of TTL after #{ttl} minutes, removed from 'ready' queue")
+            $logger.log('d', "[!] [#{pool['name']}] '#{vm}' reached end of TTL after #{ttl} minutes, removed from 'ready' queue")
             return
           end
         end
 
-        # Check if the hostname has magically changed from underneath Pooler
-        if host['hostname'] != vm
-          $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
-          $logger.log('d', "[!] [#{pool}] '#{vm}' has mismatched hostname, removed from 'ready' queue")
-          return
-        end
+        return if has_mismatched_hostname?(vm, pool, provider)
 
-        # Check if the VM is still ready/available
-        begin
-          raise("VM #{vm} is not ready") unless provider.vm_ready?(pool, vm)
-        rescue
-          if $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
-            $logger.log('d', "[!] [#{pool}] '#{vm}' is unreachable, removed from 'ready' queue")
-          else
-            $logger.log('d', "[!] [#{pool}] '#{vm}' is unreachable, and failed to remove from 'ready' queue")
-          end
-        end
+        vm_still_ready?(pool['name'], vm, provider)
       end
+    end
+
+    def has_mismatched_hostname?(vm, pool, provider)
+      check_hostname = pool['check_hostname_for_mismatch']
+      check_hostname = $config[:config]['check_ready_vm_hostname_for_mismatch'] if check_hostname.nil?
+      return if check_hostname == false
+
+      # Wait one minute before checking a VM for hostname mismatch
+      # When checking as soon as the VM passes the ready test the instance
+      # often doesn't report its hostname yet causing the VM to be removed immediately
+      vm_ready_time = $redis.hget("vmpooler__vm__#{vm}", 'ready')
+      if vm_ready_time
+        wait_before_checking = 60
+        time_since_ready = (Time.now - Time.parse(vm_ready_time)).to_i
+        return unless time_since_ready > wait_before_checking
+      end
+
+      # Check if the hostname has magically changed from underneath Pooler
+      vm_hash = provider.get_vm(pool['name'], vm)
+      hostname = vm_hash['hostname']
+
+      return if hostname.empty?
+      return if hostname == vm
+      $redis.smove('vmpooler__ready__' + pool['name'], 'vmpooler__completed__' + pool['name'], vm)
+      $logger.log('d', "[!] [#{pool['name']}] '#{vm}' has mismatched hostname #{hostname}, removed from 'ready' queue")
+      return true
     end
 
     def check_running_vm(vm, pool, ttl, provider)
@@ -188,17 +182,26 @@ module Vmpooler
       mutex = vm_mutex(vm)
       return if mutex.locked?
       mutex.synchronize do
-        host = provider.get_vm(pool, vm)
+        # Check that VM is within defined lifetime
+        checkouttime = $redis.hget('vmpooler__active__' + pool, vm)
+        if checkouttime
+          running = (Time.now - Time.parse(checkouttime)) / 60 / 60
 
-        if host
-          # Check that VM is within defined lifetime
-          checkouttime = $redis.hget('vmpooler__active__' + pool, vm)
-          if checkouttime
-            running = (Time.now - Time.parse(checkouttime)) / 60 / 60
+          if (ttl.to_i > 0) && (running.to_i >= ttl.to_i)
+            move_vm_queue(pool, vm, 'running', 'completed', "reached end of TTL after #{ttl} hours")
+            return
+          end
+        end
 
-            if (ttl.to_i > 0) && (running.to_i >= ttl.to_i)
-              move_vm_queue(pool, vm, 'running', 'completed', "reached end of TTL after #{ttl} hours")
-            end
+        if provider.vm_ready?(pool, vm)
+          return
+        else
+          host = provider.get_vm(pool, vm)
+
+          if host
+            return
+          else
+            move_vm_queue(pool, vm, 'running', 'completed', "is no longer in inventory, removing from running")
           end
         end
       end
@@ -761,7 +764,7 @@ module Vmpooler
         if inventory[vm]
           begin
             pool_check_response[:checked_ready_vms] += 1
-            check_ready_vm(vm, pool['name'], pool['ready_ttl'] || 0, provider)
+            check_ready_vm(vm, pool, pool['ready_ttl'] || 0, provider)
           rescue => err
             $logger.log('d', "[!] [#{pool['name']}] _check_pool failed with an error while evaluating ready VMs: #{err}")
           end
