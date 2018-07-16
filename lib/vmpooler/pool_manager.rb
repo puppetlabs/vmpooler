@@ -32,6 +32,31 @@ module Vmpooler
       $config
     end
 
+    # Place pool configuration in redis so an API instance can discover running pool configuration
+    def load_pools_to_redis
+      previously_configured_pools = $redis.smembers('vmpooler__pools')
+      currently_configured_pools = []
+      config[:pools].each do |pool|
+        currently_configured_pools << pool['name']
+        $redis.sadd('vmpooler__pools', pool['name'])
+        pool_keys = pool.keys
+        pool_keys.delete('alias')
+        to_set = {}
+        pool_keys.each do |k|
+          to_set[k] = pool[k]
+        end
+        to_set['alias'] = pool['alias'].join(',') if to_set.has_key?('alias')
+        $redis.hmset("vmpooler__pool__#{pool['name']}", to_set.to_a.flatten) unless to_set.empty?
+      end
+      previously_configured_pools.each do |pool|
+        unless currently_configured_pools.include? pool
+          $redis.srem('vmpooler__pools', pool)
+          $redis.del("vmpooler__pool__#{pool}")
+        end
+      end
+      return
+    end
+
     # Check the state of a VM
     def check_pending_vm(vm, pool, timeout, provider)
       Thread.new do
@@ -926,6 +951,9 @@ module Vmpooler
           pool['provider'] = 'vsphere'
         end
       end
+
+      # Load running pool configuration into redis so API server can retrieve it
+      load_pools_to_redis
 
       # Get pool loop settings
       $config[:config] = {} if $config[:config].nil?

@@ -2,33 +2,29 @@ lib = File.expand_path('../lib', __FILE__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 require 'vmpooler/version'
 
-Gem::Specification.new do |spec|
-  spec.name          = 'vmpooler'
-  spec.version       = Vmpooler::VERSION
-  spec.authors       = ['Puppet']
-  spec.email         = ['support@puppet.com']
+Gem::Specification.new do |s|
+  s.name          = 'vmpooler'
+  s.version       = Vmpooler::VERSION
+  s.authors       = ['Puppet']
+  s.email         = ['support@puppet.com']
 
-  spec.summary       = 'vmpooler provides configurable pools of instantly-available (running) virtual machines'
-  spec.description   = 'vmpooler provides configurable pools of instantly-available (running) virtual machines'
-  spec.homepage      = 'https://github.com/puppetlabs/vmpooler'
-  spec.license       = 'MIT'
+  s.summary       = 'vmpooler provides configurable pools of instantly-available (running) virtual machines'
+  s.homepage      = 'https://github.com/puppetlabs/vmpooler'
+  s.license       = 'Apache-2.0'
+  s.required_ruby_version = Gem::Requirement.new('>= 2.3.0')
 
-  spec.files         = `git ls-files -z`.split("\x0").reject do |f|
-    f.match(%r{^(test|spec|features)/})
-  end
-  spec.bindir        = 'exe'
-  spec.executables   = spec.files.grep(%r{^exe/}) { |f| File.basename(f) }
-  spec.require_paths = ['lib']
-  spec.add_dependency 'puma', '>= 3.6.0'
-  spec.add_dependency 'rack', '~> 1.6'
-  spec.add_dependency 'rake', '>= 10.4'
-  spec.add_dependency 'rbvmomi', '>= 1.8'
-  spec.add_dependency 'sinatra', '>= 1.4'
-  spec.add_dependency 'net-ldap', '>= 0.16.1'
-  spec.add_dependency 'statsd-ruby', '>= 1.3.0'
-  spec.add_dependency 'connection_pool', '>= 2.2.1'
-  spec.add_dependency 'nokogiri', '>= 1.8.2'
-  # we should lock ruby support down to 2.2.2+ and update redis version 3.2
-  spec.add_dependency 'redis', '>= 3.0'
-
+  s.files         = Dir[ "bin/*", "lib/**/*" ]
+  s.bindir        = 'bin'
+  s.executables   = 'vmpooler'
+  s.require_paths = ["lib"]
+  s.add_dependency 'puma', '~> 3.11'
+  s.add_dependency 'rack', '~> 2.0'
+  s.add_dependency 'rake', '~> 12.3'
+  s.add_dependency 'redis', '~> 4.0'
+  s.add_dependency 'rbvmomi', '~> 1.13'
+  s.add_dependency 'sinatra', '~> 2.0'
+  s.add_dependency 'net-ldap', '~> 0.16'
+  s.add_dependency 'statsd-ruby', '~> 1.4'
+  s.add_dependency 'connection_pool', '~> 2.2'
+  s.add_dependency 'nokogiri', '~> 1.8'
 end
