@@ -756,27 +756,6 @@ module Vmpooler
           [target_host, target_host.name]
         end
 
-        def find_pool(poolname, connection, datacentername)
-          datacenter = connection.serviceInstance.find_datacenter(datacentername)
-          raise("Datacenter #{datacentername} does not exist") if datacenter.nil?
-          base = datacenter.hostFolder
-          pools = poolname.split('/')
-          pools.each do |pool|
-            if base.is_a?(RbVmomi::VIM::Folder)
-              base = base.childEntity.find { |f| f.name == pool }
-            elsif base.is_a?(RbVmomi::VIM::ClusterComputeResource)
-              base = base.resourcePool.resourcePool.find { |f| f.name == pool }
-            elsif base.is_a?(RbVmomi::VIM::ResourcePool)
-              base = base.resourcePool.find { |f| f.name == pool }
-            else
-              raise("Unexpected object type encountered (#{base.class}) while finding resource pool")
-            end
-          end
-
-          base = base.resourcePool unless base.is_a?(RbVmomi::VIM::ResourcePool) && base.respond_to?(:resourcePool)
-          base
-        end
-
         def find_snapshot(vm, snapshotname)
           get_snapshot_list(vm.snapshot.rootSnapshotList, snapshotname) if vm.snapshot
         end
