@@ -9,9 +9,6 @@ matrix:
     - rvm: 2.3.7
       env: "CHECK=rubocop"
 
-    - rvm: 2.2.10
-      env: "CHECK=test"
-
     - rvm: 2.3.7
       env: "CHECK=test"
 
