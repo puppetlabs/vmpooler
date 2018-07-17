@@ -2808,6 +2808,89 @@ EOT
     end
   end
 
+  describe '#check_pending_pool_vms' do
+    let(:provider) { double('provider') }
+    let(:pool_check_response) {
+      {:checked_pending_vms => 0}
+    }
+
+    context 'Pending VM not in the inventory' do
+      let(:inventory) {
+        # mock response from create_inventory
+        {}
+      }
+      let(:new_vm) { 'newvm'}
+      let(:new_vm_response) {
+        # Mock response from Base Provider for vms_in_pool
+        [{ 'name' => new_vm}]
+      }
+
+      before(:each) do
+        create_pending_vm(pool,vm,token)
+      end
+
+      it 'should call fail_pending_vm' do
+        expect(subject).to receive(:check_ready_vm).exactly(0).times
+        expect(subject).to receive(:fail_pending_vm).with(vm,pool,Integer,false)
+
+        subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory)
+      end
+    end
+
+    context 'Pending VM in the inventory' do
+      let(:inventory) {
+        # mock response from create_inventory
+        {vm => 1}
+      }
+      let(:vm_response) {
+        # Mock response from Base Provider for vms_in_pool
+        [{ 'name' => vm}]
+      }
+
+      before(:each) do
+        allow(subject).to receive(:check_pending_vm)
+        create_pending_vm(pool,vm,token)
+      end
+
+      it 'should return the number of checked pending VMs' do
+        subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory)
+
+        expect(pool_check_response[:checked_pending_vms]).to be(1)
+      end
+
+      it 'should log an error if one occurs' do
+        expect(subject).to receive(:check_pending_vm).and_raise(RuntimeError,'MockError')
+        expect(logger).to receive(:log).with('d', "[!] [#{pool}] _check_pool failed with an error while evaluating pending VMs: MockError")
+
+        subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory)
+      end
+
+      it 'should use the pool timeout if set' do
+        big_lifetime = 2000
+
+        config[:pools][0]['timeout'] = big_lifetime
+        expect(subject).to receive(:check_pending_vm).with(vm,pool,big_lifetime,provider)
+
+        subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory, big_lifetime)
+      end
+
+      it 'should use the configuration setting if the pool timeout is not set' do
+        big_lifetime = 2000
+
+        config[:config]['timeout'] = big_lifetime
+        expect(subject).to receive(:check_pending_vm).with(vm,pool,big_lifetime,provider)
+
+        subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory)
+      end
+
+      it 'should use a pool timeout of 15 if nothing is set' do
+        expect(subject).to receive(:check_pending_vm).with(vm,pool,15,provider)
+
+        subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory)
+      end
+    end
+  end
+
   describe '#_check_pool' do
     let(:new_vm_response) {
       # Mock response from Base Provider for vms_in_pool
@@ -2836,6 +2919,8 @@ EOT
 :pools:
   - name: #{pool}
     size: 10
+    ready_ttl: 1234
+    timeout: 5678
 EOT
       )
     }
@@ -2960,67 +3045,49 @@ EOT
     end
 
     # READY
+    context 'when checking ready VMs' do
+      let(:pool_check_response) {
+        {
+          discovered_vms: 0,
+          checked_running_vms: 0,
+          checked_ready_vms: 0,
+          checked_pending_vms: 0,
+          destroyed_vms: 0,
+          migrated_vms: 0,
+          cloned_vms: 0
+        }
+      }
+
+      it 'should call #check_ready_pool_vms' do
+        allow(subject).to receive(:create_inventory).and_return({})
+        expect(subject).to receive(:check_ready_pool_vms).with(pool, provider, pool_check_response, {}, pool_object['ready_ttl'])
+
+        subject._check_pool(pool_object,provider)
+      end
+    end
 
     # PENDING
-    context 'Pending VM not in the inventory' do
-      before(:each) do
-        expect(provider).to receive(:vms_in_pool).with(pool).and_return(new_vm_response)
-        expect(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue")
-        create_pending_vm(pool,vm,token)
-      end
+    context 'when checking ready VMs' do
+      let(:pool_check_response) {
+        {
+          discovered_vms: 0,
+          checked_running_vms: 0,
+          checked_ready_vms: 0,
+          checked_pending_vms: 0,
+          destroyed_vms: 0,
+          migrated_vms: 0,
+          cloned_vms: 0
+        }
+      }
 
-      it 'should call fail_pending_vm' do
-        expect(subject).to receive(:check_ready_vm).exactly(0).times
-        expect(subject).to receive(:fail_pending_vm).with(vm,pool,Integer,false)
-
-        subject._check_pool(pool_object,provider)
-      end
-    end
-
-    context 'Pending VM in the inventory' do
-      before(:each) do
-        expect(provider).to receive(:vms_in_pool).with(pool).and_return(vm_response)
-        allow(subject).to receive(:check_pending_vm)
-        create_pending_vm(pool,vm,token)
-      end
-
-      it 'should return the number of checked pending VMs' do
-        result = subject._check_pool(pool_object,provider)
-
-        expect(result[:checked_pending_vms]).to be(1)
-      end
-
-      it 'should log an error if one occurs' do
-        expect(subject).to receive(:check_pending_vm).and_raise(RuntimeError,'MockError')
-        expect(logger).to receive(:log).with('d', "[!] [#{pool}] _check_pool failed with an error while evaluating pending VMs: MockError")
-
-        subject._check_pool(pool_object,provider)
-      end
-
-      it 'should use the pool timeout if set' do
-        big_lifetime = 2000
-
-        config[:pools][0]['timeout'] = big_lifetime
-        expect(subject).to receive(:check_pending_vm).with(vm,pool,big_lifetime,provider)
-
-        subject._check_pool(pool_object,provider)
-      end
-
-      it 'should use the configuration setting if the pool timeout is not set' do
-        big_lifetime = 2000
-
-        config[:config]['timeout'] = big_lifetime
-        expect(subject).to receive(:check_pending_vm).with(vm,pool,big_lifetime,provider)
-
-        subject._check_pool(pool_object,provider)
-      end
-
-      it 'should use a pool timeout of 15 if nothing is set' do
-        expect(subject).to receive(:check_pending_vm).with(vm,pool,15,provider)
+      it 'should call #check_ready_pool_vms' do
+        allow(subject).to receive(:create_inventory).and_return({})
+        expect(subject).to receive(:check_pending_pool_vms).with(pool, provider, pool_check_response, {}, pool_object['timeout'])
 
         subject._check_pool(pool_object,provider)
       end
     end
+
 
     # COMPLETED
     context 'Completed VM not in the inventory' do
