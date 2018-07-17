@@ -1,16 +1,12 @@
 #!/usr/bin/env ruby
 
-$LOAD_PATH.unshift(File.dirname(__FILE__))
-
-require 'rubygems' unless defined?(Gem)
-require 'lib/vmpooler'
+require 'vmpooler'
 
 config = Vmpooler.config
 redis_host = config[:redis]['server']
 redis_port = config[:redis]['port']
 redis_password = config[:redis]['password']
 logger_file = config[:config]['logfile']
-api_logger_file = config[:config]['api_logfile']
 
 metrics = Vmpooler.new_metrics(config)
 
