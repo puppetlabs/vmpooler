@@ -1,6 +1,6 @@
 #!/bin/sh
 set -e
 
-set -- /var/lib/vmpooler/vmpooler "$@"
+set -- vmpooler "$@"
 
 exec "$@"

@@ -19,3 +19,5 @@ RUN gem install vmpooler && \
       chmod +x /usr/local/bin/docker-entrypoint.sh
 
 ENTRYPOINT ["docker-entrypoint.sh"]
+
+CMD ["vmpooler"]
