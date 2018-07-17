@@ -354,7 +354,7 @@
 #     (optional; default: '10')
 #
 #   - timeout
-#     How long (in minutes) before marking a clone as 'failed' and retrying.
+#     How long (in minutes) before marking a clone in 'pending' queues as 'failed' and retrying.
 #     (optional; default: '15')
 #
 #   - vm_checktime
@@ -500,7 +500,7 @@
 #     (optional)
 #
 #   - timeout
-#     How long (in minutes) before marking a clone as 'failed' and retrying.
+#     How long (in minutes) before marking a clone in 'pending' queues as 'failed' and retrying.
 #     This setting overrides any globally-configured timeout setting.
 #     (optional; default: '15')
 #

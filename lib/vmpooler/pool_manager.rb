@@ -737,18 +737,33 @@ module Vmpooler
       end
     end
 
-    def check_ready_pool_vms(pool_name, provider, pool_check_response, inventory, pool_ttl = nil)
-      # READY
+    def check_ready_pool_vms(pool_name, provider, pool_check_response, inventory, pool_ttl = 0)
       $redis.smembers("vmpooler__ready__#{pool_name}").each do |vm|
         if inventory[vm]
           begin
             pool_check_response[:checked_ready_vms] += 1
-            check_ready_vm(vm, pool_name, pool_ttl || 0, provider)
+            check_ready_vm(vm, pool_name, pool_ttl, provider)
           rescue => err
             $logger.log('d', "[!] [#{pool_name}] _check_pool failed with an error while evaluating ready VMs: #{err}")
           end
         else
           move_vm_queue(pool_name, vm, 'ready', 'completed', 'is a ready VM but is missing from inventory.  Marking as completed.')
+        end
+      end
+    end
+
+    def check_pending_pool_vms(pool_name, provider, pool_check_response, inventory, pool_timeout = nil)
+      pool_timeout ||= $config[:config]['timeout'] || 15
+      $redis.smembers("vmpooler__pending__#{pool_name}").each do |vm|
+        if inventory[vm]
+          begin
+            pool_check_response[:checked_pending_vms] += 1
+            check_pending_vm(vm, pool_name, pool_timeout, provider)
+          rescue => err
+            $logger.log('d', "[!] [#{pool_name}] _check_pool failed with an error while evaluating pending VMs: #{err}")
+          end
+        else
+          fail_pending_vm(vm, pool_name, pool_timeout, false)
         end
       end
     end
@@ -774,20 +789,7 @@ module Vmpooler
 
       check_ready_pool_vms(pool['name'], provider, pool_check_response, inventory, pool['ready_ttl'])
 
-      # PENDING
-      $redis.smembers("vmpooler__pending__#{pool['name']}").each do |vm|
-        pool_timeout = pool['timeout'] || $config[:config]['timeout'] || 15
-        if inventory[vm]
-          begin
-            pool_check_response[:checked_pending_vms] += 1
-            check_pending_vm(vm, pool['name'], pool_timeout, provider)
-          rescue => err
-            $logger.log('d', "[!] [#{pool['name']}] _check_pool failed with an error while evaluating pending VMs: #{err}")
-          end
-        else
-          fail_pending_vm(vm, pool['name'], pool_timeout, false)
-        end
-      end
+      check_pending_pool_vms(pool['name'], provider, pool_check_response, inventory, pool['timeout'])
 
       # COMPLETED
       $redis.smembers("vmpooler__completed__#{pool['name']}").each do |vm|

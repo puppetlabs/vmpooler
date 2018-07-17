@@ -2742,7 +2742,6 @@ EOT
 
   describe '#check_ready_pool_vms' do
     let(:provider) { double('provider') }
-    let(:ttl) { 0 }
     let(:pool_check_response) {
       {:checked_ready_vms => 0}
     }
