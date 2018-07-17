@@ -737,7 +737,7 @@ module Vmpooler
       end
     end
 
-    def check_ready_pool_vms(pool_name, provider, pool_check_response, inventory, pool_ttl)
+    def check_ready_pool_vms(pool_name, provider, pool_check_response, inventory, pool_ttl = nil)
       # READY
       $redis.smembers("vmpooler__ready__#{pool_name}").each do |vm|
         if inventory[vm]

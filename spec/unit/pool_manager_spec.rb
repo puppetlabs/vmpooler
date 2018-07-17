@@ -2746,12 +2746,12 @@ EOT
     let(:pool_check_response) {
       {:checked_ready_vms => 0}
     }
-    let(:inventory) {
-      # mock response from create_inventory
-      {}
-    }
 
     context 'Ready VM not in the inventory' do
+      let(:inventory) {
+        # mock response from create_inventory
+        {}
+      }
       before(:each) do
         create_ready_vm(pool,vm,token)
       end
@@ -2759,24 +2759,31 @@ EOT
       it 'should not call check_ready_vm' do
         expect(subject).to receive(:check_ready_vm).exactly(0).times
 
-        subject.check_ready_pool_vms(pool, provider, pool_check_response, inventory, ttl)
+        subject.check_ready_pool_vms(pool, provider, pool_check_response, inventory)
       end
 
       it 'should move the VM to completed queue' do
         expect(subject).to receive(:move_vm_queue).with(pool,vm,'ready','completed',String).and_call_original
 
-        subject.check_ready_pool_vms(pool, provider, pool_check_response, inventory, ttl)
+        subject.check_ready_pool_vms(pool, provider, pool_check_response, inventory)
       end
     end
 
     context 'Ready VM in the inventory' do
+      let(:inventory) {
+        # mock response from create_inventory
+        {vm => 1}
+      }
+      let(:big_lifetime) {
+        2000
+      }
       before(:each) do
         allow(subject).to receive(:check_ready_vm)
         create_ready_vm(pool,vm,token)
       end
 
       it 'should return the number of checked ready VMs' do
-        subject.check_ready_pool_vms(pool, provider, pool_check_response, inventory, ttl)
+        subject.check_ready_pool_vms(pool, provider, pool_check_response, inventory)
 
         expect(pool_check_response[:checked_ready_vms]).to be(1)
       end
@@ -2785,22 +2792,19 @@ EOT
         expect(subject).to receive(:check_ready_vm).and_raise(RuntimeError,'MockError')
         expect(logger).to receive(:log).with('d', "[!] [#{pool}] _check_pool failed with an error while evaluating ready VMs: MockError")
 
-        subject.check_ready_pool_vms(pool, provider, pool_check_response, inventory, ttl)
+        subject.check_ready_pool_vms(pool, provider, pool_check_response, inventory)
       end
 
       it 'should use the pool TTL if set' do
-        big_lifetime = 2000
-
-        config[:pools][0]['ready_ttl'] = big_lifetime
         expect(subject).to receive(:check_ready_vm).with(vm,pool,big_lifetime,provider)
 
-        subject.check_ready_pool_vms(pool, provider, pool_check_response, inventory, ttl)
+        subject.check_ready_pool_vms(pool, provider, pool_check_response, inventory, big_lifetime)
       end
 
       it 'should use a pool TTL of zero if none set' do
         expect(subject).to receive(:check_ready_vm).with(vm,pool,0,provider)
 
-        subject.check_ready_pool_vms(pool, provider, pool_check_response, inventory, ttl)
+        subject.check_ready_pool_vms(pool, provider, pool_check_response, inventory)
       end
     end
   end
