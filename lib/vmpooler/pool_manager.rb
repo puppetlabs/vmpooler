@@ -768,6 +768,27 @@ module Vmpooler
       end
     end
 
+    def check_completed_pool_vms(pool_name, provider, pool_check_response, inventory)
+      $redis.smembers("vmpooler__completed__#{pool_name}").each do |vm|
+        if inventory[vm]
+          begin
+            pool_check_response[:destroyed_vms] += 1
+            destroy_vm(vm, pool_name, provider)
+          rescue => err
+            $redis.srem("vmpooler__completed__#{pool_name}", vm)
+            $redis.hdel("vmpooler__active__#{pool_name}", vm)
+            $redis.del("vmpooler__vm__#{vm}")
+            $logger.log('d', "[!] [#{pool_name}] _check_pool failed with an error while evaluating completed VMs: #{err}")
+          end
+        else
+          $logger.log('s', "[!] [#{pool_name}] '#{vm}' not found in inventory, removed from 'completed' queue")
+          $redis.srem("vmpooler__completed__#{pool_name}", vm)
+          $redis.hdel("vmpooler__active__#{pool_name}", vm)
+          $redis.del("vmpooler__vm__#{vm}")
+        end
+      end
+    end
+
     def _check_pool(pool, provider)
       pool_check_response = {
         discovered_vms: 0,
@@ -791,25 +812,7 @@ module Vmpooler
 
       check_pending_pool_vms(pool['name'], provider, pool_check_response, inventory, pool['timeout'])
 
-      # COMPLETED
-      $redis.smembers("vmpooler__completed__#{pool['name']}").each do |vm|
-        if inventory[vm]
-          begin
-            pool_check_response[:destroyed_vms] += 1
-            destroy_vm(vm, pool['name'], provider)
-          rescue => err
-            $redis.srem("vmpooler__completed__#{pool['name']}", vm)
-            $redis.hdel("vmpooler__active__#{pool['name']}", vm)
-            $redis.del("vmpooler__vm__#{vm}")
-            $logger.log('d', "[!] [#{pool['name']}] _check_pool failed with an error while evaluating completed VMs: #{err}")
-          end
-        else
-          $logger.log('s', "[!] [#{pool['name']}] '#{vm}' not found in inventory, removed from 'completed' queue")
-          $redis.srem("vmpooler__completed__#{pool['name']}", vm)
-          $redis.hdel("vmpooler__active__#{pool['name']}", vm)
-          $redis.del("vmpooler__vm__#{vm}")
-        end
-      end
+      check_completed_pool_vms(pool['name'], provider, pool_check_response, inventory)
 
       # DISCOVERED
       begin

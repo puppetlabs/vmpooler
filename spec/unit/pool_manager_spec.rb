@@ -2891,6 +2891,111 @@ EOT
     end
   end
 
+  describe '#check_completed_pool_vms' do
+    let(:provider) { double('provider') }
+    let(:pool_check_response) { {
+        :checked_completed_vms => 0,
+        :destroyed_vms => 0
+      }
+    }
+    context 'Completed VM not in the inventory' do
+      let(:inventory) {
+        # mock response from create_inventory
+        {}
+      }
+      # let(:new_vm) { 'newvm'}
+      # let(:new_vm_response) {
+      #   # Mock response from Base Provider for vms_in_pool
+      #   [{ 'name' => new_vm}]
+      # }
+      before(:each) do
+        # expect(provider).to receive(:vms_in_pool).with(pool).and_return(new_vm_response)
+        # expect(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue")
+        # expect(logger).to receive(:log).with('s', "[!] [#{pool}] '#{vm}' not found in inventory, removed from 'completed' queue")
+        create_completed_vm(vm,pool,true)
+      end
+
+      it 'should log a message' do
+        # subject._check_pool(pool_object,provider)
+        subject.check_completed_pool_vms(pool, provider, pool_check_response, inventory)
+      end
+
+      it 'should not call destroy_vm' do
+        expect(subject).to receive(:destroy_vm).exactly(0).times
+
+        # subject._check_pool(pool_object,provider)
+        subject.check_completed_pool_vms(pool, provider, pool_check_response, inventory)
+      end
+
+      it 'should remove redis information' do
+        expect(redis.sismember("vmpooler__completed__#{pool}",vm)).to be(true)
+        expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to_not be(nil)
+        expect(redis.hget("vmpooler__active__#{pool}",vm)).to_not be(nil)
+
+        # subject._check_pool(pool_object,provider)
+        subject.check_completed_pool_vms(pool, provider, pool_check_response, inventory)
+
+        expect(redis.sismember("vmpooler__completed__#{pool}",vm)).to be(false)
+        expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to be(nil)
+        expect(redis.hget("vmpooler__active__#{pool}",vm)).to be(nil)
+      end
+    end
+
+    context 'Completed VM in the inventory' do
+      let(:vm_response) {
+        # Mock response from Base Provider for vms_in_pool
+        [{'name' => vm}]
+      }
+      let(:inventory) {
+        # mock response from create_inventory
+        {vm => 1}
+      }
+      before(:each) do
+        # expect(provider).to receive(:vms_in_pool).with(pool).and_return(vm_response)
+        create_completed_vm(vm,pool,true)
+      end
+
+      it 'should call destroy_vm' do
+        expect(subject).to receive(:destroy_vm)
+
+        # subject._check_pool(pool_object,provider)
+        subject.check_completed_pool_vms(pool, provider, pool_check_response, inventory)
+      end
+
+      it 'should return the number of destroyed VMs' do
+        result = subject._check_pool(pool_object,provider)
+        subject.check_completed_pool_vms(pool, provider, pool_check_response, inventory)
+
+        expect(result[:destroyed_vms]).to be(1)
+      end
+
+      context 'with an error during destroy_vm' do
+        before(:each) do
+          expect(subject).to receive(:destroy_vm).and_raise(RuntimeError,"MockError")
+          expect(logger).to receive(:log).with('d', "[!] [#{pool}] _check_pool failed with an error while evaluating completed VMs: MockError")
+        end
+
+        it 'should log a message' do
+          subject._check_pool(pool_object,provider)
+          subject.check_completed_pool_vms(pool, provider, pool_check_response, inventory)
+        end
+
+        it 'should remove redis information' do
+          expect(redis.sismember("vmpooler__completed__#{pool}",vm)).to be(true)
+          expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to_not be(nil)
+          expect(redis.hget("vmpooler__active__#{pool}",vm)).to_not be(nil)
+
+          subject._check_pool(pool_object,provider)
+          subject.check_completed_pool_vms(pool, provider, pool_check_response, inventory)
+
+          expect(redis.sismember("vmpooler__completed__#{pool}",vm)).to be(false)
+          expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to be(nil)
+          expect(redis.hget("vmpooler__active__#{pool}",vm)).to be(nil)
+        end
+      end
+    end
+  end
+
   describe '#_check_pool' do
     let(:new_vm_response) {
       # Mock response from Base Provider for vms_in_pool
@@ -3090,78 +3195,6 @@ EOT
 
 
     # COMPLETED
-    context 'Completed VM not in the inventory' do
-      before(:each) do
-        expect(provider).to receive(:vms_in_pool).with(pool).and_return(new_vm_response)
-        expect(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue")
-        expect(logger).to receive(:log).with('s', "[!] [#{pool}] '#{vm}' not found in inventory, removed from 'completed' queue")
-        create_completed_vm(vm,pool,true)
-      end
-
-      it 'should log a message' do
-        subject._check_pool(pool_object,provider)
-      end
-
-      it 'should not call destroy_vm' do
-        expect(subject).to receive(:destroy_vm).exactly(0).times
-
-        subject._check_pool(pool_object,provider)
-      end
-
-      it 'should remove redis information' do
-        expect(redis.sismember("vmpooler__completed__#{pool}",vm)).to be(true)
-        expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to_not be(nil)
-        expect(redis.hget("vmpooler__active__#{pool}",vm)).to_not be(nil)
-
-        subject._check_pool(pool_object,provider)
-
-        expect(redis.sismember("vmpooler__completed__#{pool}",vm)).to be(false)
-        expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to be(nil)
-        expect(redis.hget("vmpooler__active__#{pool}",vm)).to be(nil)
-      end
-    end
-
-    context 'Completed VM in the inventory' do
-      before(:each) do
-        expect(provider).to receive(:vms_in_pool).with(pool).and_return(vm_response)
-        create_completed_vm(vm,pool,true)
-      end
-
-      it 'should call destroy_vm' do
-        expect(subject).to receive(:destroy_vm)
-
-        subject._check_pool(pool_object,provider)
-      end
-
-      it 'should return the number of destroyed VMs' do
-        result = subject._check_pool(pool_object,provider)
-
-        expect(result[:destroyed_vms]).to be(1)
-      end
-
-      context 'with an error during destroy_vm' do
-        before(:each) do
-          expect(subject).to receive(:destroy_vm).and_raise(RuntimeError,"MockError")
-          expect(logger).to receive(:log).with('d', "[!] [#{pool}] _check_pool failed with an error while evaluating completed VMs: MockError")
-        end
-
-        it 'should log a message' do
-          subject._check_pool(pool_object,provider)
-        end
-
-        it 'should remove redis information' do
-          expect(redis.sismember("vmpooler__completed__#{pool}",vm)).to be(true)
-          expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to_not be(nil)
-          expect(redis.hget("vmpooler__active__#{pool}",vm)).to_not be(nil)
-
-          subject._check_pool(pool_object,provider)
-
-          expect(redis.sismember("vmpooler__completed__#{pool}",vm)).to be(false)
-          expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to be(nil)
-          expect(redis.hget("vmpooler__active__#{pool}",vm)).to be(nil)
-        end
-      end
-    end
 
     # DISCOVERED
     context 'Discovered VM' do
