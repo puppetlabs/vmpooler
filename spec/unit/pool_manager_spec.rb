@@ -2819,18 +2819,12 @@ EOT
         # mock response from create_inventory
         {}
       }
-      let(:new_vm) { 'newvm'}
-      let(:new_vm_response) {
-        # Mock response from Base Provider for vms_in_pool
-        [{ 'name' => new_vm}]
-      }
 
       before(:each) do
         create_pending_vm(pool,vm,token)
       end
 
       it 'should call fail_pending_vm' do
-        expect(subject).to receive(:check_ready_vm).exactly(0).times
         expect(subject).to receive(:fail_pending_vm).with(vm,pool,Integer,false)
 
         subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory)
@@ -2903,27 +2897,18 @@ EOT
         # mock response from create_inventory
         {}
       }
-      # let(:new_vm) { 'newvm'}
-      # let(:new_vm_response) {
-      #   # Mock response from Base Provider for vms_in_pool
-      #   [{ 'name' => new_vm}]
-      # }
+
       before(:each) do
-        # expect(provider).to receive(:vms_in_pool).with(pool).and_return(new_vm_response)
-        # expect(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue")
-        # expect(logger).to receive(:log).with('s', "[!] [#{pool}] '#{vm}' not found in inventory, removed from 'completed' queue")
         create_completed_vm(vm,pool,true)
       end
 
       it 'should log a message' do
-        # subject._check_pool(pool_object,provider)
         subject.check_completed_pool_vms(pool, provider, pool_check_response, inventory)
       end
 
       it 'should not call destroy_vm' do
         expect(subject).to receive(:destroy_vm).exactly(0).times
 
-        # subject._check_pool(pool_object,provider)
         subject.check_completed_pool_vms(pool, provider, pool_check_response, inventory)
       end
 
@@ -2932,7 +2917,6 @@ EOT
         expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to_not be(nil)
         expect(redis.hget("vmpooler__active__#{pool}",vm)).to_not be(nil)
 
-        # subject._check_pool(pool_object,provider)
         subject.check_completed_pool_vms(pool, provider, pool_check_response, inventory)
 
         expect(redis.sismember("vmpooler__completed__#{pool}",vm)).to be(false)
@@ -2951,22 +2935,19 @@ EOT
         {vm => 1}
       }
       before(:each) do
-        # expect(provider).to receive(:vms_in_pool).with(pool).and_return(vm_response)
         create_completed_vm(vm,pool,true)
       end
 
       it 'should call destroy_vm' do
         expect(subject).to receive(:destroy_vm)
 
-        # subject._check_pool(pool_object,provider)
         subject.check_completed_pool_vms(pool, provider, pool_check_response, inventory)
       end
 
       it 'should return the number of destroyed VMs' do
-        result = subject._check_pool(pool_object,provider)
         subject.check_completed_pool_vms(pool, provider, pool_check_response, inventory)
 
-        expect(result[:destroyed_vms]).to be(1)
+        expect(pool_check_response[:destroyed_vms]).to be(1)
       end
 
       context 'with an error during destroy_vm' do
@@ -2976,7 +2957,6 @@ EOT
         end
 
         it 'should log a message' do
-          subject._check_pool(pool_object,provider)
           subject.check_completed_pool_vms(pool, provider, pool_check_response, inventory)
         end
 
@@ -2985,13 +2965,116 @@ EOT
           expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to_not be(nil)
           expect(redis.hget("vmpooler__active__#{pool}",vm)).to_not be(nil)
 
-          subject._check_pool(pool_object,provider)
           subject.check_completed_pool_vms(pool, provider, pool_check_response, inventory)
 
           expect(redis.sismember("vmpooler__completed__#{pool}",vm)).to be(false)
           expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to be(nil)
           expect(redis.hget("vmpooler__active__#{pool}",vm)).to be(nil)
         end
+      end
+    end
+  end
+
+  describe "#check_discovered_pool_vms" do
+    context 'Discovered VM' do
+      before(:each) do
+        create_discovered_vm(vm,pool)
+      end
+
+      it 'should be moved to the completed queue' do
+        subject.check_discovered_pool_vms(pool)
+
+        expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
+      end
+
+      it 'should log a message if an error occurs' do
+        expect(redis).to receive(:smove).with("vmpooler__discovered__#{pool}", "vmpooler__completed__#{pool}", vm).and_raise(RuntimeError,'MockError')
+        expect(logger).to receive(:log).with("d", "[!] [#{pool}] _check_pool failed with an error while evaluating discovered VMs: MockError")
+
+        subject.check_discovered_pool_vms(pool)
+      end
+
+      ['pending','ready','running','completed'].each do |queue_name|
+        context "exists in the #{queue_name} queue" do
+          before(:each) do
+            allow(subject).to receive(:migrate_vm)
+            allow(subject).to receive(:check_running_vm)
+            allow(subject).to receive(:check_ready_vm)
+            allow(subject).to receive(:check_pending_vm)
+            allow(subject).to receive(:destroy_vm)
+            allow(subject).to receive(:clone_vm)
+          end
+
+          it "should remain in the #{queue_name} queue" do
+            redis.sadd("vmpooler__#{queue_name}__#{pool}", vm)
+            allow(logger).to receive(:log)
+
+            subject.check_discovered_pool_vms(pool)
+
+            expect(redis.sismember("vmpooler__#{queue_name}__#{pool}", vm)).to be(true)
+          end
+
+          it "should be removed from the discovered queue" do
+            redis.sadd("vmpooler__#{queue_name}__#{pool}", vm)
+            allow(logger).to receive(:log)
+
+            expect(redis.sismember("vmpooler__discovered__#{pool}", vm)).to be(true)
+            subject.check_discovered_pool_vms(pool)
+            expect(redis.sismember("vmpooler__discovered__#{pool}", vm)).to be(false)
+          end
+
+          it "should log a message" do
+            redis.sadd("vmpooler__#{queue_name}__#{pool}", vm)
+            expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' found in '#{queue_name}', removed from 'discovered' queue")
+
+            subject.check_discovered_pool_vms(pool)
+          end
+        end
+      end
+    end
+  end
+
+  describe "#check_migrating_pool_vms" do
+    context 'Migrating VM not in the inventory' do
+      before(:each) do
+        expect(provider).to receive(:vms_in_pool).with(pool).and_return(new_vm_response)
+        expect(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue")
+        create_migrating_vm(vm,pool)
+      end
+
+      it 'should not do anything' do
+        expect(subject).to receive(:migrate_vm).exactly(0).times
+
+        subject._check_pool(pool_object,provider)
+      end
+    end
+
+    context 'Migrating VM in the inventory' do
+      before(:each) do
+        expect(provider).to receive(:vms_in_pool).with(pool).and_return(vm_response)
+        allow(subject).to receive(:check_ready_vm)
+        allow(logger).to receive(:log).with("s", "[!] [#{pool}] is empty")
+        create_migrating_vm(vm,pool)
+      end
+
+      it 'should return the number of migrated VMs' do
+        allow(subject).to receive(:migrate_vm).with(vm,pool,provider)
+        result = subject._check_pool(pool_object,provider)
+
+        expect(result[:migrated_vms]).to be(1)
+      end
+
+      it 'should log an error if one occurs' do
+        expect(subject).to receive(:migrate_vm).and_raise(RuntimeError,'MockError')
+        expect(logger).to receive(:log).with('s', "[x] [#{pool}] '#{vm}' failed to migrate: MockError")
+
+        subject._check_pool(pool_object,provider)
+      end
+
+      it 'should call migrate_vm' do
+        expect(subject).to receive(:migrate_vm).with(vm,pool,provider)
+
+        subject._check_pool(pool_object,provider)
       end
     end
   end
@@ -3195,109 +3278,51 @@ EOT
 
 
     # COMPLETED
+    context 'when checking completed VMs' do
+      let(:pool_check_response) {
+        {
+            discovered_vms: 0,
+            checked_running_vms: 0,
+            checked_ready_vms: 0,
+            checked_pending_vms: 0,
+            destroyed_vms: 0,
+            migrated_vms: 0,
+            cloned_vms: 0
+        }
+      }
+
+      it 'should call #check_completed_pool_vms' do
+        allow(subject).to receive(:create_inventory).and_return({})
+        expect(subject).to receive(:check_completed_pool_vms).with(pool, provider, pool_check_response, {})
+
+        subject._check_pool(pool_object,provider)
+      end
+    end
 
     # DISCOVERED
-    context 'Discovered VM' do
-      before(:each) do
-        expect(provider).to receive(:vms_in_pool).with(pool).and_return(vm_response)
-        create_discovered_vm(vm,pool)
-      end
+    context 'when checking discovered VMs' do
+      let(:pool_check_response) {
+        {
+            discovered_vms: 0,
+            checked_running_vms: 0,
+            checked_ready_vms: 0,
+            checked_pending_vms: 0,
+            destroyed_vms: 0,
+            migrated_vms: 0,
+            cloned_vms: 0
+        }
+      }
 
-      it 'should be moved to the completed queue' do
+      it 'should call #check_discovered_pool_vms' do
+        allow(subject).to receive(:create_inventory).and_return({})
+        expect(subject).to receive(:check_discovered_pool_vms).with(pool)
+
         subject._check_pool(pool_object,provider)
-
-        expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
-      end
-
-      it 'should log a message if an error occurs' do
-        expect(redis).to receive(:smove).with("vmpooler__discovered__#{pool}", "vmpooler__completed__#{pool}", vm).and_raise(RuntimeError,'MockError')
-        expect(logger).to receive(:log).with("d", "[!] [#{pool}] _check_pool failed with an error while evaluating discovered VMs: MockError")
-
-        subject._check_pool(pool_object,provider)
-      end
-
-      ['pending','ready','running','completed'].each do |queue_name|
-        context "exists in the #{queue_name} queue" do
-          before(:each) do
-            allow(subject).to receive(:migrate_vm)
-            allow(subject).to receive(:check_running_vm)
-            allow(subject).to receive(:check_ready_vm)
-            allow(subject).to receive(:check_pending_vm)
-            allow(subject).to receive(:destroy_vm)
-            allow(subject).to receive(:clone_vm)
-          end
-
-          it "should remain in the #{queue_name} queue" do
-            redis.sadd("vmpooler__#{queue_name}__#{pool}", vm)
-            allow(logger).to receive(:log)
-
-            subject._check_pool(pool_object,provider)
-
-            expect(redis.sismember("vmpooler__#{queue_name}__#{pool}", vm)).to be(true)
-          end
-
-          it "should be removed from the discovered queue" do
-            redis.sadd("vmpooler__#{queue_name}__#{pool}", vm)
-            allow(logger).to receive(:log)
-
-            expect(redis.sismember("vmpooler__discovered__#{pool}", vm)).to be(true)
-            subject._check_pool(pool_object,provider)
-            expect(redis.sismember("vmpooler__discovered__#{pool}", vm)).to be(false)
-          end
-
-          it "should log a message" do
-            redis.sadd("vmpooler__#{queue_name}__#{pool}", vm)
-            expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' found in '#{queue_name}', removed from 'discovered' queue")
-
-            subject._check_pool(pool_object,provider)
-          end
-        end
       end
     end
 
     # MIGRATIONS
-    context 'Migrating VM not in the inventory' do
-      before(:each) do
-        expect(provider).to receive(:vms_in_pool).with(pool).and_return(new_vm_response)
-        expect(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue")
-        create_migrating_vm(vm,pool)
-      end
 
-      it 'should not do anything' do
-        expect(subject).to receive(:migrate_vm).exactly(0).times
-
-        subject._check_pool(pool_object,provider)
-      end
-    end
-
-    context 'Migrating VM in the inventory' do
-      before(:each) do
-        expect(provider).to receive(:vms_in_pool).with(pool).and_return(vm_response)
-        allow(subject).to receive(:check_ready_vm)
-        allow(logger).to receive(:log).with("s", "[!] [#{pool}] is empty")
-        create_migrating_vm(vm,pool)
-      end
-
-      it 'should return the number of migrated VMs' do
-        allow(subject).to receive(:migrate_vm).with(vm,pool,provider)
-        result = subject._check_pool(pool_object,provider)
-
-        expect(result[:migrated_vms]).to be(1)
-      end
-
-      it 'should log an error if one occurs' do
-        expect(subject).to receive(:migrate_vm).and_raise(RuntimeError,'MockError')
-        expect(logger).to receive(:log).with('s', "[x] [#{pool}] '#{vm}' failed to migrate: MockError")
-
-        subject._check_pool(pool_object,provider)
-      end
-
-      it 'should call migrate_vm' do
-        expect(subject).to receive(:migrate_vm).with(vm,pool,provider)
-
-        subject._check_pool(pool_object,provider)
-      end
-    end
 
     # REPOPULATE
     context 'Repopulate a pool' do

@@ -789,6 +789,38 @@ module Vmpooler
       end
     end
 
+    def check_discovered_pool_vms(pool_name)
+      begin
+        $redis.smembers("vmpooler__discovered__#{pool_name}").each do |vm|
+          %w[pending ready running completed].each do |queue|
+            if $redis.sismember("vmpooler__#{queue}__#{pool_name}", vm)
+              $logger.log('d', "[!] [#{pool_name}] '#{vm}' found in '#{queue}', removed from 'discovered' queue")
+              $redis.srem("vmpooler__discovered__#{pool_name}", vm)
+            end
+          end
+
+          if $redis.sismember("vmpooler__discovered__#{pool_name}", vm)
+            $redis.smove("vmpooler__discovered__#{pool_name}", "vmpooler__completed__#{pool_name}", vm)
+          end
+        end
+      rescue => err
+        $logger.log('d', "[!] [#{pool_name}] _check_pool failed with an error while evaluating discovered VMs: #{err}")
+      end
+    end
+
+    def check_migrating_pool_vms(pool_name, provider, pool_check_response, inventory)
+      $redis.smembers("vmpooler__migrating__#{pool_name}").each do |vm|
+        if inventory[vm]
+          begin
+            pool_check_response[:migrated_vms] += 1
+            migrate_vm(vm, pool_name, provider)
+          rescue => err
+            $logger.log('s', "[x] [#{pool_name}] '#{vm}' failed to migrate: #{err}")
+          end
+        end
+      end
+    end
+
     def _check_pool(pool, provider)
       pool_check_response = {
         discovered_vms: 0,
@@ -814,35 +846,10 @@ module Vmpooler
 
       check_completed_pool_vms(pool['name'], provider, pool_check_response, inventory)
 
-      # DISCOVERED
-      begin
-        $redis.smembers("vmpooler__discovered__#{pool['name']}").each do |vm|
-          %w[pending ready running completed].each do |queue|
-            if $redis.sismember("vmpooler__#{queue}__#{pool['name']}", vm)
-              $logger.log('d', "[!] [#{pool['name']}] '#{vm}' found in '#{queue}', removed from 'discovered' queue")
-              $redis.srem("vmpooler__discovered__#{pool['name']}", vm)
-            end
-          end
+      check_discovered_pool_vms(pool['name'])
 
-          if $redis.sismember("vmpooler__discovered__#{pool['name']}", vm)
-            $redis.smove("vmpooler__discovered__#{pool['name']}", "vmpooler__completed__#{pool['name']}", vm)
-          end
-        end
-      rescue => err
-        $logger.log('d', "[!] [#{pool['name']}] _check_pool failed with an error while evaluating discovered VMs: #{err}")
-      end
+      check_migrating_pool_vms(pool['name'], provider, pool_check_response, inventory)
 
-      # MIGRATIONS
-      $redis.smembers("vmpooler__migrating__#{pool['name']}").each do |vm|
-        if inventory[vm]
-          begin
-            pool_check_response[:migrated_vms] += 1
-            migrate_vm(vm, pool['name'], provider)
-          rescue => err
-            $logger.log('s', "[x] [#{pool['name']}] '#{vm}' failed to migrate: #{err}")
-          end
-        end
-      end
 
       # UPDATE TEMPLATE
       # Evaluates a pool template to ensure templates are prepared adequately for the configured provider
