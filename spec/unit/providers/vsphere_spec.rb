@@ -1,4 +1,5 @@
 require 'spec_helper'
+require 'mock_redis'
 
 RSpec::Matchers.define :relocation_spec_with_host do |value|
   match { |actual| actual[:spec].host == value }
@@ -84,6 +85,289 @@ EOT
   describe '#name' do
     it 'should be vsphere' do
       expect(subject.name).to eq('vsphere')
+    end
+  end
+
+  describe '#folder_configured?' do
+    let(:folder_title) { 'folder1' }
+    let(:other_folder) { 'folder2' }
+    let(:base_folder) { 'dc1/vm/base' }
+    let(:configured_folders) { { folder_title => base_folder } }
+    let(:whitelist) { nil }
+    it 'should return true when configured_folders includes the folder_title' do
+      expect(subject.folder_configured?(folder_title, base_folder, configured_folders, whitelist)).to be true
+    end
+
+    it 'should return false when title is not in configured_folders' do
+      expect(subject.folder_configured?(other_folder, base_folder, configured_folders, whitelist)).to be false
+    end
+
+    context 'with another base folder' do
+      let(:base_folder) { 'dc2/vm/base' }
+      let(:configured_folders) { { folder_title => 'dc1/vm/base' } }
+      it 'should return false' do
+        expect(subject.folder_configured?(folder_title, base_folder, configured_folders, whitelist)).to be false
+      end
+    end
+
+    context 'with a whitelist set' do
+      let(:whitelist) { [ other_folder ] }
+      it 'should return true' do
+        expect(subject.folder_configured?(other_folder, base_folder, configured_folders, whitelist)).to be true
+      end
+    end
+
+    context 'with string whitelist value' do
+      let(:whitelist) { 'whitelist' }
+      it 'should raise an error' do
+        expect(whitelist).to receive(:include?).and_raise('mockerror')
+
+        expect{ subject.folder_configured?(other_folder, base_folder, configured_folders, whitelist) }.to raise_error(RuntimeError, 'mockerror')
+      end
+    end
+  end
+
+  describe '#destroy_vm_and_log' do
+    let(:vm_object) { mock_RbVmomi_VIM_VirtualMachine({
+        :name => vmname,
+        :powerstate => 'poweredOn',
+      })
+    }
+    let(:pool) { 'pool1' }
+    let(:power_off_task) { mock_RbVmomi_VIM_Task() }
+    let(:destroy_task) { mock_RbVmomi_VIM_Task() }
+    let(:data_ttl) { 1 }
+    let(:redis) { MockRedis.new }
+    let(:finish) { '0.00' }
+    let(:now) { Time.now }
+
+    context 'when destroying a vm' do
+      before(:each) do
+        allow(power_off_task).to receive(:wait_for_completion)
+        allow(destroy_task).to receive(:wait_for_completion)
+        allow(vm_object).to receive(:PowerOffVM_Task).and_return(power_off_task)
+        allow(vm_object).to receive(:Destroy_Task).and_return(destroy_task)
+        $redis = redis
+      end
+
+      it 'should remove redis data and expire the vm key' do
+        allow(Time).to receive(:now).and_return(now)
+        expect(redis).to receive(:srem).with("vmpooler__completed__#{pool}", vmname)
+        expect(redis).to receive(:hdel).with("vmpooler__active__#{pool}", vmname)
+        expect(redis).to receive(:hset).with("vmpooler__vm__#{vmname}", 'destroy', now)
+        expect(redis).to receive(:expire).with("vmpooler__vm__#{vmname}", data_ttl * 60 * 60)
+
+        subject.destroy_vm_and_log(vmname, vm_object, pool, data_ttl)
+      end
+
+      it 'should log a message that the vm is destroyed' do
+        expect(logger).to receive(:log).with('s', "[-] [#{pool}] '#{vmname}' destroyed in #{finish} seconds")
+
+        subject.destroy_vm_and_log(vmname, vm_object, pool, data_ttl)
+      end
+
+      it 'should record metrics' do
+        expect(metrics).to receive(:timing).with("destroy.#{pool}", finish)
+
+        subject.destroy_vm_and_log(vmname, vm_object, pool, data_ttl)
+      end
+
+      it 'should power off and destroy the vm' do
+        allow(destroy_task).to receive(:wait_for_completion)
+        expect(vm_object).to receive(:PowerOffVM_Task).and_return(power_off_task)
+        expect(vm_object).to receive(:Destroy_Task).and_return(destroy_task)
+
+        subject.destroy_vm_and_log(vmname, vm_object, pool, data_ttl)
+      end
+    end
+
+    context 'with a powered off vm' do
+      before(:each) do
+        vm_object.runtime.powerState = 'poweredOff'
+      end
+
+      it 'should destroy the vm without attempting to power it off' do
+        allow(destroy_task).to receive(:wait_for_completion)
+        expect(vm_object).to_not receive(:PowerOffVM_Task)
+        expect(vm_object).to receive(:Destroy_Task).and_return(destroy_task)
+
+        subject.destroy_vm_and_log(vmname, vm_object, pool, data_ttl)
+      end
+    end
+
+    context 'with a folder object' do
+      let(:folder_object) { mock_RbVmomi_VIM_Folder({ :name => vmname }) }
+
+      it 'should log that a folder object was received' do
+        expect(logger).to receive(:log).with('s', "[!] [#{pool}] '#{vmname}' is a folder, bailing on destroying")
+
+        expect{ subject.destroy_vm_and_log(vmname, folder_object, pool, data_ttl) }.to raise_error(RuntimeError, 'Expected VM, but received a folder object')
+      end
+
+      it 'should raise an error' do
+        expect{ subject.destroy_vm_and_log(vmname, folder_object, pool, data_ttl) }.to raise_error(RuntimeError, 'Expected VM, but received a folder object')
+      end
+    end
+
+    context 'with an error that is not a RuntimeError' do
+      it 'should retry three times' do
+        expect(vm_object).to receive(:PowerOffVM_Task).and_throw(:powerofffailed, 'failed').exactly(3).times
+
+        expect{ subject.destroy_vm_and_log(vmname, vm_object, pool, data_ttl) }.to raise_error(/failed/)
+      end
+    end
+  end
+
+  describe '#destroy_folder_and_children' do
+    let(:data_ttl) { 1 }
+    let(:config) {
+      {
+        redis: {
+          'data_ttl' => data_ttl
+        }
+      }
+    }
+    let(:foldername) { 'pool1' }
+    let(:folder_object) { mock_RbVmomi_VIM_Folder({ :name => foldername }) }
+
+    before(:each) do
+      $config = config
+    end
+
+    context 'with an empty folder' do
+      it 'should destroy the folder' do
+        expect(subject).to_not receive(:destroy_vm_and_log)
+        expect(subject).to receive(:destroy_folder).with(folder_object).and_return(nil)
+
+        subject.destroy_folder_and_children(folder_object)
+      end
+    end
+
+    context 'with a folder containing vms' do
+      let(:vm_object) { mock_RbVmomi_VIM_VirtualMachine({ :name => vmname }) }
+      before(:each) do
+        folder_object.childEntity << vm_object
+      end
+
+      it 'should destroy the vms' do
+        allow(subject).to receive(:destroy_vm_and_log).and_return(nil)
+        allow(subject).to receive(:destroy_folder).and_return(nil)
+        expect(subject).to receive(:destroy_vm_and_log).with(vmname, vm_object, foldername, data_ttl)
+
+        subject.destroy_folder_and_children(folder_object)
+      end
+    end
+
+    it 'should raise any errors' do
+      expect(subject).to receive(:destroy_folder).and_throw('mockerror')
+
+      expect{ subject.destroy_folder_and_children(folder_object) }.to raise_error(/mockerror/)
+    end
+  end
+
+  describe '#destroy_folder' do
+    let(:foldername) { 'pool1' }
+    let(:folder_object) { mock_RbVmomi_VIM_Folder({ :name => foldername }) }
+    let(:destroy_task) { mock_RbVmomi_VIM_Task() }
+
+    before(:each) do
+      allow(folder_object).to receive(:Destroy_Task).and_return(destroy_task)
+      allow(destroy_task).to receive(:wait_for_completion)
+    end
+
+    it 'should destroy the folder' do
+      expect(folder_object).to receive(:Destroy_Task).and_return(destroy_task)
+
+      subject.destroy_folder(folder_object)
+    end
+
+    it 'should log that the folder is being destroyed' do
+      expect(logger).to receive(:log).with('s', "[-] [#{foldername}] removing unconfigured folder")
+
+      subject.destroy_folder(folder_object)
+    end
+
+    it 'should retry three times when failing' do
+      expect(folder_object).to receive(:Destroy_Task).and_throw('mockerror').exactly(3).times
+
+      expect{ subject.destroy_folder(folder_object) }.to raise_error(/mockerror/)
+    end
+  end
+
+  describe '#purge_unconfigured_folders' do
+    let(:folder_title) { 'folder1' }
+    let(:base_folder) { 'dc1/vm/base' }
+    let(:folder_object) { mock_RbVmomi_VIM_Folder({ :name => base_folder }) }
+    let(:child_folder) { mock_RbVmomi_VIM_Folder({ :name => folder_title }) }
+    let(:whitelist) { nil }
+    let(:base_folders) { [ base_folder ] }
+    let(:configured_folders) { { folder_title => base_folder } }
+    let(:folder_children) { [ folder_title => child_folder ] }
+    let(:empty_list) { [] }
+
+    before(:each) do
+      allow(subject).to receive(:connect_to_vsphere).and_return(connection)
+    end
+
+    context 'with an empty folder' do
+      it 'should not attempt to destroy any folders' do
+        expect(subject).to receive(:get_folder_children).with(base_folder, connection).and_return(empty_list)
+        expect(subject).to_not receive(:destroy_folder_and_children)
+
+        subject.purge_unconfigured_folders(base_folders, configured_folders, whitelist)
+      end
+    end
+
+    it 'should retrieve the folder children' do
+      expect(subject).to receive(:get_folder_children).with(base_folder, connection).and_return(folder_children)
+      allow(subject).to receive(:folder_configured?).and_return(true)
+
+      subject.purge_unconfigured_folders(base_folders, configured_folders, whitelist)
+    end
+
+    context 'with a folder that is not configured' do
+      before(:each) do
+        expect(subject).to receive(:get_folder_children).with(base_folder, connection).and_return(folder_children)
+        allow(subject).to receive(:folder_configured?).and_return(false)
+      end
+
+      it 'should destroy the folder and children' do
+        expect(subject).to receive(:destroy_folder_and_children).with(child_folder).and_return(nil)
+
+        subject.purge_unconfigured_folders(base_folders, configured_folders, whitelist)
+      end
+    end
+
+    it 'should raise any errors' do
+      expect(subject).to receive(:get_folder_children).and_throw('mockerror')
+
+      expect{ subject.purge_unconfigured_folders(base_folders, configured_folders, whitelist) }.to raise_error(/mockerror/)
+    end
+  end
+
+  describe '#get_folder_children' do
+    let(:base_folder) { 'dc1/vm/base' }
+    let(:base_folder_object) { mock_RbVmomi_VIM_Folder({ :name => base_folder }) }
+    let(:foldername) { 'folder1' }
+    let(:folder_object) { mock_RbVmomi_VIM_Folder({ :name => foldername }) }
+    let(:folder_return) { [ { foldername => folder_object } ] }
+
+    before(:each) do
+      base_folder_object.childEntity << folder_object
+    end
+
+    it 'should return an array of configured folder hashes' do
+      expect(connection.searchIndex).to receive(:FindByInventoryPath).and_return(base_folder_object)
+
+      result = subject.get_folder_children(foldername, connection)
+
+      expect(result).to eq(folder_return)
+    end
+
+    it 'should raise any errors' do
+      expect(connection.searchIndex).to receive(:FindByInventoryPath).and_throw('mockerror')
+
+      expect{ subject.get_folder_children(foldername, connection) }.to raise_error(/mockerror/)
     end
   end
 

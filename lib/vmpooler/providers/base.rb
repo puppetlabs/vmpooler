@@ -225,6 +225,18 @@ module Vmpooler
         def create_template_delta_disks(pool)
           raise("#{self.class.name} does not implement create_template_delta_disks")
         end
+
+        # inputs
+        #   [String] provider_name : Name of the provider
+        # returns
+        #   Hash of folders
+        def get_target_datacenter_from_config(provider_name)
+          raise("#{self.class.name} does not implement get_target_datacenter_from_config")
+        end
+
+        def purge_unconfigured_folders(base_folders, configured_folders, whitelist)
+          raise("#{self.class.name} does not implement purge_unconfigured_folders")
+        end
       end
     end
   end

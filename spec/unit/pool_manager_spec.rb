@@ -762,6 +762,140 @@ EOT
     end
   end
 
+  describe '#purge_unused_vms_and_folders' do
+    let(:config) { YAML.load(<<-EOT
+---
+:config: {}
+:providers:
+  :mock: {}
+:pools:
+  - name: '#{pool}'
+    size: 1
+EOT
+      )
+    }
+
+    it 'should return when purging is not enabled' do
+      expect(subject.purge_unused_vms_and_folders).to be_nil
+    end
+
+    context 'with purging enabled globally' do
+      before(:each) do
+        config[:config]['purge_unconfigured_folders'] = true
+        expect(Thread).to receive(:new).and_yield
+      end
+
+      it 'should run a purge for each provider' do
+        expect(subject).to receive(:purge_vms_and_folders)
+
+        subject.purge_unused_vms_and_folders
+      end
+
+      it 'should log when purging fails' do
+        expect(subject).to receive(:purge_vms_and_folders).and_raise(RuntimeError,'MockError')
+        expect(logger).to receive(:log).with('s', '[!] failed while purging provider mock VMs and folders with an error: MockError')
+
+        subject.purge_unused_vms_and_folders
+      end
+    end
+
+    context 'with purging enabled on the provider' do
+      before(:each) do
+        config[:providers][:mock]['purge_unconfigured_folders'] = true
+        expect(Thread).to receive(:new).and_yield
+      end
+
+      it 'should run a purge for the provider' do
+        expect(subject).to receive(:purge_vms_and_folders)
+
+        subject.purge_unused_vms_and_folders
+      end
+    end
+  end
+
+  describe '#pool_folders' do
+    let(:folder_name) { 'myinstance' }
+    let(:folder_base) { 'vmpooler' }
+    let(:folder) { [folder_base,folder_name].join('/') }
+    let(:datacenter) { 'dc1' }
+    let(:provider_name) { 'mock_provider' }
+    let(:expected_response) {
+      {
+        folder_name => "#{datacenter}/vm/#{folder_base}"
+      }
+    }
+    let(:config) { YAML.load(<<-EOT
+---
+:providers:
+  :mock:
+:pools:
+  - name: '#{pool}'
+    folder: '#{folder}'
+    size: 1
+    datacenter: '#{datacenter}'
+    provider: '#{provider_name}'
+  - name: '#{pool}2'
+    folder: '#{folder}'
+    size: 1
+    datacenter: '#{datacenter}'
+    provider: '#{provider_name}2'
+EOT
+      )
+    }
+
+    it 'should return a list of pool folders' do
+      expect(provider).to receive(:get_target_datacenter_from_config).with(pool).and_return(datacenter)
+
+      expect(subject.pool_folders(provider)).to eq(expected_response)
+    end
+
+    it 'should raise an error when the provider fails to get the datacenter' do
+      expect(provider).to receive(:get_target_datacenter_from_config).with(pool).and_raise('mockerror')
+
+      expect{ subject.pool_folders(provider) }.to raise_error(RuntimeError, 'mockerror')
+    end
+  end
+
+  describe '#purge_vms_and_folders' do
+    let(:folder_name) { 'myinstance' }
+    let(:folder_base) { 'vmpooler' }
+    let(:datacenter) { 'dc1' }
+    let(:full_folder_path) { "#{datacenter}/vm/folder_base" }
+    let(:configured_folders) { { folder_name => full_folder_path } }
+    let(:base_folders) { [ full_folder_path ] }
+    let(:folder) { [folder_base,folder_name].join('/') }
+    let(:provider_name) { 'mock_provider' }
+    let(:whitelist) { nil }
+    let(:config) { YAML.load(<<-EOT
+---
+:config: {}
+:providers:
+  :mock_provider: {}
+:pools:
+  - name: '#{pool}'
+    folder: '#{folder}'
+    size: 1
+    datacenter: '#{datacenter}'
+    provider: '#{provider_name}'
+EOT
+      )
+    }
+
+    it 'should run purge_unconfigured_folders' do
+      expect(subject).to receive(:pool_folders).and_return(configured_folders)
+      expect(provider).to receive(:purge_unconfigured_folders).with(base_folders, configured_folders, whitelist)
+
+      subject.purge_vms_and_folders(provider)
+    end
+
+    it 'should raise any errors' do
+      expect(subject).to receive(:pool_folders).and_return(configured_folders)
+      expect(provider).to receive(:purge_unconfigured_folders).with(base_folders, configured_folders, whitelist).and_raise('mockerror')
+
+      expect{ subject.purge_vms_and_folders(provider) }.to raise_error(RuntimeError, 'mockerror')
+    end
+  end
+
   describe '#create_vm_disk' do
     let(:provider) { double('provider') }
     let(:disk_size) { 15 }
@@ -2040,6 +2174,8 @@ EOT
         let(:config) {
         YAML.load(<<-EOT
 ---
+:providers:
+  :vsphere: {}
 :pools:
   - name: #{pool}
   - name: 'dummy'
