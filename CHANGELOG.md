@@ -11,7 +11,9 @@ Tracking in this Changelog began for this project with the tagging of version 0.
 If you're looking for changes from before this, refer to the project's
 git logs & PR history.
 
-# [Unreleased](https://github.com/puppetlabs/vmpooler/compare/4c858d012a262093383e57ea6db790521886d8d4...master)
+# [Unreleased](https://github.com/puppetlabs/vmpooler/compare/0.1.0...master)
+
+# [0.1.0](https://github.com/puppetlabs/vmpooler/compare/4c858d012a262093383e57ea6db790521886d8d4...master)
 
 ### Fixed
 
