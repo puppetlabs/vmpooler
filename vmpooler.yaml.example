@@ -34,12 +34,12 @@
 # Multiple providers example:
 
   :vsphere-pdx:
-    server: 'vsphere.pdx.company.com'
+    server: 'vsphere.pdx.example.com'
     username: 'vmpooler-pdx'
     password: 'swimsw1msw!m'
     provider_class: 'vsphere'
   :vsphere-bfs:
-    server: 'vsphere.bfs.company.com'
+    server: 'vsphere.bfs.example.com'
     username: 'vmpooler-bfs'
     password: 'swimsw1msw!m'
     provider_class: 'vsphere'
@@ -77,7 +77,7 @@
 # Example:
 
   :vsphere:
-    server: 'vsphere.company.com'
+    server: 'vsphere.example.com'
     username: 'vmpooler'
     password: 'swimsw1msw!m'
 
@@ -200,7 +200,7 @@
 # Example:
 
 :redis:
-  server: 'redis.company.com'
+  server: 'redis.example.com'
 
 
 # :graphs:
@@ -252,7 +252,7 @@
 # Example:
 
 :statsd:
-  server: 'statsd.company.com'
+  server: 'statsd.example.com'
   prefix: 'vmpooler'
   port: 8125
 
@@ -279,7 +279,7 @@
 # Example:
 
 :graphite:
-  server: 'graphite.company.com'
+  server: 'graphite.example.com'
 
 # :auth:
 #
@@ -331,7 +331,7 @@
 :auth:
   provider: 'ldap'
   :ldap:
-    host: 'ldap.company.com'
+    host: 'ldap.example.com'
     port: 389
     base: 'ou=users,dc=company,dc=com'
     user_object: 'uid'
@@ -486,7 +486,7 @@
   allowed_tags:
     - 'created_by'
     - 'project'
-  domain: 'company.com'
+  domain: 'example.com'
   prefix: 'poolvm-'
   experimental_features: true
 
