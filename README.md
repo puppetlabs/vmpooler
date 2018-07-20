@@ -31,12 +31,12 @@ The following YAML configuration sets up two pools, `debian-7-i386` and `debian-
 ---
 :providers:
   :vsphere:
-    server: 'vsphere.company.com'
+    server: 'vsphere.example.com'
     username: 'vmpooler'
     password: 'swimsw1msw!m'
 
 :redis:
-  server: 'redis.company.com'
+  server: 'redis.example.com'
 
 :config:
   logfile: '/var/log/vmpooler.log'

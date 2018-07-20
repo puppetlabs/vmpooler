@@ -106,7 +106,7 @@ Example minimal configuration file:
   allowed_tags:
     - 'created_by'
     - 'project'
-  domain: 'company.com'
+  domain: 'example.com'
   prefix: 'poolvm-'
 
 # Uncomment the lines below to suppress metrics to STDOUT

@@ -2255,7 +2255,7 @@ EOT
         let(:config) {
         YAML.load(<<-EOT
 :vsphere:
-  server: 'vsphere.company.com'
+  server: 'vsphere.example.com'
   username: 'vmpooler'
   password: 'password'
 :pools:
@@ -2267,7 +2267,7 @@ EOT
           expect(subject.config[:providers]).to be nil
 
           subject.execute!(1,0)
-          expect(subject.config[:providers][:vsphere]['server']).to eq('vsphere.company.com')
+          expect(subject.config[:providers][:vsphere]['server']).to eq('vsphere.example.com')
           expect(subject.config[:providers][:vsphere]['username']).to eq('vmpooler')
           expect(subject.config[:providers][:vsphere]['password']).to eq('password')
         end

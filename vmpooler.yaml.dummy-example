@@ -23,7 +23,7 @@
   allowed_tags:
     - 'created_by'
     - 'project'
-  domain: 'company.com'
+  domain: 'example.com'
   prefix: 'poolvm-'
 
 :pools:
