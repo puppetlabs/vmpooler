@@ -59,12 +59,12 @@ module Vmpooler
     parsed_config[:config]['clone_target'] = ENV['CLONE_TARGET'] if ENV['CLONE_TARGET']
     parsed_config[:config]['timeout'] = ENV['TIMEOUT'] if ENV['TIMEOUT']
     parsed_config[:config]['vm_lifetime_auth'] = ENV['VM_LIFETIME_AUTH'] if ENV['VM_LIFETIME_AUTH']
-    parsed_config[:config]['ssh_key'] = ENV['SSH_KEY'] if ENV['SSH_KEY']
     parsed_config[:config]['max_tries'] = ENV['MAX_TRIES'] if ENV['MAX_TRIES']
     parsed_config[:config]['retry_factor'] = ENV['RETRY_FACTOR'] if ENV['RETRY_FACTOR']
     parsed_config[:config]['create_folders'] = ENV['CREATE_FOLDERS'] if ENV['CREATE_FOLDERS']
     parsed_config[:config]['create_template_delta_disks'] = ENV['CREATE_TEMPLATE_DELTA_DISKS'] if ENV['CREATE_TEMPLATE_DELTA_DISKS']
     parsed_config[:config]['experimental_features'] = ENV['EXPERIMENTAL_FEATURES'] if ENV['EXPERIMENTAL_FEATURES']
+    parsed_config[:config]['purge_unconfigured_folders'] = ENV['PURGE_UNCONFIGURED_FOLDERS'] if ENV['PURGE_UNCONFIGURED_FOLDERS']
 
     parsed_config[:redis] = parsed_config[:redis] || {}
     parsed_config[:redis]['server'] = ENV['REDIS_SERVER'] || parsed_config[:redis]['server'] || 'localhost'
@@ -79,12 +79,14 @@ module Vmpooler
 
     parsed_config[:graphite] = parsed_config[:graphite] || {} if ENV['GRAPHITE_SERVER']
     parsed_config[:graphite]['server'] = ENV['GRAPHITE_SERVER'] if ENV['GRAPHITE_SERVER']
+    parsed_config[:graphite]['prefix'] = ENV['GRAPHITE_PREFIX'] if ENV['GRAPHITE_PREFIX']
+    parsed_config[:graphite]['port'] = ENV['GRAPHITE_PORT'] if ENV['GRAPHITE_PORT']
 
     parsed_config[:auth] = parsed_config[:auth] || {} if ENV['AUTH_PROVIDER']
     if parsed_config.has_key? :auth
       parsed_config[:auth]['provider'] = ENV['AUTH_PROVIDER'] if ENV['AUTH_PROVIDER']
       parsed_config[:auth][:ldap] = parsed_config[:auth][:ldap] || {} if parsed_config[:auth]['provider'] == 'ldap'
-      parsed_config[:auth][:ldap]['server'] = ENV['LDAP_SERVER'] if ENV['LDAP_SERVER']
+      parsed_config[:auth][:ldap]['host'] = ENV['LDAP_HOST'] if ENV['LDAP_HOST']
       parsed_config[:auth][:ldap]['port'] = ENV['LDAP_PORT'] if ENV['LDAP_PORT']
       parsed_config[:auth][:ldap]['base'] = ENV['LDAP_BASE'] if ENV['LDAP_BASE']
       parsed_config[:auth][:ldap]['user_object'] = ENV['LDAP_USER_OBJECT'] if ENV['LDAP_USER_OBJECT']
