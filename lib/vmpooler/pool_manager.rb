@@ -298,7 +298,6 @@ module Vmpooler
       mutex = vm_mutex(vm)
       return if mutex.locked?
       mutex.synchronize do
-        $redis.srem('vmpooler__completed__' + pool, vm)
         $redis.hdel('vmpooler__active__' + pool, vm)
         $redis.hset('vmpooler__vm__' + vm, 'destroy', Time.now)
 
@@ -308,6 +307,8 @@ module Vmpooler
         start = Time.now
 
         provider.destroy_vm(pool, vm)
+
+        $redis.srem('vmpooler__completed__' + pool, vm)
 
         finish = format('%.2f', Time.now - start)
         $logger.log('s', "[-] [#{pool}] '#{vm}' destroyed in #{finish} seconds")
