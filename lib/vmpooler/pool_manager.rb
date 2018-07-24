@@ -821,6 +821,44 @@ module Vmpooler
       end
     end
 
+    def repopulate_pool_vms(pool_name, provider, pool_check_response, pool_size)
+      unless pool_mutex(pool_name).locked?
+        ready = $redis.scard("vmpooler__ready__#{pool_name}")
+        total = $redis.scard("vmpooler__pending__#{pool_name}") + ready
+
+        $metrics.gauge("ready.#{pool_name}", $redis.scard("vmpooler__ready__#{pool_name}"))
+        $metrics.gauge("running.#{pool_name}", $redis.scard("vmpooler__running__#{pool_name}"))
+
+        if $redis.get("vmpooler__empty__#{pool_name}")
+          $redis.del("vmpooler__empty__#{pool_name}") unless ready.zero?
+        elsif ready.zero?
+          $redis.set("vmpooler__empty__#{pool_name}", 'true')
+          $logger.log('s', "[!] [#{pool_name}] is empty")
+        end
+
+        # Check to see if a pool size change has been made via the configuration API
+        # Since check_pool runs in a loop it does not
+        # otherwise identify this change when running
+        update_pool_size(pool)
+
+        if total < pool_size
+          (1..(pool_size - total)).each do |_i|
+            if $redis.get('vmpooler__tasks__clone').to_i < $config[:config]['task_limit'].to_i
+              begin
+                $redis.incr('vmpooler__tasks__clone')
+                pool_check_response[:cloned_vms] += 1
+                clone_vm(pool, provider)
+              rescue => err
+                $logger.log('s', "[!] [#{pool_name}] clone failed during check_pool with an error: #{err}")
+                $redis.decr('vmpooler__tasks__clone')
+                raise
+              end
+            end
+          end
+        end
+      end
+    end
+
     def _check_pool(pool, provider)
       pool_check_response = {
         discovered_vms: 0,
@@ -850,50 +888,13 @@ module Vmpooler
 
       check_migrating_pool_vms(pool['name'], provider, pool_check_response, inventory)
 
-
       # UPDATE TEMPLATE
       # Evaluates a pool template to ensure templates are prepared adequately for the configured provider
       # If a pool template configuration change is detected then template preparation is repeated for the new template
       # Additionally, a pool will drain ready and pending instances
       evaluate_template(pool, provider)
 
-      # REPOPULATE
-      # Do not attempt to repopulate a pool while a template is updating
-      unless pool_mutex(pool['name']).locked?
-        ready = $redis.scard("vmpooler__ready__#{pool['name']}")
-        total = $redis.scard("vmpooler__pending__#{pool['name']}") + ready
-
-        $metrics.gauge("ready.#{pool['name']}", $redis.scard("vmpooler__ready__#{pool['name']}"))
-        $metrics.gauge("running.#{pool['name']}", $redis.scard("vmpooler__running__#{pool['name']}"))
-
-        if $redis.get("vmpooler__empty__#{pool['name']}")
-          $redis.del("vmpooler__empty__#{pool['name']}") unless ready.zero?
-        elsif ready.zero?
-          $redis.set("vmpooler__empty__#{pool['name']}", 'true')
-          $logger.log('s', "[!] [#{pool['name']}] is empty")
-        end
-
-        # Check to see if a pool size change has been made via the configuration API
-        # Since check_pool runs in a loop it does not
-        # otherwise identify this change when running
-        update_pool_size(pool)
-
-        if total < pool['size']
-          (1..(pool['size'] - total)).each do |_i|
-            if $redis.get('vmpooler__tasks__clone').to_i < $config[:config]['task_limit'].to_i
-              begin
-                $redis.incr('vmpooler__tasks__clone')
-                pool_check_response[:cloned_vms] += 1
-                clone_vm(pool, provider)
-              rescue => err
-                $logger.log('s', "[!] [#{pool['name']}] clone failed during check_pool with an error: #{err}")
-                $redis.decr('vmpooler__tasks__clone')
-                raise
-              end
-            end
-          end
-        end
-      end
+      repopulate_pool_vms(pool['name'], provider, pool_check_response, pool['size'])
 
       # Remove VMs in excess of the configured pool size
       remove_excess_vms(pool, provider, ready, total)
