@@ -14,16 +14,19 @@ At [Puppet, Inc.](http://puppet.com) we run acceptance tests on thousands of dis
 
 ### Prerequisites
 
-vmpooler requires the following Ruby gems be installed:
+vmpooler is available as a gem
 
-- [json](http://rubygems.org/gems/json)
-- [rbvmomi](http://rubygems.org/gems/rbvmomi)
-- [redis](http://rubygems.org/gems/redis)
-- [sinatra](http://rubygems.org/gems/sinatra)
+To use the gem `gem install vmpooler`
 
-It also requires that a [Redis](http://redis.io/) server exists somewhere, as this is the datastore used for vmpooler's inventory and queueing services.
+### Dependencies
+
+Vmpooler requires a [Redis](http://redis.io/) server. This is the datastore used for vmpooler's inventory and queueing services.
 
 ### Configuration
+
+Configuration for vmpooler may be provided via environment variables, or a configuration file.
+
+Please see this [configuration](docs/configuration.md) document for more details about configuring vmpooler via environment variables.
 
 The following YAML configuration sets up two pools, `debian-7-i386` and `debian-7-x86_64`, which contain 5 running VMs each:
 
@@ -62,59 +65,27 @@ See the provided YAML configuration example, [vmpooler.yaml.example](vmpooler.ya
 
 ### Running via Docker
 
-A [Dockerfile](Dockerfile) is included in this repository to allow running vmpooler inside a Docker container.  A `vmpooler.yaml` configuration file can be embedded in the current working directory, or specified inline in a `VMPOOLER_CONFIG` environment variable.  To build and run:
+A [Dockerfile](Dockerfile) is included in this repository to allow running vmpooler inside a Docker container. A configuration file can be used via volume mapping, and specifying the destination as the configuration file via environment variables, or the application can be configured with environment variables alone. The Dockerfile provides an entrypoint so you may choose whether to run API, or manager services. The default behavior will run both. To build and run:
 
 ```
 docker build -t vmpooler . && docker run -e VMPOOLER_CONFIG -p 80:4567 -it vmpooler
 ```
 
+To run only the API and dashboard
+
+```
+docker run -p 80:4567 -it vmpooler api
+```
+
+To run only the manager component
+
+```
+docker run -it vmpooler manager
+```
+
 ### Running Docker inside Vagrant
 
-A [Vagrantfile](Vagrantfile) is also included in this repository so that you dont have to run Docker on your local computer.
-To use it run:
-
-```
-vagrant up
-vagrant ssh
-docker run -p 8080:4567 -v /vagrant/vmpooler.yaml.example:/var/lib/vmpooler/vmpooler.yaml -it --rm --name pooler vmpooler
-```
-
-To run vmpooler with the example dummy provider you can replace the above docker command with this:
-
-```
-docker run -e VMPOOLER_DEBUG=true -p 8080:4567 -v /vagrant/vmpooler.yaml.dummy-example:/var/lib/vmpooler/vmpooler.yaml -e VMPOOLER_LOG='/var/log/vmpooler/vmpooler.log' -it --rm --name pooler vmpooler
-```
-
-Either variation will allow you to access the dashboard from [localhost:8080](http://localhost:8080/).
-
-### Running directly in Vagrant
-
-You can also run vmpooler directly in the Vagrant box. To do so run this:
-
-```
-vagrant up
-vagrant ssh
-cd /vagrant
-
-# Do this if using the dummy provider
-export VMPOOLER_DEBUG=true
-cp vmpooler.yaml.dummy-example vmpooler.yaml
-
-# vmpooler needs a redis server.
-sudo yum -y install redis
-sudo systemctl start redis
-
-# Optional: Choose your ruby version or use jruby
-# ruby 2.4.x is used by default
-rvm list
-rvm use jruby-9.1.7.0
-
-gem install bundler
-bundle install
-bundle exec ruby vmpooler
-```
-
-When run this way you can access vmpooler from your local computer via [localhost:4567](http://localhost:4567/).
+A vagrantfile is included in this repository. Please see [vagrant instructions](docs/vagrant.md) for details.
 
 ## API and Dashboard
 

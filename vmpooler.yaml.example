@@ -448,6 +448,10 @@
 #     Note: this will only create the last folder when it does not exist. It will not create any parent folders
 #     (optional; default: false)
 #
+#   - create_template_delta_disks (Only affects vSphere Provider)
+#     Create backing delta disks for the specified templates to support creating linked clones.
+#     (optional; default: false)
+#
 #   - host_selection_max_age (Only affects vSphere Provider)
 #     The maximum age of the provider_hosts list in seconds
 #     The list is repopulated when the difference between now and the last time
