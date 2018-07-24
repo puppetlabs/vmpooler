@@ -2836,17 +2836,13 @@ EOT
         # mock response from create_inventory
         {vm => 1}
       }
-      let(:vm_response) {
-        # Mock response from Base Provider for vms_in_pool
-        [{ 'name' => vm}]
-      }
 
       before(:each) do
-        allow(subject).to receive(:check_pending_vm)
         create_pending_vm(pool,vm,token)
       end
 
       it 'should return the number of checked pending VMs' do
+        allow(subject).to receive(:check_pending_vm)
         subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory)
 
         expect(pool_check_response[:checked_pending_vms]).to be(1)
@@ -2926,14 +2922,11 @@ EOT
     end
 
     context 'Completed VM in the inventory' do
-      let(:vm_response) {
-        # Mock response from Base Provider for vms_in_pool
-        [{'name' => vm}]
-      }
       let(:inventory) {
         # mock response from create_inventory
         {vm => 1}
       }
+
       before(:each) do
         create_completed_vm(vm,pool,true)
       end
