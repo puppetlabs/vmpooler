@@ -3035,46 +3035,57 @@ EOT
   end
 
   describe "#check_migrating_pool_vms" do
+    let(:provider) { double('provider') }
+    let(:pool_check_response) { {
+        :migrated_vms => 0
+      }
+    }
+
     context 'Migrating VM not in the inventory' do
+      let(:inventory) {
+        # mock response from create_inventory
+        {}
+      }
+
       before(:each) do
-        expect(provider).to receive(:vms_in_pool).with(pool).and_return(new_vm_response)
-        expect(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue")
         create_migrating_vm(vm,pool)
       end
 
       it 'should not do anything' do
         expect(subject).to receive(:migrate_vm).exactly(0).times
 
-        subject._check_pool(pool_object,provider)
+        subject.check_migrating_pool_vms(pool, provider, pool_check_response, inventory)
       end
     end
 
     context 'Migrating VM in the inventory' do
+      let(:inventory) {
+        # mock response from create_inventory
+        {vm => 1}
+      }
+
       before(:each) do
-        expect(provider).to receive(:vms_in_pool).with(pool).and_return(vm_response)
-        allow(subject).to receive(:check_ready_vm)
-        allow(logger).to receive(:log).with("s", "[!] [#{pool}] is empty")
         create_migrating_vm(vm,pool)
       end
 
       it 'should return the number of migrated VMs' do
         allow(subject).to receive(:migrate_vm).with(vm,pool,provider)
-        result = subject._check_pool(pool_object,provider)
+        subject.check_migrating_pool_vms(pool, provider, pool_check_response, inventory)
 
-        expect(result[:migrated_vms]).to be(1)
+        expect(pool_check_response[:migrated_vms]).to be(1)
       end
 
       it 'should log an error if one occurs' do
         expect(subject).to receive(:migrate_vm).and_raise(RuntimeError,'MockError')
         expect(logger).to receive(:log).with('s', "[x] [#{pool}] '#{vm}' failed to migrate: MockError")
 
-        subject._check_pool(pool_object,provider)
+        subject.check_migrating_pool_vms(pool, provider, pool_check_response, inventory)
       end
 
       it 'should call migrate_vm' do
         expect(subject).to receive(:migrate_vm).with(vm,pool,provider)
 
-        subject._check_pool(pool_object,provider)
+        subject.check_migrating_pool_vms(pool, provider, pool_check_response, inventory)
       end
     end
   end
