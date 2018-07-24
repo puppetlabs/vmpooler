@@ -16,6 +16,7 @@ git logs & PR history.
 ### Fixed
 
 - (POOLER-128) VM specific mutex objects are not dereferenced when a VM is destroyed
+- A VM that is being destroyed is reported as discovered
 
 # [0.1.0](https://github.com/puppetlabs/vmpooler/compare/4c858d012a262093383e57ea6db790521886d8d4...master)
 
