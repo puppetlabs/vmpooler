@@ -210,20 +210,18 @@ module Vmpooler
     end
 
     # Clone a VM
-    def clone_vm(pool, provider)
+    def clone_vm(pool_name, provider)
       Thread.new do
         begin
-          _clone_vm(pool, provider)
+          _clone_vm(pool_name, provider)
         rescue => err
-          $logger.log('s', "[!] [#{pool['name']}] failed while cloning VM with an error: #{err}")
+          $logger.log('s', "[!] [#{pool_name}] failed while cloning VM with an error: #{err}")
           raise
         end
       end
     end
 
-    def _clone_vm(pool, provider)
-      pool_name = pool['name']
-
+    def _clone_vm(pool_name, provider)
       # Generate a randomized hostname
       o = [('a'..'z'), ('0'..'9')].map(&:to_a).flatten
       new_vmname = $config[:config]['prefix'] + o[rand(25)] + (0...14).map { o[rand(o.length)] }.join
@@ -842,7 +840,7 @@ module Vmpooler
             begin
               $redis.incr('vmpooler__tasks__clone')
               pool_check_response[:cloned_vms] += 1
-              clone_vm(pool, provider)
+              clone_vm(pool_name, provider)
             rescue => err
               $logger.log('s', "[!] [#{pool_name}] clone failed during check_pool with an error: #{err}")
               $redis.decr('vmpooler__tasks__clone')

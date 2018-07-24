@@ -3090,9 +3090,6 @@ EOT
 ---
 :config:
   task_limit: 10
-:pools:
-  - name: #{pool}
-    size: #{pool_size}
 EOT
       )
     }
@@ -3113,28 +3110,28 @@ EOT
       create_ready_vm(pool,vm,token)
       expect(subject).to receive(:clone_vm).exactly(0).times
 
-      subject._check_pool(pool_object,provider)
+      subject.repopulate_pool_vms(pool, provider, pool_check_response, pool_size)
     end
 
     ['ready','pending'].each do |queue_name|
-      it "should use VMs in #{queue_name} queue to caculate pool size" do
+      it "should use VMs in #{queue_name} queue to calculate pool size" do
         expect(subject).to receive(:clone_vm).exactly(0).times
         # Modify the pool size to 1 and add a VM in the queue
         redis.sadd("vmpooler__#{queue_name}__#{pool}",vm)
-        config[:pools][0]['size'] = 1
+        pool_size = 1
   
-        subject._check_pool(pool_object,provider)
+        subject.repopulate_pool_vms(pool, provider, pool_check_response, pool_size)
       end
     end
 
     ['running','completed','discovered','migrating'].each do |queue_name|
-      it "should not use VMs in #{queue_name} queue to caculate pool size" do
+      it "should not use VMs in #{queue_name} queue to calculate pool size" do
         expect(subject).to receive(:clone_vm)
         # Modify the pool size to 1 and add a VM in the queue
         redis.sadd("vmpooler__#{queue_name}__#{pool}",vm)
-        config[:pools][0]['size'] = 1
+        pool_size = 1
 
-        subject._check_pool(pool_object,provider)
+        subject.repopulate_pool_vms(pool, provider, pool_check_response, pool_size)
       end
     end
 
