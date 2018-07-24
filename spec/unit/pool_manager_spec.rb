@@ -574,10 +574,10 @@ EOT
 
     it 'logs a message if an error is raised' do
       allow(logger).to receive(:log)
-      expect(logger).to receive(:log).with('s',"[!] [#{pool_object['name']}] failed while cloning VM with an error: MockError")
-      expect(subject).to receive(:_clone_vm).with(pool_object,provider).and_raise('MockError')
+      expect(logger).to receive(:log).with('s',"[!] [#{pool}] failed while cloning VM with an error: MockError")
+      expect(subject).to receive(:_clone_vm).with(pool,provider).and_raise('MockError')
 
-      expect{subject.clone_vm(pool_object,provider)}.to raise_error(/MockError/)
+      expect{subject.clone_vm(pool,provider)}.to raise_error(/MockError/)
     end
   end
 
@@ -607,7 +607,7 @@ EOT
       it 'should create a cloning VM' do
         expect(redis.scard("vmpooler__pending__#{pool}")).to eq(0)
 
-        subject._clone_vm(pool_object,provider)
+        subject._clone_vm(pool,provider)
 
         expect(redis.scard("vmpooler__pending__#{pool}")).to eq(1)
         # Get the new VM Name from the pending pool queue as it should be the only entry
@@ -622,20 +622,20 @@ EOT
         redis.incr('vmpooler__tasks__clone')
         redis.incr('vmpooler__tasks__clone')
         expect(redis.get('vmpooler__tasks__clone')).to eq('2')
-        subject._clone_vm(pool_object,provider)
+        subject._clone_vm(pool,provider)
         expect(redis.get('vmpooler__tasks__clone')).to eq('1')
       end
 
       it 'should log a message that is being cloned from a template' do
         expect(logger).to receive(:log).with('d',/\[ \] \[#{pool}\] Starting to clone '(.+)'/)
 
-        subject._clone_vm(pool_object,provider)
+        subject._clone_vm(pool,provider)
       end
 
       it 'should log a message that it completed being cloned' do
         expect(logger).to receive(:log).with('s',/\[\+\] \[#{pool}\] '(.+)' cloned in [0-9.]+ seconds/)
 
-        subject._clone_vm(pool_object,provider)
+        subject._clone_vm(pool,provider)
       end
     end
 
@@ -648,7 +648,7 @@ EOT
       it 'should not create a cloning VM' do
         expect(redis.scard("vmpooler__pending__#{pool}")).to eq(0)
 
-        expect{subject._clone_vm(pool_object,provider)}.to raise_error(/MockError/)
+        expect{subject._clone_vm(pool,provider)}.to raise_error(/MockError/)
 
         expect(redis.scard("vmpooler__pending__#{pool}")).to eq(0)
         # Get the new VM Name from the pending pool queue as it should be the only entry
@@ -660,12 +660,12 @@ EOT
         redis.incr('vmpooler__tasks__clone')
         redis.incr('vmpooler__tasks__clone')
         expect(redis.get('vmpooler__tasks__clone')).to eq('2')
-        expect{subject._clone_vm(pool_object,provider)}.to raise_error(/MockError/)
+        expect{subject._clone_vm(pool,provider)}.to raise_error(/MockError/)
         expect(redis.get('vmpooler__tasks__clone')).to eq('1')
       end
 
       it 'should raise the error' do
-        expect{subject._clone_vm(pool_object,provider)}.to raise_error(/MockError/)
+        expect{subject._clone_vm(pool,provider)}.to raise_error(/MockError/)
       end
     end
   end
@@ -3138,7 +3138,7 @@ EOT
     it 'should log a message the first time a pool is empty' do
       expect(logger).to receive(:log).with('s', "[!] [#{pool}] is empty")
 
-      subject._check_pool(pool_object,provider)
+      subject.repopulate_pool_vms(pool, provider, pool_check_response, pool_size)
     end
 
     context 'when pool is marked as empty' do
@@ -3150,14 +3150,14 @@ EOT
       it 'should not log a message when the pool remains empty' do
         expect(logger).to receive(:log).with('s', "[!] [#{pool}] is empty").exactly(0).times
 
-        subject._check_pool(pool_object,provider)
+        subject.repopulate_pool_vms(pool, provider, pool_check_response, pool_size)
       end
 
       it 'should remove the empty pool mark if it is no longer empty' do
         create_ready_vm(pool,vm,token)
 
         expect(redis.get("vmpooler__empty__#{pool}")).to be_truthy
-        subject._check_pool(pool_object,provider)
+        subject.repopulate_pool_vms(pool, provider, pool_check_response, pool_size)
         expect(redis.get("vmpooler__empty__#{pool}")).to be_falsey
       end
     end
@@ -3166,41 +3166,38 @@ EOT
 
       it 'should return the number of cloned VMs' do
         pool_size = 5
-        config[:pools][0]['size'] = pool_size
 
-        result = subject._check_pool(pool_object,provider)
+        subject.repopulate_pool_vms(pool, provider, pool_check_response, pool_size)
 
-        expect(result[:cloned_vms]).to be(pool_size)
+        expect(pool_check_response[:cloned_vms]).to be(pool_size)
       end
 
       it 'should call clone_vm to populate the pool' do
         pool_size = 5
-        config[:pools][0]['size'] = pool_size
 
         expect(subject).to receive(:clone_vm).exactly(pool_size).times
-        
-        subject._check_pool(pool_object,provider)
+
+        subject.repopulate_pool_vms(pool, provider, pool_check_response, pool_size)
       end
 
       it 'should call clone_vm until task_limit is hit' do
         task_limit = 2
         pool_size = 5
-        config[:pools][0]['size'] = pool_size
         config[:config]['task_limit'] = task_limit
 
         expect(subject).to receive(:clone_vm).exactly(task_limit).times
-        
-        subject._check_pool(pool_object,provider)
+
+        subject.repopulate_pool_vms(pool, provider, pool_check_response, pool_size)
       end
 
       it 'log a message if a cloning error occurs' do
-        pool_size = 1
-        config[:pools][0]['size'] = pool_size
+        pool_size = 2
 
         expect(subject).to receive(:clone_vm).and_raise(RuntimeError,"MockError")
         expect(logger).to receive(:log).with("s", "[!] [#{pool}] clone failed during check_pool with an error: MockError")
-        
-        expect{ subject._check_pool(pool_object,provider) }.to raise_error(RuntimeError,'MockError')
+        create_ready_vm(pool,'vm')
+        expect{ subject.repopulate_pool_vms(pool, provider, pool_check_response, pool_size) }.to raise_error(RuntimeError,'MockError')
+
       end
     end
 
