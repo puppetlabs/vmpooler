@@ -1,3 +1,5 @@
+require 'vmpooler/providers'
+
 module Vmpooler
   class PoolManager
     CHECK_LOOP_DELAY_MIN_DEFAULT = 5
@@ -26,6 +28,9 @@ module Vmpooler
       @reconfigure_pool = {}
 
       @vm_mutex = {}
+
+      # load specified providers from config file
+      load_used_providers
     end
 
     def config
@@ -457,19 +462,36 @@ module Vmpooler
       result
     end
 
+    # load only providers used in config file
+    def load_used_providers
+      Vmpooler::Providers.load_by_name(used_providers)
+    end
+
+    # @return [Array] - a list of used providers from the config file, defaults to the default providers
+    # ie. ["vsphere", "dummy"]
+    def used_providers
+      pools = config[:pools] || []
+      @used_providers ||= (pools.map { |pool| pool[:provider] || pool['provider'] }.compact + default_providers ).uniq
+    end
+
+    # @return [Array] - returns a list of providers that should always be loaded
+    # note: vsphere is the default if user does not specify although this should not be
+    # if vsphere is to no longer be loaded by default please remove
+    def default_providers
+      @default_providers ||= %w( vsphere dummy )
+    end
+
     def get_pool_name_for_vm(vm_name)
       # the 'template' is a bad name.  Should really be 'poolname'
       $redis.hget('vmpooler__vm__' + vm_name, 'template')
     end
 
+    # @param pool_name [String] - the name of the pool
+    # @return [Provider] - returns the provider class Object
     def get_provider_for_pool(pool_name)
-      provider_name = nil
-      $config[:pools].each do |pool|
-        next unless pool['name'] == pool_name
-        provider_name = pool['provider']
-      end
-      return nil if provider_name.nil?
-
+      pool = $config[:pools].find { |pool| pool['name'] == pool_name }
+      return nil unless pool
+      provider_name = pool.fetch('provider', nil)
       $providers[provider_name]
     end
 

@@ -1,5 +1,6 @@
 require 'spec_helper'
 require 'mock_redis'
+require 'vmpooler/providers/vsphere'
 
 RSpec::Matchers.define :relocation_spec_with_host do |value|
   match { |actual| actual[:spec].host == value }

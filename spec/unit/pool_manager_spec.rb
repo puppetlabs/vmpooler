@@ -46,6 +46,30 @@ EOT
     end
   end
 
+  describe '#load_used_providers' do
+    let(:config) { YAML.load(<<-EOT
+---
+:config:
+:providers:
+  :mock:
+:pools:
+  - name: '#{pool}'
+    size: 1
+    provider: 'spoof'
+    EOT
+    )
+    }
+    it do
+      files = ["#{project_root_dir}/lib/vmpooler/providers/vsphere.rb",
+               "#{project_root_dir}/lib/vmpooler/providers/dummy.rb"]
+      expect(subject.load_used_providers).to eq(files)
+    end
+  end
+
+  it '#default_providers' do
+    expect(subject.default_providers).to eq(['vsphere', 'dummy'])
+  end
+
   describe '#check_pending_vm' do
     before do
       expect(subject).not_to be_nil

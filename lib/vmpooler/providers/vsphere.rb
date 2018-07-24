@@ -1,3 +1,5 @@
+require 'vmpooler/providers/base'
+
 module Vmpooler
   class PoolManager
     class Provider
