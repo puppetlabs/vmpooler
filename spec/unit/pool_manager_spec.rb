@@ -726,6 +726,12 @@ EOT
 
         subject._destroy_vm(vm,pool,provider)
       end
+
+      it 'should dereference the mutex' do
+        expect(subject).to receive(:dereference_mutex)
+
+        subject._destroy_vm(vm,pool,provider)
+      end
     end
 
     context 'when the VM destruction raises an eror' do
@@ -1687,6 +1693,26 @@ EOT
       first = subject.vm_mutex(vm)
       second = subject.vm_mutex(vm)
       expect(first).to be(second)
+    end
+  end
+
+  describe '#dereference_mutex' do
+    it 'should return nil when no mutex is dereferenced' do
+      expect(subject.dereference_mutex(vm)).to be_nil
+    end
+
+    it 'should return true when a mutex is dereferenced' do
+      subject.vm_mutex(vm)
+      expect(subject.dereference_mutex(vm)).to be true
+    end
+
+    it 'should dereference the mutex' do
+      mutex = subject.vm_mutex(vm)
+
+      subject.dereference_mutex(vm)
+
+      result = subject.vm_mutex(vm)
+      expect(result).to_not eq(mutex)
     end
   end
 

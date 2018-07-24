@@ -313,6 +313,7 @@ module Vmpooler
         $logger.log('s', "[-] [#{pool}] '#{vm}' destroyed in #{finish} seconds")
         $metrics.timing("destroy.#{pool}", finish)
       end
+      dereference_mutex(vm)
     end
 
     def purge_unused_vms_and_folders
@@ -679,6 +680,14 @@ module Vmpooler
 
     def vm_mutex(vmname)
       @vm_mutex[vmname] || @vm_mutex[vmname] = Mutex.new
+    end
+
+    def dereference_mutex(vmname)
+      if @vm_mutex.delete(vmname)
+        return true
+      else
+        return
+      end
     end
 
     def sync_pool_template(pool)
