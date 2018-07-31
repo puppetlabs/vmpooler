@@ -3215,21 +3215,6 @@ EOT
       # end
     end
 
-    context 'when an excess number of ready vms exist' do
-
-      before(:each) do
-        allow(redis).to receive(:scard)
-        expect(redis).to receive(:scard).with("vmpooler__ready__#{pool}").and_return(1)
-        expect(redis).to receive(:scard).with("vmpooler__pending__#{pool}").and_return(1)
-      end
-
-      it 'should call remove_excess_vms' do
-        expect(subject).to receive(:remove_excess_vms).with(config[:pools][0], provider, 1, 2)
-
-        subject._check_pool(config[:pools][0],provider)
-      end
-    end
-
     context 'export metrics' do
       it 'increments metrics for ready queue' do
         create_ready_vm(pool,'vm1')
@@ -3554,6 +3539,23 @@ EOT
         expect(subject).to receive(:repopulate_pool_vms).with(pool, provider, pool_check_response, config[:pools][0]['size'])
 
         subject._check_pool(pool_object, provider)
+      end
+    end
+
+    #remove_excess_vms
+    context 'when an excess number of ready vms exist' do
+
+      before(:each) do
+        allow(redis).to receive(:scard)
+        expect(redis).to receive(:scard).with("vmpooler__ready__#{pool}").and_return(1)
+        expect(redis).to receive(:scard).with("vmpooler__pending__#{pool}").and_return(1)
+      end
+
+      it 'should call remove_excess_vms' do
+        allow(subject).to receive(:create_inventory).and_return({})
+        expect(subject).to receive(:remove_excess_vms).with(config[:pools][0])
+
+        subject._check_pool(config[:pools][0],provider)
       end
     end
 

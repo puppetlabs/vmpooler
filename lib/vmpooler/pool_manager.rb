@@ -661,7 +661,9 @@ module Vmpooler
       $logger.log('s', "[*] [#{pool['name']}] is ready for use")
     end
 
-    def remove_excess_vms(pool, provider, ready, total)
+    def remove_excess_vms(pool)
+      ready = $redis.scard("vmpooler__ready__#{pool['name']}")
+      total = $redis.scard("vmpooler__pending__#{pool['name']}") + ready
       return if total.nil?
       return if total == 0
       mutex = pool_mutex(pool['name'])
@@ -893,11 +895,8 @@ module Vmpooler
 
       repopulate_pool_vms(pool['name'], provider, pool_check_response, pool['size'])
 
-      # query redis again until we refactor remove_excess_vms, duplicate of a line moved to refactored method repopulate_pool_vms
-      ready = $redis.scard("vmpooler__ready__#{pool['name']}")
-      total = $redis.scard("vmpooler__pending__#{pool['name']}") + ready
       # Remove VMs in excess of the configured pool size
-      remove_excess_vms(pool, provider, ready, total)
+      remove_excess_vms(pool)
 
       pool_check_response
     end
