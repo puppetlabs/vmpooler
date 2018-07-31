@@ -836,18 +836,16 @@ module Vmpooler
         $logger.log('s', "[!] [#{pool_name}] is empty")
       end
 
-      if total < pool_size
-        (1..(pool_size - total)).each do |_i|
-          if $redis.get('vmpooler__tasks__clone').to_i < $config[:config]['task_limit'].to_i
-            begin
-              $redis.incr('vmpooler__tasks__clone')
-              pool_check_response[:cloned_vms] += 1
-              clone_vm(pool_name, provider)
-            rescue => err
-              $logger.log('s', "[!] [#{pool_name}] clone failed during check_pool with an error: #{err}")
-              $redis.decr('vmpooler__tasks__clone')
-              raise
-            end
+      (pool_size - total).times do
+        if $redis.get('vmpooler__tasks__clone').to_i < $config[:config]['task_limit'].to_i
+          begin
+            $redis.incr('vmpooler__tasks__clone')
+            pool_check_response[:cloned_vms] += 1
+            clone_vm(pool_name, provider)
+          rescue => err
+            $logger.log('s', "[!] [#{pool_name}] clone failed during check_pool with an error: #{err}")
+            $redis.decr('vmpooler__tasks__clone')
+            raise
           end
         end
       end

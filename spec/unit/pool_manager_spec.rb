@@ -1682,7 +1682,7 @@ EOT
     end
   end
 
-  describe 'remove_excess_vms' do
+  describe '#remove_excess_vms' do
     let(:config) {
       YAML.load(<<-EOT
 ---
@@ -1701,39 +1701,39 @@ EOT
       let(:ready) { 0 }
       let(:total) { 0 }
       it 'should return nil' do
-        expect(subject.remove_excess_vms(config[:pools][0], provider, ready, total)).to be_nil
+        expect(subject.remove_excess_vms(config[:pools][0])).to be_nil
       end
     end
 
     context 'when the mutex is locked' do
       let(:mutex) { Mutex.new }
-      let(:ready) { 2 }
-      let(:total) { 3 }
       before(:each) do
+        expect(redis).to receive(:scard).with("vmpooler__pending__#{pool}").and_return(1)
+        expect(redis).to receive(:scard).with("vmpooler__ready__#{pool}").and_return(2)
         mutex.lock
         expect(subject).to receive(:pool_mutex).with(pool).and_return(mutex)
       end
 
       it 'should return nil' do
-        expect(subject.remove_excess_vms(config[:pools][0], provider, ready, total)).to be_nil
+        expect(subject.remove_excess_vms(config[:pools][0])).to be_nil
       end
     end
 
     context 'with a total size less than the pool size' do
-      let(:ready) { 1 }
-      let(:total) { 2 }
       it 'should return nil' do
-        expect(subject.remove_excess_vms(config[:pools][0], provider, ready, total)).to be_nil
+        expect(redis).to receive(:scard).with("vmpooler__pending__#{pool}").and_return(1)
+        expect(redis).to receive(:scard).with("vmpooler__ready__#{pool}").and_return(1)
+        expect(subject.remove_excess_vms(config[:pools][0])).to be_nil
       end
     end
 
     context 'with a total size greater than the pool size' do
-      let(:ready) { 4 }
-      let(:total) { 4 }
       it 'should remove excess ready vms' do
+        expect(redis).to receive(:scard).with("vmpooler__ready__#{pool}").and_return(4)
+        expect(redis).to receive(:scard).with("vmpooler__pending__#{pool}").and_return(0)
         expect(subject).to receive(:move_vm_queue).exactly(2).times
 
-        subject.remove_excess_vms(config[:pools][0], provider, ready, total)
+        subject.remove_excess_vms(config[:pools][0])
       end
 
       it 'should remove excess pending vms' do
@@ -1744,7 +1744,7 @@ EOT
         create_ready_vm(pool, 'vm5')
         expect(subject).to receive(:move_vm_queue).exactly(3).times
 
-        subject.remove_excess_vms(config[:pools][0], provider, 3, 5)
+        subject.remove_excess_vms(config[:pools][0])
       end
     end
   end
@@ -3207,6 +3207,7 @@ EOT
         redis.hset('vmpooler__config__updating', pool, 1)
       end
 
+      it 'should not call clone_vm to populate the pool'
       # TODO: this test fails and we cannot figure out where vmpooler__config__updating is used
       # it 'should not call clone_vm to populate the pool' do
       #   expect(subject).to_not receive(:clone_vm)
@@ -3224,7 +3225,7 @@ EOT
         expect(metrics).to receive(:gauge).with("ready.#{pool}", 3)
         allow(metrics).to receive(:gauge)
 
-        subject._check_pool(pool_object,provider)
+        subject.repopulate_pool_vms(pool, provider, pool_check_response, pool_size)
       end
 
       it 'increments metrics for running queue' do
@@ -3235,7 +3236,7 @@ EOT
         expect(metrics).to receive(:gauge).with("running.#{pool}", 3)
         allow(metrics).to receive(:gauge)
 
-        subject._check_pool(pool_object,provider)
+        subject.repopulate_pool_vms(pool, provider, pool_check_response, pool_size)
       end
 
       it 'increments metrics with 0 when pool empty' do
@@ -3243,7 +3244,7 @@ EOT
         expect(metrics).to receive(:gauge).with("ready.#{pool}", 0)
         expect(metrics).to receive(:gauge).with("running.#{pool}", 0)
 
-        subject._check_pool(pool_object,provider)
+        subject.repopulate_pool_vms(pool, provider, pool_check_response, pool_size)
       end
     end
   end
@@ -3524,7 +3525,6 @@ EOT
       it 'should change the pool size configuration' do
         allow(subject).to receive(:create_inventory).and_return({})
 
-        puts "should change the pool size configuration"
         expect(subject).to receive(:update_pool_size).and_call_original
 
         subject._check_pool(config[:pools][0],provider)
@@ -3535,7 +3535,17 @@ EOT
 
     #REPOPULATE
     context 'when checking if pools need to be repopulated' do
+      let(:pool_check_response) { {
+        discovered_vms: 0,
+        checked_running_vms: 0,
+        checked_ready_vms: 0,
+        checked_pending_vms: 0,
+        destroyed_vms: 0,
+        migrated_vms: 0,
+        cloned_vms: 0
+      } }
       it 'should call #repopulate_pool_vms' do
+        allow(subject).to receive(:create_inventory).and_return({})
         expect(subject).to receive(:repopulate_pool_vms).with(pool, provider, pool_check_response, config[:pools][0]['size'])
 
         subject._check_pool(pool_object, provider)
