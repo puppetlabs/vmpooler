@@ -682,14 +682,19 @@ module Vmpooler
     end
 
     def update_pool_size(pool)
+      puts "update_pool_size"
       mutex = pool_mutex(pool['name'])
       return if mutex.locked?
+      puts "passed mutex.locked?"
       poolsize = $redis.hget('vmpooler__config__poolsize', pool['name'])
       return if poolsize.nil?
+      puts "passed poolsize.nil?"
       poolsize = Integer(poolsize)
       return if poolsize == pool['size']
+      puts "passed poolsize == pool['size']"
       mutex.synchronize do
         pool['size'] = poolsize
+        puts "passed mutex.synchronize"
       end
     end
 

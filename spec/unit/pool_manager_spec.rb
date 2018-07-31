@@ -3201,21 +3201,6 @@ EOT
       end
     end
 
-    context 'when a pool size configuration change is detected' do
-      let(:poolsize) { 2 }
-      let(:newpoolsize) { 3 }
-      before(:each) do
-        config[:pools][0]['size'] = poolsize
-        redis.hset('vmpooler__config__poolsize', pool, newpoolsize)
-      end
-
-      it 'should change the pool size configuration' do
-        subject._check_pool(config[:pools][0],provider)
-
-        expect(config[:pools][0]['size']).to be(newpoolsize)
-      end
-    end
-
     context 'when a pool template is updating' do
       let(:poolsize) { 2 }
       before(:each) do
@@ -3540,6 +3525,28 @@ EOT
         subject._check_pool(pool_object,provider)
       end
     end
+
+    # update_pool_size
+    context 'when a pool size configuration change is detected' do
+      let(:poolsize) { 2 }
+      let(:newpoolsize) { 3 }
+      before(:each) do
+        config[:pools][0]['size'] = poolsize
+        redis.hset('vmpooler__config__poolsize', pool, newpoolsize)
+      end
+
+      it 'should change the pool size configuration' do
+        allow(subject).to receive(:create_inventory).and_return({})
+
+        puts "should change the pool size configuration"
+        expect(subject).to receive(:update_pool_size).and_call_original
+
+        subject._check_pool(config[:pools][0],provider)
+
+        # expect(config[:pools][0]['size']).to be(newpoolsize)
+      end
+    end
+
     #REPOPULATE
     context 'when checking if pools need to be repopulated' do
       it 'should call #repopulate_pool_vms' do
@@ -3548,6 +3555,9 @@ EOT
         subject._check_pool(pool_object, provider)
       end
     end
+
+    #
+
 
   end
 end
