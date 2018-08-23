@@ -13,6 +13,10 @@ git logs & PR history.
 
 # [Unreleased](https://github.com/puppetlabs/vmpooler/compare/0.2.0...master)
 
+### Added
+- Re-write check\_pool in pool\_manager to improve readability
+- Add a docker-compose file for testing vmpooler
+
 # [0.2.0](https://github.com/puppetlabs/vmpooler/compare/0.1.0...0.2.0)
 
 ### Fixed
