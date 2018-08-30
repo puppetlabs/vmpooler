@@ -1942,6 +1942,19 @@ EOT
         subject.prepare_template(config[:pools][0], provider)
       end
     end
+
+    context 'when template delta disk creation fails' do
+      before(:each) do
+        allow(redis).to receive(:hset)
+        expect(provider).to receive(:create_template_delta_disks).and_raise("MockError")
+      end
+
+      it 'should log a message when delta disk creation returns an error' do
+        expect(logger).to receive(:log).with('s', "[!] [#{pool}] failed while preparing a template with an error. As a result vmpooler could not create the template delta disks. Either a template delta disk already exists, or the template delta disk creation failed. The error is: MockError")
+
+        subject.prepare_template(config[:pools][0], provider)
+      end
+    end
   end
 
   describe 'evaluate_template' do
