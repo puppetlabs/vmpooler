@@ -12,6 +12,7 @@ If you're looking for changes from before this, refer to the project's
 git logs & PR history.
 
 # [Unreleased](https://github.com/puppetlabs/vmpooler/compare/0.2.0...master)
+- Better handle delta disk creation errors (POOLER-130)
 
 ### Added
 - Re-write check\_pool in pool\_manager to improve readability

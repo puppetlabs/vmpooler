@@ -721,7 +721,16 @@ module Vmpooler
     end
 
     def prepare_template(pool, provider)
-      provider.create_template_delta_disks(pool) if $config[:config]['create_template_delta_disks']
+      if $config[:config]['create_template_delta_disks']
+        unless $redis.sismember('vmpooler__template__deltas', pool['template'])
+          begin
+            provider.create_template_delta_disks(pool)
+            $redis.sadd('vmpooler__template__deltas', pool['template'])
+          rescue => err
+            $logger.log('s', "[!] [#{pool['name']}] failed while preparing a template with an error. As a result vmpooler could not create the template delta disks. Either a template delta disk already exists, or the template delta disk creation failed. The error is: #{err}")
+          end
+        end
+      end
       $redis.hset('vmpooler__template__prepared', pool['name'], pool['template'])
     end
 
