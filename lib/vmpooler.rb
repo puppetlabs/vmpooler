@@ -1,15 +1,16 @@
 module Vmpooler
   require 'date'
   require 'json'
-  require 'open-uri'
   require 'net/ldap'
+  require 'open-uri'
+  require 'pickup'
   require 'rbvmomi'
   require 'redis'
+  require 'set'
   require 'sinatra/base'
   require 'time'
   require 'timeout'
   require 'yaml'
-  require 'set'
 
   %w[api graphite logger pool_manager statsd dummy_statsd generic_connection_pool].each do |lib|
     require "vmpooler/#{lib}"

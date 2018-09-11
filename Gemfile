@@ -1,6 +1,7 @@
 source ENV['GEM_SOURCE'] || 'https://rubygems.org'
 
 gem 'json', '>= 1.8'
+gem 'pickup', '~> 0.0.11'
 gem 'puma', '~> 3.11'
 gem 'rack', '~> 2.0'
 gem 'rake', '~> 12.3'

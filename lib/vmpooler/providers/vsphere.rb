@@ -428,7 +428,7 @@ module Vmpooler
 
         def vm_ready?(_pool_name, vm_name)
           begin
-            open_socket(vm_name)
+            open_socket(vm_name, global_config[:config]['domain'])
           rescue => _err
             return false
           end
