@@ -149,34 +149,25 @@ module Vmpooler
       # Periodically check that the VM is available
       mutex = vm_mutex(vm)
       return if mutex.locked?
-      begin
-        mutex.synchronize do
-          stage = 'stamp check'
-          check_stamp = $redis.hget('vmpooler__vm__' + vm, 'check')
-          return if check_stamp && (((Time.now - Time.parse(check_stamp)) / 60) <= $config[:config]['vm_checktime'])
+      mutex.synchronize do
+        check_stamp = $redis.hget('vmpooler__vm__' + vm, 'check')
+        return if check_stamp && (((Time.now - Time.parse(check_stamp)) / 60) <= $config[:config]['vm_checktime'])
 
-          $redis.hset('vmpooler__vm__' + vm, 'check', Time.now)
-          # Check if the hosts TTL has expired
-          stage = 'ttl'
-          if ttl > 0
-            # host['boottime'] may be nil if host is not powered on
-            if ((Time.now - host['boottime']) / 60).to_s[/^\d+\.\d{1}/].to_f > ttl
-              $redis.smove('vmpooler__ready__' + pool['name'], 'vmpooler__completed__' + pool['name'], vm)
+        $redis.hset('vmpooler__vm__' + vm, 'check', Time.now)
+        # Check if the hosts TTL has expired
+        if ttl > 0
+          # host['boottime'] may be nil if host is not powered on
+          if ((Time.now - host['boottime']) / 60).to_s[/^\d+\.\d{1}/].to_f > ttl
+            $redis.smove('vmpooler__ready__' + pool['name'], 'vmpooler__completed__' + pool['name'], vm)
 
-              $logger.log('d', "[!] [#{pool['name']}] '#{vm}' reached end of TTL after #{ttl} minutes, removed from 'ready' queue")
-              return
-            end
+            $logger.log('d', "[!] [#{pool['name']}] '#{vm}' reached end of TTL after #{ttl} minutes, removed from 'ready' queue")
+            return
           end
-
-          stage = 'hostname mismatch'
-          return if has_mismatched_hostname?(vm, pool, provider)
-
-          stage = 'still ready'
-          vm_still_ready?(pool['name'], vm, provider)
         end
-      rescue => err
-        $logger.log('s', "Failed at stage #{stage} for #{vm}")
-        raise
+
+        return if has_mismatched_hostname?(vm, pool, provider)
+
+        vm_still_ready?(pool['name'], vm, provider)
       end
     end
 
@@ -197,6 +188,7 @@ module Vmpooler
 
       # Check if the hostname has magically changed from underneath Pooler
       vm_hash = provider.get_vm(pool['name'], vm)
+      return unless vm_hash.is_a? Hash
       hostname = vm_hash['hostname']
 
       return if hostname.nil?
@@ -875,7 +867,7 @@ module Vmpooler
       end
     end
 
-    def check_ready_pool_vms(pool_name, provider, pool_check_response, inventory, pool_ttl)
+    def check_ready_pool_vms(pool_name, provider, pool_check_response, inventory, pool_ttl = 0)
       $redis.smembers("vmpooler__ready__#{pool_name}").each do |vm|
         if inventory[vm]
           begin

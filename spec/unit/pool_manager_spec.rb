@@ -2974,9 +2974,7 @@ EOT
         # mock response from create_inventory
         {vm => 1}
       }
-      let(:big_lifetime) {
-        2000
-      }
+      let(:big_lifetime) { 2000 }
       before(:each) do
         allow(subject).to receive(:check_ready_vm)
         create_ready_vm(pool,vm,token)
@@ -2992,7 +2990,7 @@ EOT
         expect(subject).to receive(:check_ready_vm).and_raise(RuntimeError,'MockError')
         expect(logger).to receive(:log).with('d', "[!] [#{pool}] _check_pool failed with an error while evaluating ready VMs: MockError")
 
-        subject.check_ready_pool_vms(pool, provider, pool_check_response, inventory)
+        subject.check_ready_pool_vms(pool, provider, pool_check_response, inventory, big_lifetime)
       end
 
       it 'should use the pool TTL if set' do
@@ -3511,12 +3509,8 @@ EOT
       end
 
       it 'captures #create_inventory errors correctly' do
-        allow(subject).to receive(:create_inventory).and_raise(
-          RuntimeError,'Mock Error'
-        )
-        expect {
-          subject._check_pool(pool_object, provider)
-        }.to_not raise_error(RuntimeError, /Mock Error/)
+        allow(subject).to receive(:create_inventory).and_raise(RuntimeError,'Mock Error')
+        subject._check_pool(pool_object, provider)
       end
 
       it 'should return early if an error occurs' do
