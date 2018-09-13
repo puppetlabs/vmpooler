@@ -36,13 +36,6 @@ module Vmpooler
       validate_token(backend)
     end
 
-    def pool_backend(pool)
-      pool_index = pool_index(pools)
-      pool_config = pools[pool_index[pool]]
-      backend = pool_config['clone_target'] || config['clone_target'] || 'default'
-      return backend
-    end
-
     def fetch_single_vm(template)
       template_backends = [template]
       aliases = Vmpooler::API.settings.config[:alias]
