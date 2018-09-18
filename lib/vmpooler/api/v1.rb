@@ -37,15 +37,38 @@ module Vmpooler
     end
 
     def fetch_single_vm(template)
-      vm = backend.spop('vmpooler__ready__' + template)
-      return [vm, template] if vm
-
+      template_backends = [template]
       aliases = Vmpooler::API.settings.config[:alias]
-      if aliases && aliased_template = aliases[template]
-        vm = backend.spop('vmpooler__ready__' + aliased_template)
-        return [vm, aliased_template] if vm
+      if aliases
+        template_backends << aliases[template] if aliases[template]
+
+        pool_index = pool_index(pools)
+        weighted_pools = {}
+        template_backends.each do |t|
+          next unless pool_index.key? t
+          index = pool_index[t]
+          clone_target = pools[index]['clone_target'] || config['clone_target']
+          next unless config.key?('backend_weight')
+          weight = config['backend_weight'][clone_target]
+          if weight
+            weighted_pools[t] = weight
+          end
+        end
+
+        if weighted_pools.count == template_backends.count
+          pickup = Pickup.new(weighted_pools)
+          selection = pickup.pick
+          template_backends.delete(selection)
+          template_backends.unshift(selection)
+        else
+          template_backends = template_backends.sample(template_backends.count)
+        end
       end
 
+      template_backends.each do |t|
+        vm = backend.spop('vmpooler__ready__' + t)
+        return [vm, t] if vm
+      end
       [nil, nil]
     end
 

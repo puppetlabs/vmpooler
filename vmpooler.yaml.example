@@ -477,6 +477,14 @@
 #     Expects a boolean value
 #     (optional; default: false)
 #
+#   - backend_weight
+#     A hash of clone_target values with weights assigned to allow selecting VMs by alias with selection probability
+#     This setting is only used when there is a pool title and matching alias that both have values set in backend weight.
+#     When both conditions are met then the next VM is selected by probability using backend weight. When weight is not set
+#     in this configuration then distribution of load is random.
+#     Expects a hash value
+#     (optional)
+#
 # Example:
 
 :config:
@@ -493,6 +501,9 @@
   domain: 'example.com'
   prefix: 'poolvm-'
   experimental_features: true
+  backend_weight:
+    'backend1': 60
+    'backend2': 40
 
 # :pools:
 #

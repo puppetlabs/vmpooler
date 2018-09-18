@@ -925,9 +925,10 @@ EOT
   end
 
   describe '#vm_ready?' do
+    let(:domain) { nil }
     context 'When a VM is ready' do
       before(:each) do
-        expect(subject).to receive(:open_socket).with(vmname)
+        expect(subject).to receive(:open_socket).with(vmname, domain)
       end
 
       it 'should return true' do
@@ -939,7 +940,7 @@ EOT
       # TODO not sure how to handle a VM that is passed in but
       # not located in the pool.  Is that ready or not?
       before(:each) do
-        expect(subject).to receive(:open_socket).with(vmname)
+        expect(subject).to receive(:open_socket).with(vmname, domain)
       end
 
       it 'should return true' do

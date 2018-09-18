@@ -17,6 +17,7 @@ Gem::Specification.new do |s|
   s.bindir        = 'bin'
   s.executables   = 'vmpooler'
   s.require_paths = ["lib"]
+  s.add_dependency 'pickup', '~> 0.0.11'
   s.add_dependency 'puma', '~> 3.11'
   s.add_dependency 'rack', '~> 2.0'
   s.add_dependency 'rake', '~> 12.3'

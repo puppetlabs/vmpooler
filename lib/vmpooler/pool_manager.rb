@@ -188,8 +188,10 @@ module Vmpooler
 
       # Check if the hostname has magically changed from underneath Pooler
       vm_hash = provider.get_vm(pool['name'], vm)
+      return unless vm_hash.is_a? Hash
       hostname = vm_hash['hostname']
 
+      return if hostname.nil?
       return if hostname.empty?
       return if hostname == vm
       $redis.smove('vmpooler__ready__' + pool['name'], 'vmpooler__completed__' + pool['name'], vm)
@@ -870,7 +872,7 @@ module Vmpooler
         if inventory[vm]
           begin
             pool_check_response[:checked_ready_vms] += 1
-            check_ready_vm(vm, pool_name, pool_ttl, provider)
+            check_ready_vm(vm, pool_name, pool_ttl || 0, provider)
           rescue => err
             $logger.log('d', "[!] [#{pool_name}] _check_pool failed with an error while evaluating ready VMs: #{err}")
           end

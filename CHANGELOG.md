@@ -17,6 +17,7 @@ git logs & PR history.
 ### Added
 - Re-write check\_pool in pool\_manager to improve readability
 - Add a docker-compose file for testing vmpooler
+- Add capability to weight backends when an alias spans multiple backends (POOLER-129)
 
 # [0.2.0](https://github.com/puppetlabs/vmpooler/compare/0.1.0...0.2.0)
 
