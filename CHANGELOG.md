@@ -11,7 +11,11 @@ Tracking in this Changelog began for this project with the tagging of version 0.
 If you're looking for changes from before this, refer to the project's
 git logs & PR history.
 
-# [Unreleased](https://github.com/puppetlabs/vmpooler/compare/0.2.0...master)
+# [Unreleased](https://github.com/puppetlabs/vmpooler/compare/0.2.1...master)
+
+# [0.2.1](https://github.com/puppetlabs/vmpooler/compare/0.2.0...0.2.1)
+
+### Fixed
 - Better handle delta disk creation errors (POOLER-130)
 
 ### Added
