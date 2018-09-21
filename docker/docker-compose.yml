@@ -1,0 +1,31 @@
+# For local development run with a dummy provider
+version: '3.2'
+services:
+  vmpooler:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile_local
+    volumes:
+      - type: bind
+        source: ${PWD}/vmpooler.yaml
+        target: /etc/vmpooler/vmpooler.yaml
+    ports:
+      - "4567:4567"
+    networks:
+      - redis-net
+    environment:
+      - VMPOOLER_DEBUG=true # for use of dummy auth
+      - VMPOOLER_CONFIG_FILE=/etc/vmpooler/vmpooler.yaml
+      - REDIS_SERVER=redis
+    image: vmpooler-local
+    depends_on:
+      - redis
+  redis:
+    image: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - redis-net
+
+networks:
+  redis-net:
