@@ -82,7 +82,7 @@ describe Vmpooler::API::V1 do
 
         expected = {
           ok: true,
-          pool1: {
+          poolone: {
             hostname: 'abcdefghijklmnop'
           }
         }

@@ -13,6 +13,9 @@ git logs & PR history.
 
 # [Unreleased](https://github.com/puppetlabs/vmpooler/compare/0.2.1...master)
 
+### Fixed
+- Return label used to request VMs when fulfilling VM requests (POOLER-131)
+
 # [0.2.1](https://github.com/puppetlabs/vmpooler/compare/0.2.0...0.2.1)
 
 ### Fixed
