@@ -67,9 +67,9 @@ module Vmpooler
 
       template_backends.each do |t|
         vm = backend.spop('vmpooler__ready__' + t)
-        return [vm, t] if vm
+        return [vm, t, template] if vm
       end
-      [nil, nil]
+      [nil, nil, nil]
     end
 
     def return_vm_to_ready_state(template, vm)
@@ -113,27 +113,27 @@ module Vmpooler
 
       payload.each do |requested, count|
         count.to_i.times do |_i|
-          vm, name = fetch_single_vm(requested)
-          if !vm
+          vmname, vmpool, vmtemplate = fetch_single_vm(requested)
+          if !vmname
             failed = true
             metrics.increment('checkout.empty.' + requested)
             break
           else
-            vms << [ name, vm ]
-            metrics.increment('checkout.success.' + name)
+            vms << [ vmpool, vmname, vmtemplate ]
+            metrics.increment('checkout.success.' + vmtemplate)
           end
         end
       end
 
       if failed
-        vms.each do |(name, vm)|
-          return_vm_to_ready_state(name, vm)
+        vms.each do |(vmpool, vmname, vmtemplate)|
+          return_vm_to_ready_state(vmpool, vmname)
         end
         status 503
       else
-        vms.each do |(name, vm)|
-          account_for_starting_vm(name, vm)
-          update_result_hosts(result, name, vm)
+        vms.each do |(vmpool, vmname, vmtemplate)|
+          account_for_starting_vm(vmpool, vmname)
+          update_result_hosts(result, vmtemplate, vmname)
         end
 
         result['ok'] = true
