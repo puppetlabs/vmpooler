@@ -12,6 +12,9 @@ If you're looking for changes from before this, refer to the project's
 git logs & PR history.
 # [Unreleased](https://github.com/puppetlabs/vmpooler/compare/0.2.2...master)
 
+### Fixed
+- Sync pool size before dashboard is displayed (POOLER-132)
+
 # [0.2.2](https://github.com/puppetlabs/vmpooler/compare/0.2.1...0.2.2)
 
 ### Fixed

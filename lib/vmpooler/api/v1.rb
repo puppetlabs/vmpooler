@@ -211,6 +211,11 @@ module Vmpooler
       end
     end
 
+    get '/' do
+      sync_pool_sizes
+      redirect to('/dashboard/')
+    end
+
     # Provide run-time statistics
     #
     # Example:
