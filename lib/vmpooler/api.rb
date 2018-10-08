@@ -14,10 +14,6 @@ module Vmpooler
       JSON.pretty_generate(result)
     end
 
-    get '/' do
-      redirect to('/dashboard/')
-    end
-
     # Load dashboard components
     begin
       require 'dashboard'
