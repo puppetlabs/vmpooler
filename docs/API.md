@@ -19,6 +19,11 @@ Token-based authentication can be used when requesting or modifying VMs.  The `/
 
 Get a list of issued tokens.
 
+Return codes:
+* 200  OK
+* 401  when not authorized
+* 404  when config:auth not found or other error
+
 ```
 $ curl -u jdoe --url vmpooler.example.com/api/v1/token
 Enter host password for user 'jdoe':
@@ -36,6 +41,11 @@ Enter host password for user 'jdoe':
 
 Generate a new authentication token.
 
+Return codes:
+* 200  OK
+* 401  when not authorized
+* 404  when config:auth not found
+
 ```
 $ curl -X POST -u jdoe --url vmpooler.example.com/api/v1/token
 Enter host password for user 'jdoe':
@@ -50,6 +60,10 @@ Enter host password for user 'jdoe':
 ##### GET /token/&lt;token&gt;
 
 Get information about an existing token (including associated VMs).
+
+Return codes:
+* 200  OK
+* 404  when config:auth or token not found
 
 ```
 $ curl --url vmpooler.example.com/api/v1/token/utpg2i2xswor6h8ttjhu3d47z53yy47y
@@ -75,6 +89,11 @@ $ curl --url vmpooler.example.com/api/v1/token/utpg2i2xswor6h8ttjhu3d47z53yy47y
 
 Delete an authentication token.
 
+Return codes:
+* 200  OK
+* 401  when not authorized
+* 404  when config:auth not found
+
 ```
 $ curl -X DELETE -u jdoe --url vmpooler.example.com/api/v1/token/utpg2i2xswor6h8ttjhu3d47z53yy47y
 Enter host password for user 'jdoe':
@@ -91,6 +110,9 @@ Enter host password for user 'jdoe':
 
 Retrieve a list of available VM pools.
 
+Return codes:
+* 200  OK
+
 ```
 $ curl --url vmpooler.example.com/api/v1/vm
 ```
@@ -103,9 +125,13 @@ $ curl --url vmpooler.example.com/api/v1/vm
 
 ##### POST /vm
 
-Useful for batch operations; post JSON (see format below), get back VMs.
+Useful for batch operations; post JSON (see format below), get back allocated VMs.
 
 If an authentication store is configured, an authentication token supplied via the `X-AUTH-TOKEN` HTTP header will modify a VM's default lifetime.  See the provided YAML configuration example, [vmpooler.yaml.example](vmpooler.yaml.example), and the 'token operations' section above for more information.
+
+Return codes:
+* 200  OK
+* 404  when sending invalid JSON in the request body or requesting an invalid VM pool name
 
 ```
 $ curl -d '{"debian-7-i386":"2","debian-7-x86_64":"1"}' --url vmpooler.example.com/api/v1/vm
@@ -131,6 +157,10 @@ $ curl -d '{"debian-7-i386":"2","debian-7-x86_64":"1"}' --url vmpooler.example.c
 ##### POST /vm/&lt;pool&gt;
 
 Check-out a VM or VMs.
+
+Return codes:
+* 200  OK
+* 404  when sending invalid JSON in the request body or requesting an invalid VM pool name
 
 ```
 $ curl -d --url vmpooler.example.com/api/v1/vm/debian-7-i386
@@ -171,7 +201,11 @@ $ curl -d --url vmpooler.example.com/api/v1/vm/debian-7-i386+debian-7-i386+debia
 
 ##### GET /vm/&lt;hostname&gt;
 
-Query a checked-out VM.
+Query metadata information for a checked-out VM.
+
+Return codes:
+* 200  OK
+* 404  when requesting an invalid VM hostname
 
 ```
 $ curl --url vmpooler.example.com/api/v1/vm/pxpmtoonx7fiqg6
@@ -182,12 +216,14 @@ $ curl --url vmpooler.example.com/api/v1/vm/pxpmtoonx7fiqg6
   "pxpmtoonx7fiqg6": {
     "template": "centos-6-x86_64",
     "lifetime": 12,
-    "running": 3.1,
+    "running": 3,
+    "remaining": 9, 
     "state": "running",
     "tags": {
       "department": "engineering",
       "user": "jdoe"
     },
+    "ip": "192.168.0.1",
     "domain": "example.com"
   }
 }
@@ -207,6 +243,12 @@ parameter | description | required structure
 Any modifications can be verified using the [GET /vm/&lt;hostname&gt;](#get-vmhostname) endpoint.
 
 If an authentication store is configured, an authentication token is required (via the `X-AUTH-TOKEN` HTTP header) to access this route.  See the provided YAML configuration example, [vmpooler.yaml.example](vmpooler.yaml.example), and the 'token operations' section above for more information.
+
+Return codes:
+* 200  OK
+* 401  when you need an auth token
+* 404  when requesting an invalid VM hostname
+* 400  when supplied PUT parameters fail validation
 
 ```
 $ curl -X PUT -d '{"lifetime":"2"}' --url vmpooler.example.com/api/v1/vm/fq6qlpjlsskycq6
@@ -230,6 +272,11 @@ $ curl -X PUT -d '{"tags":{"department":"engineering","user":"jdoe"}}' --url vmp
 
 Schedule a checked-out VM for deletion.
 
+Return codes:
+* 200  OK
+* 401  when you need an auth token
+* 404  when requesting an invalid VM hostname
+
 ```
 $ curl -X DELETE --url vmpooler.example.com/api/v1/vm/fq6qlpjlsskycq6
 ```
@@ -244,6 +291,11 @@ $ curl -X DELETE --url vmpooler.example.com/api/v1/vm/fq6qlpjlsskycq6
 ##### POST /vm/&lt;hostname&gt;/disk/&lt;size&gt;
 
 Add an additional disk to a running VM.
+
+Return codes:
+* 202  OK
+* 401  when you need an auth token
+* 404  when requesting an invalid VM hostname or size is not an integer
 
 ````
 $ curl -X POST -H X-AUTH-TOKEN:a9znth9dn01t416hrguu56ze37t790bl --url vmpooler.example.com/api/v1/vm/fq6qlpjlsskycq6/disk/8
@@ -285,6 +337,11 @@ $ curl --url vmpooler.example.com/api/v1/vm/fq6qlpjlsskycq6
 
 Create a snapshot of a running VM.
 
+Return codes:
+* 202  OK
+* 401  when you need an auth token
+* 404  when requesting an invalid VM hostname
+
 ````
 $ curl -X POST -H X-AUTH-TOKEN:a9znth9dn01t416hrguu56ze37t790bl --url vmpooler.example.com/api/v1/vm/fq6qlpjlsskycq6/snapshot
 ````
@@ -321,6 +378,11 @@ $ curl --url vmpooler.example.com/api/v1/vm/fq6qlpjlsskycq6
 ##### POST /vm/&lt;hostname&gt;/snapshot/&lt;snapshot&gt;
 
 Revert a VM back to a snapshot.
+
+Return codes:
+* 202  OK
+* 401  when you need an auth token
+* 404  when requesting an invalid VM hostname or snapshot is not valid
 
 ````
 $ curl X POST -H X-AUTH-TOKEN:a9znth9dn01t416hrguu56ze37t790bl --url vmpooler.example.com/api/v1/vm/fq6qlpjlsskycq6/snapshot/n4eb4kdtp7rwv4x158366vd9jhac8btq
@@ -386,6 +448,12 @@ If there are empty pools, the "status" section will convey this:
   }
 ```
 
+The top level sections are: "capacity", "queue", "clone", "boot", "pools" and "status".
+If the query parameter 'view' is provided, it will be used to select which top level
+element to compute and return. Select them by specifying which one you want in a comma 
+separated list.
+For example `vmpooler.example.com/api/v1/status?view=capacity,boot`
+
 ##### GET /summary[?from=YYYY-MM-DD[&to=YYYY-MM-DD]]
 
 Returns a summary, or report, for the timespan between `from` and `to` (inclusive)
@@ -394,6 +462,11 @@ metrics, such as boot and cloning durations.
 
 Any omitted query parameter will default to now/today. A request without any
 parameters will result in the current day's summary.
+
+Return codes:
+* 200  OK
+* 400  Invalid date format or range
+
 
 ```
 $ curl --url vmpooler.example.com/api/v1/summary
@@ -486,6 +559,7 @@ $ curl --url vmpooler.example.com/api/v1/summary
 }
 ```
 
+
 ```
 $ curl -G -d 'from=2015-03-10' -d 'to=2015-03-11' --url vmpooler.example.com/api/v1/summary
 ```
@@ -550,15 +624,21 @@ $ curl -G -d 'from=2015-03-10' -d 'to=2015-03-11' --url vmpooler.example.com/api
 }
 ```
 
+You can also query only the specific top level section you want by including it after `summary/`.
+The valid sections are "boot", "clone" or "tag" eg. `vmpooler.example.com/api/v1/summary/boot/`.
+You can further drill-down the data by specifying the second level parameter to query eg
+`vmpooler.example.com/api/v1/summary/tag/created_by`
+
 #### Managing pool configuration via API <a name="poolconfig"></a>
 
 ##### GET /config
 
 Returns the running pool configuration
 
-Responses:
-* 200 - OK
-* 404 - No configuration found
+Return codes
+* 200  OK 
+* 400  No configuration found  
+
 ```
 $ curl https://vmpooler.example.com/api/v1/config
 ```
