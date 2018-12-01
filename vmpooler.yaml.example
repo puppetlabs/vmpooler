@@ -376,7 +376,7 @@
 #
 #   - vm_checktime
 #     How often (in minutes) to check the sanity of VMs in 'ready' queues.
-#     (optional; default: '15')
+#     (optional; default: '1')
 #
 #   - vm_lifetime
 #     How long (in hours) to keep VMs in 'running' queues before destroying.
@@ -492,7 +492,7 @@
   logfile: '/var/log/vmpooler.log'
   task_limit: 10
   timeout: 15
-  vm_checktime: 15
+  vm_checktime: 1
   vm_lifetime: 12
   vm_lifetime_auth: 24
   allowed_tags:

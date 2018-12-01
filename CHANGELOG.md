@@ -14,6 +14,8 @@ git logs & PR history.
 
 ### Fixed
 - Sync pool size before dashboard is displayed (POOLER-132)
+- Remove a failed VM from the ready queue (POOLER-133)
+- Begin checking ready VMs to ensure alive after 1 minute by default
 
 # [0.2.2](https://github.com/puppetlabs/vmpooler/compare/0.2.1...0.2.2)
 
