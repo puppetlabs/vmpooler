@@ -49,7 +49,7 @@ module Vmpooler
     # Set some configuration defaults
     parsed_config[:config]['task_limit'] = ENV['TASK_LIMIT'] || parsed_config[:config]['task_limit'] || 10
     parsed_config[:config]['migration_limit'] = ENV['MIGRATION_LIMIT'] if ENV['MIGRATION_LIMIT']
-    parsed_config[:config]['vm_checktime'] = ENV['VM_CHECKTIME'] || parsed_config[:config]['vm_checktime'] || 15
+    parsed_config[:config]['vm_checktime'] = ENV['VM_CHECKTIME'] || parsed_config[:config]['vm_checktime'] || 1
     parsed_config[:config]['vm_lifetime'] = ENV['VM_LIFETIME'] || parsed_config[:config]['vm_lifetime']  || 24
     parsed_config[:config]['prefix'] = ENV['VM_PREFIX'] || parsed_config[:config]['prefix'] || ''
 
@@ -99,6 +99,9 @@ module Vmpooler
       redis = new_redis(parsed_config[:redis]['server'], parsed_config[:redis]['port'], parsed_config[:redis]['password'])
       parsed_config[:pools] = load_pools_from_redis(redis)
     end
+
+    # Create an index of pools by title
+    parsed_config[:pool_index] = pool_index(parsed_config[:pools])
 
     parsed_config[:pools].each do |pool|
       parsed_config[:pool_names] << pool['name']
@@ -160,5 +163,15 @@ module Vmpooler
 
   def self.pools(conf)
     conf[:pools]
+  end
+
+  def self.pool_index(pools)
+    pools_hash = {}
+    index = 0
+    for pool in pools
+      pools_hash[pool['name']] = index
+      index += 1
+    end
+    pools_hash
   end
 end

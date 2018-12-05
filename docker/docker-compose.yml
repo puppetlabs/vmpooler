@@ -16,11 +16,11 @@ services:
     environment:
       - VMPOOLER_DEBUG=true # for use of dummy auth
       - VMPOOLER_CONFIG_FILE=/etc/vmpooler/vmpooler.yaml
-      - REDIS_SERVER=redis
+      - REDIS_SERVER=redislocal
     image: vmpooler-local
     depends_on:
-      - redis
-  redis:
+      - redislocal
+  redislocal:
     image: redis
     ports:
       - "6379:6379"

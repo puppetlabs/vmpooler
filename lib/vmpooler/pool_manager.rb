@@ -134,18 +134,18 @@ module Vmpooler
       move_vm_queue(pool_name, vm_name, 'ready', 'completed', "is unreachable, removed from 'ready' queue")
     end
 
-    def check_ready_vm(vm, pool, ttl, provider)
+    def check_ready_vm(vm, pool_name, ttl, provider)
       Thread.new do
         begin
-          _check_ready_vm(vm, pool, ttl, provider)
+          _check_ready_vm(vm, pool_name, ttl, provider)
         rescue => err
-          $logger.log('s', "[!] [#{pool['name']}] '#{vm}' failed while checking a ready vm : #{err}")
+          $logger.log('s', "[!] [#{pool_name}] '#{vm}' failed while checking a ready vm : #{err}")
           raise
         end
       end
     end
 
-    def _check_ready_vm(vm, pool, ttl, provider)
+    def _check_ready_vm(vm, pool_name, ttl, provider)
       # Periodically check that the VM is available
       mutex = vm_mutex(vm)
       return if mutex.locked?
@@ -158,21 +158,22 @@ module Vmpooler
         if ttl > 0
           # host['boottime'] may be nil if host is not powered on
           if ((Time.now - host['boottime']) / 60).to_s[/^\d+\.\d{1}/].to_f > ttl
-            $redis.smove('vmpooler__ready__' + pool['name'], 'vmpooler__completed__' + pool['name'], vm)
+            $redis.smove('vmpooler__ready__' + pool_name, 'vmpooler__completed__' + pool_name, vm)
 
-            $logger.log('d', "[!] [#{pool['name']}] '#{vm}' reached end of TTL after #{ttl} minutes, removed from 'ready' queue")
+            $logger.log('d', "[!] [#{pool_name}] '#{vm}' reached end of TTL after #{ttl} minutes, removed from 'ready' queue")
             return
           end
         end
 
-        return if has_mismatched_hostname?(vm, pool, provider)
+        return if has_mismatched_hostname?(vm, pool_name, provider)
 
-        vm_still_ready?(pool['name'], vm, provider)
+        vm_still_ready?(pool_name, vm, provider)
       end
     end
 
-    def has_mismatched_hostname?(vm, pool, provider)
-      check_hostname = pool['check_hostname_for_mismatch']
+    def has_mismatched_hostname?(vm, pool_name, provider)
+      pool_config = $config[:pools][$config[:pool_index][pool_name]]
+      check_hostname = pool_config['check_hostname_for_mismatch']
       check_hostname = $config[:config]['check_ready_vm_hostname_for_mismatch'] if check_hostname.nil?
       return if check_hostname == false
 
@@ -187,15 +188,15 @@ module Vmpooler
       end
 
       # Check if the hostname has magically changed from underneath Pooler
-      vm_hash = provider.get_vm(pool['name'], vm)
+      vm_hash = provider.get_vm(pool_name, vm)
       return unless vm_hash.is_a? Hash
       hostname = vm_hash['hostname']
 
       return if hostname.nil?
       return if hostname.empty?
       return if hostname == vm
-      $redis.smove('vmpooler__ready__' + pool['name'], 'vmpooler__completed__' + pool['name'], vm)
-      $logger.log('d', "[!] [#{pool['name']}] '#{vm}' has mismatched hostname #{hostname}, removed from 'ready' queue")
+      $redis.smove('vmpooler__ready__' + pool_name, 'vmpooler__completed__' + pool_name, vm)
+      $logger.log('d', "[!] [#{pool_name}] '#{vm}' has mismatched hostname #{hostname}, removed from 'ready' queue")
       return true
     end
 

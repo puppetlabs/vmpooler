@@ -100,7 +100,6 @@ Example minimal configuration file:
   logfile: '/var/log/vmpooler.log'
   task_limit: 10
   timeout: 15
-  vm_checktime: 15
   vm_lifetime: 12
   vm_lifetime_auth: 24
   allowed_tags:
