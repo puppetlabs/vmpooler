@@ -757,7 +757,14 @@ EOT
       end
 
       it 'should emit a timing metric' do
+        allow(subject).to receive(:get_vm_usage_labels)
         expect(metrics).to receive(:timing).with("destroy.#{pool}", String)
+
+        subject._destroy_vm(vm,pool,provider)
+      end
+
+      it 'should check usage labels' do
+        expect(subject).to receive(:get_vm_usage_labels).with(vm)
 
         subject._destroy_vm(vm,pool,provider)
       end
@@ -799,6 +806,171 @@ EOT
         expect(subject).to receive(:vm_mutex).with(vm).and_return(mutex)
 
         expect(subject._destroy_vm(vm,pool,provider)).to eq(nil)
+      end
+    end
+  end
+
+  describe '#get_vm_usage_labels' do
+
+    let(:template) { 'pool1' }
+    let(:user) { 'vmpuser' }
+    let(:vm) { 'vm1' }
+
+    context 'when label evaluation is disabled' do
+      it 'should do nothing' do
+        subject.get_vm_usage_labels(vm)
+      end
+    end
+
+    context 'when label evaluation is enabled' do
+
+      before(:each) do
+        config[:config]['usage_stats'] = true
+      end
+
+      context 'when a VM has not been checked out' do
+        before(:each) do
+          create_ready_vm(template, vm)
+        end
+
+        it 'should return' do
+          expect(subject).to receive(:get_vm_usage_labels).and_return(nil)
+
+          subject.get_vm_usage_labels(vm)
+        end
+      end
+
+      context 'when a VM has been checked out' do
+
+        context 'without auth' do
+
+          before(:each) do
+            create_running_vm(template, vm)
+          end
+
+          it 'should emit a metric' do
+            expect(metrics).to receive(:increment).with("usage.unauthenticated.#{template}")
+
+            subject.get_vm_usage_labels(vm)
+          end
+        end
+
+        context 'with auth' do
+
+          before(:each) do
+            create_running_vm(template, vm, token, user)
+          end
+
+          it 'should emit a metric' do
+            expect(metrics).to receive(:increment).with("usage.#{user}.#{template}")
+
+            subject.get_vm_usage_labels(vm)
+          end
+
+          context 'with a jenkins_build_url label' do
+            let(:jenkins_build_url) { 'https://jenkins.example.com/job/enterprise_pe-acceptance-tests_integration-system_pe_full-agent-upgrade_weekend_2018.1.x/LAYOUT=centos6-64mcd-ubuntu1404-32f-64f,LEGACY_AGENT_VERSION=NONE,PLATFORM=NOTUSED,SCM_BRANCH=2018.1.x,UPGRADE_FROM=2018.1.0,UPGRADE_TO_VERSION=NONE,label=beaker/222/' }
+            let(:url_parts) { jenkins_build_url.split('/')[2..-1] }
+            let(:instance) { url_parts[0].gsub('.', '_') }
+            let(:value_stream_parts) { url_parts[2].split('_') }
+            let(:value_stream) { value_stream_parts.shift }
+            let(:branch) { value_stream_parts.pop }
+            let(:project) { value_stream_parts.shift }
+            let(:job_name) { value_stream_parts.join('_') }
+
+            before(:each) do
+              create_tag(vm, 'jenkins_build_url', jenkins_build_url)
+            end
+
+            it 'should emit a metric with information from the URL' do
+              expect(metrics).to receive(:increment).with("usage.#{user}.#{instance}.#{value_stream}.#{branch}.#{project}.#{job_name}.#{template}")
+
+              subject.get_vm_usage_labels(vm)
+            end
+          end
+
+          context 'with a jenkins_build_url that contains RMM_COMPONENT_TO_TEST_NAME' do
+            let(:jenkins_build_url) { 'https://jenkins.example.com/job/platform_puppet-agent-extra_puppet-agent-integration-suite_pr/RMM_COMPONENT_TO_TEST_NAME=puppet,SLAVE_LABEL=beaker,TEST_TARGET=redhat7-64a/824/' }
+            let(:url_parts) { jenkins_build_url.split('/')[2..-1] }
+            let(:instance) { url_parts[0].gsub('.', '_') }
+            let(:value_stream_parts) { url_parts[2].split('_') }
+            let(:value_stream) { value_stream_parts.shift }
+            let(:branch) { value_stream_parts.pop }
+            let(:project) { value_stream_parts.shift }
+            let(:job_name) { value_stream_parts.join('_') }
+            let(:build_metadata) { url_parts[3] }
+            let(:build_component) { subject.component_to_test('RMM_COMPONENT_TO_TEST_NAME', build_metadata) }
+
+            before(:each) do
+              create_tag(vm, 'jenkins_build_url', jenkins_build_url)
+            end
+
+            it 'should emit a metric with information from the URL' do
+              expect(metrics).to receive(:increment).with("usage.#{user}.#{instance}.#{value_stream}.#{branch}.#{project}.#{job_name}.#{build_component}.#{template}")
+
+              subject.get_vm_usage_labels(vm)
+            end
+
+            context 'when there is no matrix job information' do
+
+              let(:jenkins_build_url) { 'https://jenkins.example.com/job/platform_puppet-agent-extra_puppet-agent-integration-suite_pr/824/' }
+              let(:url_parts) { jenkins_build_url.split('/')[2..-1] }
+              let(:instance) { url_parts[0].gsub('.', '_') }
+              let(:value_stream_parts) { url_parts[2].split('_') }
+              let(:value_stream) { value_stream_parts.shift }
+              let(:branch) { value_stream_parts.pop }
+              let(:project) { value_stream_parts.shift }
+              let(:job_name) { value_stream_parts.join('_') }
+
+              before(:each) do
+                create_tag(vm, 'jenkins_build_url', jenkins_build_url)
+              end
+
+              it 'should emit a metric with information from the URL without a build_component' do
+                expect(metrics).to receive(:increment).with("usage.#{user}.#{instance}.#{value_stream}.#{branch}.#{project}.#{job_name}.#{template}")
+
+                subject.get_vm_usage_labels(vm)
+              end
+            end
+          end
+
+        end
+      end
+    end
+  end
+
+  describe '#component_to_test' do
+    let(:matching_key) { 'LABEL_ONE' }
+    let(:matching_value) { 'test' }
+    let(:labels_string) { "#{matching_key}=#{matching_value},LABEL_TWO=test2,LABEL_THREE=test3" }
+    let(:nonmatrix_string) { 'test,stuff,and,things' }
+
+    context 'when string contains a matching key' do
+      it 'should print the corresponding value' do
+        expect(subject.component_to_test(matching_key, labels_string)).to eq(matching_value)
+      end
+
+      context 'when match contains no value' do
+        it 'should return nil' do
+          expect(subject.component_to_test(matching_key, matching_key)).to be nil
+        end
+      end
+    end
+
+    context 'when string contains no key value pairs' do
+      it 'should return' do
+        expect(subject.component_to_test(matching_key, nonmatrix_string)).to be nil
+      end
+    end
+
+    context 'when labels_string is a job number' do
+      it 'should return nil' do
+        expect(subject.component_to_test(matching_key, '25')).to be nil
+      end
+    end
+
+    context 'when labels_string is nil' do
+      it 'should return nil' do
+        expect(subject.component_to_test(matching_key, nil)).to be nil
       end
     end
   end
