@@ -319,8 +319,64 @@ module Vmpooler
         finish = format('%.2f', Time.now - start)
         $logger.log('s', "[-] [#{pool}] '#{vm}' destroyed in #{finish} seconds")
         $metrics.timing("destroy.#{pool}", finish)
+        get_vm_usage_labels(vm)
       end
       dereference_mutex(vm)
+    end
+
+    def get_vm_usage_labels(vm)
+      return unless $config[:config]['usage_stats']
+      checkout = $redis.hget("vmpooler__vm__#{vm}", 'checkout')
+      return if checkout.nil?
+      jenkins_build_url = $redis.hget("vmpooler__vm__#{vm}", 'tag:jenkins_build_url')
+      user = $redis.hget("vmpooler__vm__#{vm}", 'token:user') || 'unauthenticated'
+      poolname = $redis.hget("vmpooler__vm__#{vm}", "template")
+
+      unless jenkins_build_url
+        $metrics.increment("usage.#{user}.#{poolname}")
+        return
+      end
+
+      url_parts = jenkins_build_url.split('/')[2..-1]
+      instance = url_parts[0].gsub('.', '_')
+      value_stream_parts = url_parts[2].split('_')
+      value_stream = value_stream_parts.shift
+      branch = value_stream_parts.pop
+      project = value_stream_parts.shift
+      job_name = value_stream_parts.join('_')
+      build_metadata_parts = url_parts[3]
+      component_to_test = component_to_test('RMM_COMPONENT_TO_TEST_NAME', build_metadata_parts)
+
+      metric_parts = [
+        'usage',
+        user,
+        instance,
+        value_stream,
+        branch,
+        project,
+        job_name,
+        component_to_test,
+        poolname
+      ]
+
+      metric_parts = metric_parts.reject { |s| s.nil? }
+
+      $metrics.increment(metric_parts.join('.'))
+    rescue => err
+      logger.log('d', "[!] [#{poolname}] failed while evaluating usage labels on '#{vm}' with an error: #{err}")
+    end
+
+    def component_to_test(match, labels_string)
+      return if labels_string.nil?
+      labels_string_parts = labels_string.split(',')
+      labels_string_parts.each do |part|
+        key, value = part.split('=')
+        next if value.nil?
+        if key == match
+          return value
+        end
+      end
+      return
     end
 
     def purge_unused_vms_and_folders

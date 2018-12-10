@@ -156,6 +156,20 @@ When enabled in the global configuration then purging is enabled for all provide
 Expects a boolean value
 (optional; default: false)
 
+### USAGE\_STATS
+
+Enable shipping of VM usage stats
+When enabled a metric is emitted when a machine is destroyed. Tags are inspected and used to organize
+shipped metrics if there is a jenkins\_build\_url tag set for the VM.
+Without the jenkins\_build\_url tag set the metric will be sent as "usage.$user.$pool\_name".
+When the jenkins\_build\_url tag is set the metric will be sent with additional data. Here is an example
+based off of the following URL;
+https://jenkins.example.com/job/platform\_puppet-agent-extra\_puppet-agent-integration-suite\_pr/RMM\_COMPONENT\_TO\_TEST\_NAME=puppet,SLAVE\_LABEL=beaker,TEST\_TARGET=redhat7-64a/824/
+"usage.$user.$instance.$value\_stream.$branch.$project.$job\_name.$component\_to\_test.$pool\_name", which translates to
+"usage.$user.jenkins\_example\_com.platform.pr.puppet-agent-extra.puppet-agent-integration-suite.puppet.$pool\_name"
+Expects a boolean value
+(optional; default: false)
+
 ## API options <a name="API"></a>
 
 ### AUTH\_PROVIDER

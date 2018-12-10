@@ -17,7 +17,7 @@ describe 'providers' do
         File.join(project_root_dir, 'lib', 'vmpooler', 'providers', 'dummy.rb'),
         File.join(project_root_dir, 'lib', 'vmpooler', 'providers', 'vsphere.rb')
     ]
-    expect(Vmpooler::Providers.load_all_providers).to eq(p)
+    expect(Vmpooler::Providers.load_all_providers).to match_array(p)
   end
 
   it '#installed_providers' do
@@ -43,7 +43,7 @@ describe 'providers' do
         File.join(project_root_dir, 'lib', 'vmpooler', 'providers', 'dummy.rb'),
         File.join(project_root_dir, 'lib', 'vmpooler', 'providers', 'vsphere.rb')
     ]
-    expect(providers.load_from_gems).to eq(p)
+    expect(providers.load_from_gems).to match_array(p)
 
   end
 

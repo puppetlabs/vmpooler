@@ -17,6 +17,9 @@ git logs & PR history.
 - Remove a failed VM from the ready queue (POOLER-133)
 - Begin checking ready VMs to ensure alive after 1 minute by default
 
+### Added
+- Add capability to ship VM usage metrics (POOLER-134)
+
 # [0.2.2](https://github.com/puppetlabs/vmpooler/compare/0.2.1...0.2.2)
 
 ### Fixed
