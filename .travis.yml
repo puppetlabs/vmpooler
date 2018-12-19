@@ -6,28 +6,28 @@ services:
 
 matrix:
   include:
-    - rvm: 2.3.7
+    - rvm: 2.3.8
       env: "CHECK=rubocop"
 
-    - rvm: 2.3.7
+    - rvm: 2.3.8
       env: "CHECK=test"
 
-    - rvm: 2.4.4
+    - rvm: 2.4.5
       env: "CHECK=test"
 
-    - rvm: 2.5.1
+    - rvm: 2.5.3
       env: "CHECK=test"
 
     - rvm: jruby-9.1.17.0
       env: "CHECK=test"
 
-    - rvm: jruby-9.2.0.0
+    - rvm: jruby-9.2.5.0
       env: "CHECK=test"
 
   # Remove the allow_failures section once
   # Rubocop is required for Travis to pass a build
   allow_failures:
-    - rvm: 2.3.7
+    - rvm: 2.3.8
       env: "CHECK=rubocop"
 
 install:
