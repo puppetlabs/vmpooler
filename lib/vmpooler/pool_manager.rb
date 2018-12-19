@@ -333,12 +333,13 @@ module Vmpooler
       poolname = $redis.hget("vmpooler__vm__#{vm}", "template")
 
       unless jenkins_build_url
+        user = user.gsub('.', '_')
         $metrics.increment("usage.#{user}.#{poolname}")
         return
       end
 
       url_parts = jenkins_build_url.split('/')[2..-1]
-      instance = url_parts[0].gsub('.', '_')
+      instance = url_parts[0]
       value_stream_parts = url_parts[2].split('_')
       value_stream = value_stream_parts.shift
       branch = value_stream_parts.pop
@@ -360,6 +361,7 @@ module Vmpooler
       ]
 
       metric_parts = metric_parts.reject { |s| s.nil? }
+      metric_parts = metric_parts.map { |s| s.gsub('.', '_') }
 
       $metrics.increment(metric_parts.join('.'))
     rescue => err
