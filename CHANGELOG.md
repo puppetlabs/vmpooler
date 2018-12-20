@@ -10,17 +10,16 @@ The format is based on
 Tracking in this Changelog began for this project with the tagging of version 0.1.0.
 If you're looking for changes from before this, refer to the project's
 git logs & PR history.
-# [Unreleased](https://github.com/puppetlabs/vmpooler/compare/0.2.3...master)
+# [Unreleased](https://github.com/puppetlabs/vmpooler/compare/0.3.0...master)
 
-### Fixed
-- Ensure that metric nodes for vm usage stats are consistent
 
-# [0.2.3](https://github.com/puppetlabs/vmpooler/compare/0.2.2...0.2.3)
+# [0.3.0](https://github.com/puppetlabs/vmpooler/compare/0.2.2...0.3.0)
 
 ### Fixed
 - Sync pool size before dashboard is displayed (POOLER-132)
 - Remove a failed VM from the ready queue (POOLER-133)
 - Begin checking ready VMs to ensure alive after 1 minute by default
+- Ensure that metric nodes for vm usage stats are consistent
 
 ### Added
 - Add capability to ship VM usage metrics (POOLER-134)
