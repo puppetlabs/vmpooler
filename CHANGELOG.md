@@ -12,6 +12,9 @@ If you're looking for changes from before this, refer to the project's
 git logs & PR history.
 # [Unreleased](https://github.com/puppetlabs/vmpooler/compare/0.2.3...master)
 
+### Fixed
+- Ensure that metric nodes for vm usage stats are consistent
+
 # [0.2.3](https://github.com/puppetlabs/vmpooler/compare/0.2.2...0.2.3)
 
 ### Fixed

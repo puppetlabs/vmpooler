@@ -867,22 +867,53 @@ EOT
             subject.get_vm_usage_labels(vm)
           end
 
+          context 'with a user with period in name' do
+            let(:user) { 'test.user'.gsub('.', '_') }
+            let(:metric_string) { "usage.#{user}.#{template}" }
+            let(:metric_nodes) { metric_string.split('.') }
+
+            before(:each) do
+              create_running_vm(template, vm)
+            end
+
+            it 'should emit a metric with the character replaced' do
+              expect(metrics).to receive(:increment).with(metric_string)
+
+              subject.get_vm_usage_labels(vm)
+            end
+
+            it 'should include three nodes' do
+              expect(metric_nodes.count).to eq(3)
+            end
+
+          end
+
           context 'with a jenkins_build_url label' do
             let(:jenkins_build_url) { 'https://jenkins.example.com/job/enterprise_pe-acceptance-tests_integration-system_pe_full-agent-upgrade_weekend_2018.1.x/LAYOUT=centos6-64mcd-ubuntu1404-32f-64f,LEGACY_AGENT_VERSION=NONE,PLATFORM=NOTUSED,SCM_BRANCH=2018.1.x,UPGRADE_FROM=2018.1.0,UPGRADE_TO_VERSION=NONE,label=beaker/222/' }
             let(:url_parts) { jenkins_build_url.split('/')[2..-1] }
-            let(:instance) { url_parts[0].gsub('.', '_') }
+            let(:instance) { url_parts[0] }
             let(:value_stream_parts) { url_parts[2].split('_') }
             let(:value_stream) { value_stream_parts.shift }
             let(:branch) { value_stream_parts.pop }
             let(:project) { value_stream_parts.shift }
             let(:job_name) { value_stream_parts.join('_') }
+            let(:metric_string_nodes) {
+              [
+                'usage', user, instance, value_stream, branch, project, job_name, template
+              ]
+            }
+            let(:metric_string_sub) {
+              metric_string_nodes.map { |s| s.gsub('.', '_')
+              }
+            }
+            let(:metric_string) { metric_string_sub.join('.') }
 
             before(:each) do
               create_tag(vm, 'jenkins_build_url', jenkins_build_url)
             end
 
             it 'should emit a metric with information from the URL' do
-              expect(metrics).to receive(:increment).with("usage.#{user}.#{instance}.#{value_stream}.#{branch}.#{project}.#{job_name}.#{template}")
+              expect(metrics).to receive(:increment).with(metric_string)
 
               subject.get_vm_usage_labels(vm)
             end
@@ -899,15 +930,21 @@ EOT
             let(:job_name) { value_stream_parts.join('_') }
             let(:build_metadata) { url_parts[3] }
             let(:build_component) { subject.component_to_test('RMM_COMPONENT_TO_TEST_NAME', build_metadata) }
+            let(:expected_string) { "usage.#{user}.#{instance}.#{value_stream}.#{branch}.#{project}.#{job_name}.#{build_component}.#{template}" }
+            let(:metric_nodes) { expected_string.split('.') }
 
             before(:each) do
               create_tag(vm, 'jenkins_build_url', jenkins_build_url)
             end
 
             it 'should emit a metric with information from the URL' do
-              expect(metrics).to receive(:increment).with("usage.#{user}.#{instance}.#{value_stream}.#{branch}.#{project}.#{job_name}.#{build_component}.#{template}")
+              expect(metrics).to receive(:increment).with(expected_string)
 
               subject.get_vm_usage_labels(vm)
+            end
+
+            it 'should contain exactly nine nodes' do
+              expect(metric_nodes.count).to eq(9)
             end
 
             context 'when there is no matrix job information' do
