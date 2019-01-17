@@ -30,8 +30,6 @@ describe Vmpooler::API::V1 do
     let(:current_time) { Time.now }
 
     before(:each) do
-      redis.flushdb
-
       app.settings.set :config, config
       app.settings.set :redis, redis
       app.settings.set :metrics, metrics

@@ -10,10 +10,6 @@ describe Vmpooler::API do
 
   describe 'Dashboard' do
 
-    before(:each) do
-      redis.flushdb
-    end
-
     context '/' do
       before { get '/' }
 
