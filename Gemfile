@@ -26,6 +26,7 @@ group :test do
   gem 'rspec', '>= 3.2'
   gem 'simplecov', '>= 0.11.2'
   gem 'yarjuf', '>= 2.0'
+  gem 'climate_control', '>= 0.2.0'
   # Rubocop would be ok jruby but for now we only use it on
   # MRI or Windows platforms
   gem "rubocop", :platforms => [:ruby, :x64_mingw]

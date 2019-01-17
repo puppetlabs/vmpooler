@@ -19,7 +19,7 @@ Provide the entire configuration as a blob of yaml. Individual parameters passed
 
 Path to a the file to use when loading the vmpooler configuration. This is only evaluated if `VMPOOLER_CONFIG` has not been specified.
 
-### DOMAIN\_NAME
+### DOMAIN
 
 If set, returns a top-level 'domain' JSON key in POST requests
 (optional)
@@ -103,7 +103,7 @@ Same as `vm_lifetime`, but applied if a valid authentication token is
 included during the request.
 (required)
 
-### VM\_PREFIX
+### PREFIX
 
 If set, prefixes all created VMs with this string. This should include a separator.
 (optional; default: '')
