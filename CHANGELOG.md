@@ -12,6 +12,8 @@ If you're looking for changes from before this, refer to the project's
 git logs & PR history.
 # [Unreleased](https://github.com/puppetlabs/vmpooler/compare/0.3.0...master)
 
+### Fixed
+ - Improve support for configuration via environment variables (POOLER-137)
 
 # [0.3.0](https://github.com/puppetlabs/vmpooler/compare/0.2.2...0.3.0)
 

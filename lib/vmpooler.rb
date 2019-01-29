@@ -47,21 +47,21 @@ module Vmpooler
     end
 
     # Set some configuration defaults
-    parsed_config[:config]['task_limit'] = ENV['TASK_LIMIT'] || parsed_config[:config]['task_limit'] || 10
-    parsed_config[:config]['migration_limit'] = ENV['MIGRATION_LIMIT'] if ENV['MIGRATION_LIMIT']
-    parsed_config[:config]['vm_checktime'] = ENV['VM_CHECKTIME'] || parsed_config[:config]['vm_checktime'] || 1
-    parsed_config[:config]['vm_lifetime'] = ENV['VM_LIFETIME'] || parsed_config[:config]['vm_lifetime']  || 24
-    parsed_config[:config]['prefix'] = ENV['VM_PREFIX'] || parsed_config[:config]['prefix'] || ''
+    parsed_config[:config]['task_limit'] = string_to_int(ENV['TASK_LIMIT']) || parsed_config[:config]['task_limit'] || 10
+    parsed_config[:config]['migration_limit'] = string_to_int(ENV['MIGRATION_LIMIT']) if ENV['MIGRATION_LIMIT']
+    parsed_config[:config]['vm_checktime'] = string_to_int(ENV['VM_CHECKTIME']) || parsed_config[:config]['vm_checktime'] || 1
+    parsed_config[:config]['vm_lifetime'] = string_to_int(ENV['VM_LIFETIME']) || parsed_config[:config]['vm_lifetime']  || 24
+    parsed_config[:config]['prefix'] = ENV['PREFIX'] || parsed_config[:config]['prefix'] || ''
 
     parsed_config[:config]['logfile'] = ENV['LOGFILE'] if ENV['LOGFILE']
 
     parsed_config[:config]['site_name'] = ENV['SITE_NAME'] if ENV['SITE_NAME']
-    parsed_config[:config]['domain'] = ENV['DOMAIN_NAME'] if ENV['DOMAIN_NAME']
+    parsed_config[:config]['domain'] = ENV['DOMAIN'] if ENV['DOMAIN']
     parsed_config[:config]['clone_target'] = ENV['CLONE_TARGET'] if ENV['CLONE_TARGET']
-    parsed_config[:config]['timeout'] = ENV['TIMEOUT'] if ENV['TIMEOUT']
-    parsed_config[:config]['vm_lifetime_auth'] = ENV['VM_LIFETIME_AUTH'] if ENV['VM_LIFETIME_AUTH']
-    parsed_config[:config]['max_tries'] = ENV['MAX_TRIES'] if ENV['MAX_TRIES']
-    parsed_config[:config]['retry_factor'] = ENV['RETRY_FACTOR'] if ENV['RETRY_FACTOR']
+    parsed_config[:config]['timeout'] = string_to_int(ENV['TIMEOUT']) if ENV['TIMEOUT']
+    parsed_config[:config]['vm_lifetime_auth'] = string_to_int(ENV['VM_LIFETIME_AUTH']) if ENV['VM_LIFETIME_AUTH']
+    parsed_config[:config]['max_tries'] = string_to_int(ENV['MAX_TRIES']) if ENV['MAX_TRIES']
+    parsed_config[:config]['retry_factor'] = string_to_int(ENV['RETRY_FACTOR']) if ENV['RETRY_FACTOR']
     parsed_config[:config]['create_folders'] = ENV['CREATE_FOLDERS'] if ENV['CREATE_FOLDERS']
     parsed_config[:config]['create_template_delta_disks'] = ENV['CREATE_TEMPLATE_DELTA_DISKS'] if ENV['CREATE_TEMPLATE_DELTA_DISKS']
     parsed_config[:config]['experimental_features'] = ENV['EXPERIMENTAL_FEATURES'] if ENV['EXPERIMENTAL_FEATURES']
@@ -70,26 +70,26 @@ module Vmpooler
 
     parsed_config[:redis] = parsed_config[:redis] || {}
     parsed_config[:redis]['server'] = ENV['REDIS_SERVER'] || parsed_config[:redis]['server'] || 'localhost'
-    parsed_config[:redis]['port'] = ENV['REDIS_PORT'] if ENV['REDIS_PORT']
+    parsed_config[:redis]['port'] = string_to_int(ENV['REDIS_PORT']) if ENV['REDIS_PORT']
     parsed_config[:redis]['password'] = ENV['REDIS_PASSWORD'] if ENV['REDIS_PASSWORD']
-    parsed_config[:redis]['data_ttl'] = ENV['REDIS_DATA_TTL'] || parsed_config[:redis]['data_ttl'] || 168
+    parsed_config[:redis]['data_ttl'] = string_to_int(ENV['REDIS_DATA_TTL']) || parsed_config[:redis]['data_ttl'] || 168
 
     parsed_config[:statsd] = parsed_config[:statsd] || {} if ENV['STATSD_SERVER']
     parsed_config[:statsd]['server'] = ENV['STATSD_SERVER'] if ENV['STATSD_SERVER']
     parsed_config[:statsd]['prefix'] = ENV['STATSD_PREFIX'] if ENV['STATSD_PREFIX']
-    parsed_config[:statsd]['port'] = ENV['STATSD_PORT'] if ENV['STATSD_PORT']
+    parsed_config[:statsd]['port'] = string_to_int(ENV['STATSD_PORT']) if ENV['STATSD_PORT']
 
     parsed_config[:graphite] = parsed_config[:graphite] || {} if ENV['GRAPHITE_SERVER']
     parsed_config[:graphite]['server'] = ENV['GRAPHITE_SERVER'] if ENV['GRAPHITE_SERVER']
     parsed_config[:graphite]['prefix'] = ENV['GRAPHITE_PREFIX'] if ENV['GRAPHITE_PREFIX']
-    parsed_config[:graphite]['port'] = ENV['GRAPHITE_PORT'] if ENV['GRAPHITE_PORT']
+    parsed_config[:graphite]['port'] = string_to_int(ENV['GRAPHITE_PORT']) if ENV['GRAPHITE_PORT']
 
     parsed_config[:auth] = parsed_config[:auth] || {} if ENV['AUTH_PROVIDER']
     if parsed_config.has_key? :auth
       parsed_config[:auth]['provider'] = ENV['AUTH_PROVIDER'] if ENV['AUTH_PROVIDER']
       parsed_config[:auth][:ldap] = parsed_config[:auth][:ldap] || {} if parsed_config[:auth]['provider'] == 'ldap'
       parsed_config[:auth][:ldap]['host'] = ENV['LDAP_HOST'] if ENV['LDAP_HOST']
-      parsed_config[:auth][:ldap]['port'] = ENV['LDAP_PORT'] if ENV['LDAP_PORT']
+      parsed_config[:auth][:ldap]['port'] = string_to_int(ENV['LDAP_PORT']) if ENV['LDAP_PORT']
       parsed_config[:auth][:ldap]['base'] = ENV['LDAP_BASE'] if ENV['LDAP_BASE']
       parsed_config[:auth][:ldap]['user_object'] = ENV['LDAP_USER_OBJECT'] if ENV['LDAP_USER_OBJECT']
     end
@@ -174,5 +174,12 @@ module Vmpooler
       index += 1
     end
     pools_hash
+  end
+
+  def self.string_to_int(s)
+    # Returns a integer if input is a string
+    return if s.nil?
+    return unless s =~ /\d/
+    return Integer(s)
   end
 end
