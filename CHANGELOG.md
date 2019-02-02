@@ -14,6 +14,8 @@ git logs & PR history.
 
 ### Fixed
  - Improve support for configuration via environment variables (POOLER-137)
+ - Support multiple pool backends per alias (POOLER-138)
+ - Remove redis server testing requirement
 
 # [0.3.0](https://github.com/puppetlabs/vmpooler/compare/0.2.2...0.3.0)
 

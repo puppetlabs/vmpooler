@@ -1,7 +1,8 @@
+require 'mock_redis'
+
 def redis
   unless @redis
-    @redis = Redis.new
-    @redis.select(15) # let's use the highest numbered database available in a default install
+    @redis = MockRedis.new
   end
   @redis
 end

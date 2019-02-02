@@ -19,19 +19,17 @@ describe Vmpooler::API::V1 do
         },
         pools: [
           {'name' => 'pool1', 'size' => 5},
-          {'name' => 'pool2', 'size' => 10}
+          {'name' => 'pool2', 'size' => 10},
+          {'name' => 'pool3', 'size' => 10}
         ],
         statsd: { 'prefix' => 'stats_prefix'},
-        alias: { 'poolone' => 'pool1' },
-        pool_names: [ 'pool1', 'pool2', 'poolone' ]
+        alias: { 'poolone' => ['pool1'] },
+        pool_names: [ 'pool1', 'pool2', 'pool3', 'poolone', 'genericpool' ]
       }
     }
-
     let(:current_time) { Time.now }
 
     before(:each) do
-      redis.flushdb
-
       app.settings.set :config, config
       app.settings.set :redis, redis
       app.settings.set :metrics, metrics
@@ -188,6 +186,29 @@ describe Vmpooler::API::V1 do
         expect(result['ok']).to eq(true)
         expect(result['pool1']['hostname']).to include('1abcdefghijklmnop', '2abcdefghijklmnop')
         expect(result['pool2']['hostname']).to include('1qrstuvwxyz012345', '2qrstuvwxyz012345', '3qrstuvwxyz012345')
+
+        expect_json(ok = true, http = 200)
+      end
+
+      it 'returns VMs from multiple backend pools requested by an alias' do
+        Vmpooler::API.settings.config[:alias]['genericpool'] = ['pool1', 'pool2', 'pool3']
+
+        create_ready_vm 'pool1', '1abcdefghijklmnop'
+        create_ready_vm 'pool2', '2abcdefghijklmnop'
+        create_ready_vm 'pool3', '1qrstuvwxyz012345'
+
+        post "#{prefix}/vm", '{"genericpool":"3"}'
+
+        expected = {
+          ok: true,
+          genericpool: {
+            hostname: [ '1abcdefghijklmnop', '2abcdefghijklmnop', '1qrstuvwxyz012345' ]
+          }
+        }
+
+        result = JSON.parse(last_response.body)
+        expect(result['ok']).to eq(true)
+        expect(result['genericpool']['hostname']).to include('1abcdefghijklmnop', '2abcdefghijklmnop', '1qrstuvwxyz012345')
 
         expect_json(ok = true, http = 200)
       end

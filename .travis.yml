@@ -1,8 +1,6 @@
 cache: bundler
 sudo: false
 language: ruby
-services:
-  - redis-server
 
 matrix:
   include:

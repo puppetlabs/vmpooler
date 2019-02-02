@@ -40,8 +40,8 @@ module Vmpooler
       template_backends = [template]
       aliases = Vmpooler::API.settings.config[:alias]
       if aliases
-        template_backends << aliases[template] if aliases[template]
-
+        template_backends = template_backends + aliases[template] if aliases[template].is_a?(Array)
+        template_backends << aliases[template] if aliases[template].is_a?(String)
         pool_index = pool_index(pools)
         weighted_pools = {}
         template_backends.each do |t|
@@ -61,7 +61,9 @@ module Vmpooler
           template_backends.delete(selection)
           template_backends.unshift(selection)
         else
-          template_backends = template_backends.sample(template_backends.count)
+          first = template_backends.sample
+          template_backends.delete(first)
+          template_backends.unshift(first)
         end
       end
 

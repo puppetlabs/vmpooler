@@ -108,10 +108,11 @@ module Vmpooler
       parsed_config[:pool_names] << pool['name']
       if pool['alias']
         if pool['alias'].is_a?(Array)
-          pool['alias'].each do |a|
+          pool['alias'].each do |pool_alias|
             parsed_config[:alias] ||= {}
-            parsed_config[:alias][a] = pool['name']
-            parsed_config[:pool_names] << a
+            parsed_config[:alias][pool_alias] = [pool['name']] unless parsed_config[:alias].key? pool_alias
+            parsed_config[:alias][pool_alias] << pool['name'] unless parsed_config[:alias][pool_alias].include? pool['name']
+            parsed_config[:pool_names] << pool_alias
           end
         elsif pool['alias'].is_a?(String)
           parsed_config[:alias][pool['alias']] = pool['name']
