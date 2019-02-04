@@ -7,8 +7,8 @@ services:
       dockerfile: docker/Dockerfile_local
     volumes:
       - type: bind
-        source: ${PWD}/vmpooler.yaml
-        target: /etc/vmpooler/vmpooler.yaml
+        source: ${PWD}
+        target: /etc/vmpooler
     ports:
       - "4567:4567"
     networks:
