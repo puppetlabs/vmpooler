@@ -67,22 +67,24 @@ module Vmpooler
         end
       end
 
-      template_backends.each do |t|
-        vm = backend.spop('vmpooler__ready__' + t)
-        return [vm, t, template] if vm
+      template_backends.each do |template_backend|
+        vm = backend.spop("vmpooler__ready__#{template_backend}")
+        if vm
+          backend.sadd("vmpooler__running__#{template_backend}", vm)
+          return [vm, template_backend, template]
+        end
       end
       [nil, nil, nil]
     end
 
     def return_vm_to_ready_state(template, vm)
-      backend.sadd('vmpooler__ready__' + template, vm)
+      backend.smove("vmpooler__running__#{template}", "vmpooler__ready__#{template}", vm)
     end
 
     def account_for_starting_vm(template, vm)
-      backend.sadd('vmpooler__running__' + template, vm)
-      backend.sadd('vmpooler__migrating__' + template, vm)
-      backend.hset('vmpooler__active__' + template, vm, Time.now)
-      backend.hset('vmpooler__vm__' + vm, 'checkout', Time.now)
+      backend.sadd("vmpooler__migrating__#{template}", vm)
+      backend.hset("vmpooler__active__#{template}", vm, Time.now)
+      backend.hset("vmpooler__vm__#{vm}", 'checkout', Time.now)
 
       if Vmpooler::API.settings.config[:auth] and has_token?
         validate_token(backend)
