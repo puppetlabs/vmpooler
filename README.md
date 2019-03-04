@@ -65,7 +65,7 @@ See the provided YAML configuration example, [vmpooler.yaml.example](vmpooler.ya
 
 ### Running via Docker
 
-A [Dockerfile](Dockerfile) is included in this repository to allow running vmpooler inside a Docker container. A configuration file can be used via volume mapping, and specifying the destination as the configuration file via environment variables, or the application can be configured with environment variables alone. The Dockerfile provides an entrypoint so you may choose whether to run API, or manager services. The default behavior will run both. To build and run:
+A [Dockerfile](/docker/Dockerfile) is included in this repository to allow running vmpooler inside a Docker container. A configuration file can be used via volume mapping, and specifying the destination as the configuration file via environment variables, or the application can be configured with environment variables alone. The Dockerfile provides an entrypoint so you may choose whether to run API, or manager services. The default behavior will run both. To build and run:
 
 ```
 docker build -t vmpooler . && docker run -e VMPOOLER_CONFIG -p 80:4567 -it vmpooler
