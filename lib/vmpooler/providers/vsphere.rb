@@ -839,7 +839,9 @@ module Vmpooler
         def find_cluster(cluster, connection, datacentername)
           datacenter = connection.serviceInstance.find_datacenter(datacentername)
           raise("Datacenter #{datacentername} does not exist") if datacenter.nil?
-          datacenter.hostFolder.children.find { |cluster_object| cluster_object.name == cluster }
+          found_cluster = datacenter.hostFolder.traverse(cluster)
+          raise("Cluster #{cluster} could not be found or does not exist") if not found_cluster.is_a? RbVmomi::VIM::ClusterComputeResource
+          found_cluster
         end
 
         def get_cluster_host_utilization(cluster, model = nil)
