@@ -68,9 +68,9 @@ module Vmpooler
       end
 
       template_backends.each do |template_backend|
-        vm = backend.spop("vmpooler__ready__#{template_backend}")
+        vm = backend.smembers("vmpooler__ready__#{template_backend}")[-1]
         if vm
-          backend.sadd("vmpooler__running__#{template_backend}", vm)
+          backend.smove("vmpooler__ready__#{template_backend}", "vmpooler__running__#{template_backend}", vm)
           return [vm, template_backend, template]
         end
       end
