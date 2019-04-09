@@ -213,6 +213,24 @@ describe Vmpooler::API::V1 do
         expect_json(ok = true, http = 200)
       end
 
+      it 'returns the first VM that was moved to the ready state when checking out a VM' do
+        create_ready_vm 'pool1', '1abcdefghijklmnop'
+        create_ready_vm 'pool1', '2abcdefghijklmnop'
+        create_ready_vm 'pool1', '3abcdefghijklmnop'
+
+        post "#{prefix}/vm", '{"pool1":"1"}'
+
+        expected = {
+          ok: true,
+          "pool1": {
+            "hostname": "1abcdefghijklmnop"
+          }
+        }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+        expect_json(ok = true, http = 200)
+      end
+
       it 'fails when not all requested vms can be allocated' do
         create_ready_vm 'pool1', '1abcdefghijklmnop'
 
