@@ -943,7 +943,7 @@ module Vmpooler
 
     def check_pending_pool_vms(pool_name, provider, pool_check_response, inventory, pool_timeout = nil)
       pool_timeout ||= $config[:config]['timeout'] || 15
-      $redis.smembers("vmpooler__pending__#{pool_name}").each do |vm|
+      $redis.smembers("vmpooler__pending__#{pool_name}").reverse.each do |vm|
         if inventory[vm]
           begin
             pool_check_response[:checked_pending_vms] += 1
@@ -980,7 +980,7 @@ module Vmpooler
 
     def check_discovered_pool_vms(pool_name)
       begin
-        $redis.smembers("vmpooler__discovered__#{pool_name}").each do |vm|
+        $redis.smembers("vmpooler__discovered__#{pool_name}").reverse.each do |vm|
           %w[pending ready running completed].each do |queue|
             if $redis.sismember("vmpooler__#{queue}__#{pool_name}", vm)
               $logger.log('d', "[!] [#{pool_name}] '#{vm}' found in '#{queue}', removed from 'discovered' queue")
@@ -998,7 +998,7 @@ module Vmpooler
     end
 
     def check_migrating_pool_vms(pool_name, provider, pool_check_response, inventory)
-      $redis.smembers("vmpooler__migrating__#{pool_name}").each do |vm|
+      $redis.smembers("vmpooler__migrating__#{pool_name}").reverse.each do |vm|
         if inventory[vm]
           begin
             pool_check_response[:migrated_vms] += 1
