@@ -354,7 +354,15 @@ module Vmpooler
       if params[:pool]
         subpool = params[:pool].split(",")
         poolscopy = pools.select do |p|
-          subpool.include?(p['name']) || (p['alias'] & subpool).any?
+          if subpool.include?(p['name'])
+            true
+          elsif !p['alias'].nil?
+            if p['alias'].is_a?(Array)
+              (p['alias'] & subpool).any?
+            elsif p['alias'].is_a?(String)
+              subpool.include?(p['alias'])
+            end
+          end
         end
       end
 

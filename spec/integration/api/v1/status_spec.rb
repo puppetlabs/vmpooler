@@ -12,7 +12,7 @@ describe Vmpooler::API::V1 do
     Vmpooler::API
   end
 
-  describe '/status' do
+  describe 'status and metrics endpoints' do
     let(:prefix) { '/api/v1' }
 
     let(:config) {
@@ -184,6 +184,56 @@ describe Vmpooler::API::V1 do
         expect(result["boot"]).to be(nil)
         expect(result["pools"]).to be(nil)
         expect(result["status"]).to_not be(nil)
+      end
+    end
+
+    describe 'GET /poolstat' do
+      it 'returns empty list when pool is not set' do
+        get "#{prefix}/poolstat"
+        expect(last_response.header['Content-Type']).to eq('application/json')
+        result = JSON.parse(last_response.body)
+        expect(result  == {})
+      end
+      it 'returns empty list when pool is not found' do
+        get "#{prefix}/poolstat?pool=unknownpool"
+        expect(last_response.header['Content-Type']).to eq('application/json')
+        result = JSON.parse(last_response.body)
+        expect(result  == {})
+      end
+      it 'returns one pool when requesting one with alias' do
+        get "#{prefix}/poolstat?pool=pool1"
+        expect(last_response.header['Content-Type']).to eq('application/json')
+        result = JSON.parse(last_response.body)
+        expect(result["pools"].size == 1)
+        expect(result["pools"]["pool1"]["ready"]).to eq(0)
+        expect(result["pools"]["pool1"]["max"]).to eq(5)
+        expect(result["pools"]["pool1"]["alias"]).to eq(['poolone', 'poolun'])
+      end
+      it 'returns one pool when requesting one without alias' do
+        get "#{prefix}/poolstat?pool=pool2"
+        expect(last_response.header['Content-Type']).to eq('application/json')
+        result = JSON.parse(last_response.body)
+        expect(result["pools"].size == 1)
+        expect(result["pools"]["pool2"]["ready"]).to eq(0)
+        expect(result["pools"]["pool2"]["max"]).to eq(10)
+        expect(result["pools"]["pool2"]["alias"]).to be(nil)
+      end
+      it 'returns multiple pools when requesting csv' do
+        get "#{prefix}/poolstat?pool=pool1,pool2"
+        expect(last_response.header['Content-Type']).to eq('application/json')
+        result = JSON.parse(last_response.body)
+        expect(result["pools"].size == 2)
+      end
+    end
+
+    describe 'GET /totalrunning' do
+      it 'returns the number of running VMs' do
+        get "#{prefix}/totalrunning"
+        expect(last_response.header['Content-Type']).to eq('application/json')
+        5.times {|i| create_running_vm("pool1", "vm-#{i}") }
+        5.times {|i| create_running_vm("pool3", "vm-#{i}") }
+        result = JSON.parse(last_response.body)
+        expect(result["running"] == 10)
       end
     end
   end
