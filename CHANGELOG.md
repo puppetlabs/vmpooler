@@ -10,7 +10,12 @@ The format is based on
 Tracking in this Changelog began for this project with the tagging of version 0.1.0.
 If you're looking for changes from before this, refer to the project's
 git logs & PR history.
-# [Unreleased](https://github.com/puppetlabs/vmpooler/compare/0.5.0...master)
+# [Unreleased](https://github.com/puppetlabs/vmpooler/compare/0.5.1...master)
+
+### Fixed
+ - Ensure a checked out VM stays in a queue during checkout (POOLER-140)
+
+# [0.5.1](https://github.com/puppetlabs/vmpooler/compare/0.5.0...0.5.1)
 
 # [0.5.0](https://github.com/puppetlabs/vmpooler/compare/0.4.0...0.5.0)
 
