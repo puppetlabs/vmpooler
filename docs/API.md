@@ -629,6 +629,52 @@ The valid sections are "boot", "clone" or "tag" eg. `vmpooler.example.com/api/v1
 You can further drill-down the data by specifying the second level parameter to query eg
 `vmpooler.example.com/api/v1/summary/tag/created_by`
 
+##### GET /poolstat?pool=FOO
+
+For parameter `pool`, containing a comma separated list of pool names to query, this endpoint returns
+each of the pool's ready, max and alias information. It can be used to get a fast response for
+the required pools instead of using the /status API endpoint
+
+Return codes
+* 200  OK 
+
+```
+$ curl https://vmpooler.example.com/api/v1/poolstat?pool=centos-6-x86_64
+```
+```json
+{
+  "pools": {
+    "centos-6-x86_64": {
+      "ready": 25,
+      "max": 25,
+      "alias": [
+        "centos-6-64",
+        "centos-6-amd64"
+      ]
+    }
+  }
+}
+```
+
+##### GET /totalrunning
+
+Fast endpoint to return the total number of VMs in a 'running' state
+
+Return codes
+* 200  OK 
+
+```
+$ curl https://vmpooler.example.com/api/v1/totalrunning
+```
+
+```json
+{
+
+  "running": 362
+
+}
+```
+
 #### Managing pool configuration via API <a name="poolconfig"></a>
 
 ##### GET /config

@@ -341,6 +341,79 @@ module Vmpooler
       JSON.pretty_generate(Hash[result.sort_by { |k, _v| k }])
     end
 
+    # request statistics for specific pools by passing parameter 'pool'
+    # with a coma separated list of pools we want to query ?pool=ABC,DEF
+    # returns the ready, max numbers and the aliases (if set)
+    get "#{api_prefix}/poolstat/?" do
+      content_type :json
+
+      result = {}
+
+      poolscopy = []
+
+      if params[:pool]
+        subpool = params[:pool].split(",")
+        poolscopy = pools.select do |p|
+          if subpool.include?(p['name'])
+            true
+          elsif !p['alias'].nil?
+            if p['alias'].is_a?(Array)
+              (p['alias'] & subpool).any?
+            elsif p['alias'].is_a?(String)
+              subpool.include?(p['alias'])
+            end
+          end
+        end
+      end
+
+      result[:pools] = {}
+
+      poolscopy.each do |pool|
+        result[:pools][pool['name']] = {}
+
+        max      = pool['size']
+        aka      = pool['alias']
+
+        result[:pools][pool['name']][:max] = max
+
+        if aka
+          result[:pools][pool['name']][:alias] = aka
+        end
+
+      end
+
+      # using pipelined is much faster than querying each of the pools
+      res = backend.pipelined do
+        poolscopy.each do |pool|
+          backend.scard('vmpooler__ready__' + pool['name'])
+        end
+      end
+
+      res.each_with_index { |ready, i| result[:pools][poolscopy[i]['name']][:ready] = ready }
+
+      JSON.pretty_generate(Hash[result.sort_by { |k, _v| k }])
+    end
+
+    # requests the total number of running VMs
+    get "#{api_prefix}/totalrunning/?" do
+      content_type :json
+      queue = {
+          running:   0,
+      }
+
+      # using pipelined is much faster than querying each of the pools and adding them
+      # as we get the result.
+      res = backend.pipelined do
+        pools.each do |pool|
+          backend.scard('vmpooler__running__' + pool['name'])
+        end
+      end
+
+      queue[:running] = res.inject(0){ |m, x| m+x }
+
+      JSON.pretty_generate(queue)
+    end
+
     get "#{api_prefix}/summary/?" do
       content_type :json
 
