@@ -1,9 +1,18 @@
 module Vmpooler
   class API
     class Dashboard < Sinatra::Base
+
+      helpers do
+        include Vmpooler::API::Helpers
+      end
+
       # handle to the App's configuration information
       def config
         @config ||= Vmpooler::API.settings.config
+      end
+
+      def backend
+        Vmpooler::API.settings.redis
       end
 
       # configuration setting for server hosting graph URLs to view
@@ -53,10 +62,13 @@ module Vmpooler
         content_type :json
         result = {}
 
-        Vmpooler::API.settings.config[:pools].each do |pool|
+        pools = Vmpooler::API.settings.config[:pools]
+        ready_hash = get_list_across_pools_redis_scard(pools, 'vmpooler__ready__', backend)
+
+        pools.each do |pool|
           result[pool['name']] ||= {}
           result[pool['name']]['size'] = pool['size']
-          result[pool['name']]['ready'] = Vmpooler::API.settings.redis.scard('vmpooler__ready__' + pool['name'])
+          result[pool['name']]['ready'] = ready_hash[pool['name']]
         end
 
         if params[:history]
@@ -91,9 +103,9 @@ module Vmpooler
             rescue
             end
           else
-            Vmpooler::API.settings.config[:pools].each do |pool|
+            pools.each do |pool|
               result[pool['name']] ||= {}
-              result[pool['name']]['history'] = [Vmpooler::API.settings.redis.scard('vmpooler__ready__' + pool['name'])]
+              result[pool['name']]['history'] = [ready_hash[pool['name']]]
             end
           end
         end
@@ -104,8 +116,11 @@ module Vmpooler
         content_type :json
         result = {}
 
-        Vmpooler::API.settings.config[:pools].each do |pool|
-          running = Vmpooler::API.settings.redis.scard('vmpooler__running__' + pool['name'])
+        pools = Vmpooler::API.settings.config[:pools]
+        running_hash = get_list_across_pools_redis_scard(pools, 'vmpooler__running__', backend)
+
+        pools.each do |pool|
+          running = running_hash[pool['name']]
           pool['major'] = Regexp.last_match[1] if pool['name'] =~ /^(\w+)\-/
           result[pool['major']] ||= {}
           result[pool['major']]['running'] = result[pool['major']]['running'].to_i + running.to_i

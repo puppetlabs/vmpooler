@@ -305,13 +305,18 @@ module Vmpooler
 
       # Check for empty pools
       result[:pools] = {} unless views and not views.include?("pools")
+      ready_hash = get_list_across_pools_redis_scard(pools, 'vmpooler__ready__', backend)
+      running_hash = get_list_across_pools_redis_scard(pools, 'vmpooler__running__', backend)
+      pending_hash = get_list_across_pools_redis_scard(pools, 'vmpooler__pending__', backend)
+      lastBoot_hash = get_list_across_pools_redis_hget(pools, 'vmpooler__lastboot', backend)
+
       pools.each do |pool|
         # REMIND: move this out of the API and into the back-end
-        ready    = backend.scard('vmpooler__ready__' + pool['name']).to_i
-        running  = backend.scard('vmpooler__running__' + pool['name']).to_i
-        pending  = backend.scard('vmpooler__pending__' + pool['name']).to_i
+        ready    = ready_hash[pool['name']]
+        running  = running_hash[pool['name']]
+        pending  = pending_hash[pool['name']]
         max      = pool['size']
-        lastBoot = backend.hget('vmpooler__lastboot',pool['name']).to_s
+        lastBoot = lastBoot_hash[pool['name']]
         aka      = pool['alias']
 
         result[:pools][pool['name']] = {
@@ -382,14 +387,9 @@ module Vmpooler
 
       end
 
-      # using pipelined is much faster than querying each of the pools
-      res = backend.pipelined do
-        poolscopy.each do |pool|
-          backend.scard('vmpooler__ready__' + pool['name'])
-        end
-      end
+      ready_hash = get_list_across_pools_redis_scard(poolscopy, 'vmpooler__ready__', backend)
 
-      res.each_with_index { |ready, i| result[:pools][poolscopy[i]['name']][:ready] = ready }
+      ready_hash.each { |k, v| result[:pools][k][:ready] = v }
 
       JSON.pretty_generate(Hash[result.sort_by { |k, _v| k }])
     end
@@ -401,15 +401,7 @@ module Vmpooler
           running:   0,
       }
 
-      # using pipelined is much faster than querying each of the pools and adding them
-      # as we get the result.
-      res = backend.pipelined do
-        pools.each do |pool|
-          backend.scard('vmpooler__running__' + pool['name'])
-        end
-      end
-
-      queue[:running] = res.inject(0){ |m, x| m+x }
+      queue[:running] = get_total_across_pools_redis_scard(pools, 'vmpooler__running__', backend)
 
       JSON.pretty_generate(queue)
     end
