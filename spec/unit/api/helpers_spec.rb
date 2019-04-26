@@ -68,6 +68,7 @@ describe Vmpooler::API::Helpers do
 
   describe '#get_capacity_metrics' do
     let(:redis) { double('redis') }
+    let(:backend) { double('backend') }
 
     it 'adds up pools correctly' do
       pools = [
@@ -75,8 +76,7 @@ describe Vmpooler::API::Helpers do
           {'name' => 'p2', 'size' => 5}
       ]
 
-      allow(redis).to receive(:scard).with('vmpooler__ready__p1').and_return 1
-      allow(redis).to receive(:scard).with('vmpooler__ready__p2').and_return 1
+      allow(redis).to receive(:pipelined).with(no_args).and_return [1,1]
 
       expect(subject.get_capacity_metrics(pools, redis)).to eq({current: 2, total: 10, percent: 20.0})
     end
@@ -87,8 +87,7 @@ describe Vmpooler::API::Helpers do
           {'name' => 'p2', 'size' => 5}
       ]
 
-      allow(redis).to receive(:scard).with('vmpooler__ready__p1').and_return 1
-      allow(redis).to receive(:scard).with('vmpooler__ready__p2').and_return 0
+      allow(redis).to receive(:pipelined).with(no_args).and_return [1,0]
 
       expect(subject.get_capacity_metrics(pools, redis)).to eq({current: 1, total: 10, percent: 10.0})
     end
@@ -99,13 +98,13 @@ describe Vmpooler::API::Helpers do
           {'name' => 'p2', 'size' => 0}
       ]
 
-      allow(redis).to receive(:scard).with('vmpooler__ready__p1').and_return 1
-      allow(redis).to receive(:scard).with('vmpooler__ready__p2').and_return 0
+      allow(redis).to receive(:pipelined).with(no_args).and_return [1,0]
 
       expect(subject.get_capacity_metrics(pools, redis)).to eq({current: 1, total: 5, percent: 20.0})
     end
 
     it 'handles empty pool array' do
+      allow(redis).to receive(:pipelined).with(no_args).and_return []
       expect(subject.get_capacity_metrics([], redis)).to eq({current: 0, total: 0, percent: 0})
     end
   end
@@ -114,7 +113,7 @@ describe Vmpooler::API::Helpers do
     let(:redis) { double('redis') }
 
     it 'handles empty pool array' do
-      allow(redis).to receive(:scard).and_return 0
+      allow(redis).to receive(:pipelined).with(no_args).and_return [0]
       allow(redis).to receive(:get).and_return 0
 
       expect(subject.get_queue_metrics([], redis)).to eq({pending: 0, cloning: 0, booting: 0, ready: 0, running: 0, completed: 0, total: 0})
@@ -126,11 +125,7 @@ describe Vmpooler::API::Helpers do
           {'name' => 'p2'}
       ]
 
-      pools.each do |p|
-        %w(pending ready running completed).each do |action|
-          allow(redis).to receive(:scard).with('vmpooler__' + action + '__' + p['name']).and_return 1
-        end
-      end
+      allow(redis).to receive(:pipelined).with(no_args).and_return [1,1]
       allow(redis).to receive(:get).and_return 1
 
       expect(subject.get_queue_metrics(pools, redis)).to eq({pending: 2, cloning: 1, booting: 1, ready: 2, running: 2, completed: 2, total: 8})
@@ -142,11 +137,7 @@ describe Vmpooler::API::Helpers do
           {'name' => 'p2'}
       ]
 
-      pools.each do |p|
-        %w(pending ready running completed).each do |action|
-          allow(redis).to receive(:scard).with('vmpooler__' + action + '__' + p['name']).and_return 1
-        end
-      end
+      allow(redis).to receive(:pipelined).with(no_args).and_return [1,1]
       allow(redis).to receive(:get).and_return 5
 
       expect(subject.get_queue_metrics(pools, redis)).to eq({pending: 2, cloning: 5, booting: 0, ready: 2, running: 2, completed: 2, total: 8})

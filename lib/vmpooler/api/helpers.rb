@@ -151,6 +151,53 @@ module Vmpooler
         backend.hvals("vmpooler__#{task}__" + date_str).map(&:to_f)
       end
 
+      # Takes the pools and a key to run scard on
+      # returns an integer for the total count
+      def get_total_across_pools_redis_scard(pools, key, backend)
+        # using pipelined is much faster than querying each of the pools and adding them
+        # as we get the result.
+        res = backend.pipelined do
+          pools.each do |pool|
+            backend.scard(key + pool['name'])
+          end
+        end
+        res.inject(0){ |m, x| m+x }.to_i
+      end
+
+      # Takes the pools and a key to run scard on
+      # returns a hash with each pool name as key and the value being the count as integer
+      def get_list_across_pools_redis_scard(pools, key, backend)
+        # using pipelined is much faster than querying each of the pools and adding them
+        # as we get the result.
+        temp_hash = {}
+        res = backend.pipelined do
+          pools.each do |pool|
+            backend.scard(key + pool['name'])
+          end
+        end
+        pools.each_with_index do |pool, i|
+          temp_hash[pool['name']] = res[i].to_i
+        end
+        temp_hash
+      end
+
+      # Takes the pools and a key to run hget on
+      # returns a hash with each pool name as key and the value as string
+      def get_list_across_pools_redis_hget(pools, key, backend)
+        # using pipelined is much faster than querying each of the pools and adding them
+        # as we get the result.
+        temp_hash = {}
+        res = backend.pipelined do
+          pools.each do |pool|
+            backend.hget(key, pool['name'])
+          end
+        end
+        pools.each_with_index do |pool, i|
+          temp_hash[pool['name']] = res[i].to_s
+        end
+        temp_hash
+      end
+
       def get_capacity_metrics(pools, backend)
         capacity = {
             current: 0,
@@ -159,11 +206,10 @@ module Vmpooler
         }
 
         pools.each do |pool|
-          pool['capacity'] = backend.scard('vmpooler__ready__' + pool['name']).to_i
-
-          capacity[:current] += pool['capacity']
           capacity[:total]   += pool['size'].to_i
         end
+
+        capacity[:current] = get_total_across_pools_redis_scard(pools, 'vmpooler__ready__', backend)
 
         if capacity[:total] > 0
           capacity[:percent] = ((capacity[:current].to_f / capacity[:total].to_f) * 100.0).round(1)
@@ -183,12 +229,10 @@ module Vmpooler
             total:     0
         }
 
-        pools.each do |pool|
-          queue[:pending]   += backend.scard('vmpooler__pending__' + pool['name']).to_i
-          queue[:ready]     += backend.scard('vmpooler__ready__' + pool['name']).to_i
-          queue[:running]   += backend.scard('vmpooler__running__' + pool['name']).to_i
-          queue[:completed] += backend.scard('vmpooler__completed__' + pool['name']).to_i
-        end
+        queue[:pending]   = get_total_across_pools_redis_scard(pools,'vmpooler__pending__', backend)
+        queue[:ready]     = get_total_across_pools_redis_scard(pools, 'vmpooler__ready__', backend)
+        queue[:running]   = get_total_across_pools_redis_scard(pools, 'vmpooler__running__', backend)
+        queue[:completed] = get_total_across_pools_redis_scard(pools, 'vmpooler__completed__', backend)
 
         queue[:cloning] = backend.get('vmpooler__tasks__clone').to_i
         queue[:booting] = queue[:pending].to_i - queue[:cloning].to_i
