@@ -132,6 +132,7 @@ If an authentication store is configured, an authentication token supplied via t
 Return codes:
 * 200  OK
 * 404  when sending invalid JSON in the request body or requesting an invalid VM pool name
+* 503  when the vm failed to allocate a vm, or the pool is empty
 
 ```
 $ curl -d '{"debian-7-i386":"2","debian-7-x86_64":"1"}' --url vmpooler.example.com/api/v1/vm
@@ -161,6 +162,7 @@ Check-out a VM or VMs.
 Return codes:
 * 200  OK
 * 404  when sending invalid JSON in the request body or requesting an invalid VM pool name
+* 503  when the vm failed to allocate a vm, or the pool is empty
 
 ```
 $ curl -d --url vmpooler.example.com/api/v1/vm/debian-7-i386
