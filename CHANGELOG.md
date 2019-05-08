@@ -10,7 +10,12 @@ The format is based on
 Tracking in this Changelog began for this project with the tagging of version 0.1.0.
 If you're looking for changes from before this, refer to the project's
 git logs & PR history.
-# [Unreleased](https://github.com/puppetlabs/vmpooler/compare/0.6.0...master)
+# [Unreleased](https://github.com/puppetlabs/vmpooler/compare/0.6.1...master)
+
+# [0.6.1](https://github.com/puppetlabs/vmpooler/compare/0.6.0...0.6.1)
+
+### Added
+- Vmpooler /status legacy api optimization
 
 # [0.6.0](https://github.com/puppetlabs/vmpooler/compare/0.5.1...0.6.0)
 
