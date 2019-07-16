@@ -15,7 +15,7 @@ describe Vmpooler::API::V1 do
       {
         config: {
           'site_name' => 'test pooler',
-          'vm_lifetime_auth' => 2,
+          'vm_lifetime_auth' => 2
         },
         pools: [
           {'name' => 'pool1', 'size' => 5},
@@ -28,6 +28,7 @@ describe Vmpooler::API::V1 do
       }
     }
     let(:current_time) { Time.now }
+    let(:vmname) { 'abcdefghijkl' }
 
     before(:each) do
       app.settings.set :config, config
@@ -39,10 +40,10 @@ describe Vmpooler::API::V1 do
 
     describe 'GET /vm/:hostname' do
       it 'returns correct information on a running vm' do
-        create_running_vm 'pool1', 'abcdefghijklmnop'
-        get "#{prefix}/vm/abcdefghijklmnop"
+        create_running_vm 'pool1', vmname
+        get "#{prefix}/vm/#{vmname}"
         expect_json(ok = true, http = 200)
-        response_body = (JSON.parse(last_response.body)["abcdefghijklmnop"])
+        response_body = (JSON.parse(last_response.body)[vmname])
 
         expect(response_body["template"]).to eq("pool1")
         expect(response_body["lifetime"]).to eq(0)
@@ -56,8 +57,11 @@ describe Vmpooler::API::V1 do
     end
 
     describe 'POST /vm' do
+
+      let(:socket) { double('socket') }
       it 'returns a single VM' do
-        create_ready_vm 'pool1', 'abcdefghijklmnop'
+        create_ready_vm 'pool1', vmname
+        allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
 
         post "#{prefix}/vm", '{"pool1":"1"}'
         expect_json(ok = true, http = 200)
@@ -65,7 +69,7 @@ describe Vmpooler::API::V1 do
         expected = {
           ok: true,
           pool1: {
-            hostname: 'abcdefghijklmnop'
+            hostname: vmname
           }
         }
 
@@ -73,7 +77,9 @@ describe Vmpooler::API::V1 do
       end
 
       it 'returns a single VM for an alias' do
-        create_ready_vm 'pool1', 'abcdefghijklmnop'
+        create_ready_vm 'pool1', vmname
+
+        allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
 
         post "#{prefix}/vm", '{"poolone":"1"}'
         expect_json(ok = true, http = 200)
@@ -81,7 +87,7 @@ describe Vmpooler::API::V1 do
         expected = {
           ok: true,
           poolone: {
-            hostname: 'abcdefghijklmnop'
+            hostname: vmname
           }
         }
 
@@ -97,7 +103,7 @@ describe Vmpooler::API::V1 do
         Vmpooler::API.settings.config.delete(:alias)
         Vmpooler::API.settings.config[:pool_names] = ['pool1', 'pool2']
 
-        create_ready_vm 'pool1', 'abcdefghijklmnop'
+        create_ready_vm 'pool1', vmname
         post "#{prefix}/vm/pool1"
         post "#{prefix}/vm/pool1"
 
@@ -108,7 +114,7 @@ describe Vmpooler::API::V1 do
       end
 
       it 'returns 503 for empty pool referenced by alias' do
-        create_ready_vm 'pool1', 'abcdefghijklmnop'
+        create_ready_vm 'pool1', vmname
         post "#{prefix}/vm/poolone"
         post "#{prefix}/vm/poolone"
 
@@ -119,8 +125,10 @@ describe Vmpooler::API::V1 do
       end
 
       it 'returns multiple VMs' do
-        create_ready_vm 'pool1', 'abcdefghijklmnop'
+        create_ready_vm 'pool1', vmname
         create_ready_vm 'pool2', 'qrstuvwxyz012345'
+
+        allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
 
         post "#{prefix}/vm", '{"pool1":"1","pool2":"1"}'
         expect_json(ok = true, http = 200)
@@ -128,7 +136,7 @@ describe Vmpooler::API::V1 do
         expected = {
           ok: true,
           pool1: {
-            hostname: 'abcdefghijklmnop'
+            hostname: vmname
           },
           pool2: {
             hostname: 'qrstuvwxyz012345'
@@ -142,6 +150,8 @@ describe Vmpooler::API::V1 do
         create_ready_vm 'pool1', '1abcdefghijklmnop'
         create_ready_vm 'pool1', '2abcdefghijklmnop'
         create_ready_vm 'pool2', 'qrstuvwxyz012345'
+
+        allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
 
         post "#{prefix}/vm", '{"pool1":"2","pool2":"1"}'
 
@@ -170,6 +180,8 @@ describe Vmpooler::API::V1 do
         create_ready_vm 'pool2', '2qrstuvwxyz012345'
         create_ready_vm 'pool2', '3qrstuvwxyz012345'
 
+        allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
+
         post "#{prefix}/vm", '{"pool1":"2","pool2":"3"}'
 
         expected = {
@@ -197,6 +209,8 @@ describe Vmpooler::API::V1 do
         create_ready_vm 'pool2', '2abcdefghijklmnop'
         create_ready_vm 'pool3', '1qrstuvwxyz012345'
 
+        allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
+
         post "#{prefix}/vm", '{"genericpool":"3"}'
 
         expected = {
@@ -217,6 +231,8 @@ describe Vmpooler::API::V1 do
         create_ready_vm 'pool1', '1abcdefghijklmnop'
         create_ready_vm 'pool1', '2abcdefghijklmnop'
         create_ready_vm 'pool1', '3abcdefghijklmnop'
+
+        allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
 
         post "#{prefix}/vm", '{"pool1":"1"}'
 
@@ -245,6 +261,8 @@ describe Vmpooler::API::V1 do
       it 'returns any checked out vms to their pools when not all requested vms can be allocated' do
         create_ready_vm 'pool1', '1abcdefghijklmnop'
 
+        allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
+
         post "#{prefix}/vm", '{"pool1":"1","pool2":"1"}'
 
         expected = { ok: false }
@@ -268,6 +286,8 @@ describe Vmpooler::API::V1 do
 
       it 'returns any checked out vms to their pools when not all requested vms can be allocated, when requesting multiple instances from a pool' do
         create_ready_vm 'pool1', '1abcdefghijklmnop'
+
+        allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
 
         post "#{prefix}/vm", '{"pool1":"2","pool2":"1"}'
 
@@ -294,6 +314,8 @@ describe Vmpooler::API::V1 do
         create_ready_vm 'pool1', '1abcdefghijklmnop'
         create_ready_vm 'pool1', '2abcdefghijklmnop'
 
+        allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
+
         post "#{prefix}/vm", '{"pool1":"2","pool2":"3"}'
 
         expected = { ok: false }
@@ -305,11 +327,35 @@ describe Vmpooler::API::V1 do
         expect(pool_has_ready_vm?('pool1', '2abcdefghijklmnop')).to eq(true)
       end
 
+      it 'returns the second VM when the first fails to respond' do
+        create_ready_vm 'pool1', vmname
+        create_ready_vm 'pool1', "2#{vmname}"
+
+        allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).with(vmname, nil).and_raise('mockerror')
+        allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).with("2#{vmname}", nil).and_return(socket)
+
+        post "#{prefix}/vm", '{"pool1":"1"}'
+        expect_json(ok = true, http = 200)
+
+        expected = {
+          ok: true,
+          pool1: {
+            hostname: "2#{vmname}"
+          }
+        }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+
+        expect(pool_has_ready_vm?('pool1', vmname)).to be false
+      end
+
       context '(auth not configured)' do
         it 'does not extend VM lifetime if auth token is provided' do
           app.settings.set :config, auth: false
 
           create_ready_vm 'pool1', 'abcdefghijklmnop'
+
+          allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
 
           post "#{prefix}/vm", '{"pool1":"1"}', {
             'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
@@ -335,6 +381,8 @@ describe Vmpooler::API::V1 do
 
           create_ready_vm 'pool1', 'abcdefghijklmnop'
 
+          allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
+
           post "#{prefix}/vm", '{"pool1":"1"}', {
             'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
           }
@@ -355,6 +403,8 @@ describe Vmpooler::API::V1 do
         it 'does not extend VM lifetime if auth token is not provided' do
           app.settings.set :config, auth: true
           create_ready_vm 'pool1', 'abcdefghijklmnop'
+
+          allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
 
           post "#{prefix}/vm", '{"pool1":"1"}'
           expect_json(ok = true, http = 200)

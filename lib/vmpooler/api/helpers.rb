@@ -470,6 +470,29 @@ module Vmpooler
       rescue
         false
       end
+
+      def open_socket(host, domain = nil, timeout = 1, port = 22, &_block)
+        Timeout.timeout(timeout) do
+          target_host = host
+          target_host = "#{host}.#{domain}" if domain
+          sock = TCPSocket.new target_host, port
+          begin
+            yield sock if block_given?
+          ensure
+            sock.close
+          end
+        end
+      end
+
+      def vm_ready?(vm_name, domain = nil)
+        begin
+          open_socket(vm_name, domain)
+        rescue => _err
+          return false
+        end
+
+        true
+      end
     end
   end
 end
