@@ -12,6 +12,9 @@ If you're looking for changes from before this, refer to the project's
 git logs & PR history.
 # [Unreleased](https://github.com/puppetlabs/vmpooler/compare/0.6.1...master)
 
+### Added
+- Validate a machine responds to vm\_ready? at checkout (POOLER-140)
+
 # [0.6.1](https://github.com/puppetlabs/vmpooler/compare/0.6.0...0.6.1)
 
 ### Added
