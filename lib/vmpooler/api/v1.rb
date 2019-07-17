@@ -71,7 +71,7 @@ module Vmpooler
         vms = backend.smembers("vmpooler__ready__#{template_backend}")
         next if vms.empty?
         vms.reverse.each do |vm|
-          ready = vm_ready?(vm, config[:domain])
+          ready = vm_ready?(vm, config['domain'])
           if ready
             backend.smove("vmpooler__ready__#{template_backend}", "vmpooler__running__#{template_backend}", vm)
             return [vm, template_backend, template]
