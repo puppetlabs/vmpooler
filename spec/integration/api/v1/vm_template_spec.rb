@@ -28,6 +28,7 @@ describe Vmpooler::API::V1 do
     }
 
     let(:current_time) { Time.now }
+    let(:socket) { double('socket') }
 
     before(:each) do
       app.settings.set :config, config
@@ -40,6 +41,8 @@ describe Vmpooler::API::V1 do
     describe 'POST /vm/:template' do
       it 'returns a single VM' do
         create_ready_vm 'pool1', 'abcdefghijklmnop'
+
+        allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
 
         post "#{prefix}/vm/pool1", ''
         expect_json(ok = true, http = 200)
@@ -56,6 +59,8 @@ describe Vmpooler::API::V1 do
 
       it 'returns a single VM for an alias' do
         create_ready_vm 'pool1', 'abcdefghijklmnop'
+
+        allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
 
         post "#{prefix}/vm/poolone", ''
 
@@ -104,6 +109,8 @@ describe Vmpooler::API::V1 do
         create_ready_vm 'pool1', 'abcdefghijklmnop'
         create_ready_vm 'pool2', 'qrstuvwxyz012345'
 
+        allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
+
         post "#{prefix}/vm/pool1+pool2", ''
         expect_json(ok = true, http = 200)
 
@@ -127,6 +134,8 @@ describe Vmpooler::API::V1 do
         create_ready_vm 'pool2', '1qrstuvwxyz012345'
         create_ready_vm 'pool2', '2qrstuvwxyz012345'
         create_ready_vm 'pool2', '3qrstuvwxyz012345'
+
+        allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
 
         post "#{prefix}/vm/pool1+pool1+pool2+pool2+pool2", ''
 
@@ -161,6 +170,8 @@ describe Vmpooler::API::V1 do
       it 'returns any checked out vms to their pools when not all requested vms can be allocated' do
         create_ready_vm 'pool1', 'abcdefghijklmnop'
 
+        allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
+
         post "#{prefix}/vm/pool1+pool2", ''
 
         expected = { ok: false }
@@ -186,6 +197,8 @@ describe Vmpooler::API::V1 do
       it 'returns any checked out vms to their pools when not all requested vms can be allocated, when requesting multiple instances from a pool' do
         create_ready_vm 'pool1', 'abcdefghijklmnop'
         create_ready_vm 'pool1', '0123456789012345'
+
+        allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
 
         post "#{prefix}/vm/pool1+pool1+pool2", ''
 
@@ -214,6 +227,8 @@ describe Vmpooler::API::V1 do
         create_ready_vm 'pool1', 'abcdefghijklmnop'
         create_ready_vm 'pool2', '0123456789012345'
 
+        allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
+
         post "#{prefix}/vm/pool1+pool1+pool2+pool2+pool2", ''
 
         expected = { ok: false }
@@ -230,6 +245,8 @@ describe Vmpooler::API::V1 do
           app.settings.set :config, auth: false
 
           create_ready_vm 'pool1', 'abcdefghijklmnop'
+
+          allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
 
           post "#{prefix}/vm/pool1", '', {
             'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
@@ -255,6 +272,8 @@ describe Vmpooler::API::V1 do
 
           create_ready_vm 'pool1', 'abcdefghijklmnop'
 
+          allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
+
           post "#{prefix}/vm/pool1", '', {
             'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
           }
@@ -275,6 +294,8 @@ describe Vmpooler::API::V1 do
         it 'does not extend VM lifetime if auth token is not provided' do
           app.settings.set :config, auth: true
           create_ready_vm 'pool1', 'abcdefghijklmnop'
+
+          allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
 
           post "#{prefix}/vm/pool1", ''
 

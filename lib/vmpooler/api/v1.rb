@@ -68,10 +68,17 @@ module Vmpooler
       end
 
       template_backends.each do |template_backend|
-        vm = backend.smembers("vmpooler__ready__#{template_backend}")[-1]
-        if vm
-          backend.smove("vmpooler__ready__#{template_backend}", "vmpooler__running__#{template_backend}", vm)
-          return [vm, template_backend, template]
+        vms = backend.smembers("vmpooler__ready__#{template_backend}")
+        next if vms.empty?
+        vms.reverse.each do |vm|
+          ready = vm_ready?(vm, config[:domain])
+          if ready
+            backend.smove("vmpooler__ready__#{template_backend}", "vmpooler__running__#{template_backend}", vm)
+            return [vm, template_backend, template]
+          else
+            backend.smove("vmpooler__ready__#{template_backend}", "vmpooler__completed__#{template_backend}", vm)
+            metrics.increment("checkout.nonresponsive.#{template_backend}")
+          end
         end
       end
       [nil, nil, nil]
