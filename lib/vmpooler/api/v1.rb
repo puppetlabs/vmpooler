@@ -194,6 +194,26 @@ module Vmpooler
       result
     end
 
+    def update_clone_target(payload)
+      result = { 'ok' => false }
+
+      pool_index = pool_index(pools)
+      pools_updated = 0
+      sync_clone_targets
+
+      payload.each do |poolname, clone_target|
+        unless pools[pool_index[poolname]]['clone_target'] == clone_target
+          pools[pool_index[poolname]]['clone_target'] == clone_target
+          backend.hset('vmpooler__config__clone_target', poolname, clone_target)
+          pools_updated += 1
+          status 201
+        end
+      end
+      status 200 unless pools_updated > 0
+      result['ok'] = true
+      result
+    end
+
     def sync_pool_templates
       pool_index = pool_index(pools)
       template_configs = backend.hgetall('vmpooler__config__template')
@@ -217,6 +237,20 @@ module Vmpooler
             unless pools[pool_index[poolname]]['size'] == size.to_i
               pools[pool_index[poolname]]['size'] == size.to_i
             end
+          end
+        end
+      end
+    end
+
+    def sync_clone_targets
+      pool_index = pool_index(pools)
+      clone_target_configs = backend.hgetall('vmpooler__config__clone_target')
+      unless clone_target_configs.nil?
+        clone_target_configs.each do |poolname, clone_target|
+          if pool_index.include? poolname
+            unless pools[pool_index[poolname]]['clone_target'] == clone_target
+              pools[pool_index[poolname]]['clone_target'] == clone_target
+              end
           end
         end
       end
@@ -700,6 +734,14 @@ module Vmpooler
       invalid
     end
 
+    def invalid_pool(payload)
+      invalid = []
+      payload.each do |pool, clone_target|
+        invalid << pool unless pool_exists?(pool)
+      end
+      invalid
+    end
+
     post "#{api_prefix}/vm/:template/?" do
       content_type :json
       result = { 'ok' => false }
@@ -993,6 +1035,37 @@ module Vmpooler
           invalid = invalid_template_or_path(payload)
           if invalid.empty?
             result = update_pool_template(payload)
+          else
+            invalid.each do |bad_template|
+              metrics.increment("config.invalid.#{bad_template}")
+            end
+            result[:bad_templates] = invalid
+            status 400
+          end
+        else
+          metrics.increment('config.invalid.unknown')
+          status 404
+        end
+      else
+        status 405
+      end
+
+      JSON.pretty_generate(result)
+    end
+
+    post "#{api_prefix}/config/clonetarget/?" do
+      content_type :json
+      result = { 'ok' => false }
+
+      if config['experimental_features']
+        need_token! if Vmpooler::API.settings.config[:auth]
+
+        payload = JSON.parse(request.body.read)
+
+        if payload
+          invalid = invalid_pool(payload)
+          if invalid.empty?
+            result = update_clone_target(payload)
           else
             invalid.each do |bad_template|
               metrics.increment("config.invalid.#{bad_template}")
