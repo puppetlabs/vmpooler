@@ -16,7 +16,7 @@ describe Vmpooler::API::V1 do
         'experimental_features' => true
       },
       pools: [
-        {'name' => 'pool1', 'size' => 5, 'template' => 'templates/pool1'},
+        {'name' => 'pool1', 'size' => 5, 'template' => 'templates/pool1', 'clone_target' => 'default_cluster'},
         {'name' => 'pool2', 'size' => 10}
       ],
       statsd: { 'prefix' => 'stats_prefix'},
@@ -215,6 +215,69 @@ describe Vmpooler::API::V1 do
 
         it 'should return 405' do
           post "#{prefix}/config/poolsize", '{"pool1":"1"}'
+          expect_json(ok = false, http = 405)
+
+          expected = { ok: false }
+          expect(last_response.body).to eq(JSON.pretty_generate(expected))
+        end
+      end
+    end
+
+    describe 'POST /config/clonetarget' do
+      it 'changes the clone target' do
+        post "#{prefix}/config/clonetarget", '{"pool1":"cluster1"}'
+        expect_json(ok = true, http = 201)
+
+        expected = { ok: true }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+      end
+
+      it 'changes a pool size for multiple pools' do
+        post "#{prefix}/config/clonetarget", '{"pool1":"cluster1","pool2":"cluster2"}'
+        expect_json(ok = true, http = 201)
+
+        expected = { ok: true }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+      end
+
+      it 'fails when a specified pool does not exist' do
+        post "#{prefix}/config/clonetarget", '{"pool10":"cluster1"}'
+        expect_json(ok = false, http = 400)
+        expected = {
+          ok: false,
+          bad_templates: ['pool10']
+        }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+      end
+
+      it 'succeeds with 200 when no change is required' do
+        post "#{prefix}/config/clonetarget", '{"pool1":"default_cluster"}'
+        expect_json(ok = true, http = 200)
+
+        expected = { ok: true }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+      end
+
+      it 'succeeds with 201 when at least one pool changes' do
+        post "#{prefix}/config/clonetarget", '{"pool1":"default_cluster","pool2":"cluster2"}'
+        expect_json(ok = true, http = 201)
+
+        expected = { ok: true }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+      end
+
+      context 'with experimental features disabled' do
+        before(:each) do
+          config[:config]['experimental_features'] = false
+        end
+
+        it 'should return 405' do
+          post "#{prefix}/config/clonetarget", '{"pool1":"cluster1"}'
           expect_json(ok = false, http = 405)
 
           expected = { ok: false }

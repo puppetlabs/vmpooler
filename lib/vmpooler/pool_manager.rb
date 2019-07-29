@@ -680,6 +680,10 @@ module Vmpooler
         initial_ready_size = $redis.scard("vmpooler__ready__#{options[:poolname]}")
       end
 
+      if options[:clone_target_change]
+        initial_clone_target = $redis.hget("vmpooler__pool__#{options[:poolname]}", options[:clone_target])
+      end
+
       if options[:pool_template_change]
         initial_template = $redis.hget('vmpooler__template__prepared', options[:poolname])
       end
@@ -696,6 +700,13 @@ module Vmpooler
           if options[:pool_size_change]
             ready_size = $redis.scard("vmpooler__ready__#{options[:poolname]}")
             break unless ready_size == initial_ready_size
+          end
+
+          if options[:clone_target_change]
+            clone_target = $redis.hget("vmpooler__config__clone_target}", options[:poolname])
+            if clone_target
+              break unless clone_target == initial_clone_target
+            end
           end
 
           if options[:pool_template_change]
@@ -742,7 +753,7 @@ module Vmpooler
               loop_delay = (loop_delay * loop_delay_decay).to_i
               loop_delay = loop_delay_max if loop_delay > loop_delay_max
             end
-            sleep_with_wakeup_events(loop_delay, loop_delay_min, pool_size_change: true, poolname: pool['name'], pool_template_change: true)
+            sleep_with_wakeup_events(loop_delay, loop_delay_min, pool_size_change: true, poolname: pool['name'], pool_template_change: true, clone_target_change: true)
 
             unless maxloop.zero?
               break if loop_count >= maxloop
@@ -844,6 +855,21 @@ module Vmpooler
       # Prepare template for deployment
       $logger.log('s', "[*] [#{pool['name']}] preparing pool template for deployment")
       prepare_template(pool, provider)
+      $logger.log('s', "[*] [#{pool['name']}] is ready for use")
+    end
+
+    def update_clone_target(pool)
+      mutex = pool_mutex(pool['name'])
+      return if mutex.locked?
+      clone_target = $redis.hget('vmpooler__config__clone_target', pool['name'])
+      return if clone_target.nil?
+      return if clone_target == pool['clone_target']
+      $logger.log('s', "[*] [#{pool['name']}] clone updated from #{pool['clone_target']} to #{clone_target}")
+      mutex.synchronize do
+        pool['clone_target'] = clone_target
+        # Remove all ready and pending VMs so new instances are created for the new clone_target
+        drain_pool(pool['name'])
+      end
       $logger.log('s', "[*] [#{pool['name']}] is ready for use")
     end
 
@@ -1079,6 +1105,10 @@ module Vmpooler
       # Since check_pool runs in a loop it does not
       # otherwise identify this change when running
       update_pool_size(pool)
+
+      # Check to see if a pool size change has been made via the configuration API
+      # Additionally, a pool will drain ready and pending instances
+      update_clone_target(pool)
 
       repopulate_pool_vms(pool['name'], provider, pool_check_response, pool['size'])
 

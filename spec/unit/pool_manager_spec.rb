@@ -2390,6 +2390,59 @@ EOT
     end
   end
 
+  describe 'update_clone_target' do
+    let(:newtarget) { 'cluster2' }
+    let(:config) {
+      YAML.load(<<-EOT
+---
+:pools:
+  - name: #{pool}
+    clone_target: 'cluster1'
+EOT
+      )
+    }
+    let(:poolconfig) { config[:pools][0] }
+
+    context 'with a locked mutex' do
+
+      let(:mutex) { Mutex.new }
+      before(:each) do
+        mutex.lock
+        expect(subject).to receive(:pool_mutex).with(pool).and_return(mutex)
+      end
+
+      it 'should return nil' do
+        expect(subject.update_clone_target(poolconfig)).to be_nil
+      end
+    end
+
+    it 'should get the pool clone target configuration from redis' do
+      expect(redis).to receive(:hget).with('vmpooler__config__clone_target', pool)
+
+      subject.update_clone_target(poolconfig)
+    end
+
+    it 'should return when clone_target is not set in redis' do
+      expect(redis).to receive(:hget).with('vmpooler__config__clone_target', pool).and_return(nil)
+
+      expect(subject.update_clone_target(poolconfig)).to be_nil
+    end
+
+    it 'should return when no change in configuration is required' do
+      expect(redis).to receive(:hget).with('vmpooler__config__clone_target', pool).and_return('cluster1')
+
+      expect(subject.update_clone_target(poolconfig)).to be_nil
+    end
+
+    it 'should update the clone target' do
+      expect(redis).to receive(:hget).with('vmpooler__config__clone_target', pool).and_return(newtarget)
+
+      subject.update_clone_target(poolconfig)
+
+      expect(poolconfig['clone_target']).to eq(newtarget)
+    end
+  end
+
   describe "#execute!" do
     let(:config) {
       YAML.load(<<-EOT
@@ -2759,7 +2812,7 @@ EOT
 
       expect(subject).to receive(:sleep).exactly(2).times
       expect(subject).to receive(:time_passed?).with(:exit_by, Time).and_return(false, false, false, true)
-      
+
       subject.sleep_with_wakeup_events(loop_delay)
     end
 
