@@ -10,7 +10,15 @@ The format is based on
 Tracking in this Changelog began for this project with the tagging of version 0.1.0.
 If you're looking for changes from before this, refer to the project's
 git logs & PR history.
-# [Unreleased](https://github.com/puppetlabs/vmpooler/compare/0.6.2...master)
+# [Unreleased](https://github.com/puppetlabs/vmpooler/compare/0.6.3...master)
+
+### Added
+- Add capability to disable linked clones for vsphere provider
+
+# [0.6.3](https://github.com/puppetlabs/vmpooler/compare/0.6.2...0.6.3)
+
+### Added
+- Add capability to configure pool cluster via config api (POOLER-143)
 
 # [0.6.2](https://github.com/puppetlabs/vmpooler/compare/0.6.1...0.6.2)
 
