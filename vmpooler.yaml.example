@@ -592,6 +592,7 @@
     timeout: 15
     ready_ttl: 1440
     provider: vsphere
+    create_linked_clone: true
   - name: 'debian-7-x86_64'
     alias: [ 'debian-7-64', 'debian-7-amd64' ]
     template: 'Templates/debian-7-x86_64'
@@ -601,3 +602,4 @@
     timeout: 15
     ready_ttl: 1440
     provider: vsphere
+    create_linked_clone: false

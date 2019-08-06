@@ -15,7 +15,7 @@ COPY ./ ./
 
 ENV RACK_ENV=production
 
-RUN gem install bundler -v '2.0.1' && bundle install && gem build vmpooler.gemspec && gem install vmpooler*.gem && \
+RUN gem install bundler && bundle install && gem build vmpooler.gemspec && gem install vmpooler*.gem && \
       chmod +x /usr/local/bin/docker-entrypoint.sh
 
 ENTRYPOINT ["docker-entrypoint.sh"]

@@ -312,7 +312,7 @@ module Vmpooler
             # Put the VM in the specified folder and resource pool
             relocate_spec = RbVmomi::VIM.VirtualMachineRelocateSpec(
               datastore: find_datastore(target_datastore, connection, target_datacenter_name),
-              diskMoveType: :moveChildMostDiskBacking
+              diskMoveType: get_disk_backing(pool)
             )
 
             manage_host_selection = @config[:config]['manage_host_selection'] if @config[:config].key?('manage_host_selection')
@@ -1027,6 +1027,17 @@ module Vmpooler
           return false if template[0] == '/'
           return false if template[-1] == '/'
           return true
+        end
+
+        def get_disk_backing(pool)
+          return :moveChildMostDiskBacking if linked_clone?(pool)
+          return :moveAllDiskBackingsAndConsolidate
+        end
+
+        def linked_clone?(pool)
+          return if pool[:create_linked_clone] == false
+          return true if pool[:create_linked_clone]
+          return true if @config[:config]['create_linked_clones']
         end
       end
     end

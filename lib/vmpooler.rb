@@ -64,6 +64,7 @@ module Vmpooler
     parsed_config[:config]['retry_factor'] = string_to_int(ENV['RETRY_FACTOR']) if ENV['RETRY_FACTOR']
     parsed_config[:config]['create_folders'] = ENV['CREATE_FOLDERS'] if ENV['CREATE_FOLDERS']
     parsed_config[:config]['create_template_delta_disks'] = ENV['CREATE_TEMPLATE_DELTA_DISKS'] if ENV['CREATE_TEMPLATE_DELTA_DISKS']
+    set_linked_clone(parsed_config)
     parsed_config[:config]['experimental_features'] = ENV['EXPERIMENTAL_FEATURES'] if ENV['EXPERIMENTAL_FEATURES']
     parsed_config[:config]['purge_unconfigured_folders'] = ENV['PURGE_UNCONFIGURED_FOLDERS'] if ENV['PURGE_UNCONFIGURED_FOLDERS']
     parsed_config[:config]['usage_stats'] = ENV['USAGE_STATS'] if ENV['USAGE_STATS']
@@ -182,5 +183,15 @@ module Vmpooler
     return if s.nil?
     return unless s =~ /\d/
     return Integer(s)
+  end
+
+  def self.true?(obj)
+    obj.to_s.downcase == "true"
+  end
+
+  def self.set_linked_clone(parsed_config)
+    parsed_config[:config]['create_linked_clones'] = parsed_config[:config]['create_linked_clones'] || true
+    parsed_config[:config]['create_linked_clones'] = ENV['CREATE_LINKED_CLONES'] if ENV['CREATE_LINKED_CLONES'] =~ /true|false/
+    parsed_config[:config]['create_linked_clones'] = true?(parsed_config[:config]['create_linked_clones']) if parsed_config[:config]['create_linked_clones']
   end
 end
