@@ -3431,4 +3431,29 @@ EOT
       end
     end
   end
+
+  describe 'get_disk_backing' do
+
+    it 'should return moveChildMostDiskBacking when linked clone enabled' do
+      expect( subject.get_disk_backing({create_linked_clone: true}) ).to eq(:moveChildMostDiskBacking)
+    end
+
+    it 'should return moveAllDiskBackingsAndConsolidate when no preference is specified' do
+      expect( subject.get_disk_backing({})).to eq(:moveAllDiskBackingsAndConsolidate)
+    end
+
+    it 'should return moveAllDiskBackingsAndConsolidate when linked clone is false' do
+      expect( subject.get_disk_backing({create_linked_clone: false})).to eq(:moveAllDiskBackingsAndConsolidate)
+    end
+  end
+
+  describe 'linked_clone?' do
+    it 'should return true when linked clone is enabled on the pool' do
+      expect( subject.linked_clone?({create_linked_clone: true}) ).to be true
+    end
+
+    it 'should return nil when linked clone is not enabled on the pool' do
+      expect( subject.linked_clone?({}) ).to be nil
+    end
+  end
 end

@@ -147,6 +147,12 @@ Note: this will only create the last folder when it does not exist. It will not 
 Create backing delta disks for the specified templates to support creating linked clones.
 (optional; default: false)
 
+### CREATE\_LINKED\_CLONES
+
+Whether to create linked clone virtual machines when using the vsphere provider.
+This can also be set per pool.
+(optional; default: true)
+
 ### PURGE\_UNCONFIGURED\_FOLDERS
 
 Enable purging of VMs and folders detected within the base folder path that are not configured for the provider
