@@ -51,6 +51,7 @@ def create_running_vm(template, name, token = nil, user = nil)
   redis.sadd("vmpooler__running__#{template}", name)
   redis.hset("vmpooler__vm__#{name}", 'template', template)
   redis.hset("vmpooler__vm__#{name}", 'checkout', Time.now)
+  redis.hset("vmpooler__vm__#{name}", 'host', 'host1')
 end
 
 def create_pending_vm(template, name, token = nil)

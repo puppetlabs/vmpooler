@@ -829,6 +829,10 @@ module Vmpooler
         if config['domain']
           result[params[:hostname]]['domain'] = config['domain']
         end
+
+        result[params[:hostname]]['host'] = rdata['host'] if rdata['host']
+        result[params[:hostname]]['migrated'] = rdata['migrated'] if rdata['migrated']
+
       end
 
       JSON.pretty_generate(result)

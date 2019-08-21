@@ -13,7 +13,8 @@ git logs & PR history.
 # [Unreleased](https://github.com/puppetlabs/vmpooler/compare/0.6.3...master)
 
 ### Added
-- Add capability to disable linked clones for vsphere provider
+- Add capability to disable linked clones for vsphere provider (POOLER-147)
+- Add running host to VM data returned from /vm/hostname (POOLER-142)
 
 # [0.6.3](https://github.com/puppetlabs/vmpooler/compare/0.6.2...0.6.3)
 
