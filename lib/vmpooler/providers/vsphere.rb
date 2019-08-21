@@ -939,6 +939,7 @@ module Vmpooler
             begin
               connection = ensured_vsphere_connection(pool_object)
               vm_hash = get_vm_details(pool_name, vm_name, connection)
+              $redis.hset("vmpooler__vm__#{vm_name}", 'host', vm_hash['host_name'])
               migration_limit = @config[:config]['migration_limit'] if @config[:config].key?('migration_limit')
               migration_count = $redis.scard('vmpooler__migration')
               if migration_enabled? @config
@@ -965,9 +966,10 @@ module Vmpooler
         def migrate_vm_to_new_host(pool_name, vm_name, vm_hash, connection)
           $redis.sadd('vmpooler__migration', vm_name)
           target_host_name = select_next_host(pool_name, @provider_hosts, vm_hash['architecture'])
+          $redis.hset("vmpooler__vm__#{vm_name}", 'host', target_host_name)
+          $redis.hset("vmpooler__vm__#{vm_name}", 'migrated', true)
           target_host_object = find_host_by_dnsname(connection, target_host_name)
           finish = migrate_vm_and_record_timing(pool_name, vm_name, vm_hash, target_host_object, target_host_name)
-          #logger.log('s', "Provider_hosts is: #{provider.provider_hosts}")
           logger.log('s', "[>] [#{pool_name}] '#{vm_name}' migrated from #{vm_hash['host_name']} to #{target_host_name} in #{finish} seconds")
         ensure
           $redis.srem('vmpooler__migration', vm_name)

@@ -53,6 +53,7 @@ describe Vmpooler::API::V1 do
         expect(response_body["end_time"]).to eq(current_time.to_datetime.rfc3339)
         expect(response_body["state"]).to eq("running")
         expect(response_body["ip"]).to eq("")
+        expect(response_body["host"]).to eq("host1")
       end
     end
 

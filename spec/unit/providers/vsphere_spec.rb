@@ -76,6 +76,7 @@ EOT
   let(:connection_options) {{}}
   let(:connection) { mock_RbVmomi_VIM_Connection(connection_options) }
   let(:vmname) { 'vm1' }
+  let(:redis) { MockRedis.new }
 
   subject { Vmpooler::PoolManager::Provider::VSphere.new(config, logger, metrics, 'vsphere', provider_options) }
 
@@ -138,7 +139,6 @@ EOT
     let(:power_off_task) { mock_RbVmomi_VIM_Task() }
     let(:destroy_task) { mock_RbVmomi_VIM_Task() }
     let(:data_ttl) { 1 }
-    let(:redis) { MockRedis.new }
     let(:finish) { '0.00' }
     let(:now) { Time.now }
 
@@ -2572,6 +2572,7 @@ EOT
         subject.connection_pool.with_metrics do |pool_object|
           expect(subject).to receive(:ensured_vsphere_connection).with(pool_object).and_return(connection)
           expect(subject).to receive(:get_vm_details).and_return(vm_details)
+          allow($redis).to receive(:hset)
           expect(subject).to receive(:run_select_hosts).with(poolname, {})
           expect(subject).to receive(:vm_in_target?).and_return false
           expect(subject).to receive(:migration_enabled?).and_return true
@@ -2601,6 +2602,7 @@ EOT
         subject.connection_pool.with_metrics do |pool_object|
           expect(subject).to receive(:ensured_vsphere_connection).with(pool_object).and_return(connection)
           expect(subject).to receive(:get_vm_details).and_return(vm_details)
+          expect($redis).to receive(:hset).with("vmpooler__vm__#{vmname}", 'host', parent_host)
           expect(subject).to receive(:run_select_hosts).with(poolname, {})
           expect(subject).to receive(:vm_in_target?).and_return true
           expect(subject).to receive(:migration_enabled?).and_return true
@@ -2690,6 +2692,8 @@ EOT
     it' migrates a vm' do
       expect($redis).to receive(:sadd).with('vmpooler__migration', vmname)
       expect(subject).to receive(:select_next_host).and_return(new_host)
+      expect($redis).to receive(:hset).with("vmpooler__vm__#{vmname}", 'host', new_host)
+      expect($redis).to receive(:hset).with("vmpooler__vm__#{vmname}", 'migrated', true)
       expect(subject).to receive(:find_host_by_dnsname).and_return(new_host_object)
       expect(subject).to receive(:migrate_vm_and_record_timing).and_return(format('%.2f', (Time.now - (Time.now - 15))))
       expect(logger).to receive(:log).with('s', "[>] [#{poolname}] '#{vmname}' migrated from host1 to host2 in 15.00 seconds")

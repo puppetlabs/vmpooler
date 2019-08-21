@@ -226,7 +226,9 @@ $ curl --url vmpooler.example.com/api/v1/vm/pxpmtoonx7fiqg6
       "user": "jdoe"
     },
     "ip": "192.168.0.1",
-    "domain": "example.com"
+    "domain": "example.com",
+    "host": "host1.example.com",
+    "migrated": "true"
   }
 }
 ```
