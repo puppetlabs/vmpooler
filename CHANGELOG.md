@@ -12,6 +12,9 @@ If you're looking for changes from before this, refer to the project's
 git logs & PR history.
 # [Unreleased](https://github.com/puppetlabs/vmpooler/compare/0.7.0...master)
 
+### Fixed
+- Correctly detect create\_linked\_clone on a pool level (POOLER-147)
+
 # [0.7.0](https://github.com/puppetlabs/vmpooler/compare/0.6.3...0.7.0)
 
 ### Added

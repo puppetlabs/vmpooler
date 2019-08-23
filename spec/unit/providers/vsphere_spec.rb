@@ -59,6 +59,7 @@ describe 'Vmpooler::PoolManager::Provider::VSphere' do
     # Drop the connection pool timeout way down for spec tests so they fail fast
     connection_pool_timeout: 1
     datacenter: MockDC
+    create_linked_clones: true
 :pools:
   - name: '#{poolname}'
     alias: [ 'mockpool' ]
@@ -3439,7 +3440,7 @@ EOT
   describe 'get_disk_backing' do
 
     it 'should return moveChildMostDiskBacking when linked clone enabled' do
-      expect( subject.get_disk_backing({create_linked_clone: true}) ).to eq(:moveChildMostDiskBacking)
+      expect( subject.get_disk_backing({'create_linked_clone' => true}) ).to eq(:moveChildMostDiskBacking)
     end
 
     it 'should return moveAllDiskBackingsAndConsolidate when no preference is specified' do
@@ -3453,7 +3454,7 @@ EOT
 
   describe 'linked_clone?' do
     it 'should return true when linked clone is enabled on the pool' do
-      expect( subject.linked_clone?({create_linked_clone: true}) ).to be true
+      expect( subject.linked_clone?({'create_linked_clone' => true}) ).to be true
     end
 
     it 'should return nil when linked clone is not enabled on the pool' do

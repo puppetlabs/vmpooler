@@ -1037,8 +1037,8 @@ module Vmpooler
         end
 
         def linked_clone?(pool)
-          return if pool[:create_linked_clone] == false
-          return true if pool[:create_linked_clone]
+          return if pool['create_linked_clone'] == false
+          return true if pool['create_linked_clone']
           return true if @config[:config]['create_linked_clones']
         end
       end
