@@ -1,0 +1,9 @@
+
+# This will cause QE to be assigned review of any opened PRs against
+# the branches containing this file.
+# See https://help.github.com/en/articles/about-code-owners for info on how to
+# take ownership of parts of the code base that should be reviewed by another
+# team.
+
+*  @puppetlabs/qe-team
+
