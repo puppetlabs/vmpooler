@@ -156,7 +156,7 @@ module Vmpooler
         $redis.hset('vmpooler__vm__' + vm, 'check', Time.now)
         # Check if the hosts TTL has expired
         if ttl > 0
-          # 'boottime' may be nil if host is not powered on
+          # if 'boottime' is nil, set bootime to beginning of unix epoch, forces TTL to be assumed expired
           boottime = $redis.hget("vmpooler__vm__#{vm}", 'ready')
           if boottime
             boottime = Time.parse(boottime)
