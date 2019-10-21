@@ -36,10 +36,11 @@ module Vmpooler
     use Vmpooler::API::Reroute
     use Vmpooler::API::V1
 
-    def configure(config, redis, metrics)
+    def configure(config, redis, metrics, checkoutlock)
       self.settings.set :config, config
       self.settings.set :redis, redis
       self.settings.set :metrics, metrics
+      self.settings.set :checkoutlock, checkoutlock
     end
 
     def execute!
