@@ -29,12 +29,14 @@ describe Vmpooler::API::V1 do
     }
     let(:current_time) { Time.now }
     let(:vmname) { 'abcdefghijkl' }
+    let(:checkoutlock) { Mutex.new }
 
     before(:each) do
       app.settings.set :config, config
       app.settings.set :redis, redis
       app.settings.set :metrics, metrics
       app.settings.set :config, auth: false
+      app.settings.set :checkoutlock, checkoutlock
       create_token('abcdefghijklmnopqrstuvwxyz012345', 'jdoe', current_time)
     end
 

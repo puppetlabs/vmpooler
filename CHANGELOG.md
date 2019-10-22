@@ -14,6 +14,7 @@ git logs & PR history.
 
 ### Fixed
 - Correctly detect create\_linked\_clone on a pool level (POOLER-147)
+- Ensure that checkout operations are synchronized
 
 # [0.7.0](https://github.com/puppetlabs/vmpooler/compare/0.6.3...0.7.0)
 

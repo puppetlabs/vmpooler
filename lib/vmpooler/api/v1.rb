@@ -36,6 +36,10 @@ module Vmpooler
       validate_token(backend)
     end
 
+    def checkoutlock
+      Vmpooler::API::settings.checkoutlock
+    end
+
     def fetch_single_vm(template)
       template_backends = [template]
       aliases = Vmpooler::API.settings.config[:alias]
@@ -67,21 +71,23 @@ module Vmpooler
         end
       end
 
-      template_backends.each do |template_backend|
-        vms = backend.smembers("vmpooler__ready__#{template_backend}")
-        next if vms.empty?
-        vms.reverse.each do |vm|
-          ready = vm_ready?(vm, config['domain'])
-          if ready
-            backend.smove("vmpooler__ready__#{template_backend}", "vmpooler__running__#{template_backend}", vm)
-            return [vm, template_backend, template]
-          else
-            backend.smove("vmpooler__ready__#{template_backend}", "vmpooler__completed__#{template_backend}", vm)
-            metrics.increment("checkout.nonresponsive.#{template_backend}")
+      checkoutlock.synchronize do
+        template_backends.each do |template_backend|
+          vms = backend.smembers("vmpooler__ready__#{template_backend}")
+          next if vms.empty?
+          vms.reverse.each do |vm|
+            ready = vm_ready?(vm, config['domain'])
+            if ready
+              backend.smove("vmpooler__ready__#{template_backend}", "vmpooler__running__#{template_backend}", vm)
+              return [vm, template_backend, template]
+            else
+              backend.smove("vmpooler__ready__#{template_backend}", "vmpooler__completed__#{template_backend}", vm)
+              metrics.increment("checkout.nonresponsive.#{template_backend}")
+            end
           end
         end
+        [nil, nil, nil]
       end
-      [nil, nil, nil]
     end
 
     def return_vm_to_ready_state(template, vm)
