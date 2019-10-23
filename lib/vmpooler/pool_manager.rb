@@ -1,4 +1,5 @@
 require 'vmpooler/providers'
+require 'spicy-proton'
 
 module Vmpooler
   class PoolManager
@@ -28,6 +29,9 @@ module Vmpooler
       @reconfigure_pool = {}
 
       @vm_mutex = {}
+
+      # Name generator for generating host names
+      @name_generator = Spicy::Proton.new
 
       # load specified providers from config file
       load_used_providers
@@ -265,8 +269,8 @@ module Vmpooler
 
     def _clone_vm(pool_name, provider)
       # Generate a randomized hostname
-      o = [('a'..'z'), ('0'..'9')].map(&:to_a).flatten
-      new_vmname = $config[:config]['prefix'] + o[rand(25)] + (0...14).map { o[rand(o.length)] }.join
+      random_name = [@name_generator.adjective(max: 7), @name_generator.noun(max: 7)].join('-')
+      new_vmname = $config[:config]['prefix'] + random_name
 
       # Add VM to Redis inventory ('pending' pool)
       $redis.sadd('vmpooler__pending__' + pool_name, new_vmname)
