@@ -24,8 +24,7 @@ if torun.include? 'api'
   api = Thread.new do
     thr = Vmpooler::API.new
     redis = Vmpooler.new_redis(redis_host, redis_port, redis_password)
-    checkoutlock = Mutex.new
-    thr.helpers.configure(config, redis, metrics, checkoutlock)
+    thr.helpers.configure(config, redis, metrics)
     thr.helpers.execute!
   end
   torun_threads << api
