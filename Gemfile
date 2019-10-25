@@ -12,7 +12,7 @@ gem 'net-ldap', '~> 0.16'
 gem 'statsd-ruby', '~> 1.4.0', :require => 'statsd'
 gem 'connection_pool', '~> 2.2'
 gem 'nokogiri', '~> 1.8'
-gem 'spicy-proton', '2.1.1'
+gem 'spicy-proton', '~> 2.1'
 
 group :development do
   gem 'pry'
