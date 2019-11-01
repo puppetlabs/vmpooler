@@ -267,10 +267,34 @@ module Vmpooler
       end
     end
 
-    def _clone_vm(pool_name, provider)
+    def generate_and_check_hostname(pool_name)
       # Generate a randomized hostname
       random_name = [@name_generator.adjective(max: 7), @name_generator.noun(max: 7)].join('-')
-      new_vmname = $config[:config]['prefix'] + random_name
+      hostname = $config[:config]['prefix'] + random_name
+      available = $redis.hlen('vmpooler__vm__' + hostname) == 0
+
+      return hostname, available
+    end
+
+    def find_unique_hostname(pool_name)
+      hostname_retries = 0
+      max_hostname_retries = 3
+      while hostname_retries < max_hostname_retries
+        hostname, available = generate_and_check_hostname(pool_name)
+        break if available
+
+        hostname_retries += 1
+        $metrics.increment("errors.duplicatehostname.#{pool_name}")
+        $logger.log('s', "[!] [#{pool_name}] Generated hostname #{hostname} was not unique (attempt \##{hostname_retries} of #{max_hostname_retries})")
+      end
+      
+      raise "Unable to generate a unique hostname after #{hostname_retries} attempts. The last hostname checked was #{hostname}" unless available
+      
+      hostname
+    end
+
+    def _clone_vm(pool_name, provider)
+      new_vmname = find_unique_hostname(pool_name)
 
       # Add VM to Redis inventory ('pending' pool)
       $redis.sadd('vmpooler__pending__' + pool_name, new_vmname)
