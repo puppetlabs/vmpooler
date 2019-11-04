@@ -58,7 +58,7 @@ Style/RegexpLiteral:
 # In some cases readability is better without these cops enabled
 Style/ConditionalAssignment:
   Enabled: false
-Next:
+Style/Next:
   Enabled: false
 Metrics/ParameterLists:
   Max: 10

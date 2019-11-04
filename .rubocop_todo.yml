@@ -55,7 +55,7 @@ Layout/EmptyLinesAroundModuleBody:
 # Cop supports --auto-correct.
 # Configuration parameters: EnforcedStyle, SupportedStyles, IndentationWidth.
 # SupportedStyles: special_inside_parentheses, consistent, align_braces
-Layout/IndentHash:
+Layout/IndentFirstHashElement:
   Exclude:
     - 'lib/vmpooler/api/helpers.rb'
     - 'lib/vmpooler/api/v1.rb'
@@ -246,7 +246,7 @@ Style/PerlBackrefs:
 # NamePrefix: is_, has_, have_
 # NamePrefixBlacklist: is_, has_, have_
 # NameWhitelist: is_a?
-Style/PredicateName:
+Naming/PredicateName:
   Exclude:
     - 'spec/**/*'
     - 'lib/vmpooler/api/helpers.rb'
@@ -289,7 +289,7 @@ Style/TernaryParentheses:
 # Offense count: 2
 # Configuration parameters: EnforcedStyle, SupportedStyles.
 # SupportedStyles: snake_case, camelCase
-Style/VariableName:
+Naming/VariableName:
   Exclude:
     - 'lib/vmpooler/api/v1.rb'
 
