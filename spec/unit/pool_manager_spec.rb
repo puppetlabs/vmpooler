@@ -608,6 +608,7 @@ EOT
         expect(metrics).to receive(:timing).with(/clone\./,/0/)
         expect(provider).to receive(:create_vm).with(pool, String)
         allow(logger).to receive(:log)
+        expect(subject).to receive(:find_unique_hostname).with(pool).and_return(vm)
       end
 
       it 'should create a cloning VM' do
@@ -649,6 +650,7 @@ EOT
       before(:each) do
         expect(provider).to receive(:create_vm).with(pool, String).and_raise('MockError')
         allow(logger).to receive(:log)
+        expect(subject).to receive(:find_unique_hostname).with(pool).and_return(vm)
       end
 
       it 'should not create a cloning VM' do
