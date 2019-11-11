@@ -10,107 +10,139 @@ The format is based on
 Tracking in this Changelog began for this project with the tagging of version 0.1.0.
 If you're looking for changes from before this, refer to the project's
 git logs & PR history.
-# [Unreleased](https://github.com/puppetlabs/vmpooler/compare/0.8.1...master)
 
-# [0.8.1](https://github.com/puppetlabs/vmpooler/compare/0.7.2...0.8.1)
+## [Unreleased](https://github.com/puppetlabs/vmpooler/compare/0.8.2...master)
+
+## [0.8.2](https://github.com/puppetlabs/vmpooler/compare/0.8.1...0.8.2)
 
 ### Added
+
+- Uniqueness check on generated hostnames to prevent collisions
+
+### Fixed
+
+- Update hostname_shorten regex that was causing problems with returning VMs
+- Rubocop linter fixes
+
+## [0.8.1](https://github.com/puppetlabs/vmpooler/compare/0.7.2...0.8.1)
+
+### Added
+
 - Make VM names human readable
 
-# [0.7.2](https://github.com/puppetlabs/vmpooler/compare/0.7.1...0.7.2)
+## [0.7.2](https://github.com/puppetlabs/vmpooler/compare/0.7.1...0.7.2)
 
 ### Fixed
+
 - Synchronize checkout operations across API threads (POOLER-150)
 
-# [0.7.1](https://github.com/puppetlabs/vmpooler/compare/0.7.0...0.7.1)
+## [0.7.1](https://github.com/puppetlabs/vmpooler/compare/0.7.0...0.7.1)
 
 ### Fixed
+
 - Correctly detect create\_linked\_clone on a pool level (POOLER-147)
 
-# [0.7.0](https://github.com/puppetlabs/vmpooler/compare/0.6.3...0.7.0)
+## [0.7.0](https://github.com/puppetlabs/vmpooler/compare/0.6.3...0.7.0)
 
 ### Added
+
 - Add capability to disable linked clones for vsphere provider (POOLER-147)
 - Add running host to VM data returned from /vm/hostname (POOLER-142)
 
-# [0.6.3](https://github.com/puppetlabs/vmpooler/compare/0.6.2...0.6.3)
+## [0.6.3](https://github.com/puppetlabs/vmpooler/compare/0.6.2...0.6.3)
 
 ### Added
+
 - Add capability to configure pool cluster via config api (POOLER-143)
 
-# [0.6.2](https://github.com/puppetlabs/vmpooler/compare/0.6.1...0.6.2)
+## [0.6.2](https://github.com/puppetlabs/vmpooler/compare/0.6.1...0.6.2)
 
 ### Added
+
 - Validate a machine responds to vm\_ready? at checkout (POOLER-140)
 
-# [0.6.1](https://github.com/puppetlabs/vmpooler/compare/0.6.0...0.6.1)
+## [0.6.1](https://github.com/puppetlabs/vmpooler/compare/0.6.0...0.6.1)
 
 ### Added
+
 - Vmpooler /status legacy api optimization
 
-# [0.6.0](https://github.com/puppetlabs/vmpooler/compare/0.5.1...0.6.0)
+## [0.6.0](https://github.com/puppetlabs/vmpooler/compare/0.5.1...0.6.0)
 
 ### Fixed
+
 - Ensure migrations and pending evaluations are processed FIFO (POOLER-141)
 
 ### Added
+
 - Vmpooler pool statistic endpoint optimization
 
 ### Fixed
- - Ensure a checked out VM stays in a queue during checkout (POOLER-140)
 
-# [0.5.1](https://github.com/puppetlabs/vmpooler/compare/0.5.0...0.5.1)
+- Ensure a checked out VM stays in a queue during checkout (POOLER-140)
 
-# [0.5.0](https://github.com/puppetlabs/vmpooler/compare/0.4.0...0.5.0)
+## [0.5.1](https://github.com/puppetlabs/vmpooler/compare/0.5.0...0.5.1)
 
-### Fixed
- - Eliminate window for checked out VM to be discovered (POOLER-139)
-
-# [0.4.0](https://github.com/puppetlabs/vmpooler/compare/0.3.0...0.4.0)
+## [0.5.0](https://github.com/puppetlabs/vmpooler/compare/0.4.0...0.5.0)
 
 ### Fixed
- - Improve support for configuration via environment variables (POOLER-137)
- - Support multiple pool backends per alias (POOLER-138)
- - Remove redis server testing requirement
 
-# [0.3.0](https://github.com/puppetlabs/vmpooler/compare/0.2.2...0.3.0)
+- Eliminate window for checked out VM to be discovered (POOLER-139)
+
+## [0.4.0](https://github.com/puppetlabs/vmpooler/compare/0.3.0...0.4.0)
 
 ### Fixed
+
+- Improve support for configuration via environment variables (POOLER-137)
+- Support multiple pool backends per alias (POOLER-138)
+- Remove redis server testing requirement
+
+## [0.3.0](https://github.com/puppetlabs/vmpooler/compare/0.2.2...0.3.0)
+
+### Fixed
+
 - Sync pool size before dashboard is displayed (POOLER-132)
 - Remove a failed VM from the ready queue (POOLER-133)
 - Begin checking ready VMs to ensure alive after 1 minute by default
 - Ensure that metric nodes for vm usage stats are consistent
 
 ### Added
+
 - Add capability to ship VM usage metrics (POOLER-134)
 
-# [0.2.2](https://github.com/puppetlabs/vmpooler/compare/0.2.1...0.2.2)
+## [0.2.2](https://github.com/puppetlabs/vmpooler/compare/0.2.1...0.2.2)
 
 ### Fixed
+
 - Return label used to request VMs when fulfilling VM requests (POOLER-131)
 
-# [0.2.1](https://github.com/puppetlabs/vmpooler/compare/0.2.0...0.2.1)
+## [0.2.1](https://github.com/puppetlabs/vmpooler/compare/0.2.0...0.2.1)
 
 ### Fixed
+
 - Better handle delta disk creation errors (POOLER-130)
 
 ### Added
+
 - Re-write check\_pool in pool\_manager to improve readability
 - Add a docker-compose file for testing vmpooler
 - Add capability to weight backends when an alias spans multiple backends (POOLER-129)
 
-# [0.2.0](https://github.com/puppetlabs/vmpooler/compare/0.1.0...0.2.0)
+## [0.2.0](https://github.com/puppetlabs/vmpooler/compare/0.1.0...0.2.0)
 
 ### Fixed
+
 - (POOLER-128) VM specific mutex objects are not dereferenced when a VM is destroyed
 - A VM that is being destroyed is reported as discovered
 
 ### Added
+
 - Adds a new mechanism to load providers from any gem or file path
 
-# [0.1.0](https://github.com/puppetlabs/vmpooler/compare/4c858d012a262093383e57ea6db790521886d8d4...master)
+## [0.1.0](https://github.com/puppetlabs/vmpooler/compare/4c858d012a262093383e57ea6db790521886d8d4...master)
 
 ### Fixed
+
 - Remove unused method `find_pool` and related pending tests
 - Setting `max_tries` results in an infinite loop (POOLER-124)
 - Do not evaluate folders as VMs in `get_pool_vms` (POOLER-40)
