@@ -99,6 +99,10 @@ def fetch_vm(vm)
   redis.hgetall("vmpooler__vm__#{vm}")
 end
 
+def set_vm_data(vm, key, value)
+  redis.hset("vmpooler__vm__#{vm}", key, value)
+end
+
 def snapshot_revert_vm(vm, snapshot = '12345678901234567890123456789012')
   redis.sadd('vmpooler__tasks__snapshot-revert', "#{vm}:#{snapshot}")
   redis.hset("vmpooler__vm__#{vm}", "snapshot:#{snapshot}", "1")

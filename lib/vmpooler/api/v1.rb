@@ -892,6 +892,22 @@ module Vmpooler
             when 'lifetime'
               need_token! if Vmpooler::API.settings.config[:auth]
 
+              # in hours, defaults to one week
+              max_lifetime_upper_limit = config[:max_lifetime_upper_limit]
+              if max_lifetime_upper_limit
+                max_lifetime_upper_limit = max_lifetime_upper_limit.to_i
+                unless arg.to_i < max_lifetime_upper_limit
+                  failure = true
+                end
+                # also make sure we do not extend past max_lifetime_upper_limit
+                rdata = backend.hgetall('vmpooler__vm__' + params[:hostname])
+                running = ((Time.now - Time.parse(rdata['checkout'])) / 60 / 60).round(2)
+                unless running + arg.to_i < max_lifetime_upper_limit
+                  failure = true
+                end
+              end
+
+              # validate lifetime is within boundaries
               unless arg.to_i > 0
                 failure = true
               end
