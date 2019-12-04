@@ -136,7 +136,7 @@ describe Vmpooler::API::V1 do
 
         it 'does not allow a lifetime to be initially past config 168' do
           app.settings.set :config,
-                           { :config => { :max_lifetime_upper_limit => 168 } }
+                           { :config => { 'max_lifetime_upper_limit' => 168 } }
           create_vm('testhost')
 
           put "#{prefix}/vm/testhost", '{"lifetime":"200"}'
@@ -148,7 +148,7 @@ describe Vmpooler::API::V1 do
 
         it 'does not allow a lifetime to be extended past config 168' do
           app.settings.set :config,
-                           { :config => { :max_lifetime_upper_limit => 168 } }
+                           { :config => { 'max_lifetime_upper_limit' => 168 } }
           create_vm('testhost')
 
           set_vm_data('testhost', "checkout", (Time.now - (69*60*60)))

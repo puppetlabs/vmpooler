@@ -893,7 +893,7 @@ module Vmpooler
               need_token! if Vmpooler::API.settings.config[:auth]
 
               # in hours, defaults to one week
-              max_lifetime_upper_limit = config[:max_lifetime_upper_limit]
+              max_lifetime_upper_limit = config['max_lifetime_upper_limit']
               if max_lifetime_upper_limit
                 max_lifetime_upper_limit = max_lifetime_upper_limit.to_i
                 if arg.to_i >= max_lifetime_upper_limit
