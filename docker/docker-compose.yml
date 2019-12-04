@@ -22,6 +22,8 @@ services:
       - redislocal
   redislocal:
     image: redis
+    # Uncomment this if you don't want the redis data to persist
+    #command: "redis-server --save '' --appendonly no"
     ports:
       - "6379:6379"
     networks:
