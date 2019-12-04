@@ -875,7 +875,7 @@ module Vmpooler
       status 404
       result = { 'ok' => false }
 
-      failure = false
+      failure = []
 
       params[:hostname] = hostname_shorten(params[:hostname], config['domain'])
 
@@ -896,36 +896,38 @@ module Vmpooler
               max_lifetime_upper_limit = config[:max_lifetime_upper_limit]
               if max_lifetime_upper_limit
                 max_lifetime_upper_limit = max_lifetime_upper_limit.to_i
-                unless arg.to_i < max_lifetime_upper_limit
-                  failure = true
-                end
-                # also make sure we do not extend past max_lifetime_upper_limit
-                rdata = backend.hgetall('vmpooler__vm__' + params[:hostname])
-                running = ((Time.now - Time.parse(rdata['checkout'])) / 60 / 60).round(2)
-                unless running + arg.to_i < max_lifetime_upper_limit
-                  failure = true
+                if arg.to_i >= max_lifetime_upper_limit
+                  failure.push("You provided a lifetime (#{arg}) that exceeds the configured maximum of #{max_lifetime_upper_limit}.")
+                else
+                  # also make sure we do not extend past max_lifetime_upper_limit
+                  rdata = backend.hgetall('vmpooler__vm__' + params[:hostname])
+                  running = ((Time.now - Time.parse(rdata['checkout'])) / 60 / 60).round(2)
+                  unless running + arg.to_i < max_lifetime_upper_limit
+                    failure.push("You provided a lifetime (#{arg}) that will extend the current lifetime past the configured maximum of #{max_lifetime_upper_limit}.")
+                  end
                 end
               end
 
               # validate lifetime is within boundaries
               unless arg.to_i > 0
-                failure = true
+                failure.push("You provided a lifetime (#{arg}) but you must provide a positive number.")
               end
             when 'tags'
               unless arg.is_a?(Hash)
-                failure = true
+                failure.push("You provided tags (#{arg}) as something other than a hash.")
               end
 
               if config['allowed_tags']
-                failure = true if not (arg.keys - config['allowed_tags']).empty?
+                failure.push("You provided unsuppored tags (#{arg}).") if not (arg.keys - config['allowed_tags']).empty?
               end
             else
-              failure = true
+              failure.push("Unknown argument #{arg}.")
           end
         end
 
-        if failure
+        if failure.size > 0
           status 400
+          result['failure'] = failure
         else
           jdata.each do |param, arg|
             case param
