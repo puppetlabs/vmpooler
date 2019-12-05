@@ -498,6 +498,12 @@
 #     Expects a boolean value
 #     (optional; default: false)
 #
+#   - max_lifetime_upper_limit
+#     Sets a lifetime upper limit (in hours) for how long the vm lifetime can be set via the API. Lifetime can be set and extended
+#     so this configuration is used to enforce an upper limit to both the initial lifetime request and/or the extended
+#     lifetime (by checking how long it has already been running).
+#     (optional; default: unlimited)
+#
 # Example:
 
 :config:

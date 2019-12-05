@@ -20,12 +20,14 @@ describe Vmpooler::API::V1 do
         config: {
           'site_name' => 'test pooler',
           'vm_lifetime_auth' => 2,
+
         },
         pools: [
           {'name' => 'pool1', 'size' => 5},
           {'name' => 'pool2', 'size' => 10}
         ],
         alias: { 'poolone' => 'pool1' },
+        auth: false
       }
     }
 
@@ -34,7 +36,6 @@ describe Vmpooler::API::V1 do
     before(:each) do
       app.settings.set :config, config
       app.settings.set :redis, redis
-      app.settings.set :config, auth: false
       create_token('abcdefghijklmnopqrstuvwxyz012345', 'jdoe', current_time)
     end
 
@@ -117,6 +118,41 @@ describe Vmpooler::API::V1 do
           create_vm('testhost')
 
           put "#{prefix}/vm/testhost", '{"lifetime":"0"}'
+          expect_json(ok = false, http = 400)
+
+          vm = fetch_vm('testhost')
+          expect(vm['lifetime']).to be_nil
+        end
+
+        it 'does not enforce a lifetime' do
+          create_vm('testhost')
+
+          put "#{prefix}/vm/testhost", '{"lifetime":"20000"}'
+          expect_json(ok = true, http = 200)
+
+          vm = fetch_vm('testhost')
+          expect(vm['lifetime']).to eq("20000")
+        end
+
+        it 'does not allow a lifetime to be initially past config 168' do
+          app.settings.set :config,
+                           { :config => { 'max_lifetime_upper_limit' => 168 } }
+          create_vm('testhost')
+
+          put "#{prefix}/vm/testhost", '{"lifetime":"200"}'
+          expect_json(ok = false, http = 400)
+
+          vm = fetch_vm('testhost')
+          expect(vm['lifetime']).to be_nil
+        end
+
+        it 'does not allow a lifetime to be extended past config 168' do
+          app.settings.set :config,
+                           { :config => { 'max_lifetime_upper_limit' => 168 } }
+          create_vm('testhost')
+
+          set_vm_data('testhost', "checkout", (Time.now - (69*60*60)))
+          put "#{prefix}/vm/testhost", '{"lifetime":"100"}'
           expect_json(ok = false, http = 400)
 
           vm = fetch_vm('testhost')
