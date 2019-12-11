@@ -104,6 +104,7 @@ module Vmpooler
       if time_since_clone > timeout
         if exists
           $redis.smove('vmpooler__pending__' + pool, 'vmpooler__completed__' + pool, vm)
+          $metrics.increment("errors.markedasfailed.#{pool}")
           $logger.log('d', "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes")
         else
           remove_nonexistent_vm(vm, pool)
