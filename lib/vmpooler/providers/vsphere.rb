@@ -839,7 +839,20 @@ module Vmpooler
         def find_cluster(cluster, connection, datacentername)
           datacenter = connection.serviceInstance.find_datacenter(datacentername)
           raise("Datacenter #{datacentername} does not exist") if datacenter.nil?
-          datacenter.hostFolder.children.find { |cluster_object| cluster_object.name == cluster }
+
+          # In the event the cluster is not a direct descendent of the
+          # datacenter, we use a ContainerView to leverage its recursive
+          # search. This will find clusters which are, for example, in
+          # folders under the datacenter. This will also find standalone
+          # hosts which are not part of a cluster.
+          cv = connection.serviceContent.viewManager.CreateContainerView(
+            container: datacenter.hostFolder,
+            type: ['ComputeResource', 'ClusterComputeResource'],
+            recursive: true,
+          )
+          cluster = cv.view.find { |cluster_object| cluster_object.name == cluster }
+          cv.DestroyView
+          cluster
         end
 
         def get_cluster_host_utilization(cluster, model = nil)

@@ -2887,6 +2887,7 @@ EOT
 
   describe '#find_cluster' do
     let(:cluster) {'cluster'}
+    let(:host) { 'host' }
     let(:missing_cluster) {'missing_cluster'}
 
     context 'no clusters in the datacenter' do
@@ -2909,10 +2910,11 @@ EOT
           :datacenters => [
             { :name => datacenter_name,
               :hostfolder_tree => {
-                'cluster1' =>  {:object_type => 'compute_resource'},
-                'cluster2' => {:object_type => 'compute_resource'},
-                cluster => {:object_type => 'compute_resource'},
-                'cluster3' => {:object_type => 'compute_resource'},
+                'cluster1' =>  {:object_type => 'cluster_compute_resource'},
+                'cluster2' => {:object_type => 'cluster_compute_resource'},
+                cluster => {:object_type => 'cluster_compute_resource'},
+                'cluster3' => {:object_type => 'cluster_compute_resource'},
+                host => {:object_type => 'compute_resource'},
               }
             }
           ]
@@ -2924,6 +2926,13 @@ EOT
 
         expect(result).to_not be_nil
         expect(result.name).to eq(cluster)
+      end
+
+      it 'should return the single host when found' do
+        result = subject.find_cluster(host,connection,datacenter_name)
+
+        expect(result).to_not be_nil
+        expect(result.name).to eq(host)
       end
 
       it 'should return nil if the cluster is not found' do
@@ -2937,14 +2946,15 @@ EOT
           :datacenters => [
             { :name => 'AnotherDC',
               :hostfolder_tree => {
-                'cluster1' =>  {:object_type => 'compute_resource'},
-                'cluster2' => {:object_type => 'compute_resource'},
+                'cluster1' =>  {:object_type => 'cluster_compute_resource'},
+                'cluster2' => {:object_type => 'cluster_compute_resource'},
               }
             },
             { :name => datacenter_name,
               :hostfolder_tree => {
-                cluster => {:object_type => 'compute_resource'},
-                'cluster3' => {:object_type => 'compute_resource'},
+                cluster => {:object_type => 'cluster_compute_resource'},
+                'cluster3' => {:object_type => 'cluster_compute_resource'},
+                host => {:object_type => 'compute_resource'}
               }
             }
           ]
@@ -2956,6 +2966,13 @@ EOT
 
         expect(result).to_not be_nil
         expect(result.name).to eq(cluster)
+      end
+
+      it 'should return the single host when found' do
+        result = subject.find_cluster(host,connection,datacenter_name)
+
+        expect(result).to_not be_nil
+        expect(result.name).to eq(host)
       end
 
       it 'should return nil if the cluster is not found' do
@@ -2969,13 +2986,18 @@ EOT
           :datacenters => [
             { :name => datacenter_name,
               :hostfolder_tree => {
-                'cluster1' =>  {:object_type => 'compute_resource'},
+                'cluster1' =>  {:object_type => 'cluster_compute_resource'},
                 'folder2' => {
                   :children => {
-                    cluster => {:object_type => 'compute_resource'},
+                    cluster => {:object_type => 'cluster_compute_resource'},
                   }
                 },
-                'cluster3' => {:object_type => 'compute_resource'},
+                'cluster3' => {:object_type => 'cluster_compute_resource'},
+                'folder4' => {
+                  :children => {
+                    host => {:object_type => 'compute_resource'},
+                  }
+                }
               }
             }
           ]
@@ -2983,11 +3005,17 @@ EOT
       }}
 
       it 'should return the cluster when found' do
-        pending('https://github.com/puppetlabs/vmpooler/issues/205')
         result = subject.find_cluster(cluster,connection,datacenter_name)
 
         expect(result).to_not be_nil
         expect(result.name).to eq(cluster)
+      end
+
+      it 'should return the host when found' do
+        result = subject.find_cluster(host,connection,datacenter_name)
+
+        expect(result).to_not be_nil
+        expect(result.name).to eq(host)
       end
 
       it 'should return nil if the cluster is not found' do

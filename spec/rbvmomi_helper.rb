@@ -24,7 +24,29 @@ MockContainerView = Struct.new(
   # https://www.vmware.com/support/developer/vc-sdk/visdk400pubs/ReferenceGuide/vim.view.ContainerView.html
   # From ContainerView
   :container, :recursive, :type
-)
+) do
+  def _search_tree(layer)
+    results = []
+
+    layer.children.each do |child|
+      if type.any? { |t| child.is_a?(RbVmomi::VIM.const_get(t)) }
+        results << child
+      end
+
+      if recursive && child.respond_to?(:children)
+          results += _search_tree(child)
+      end
+    end
+    results
+  end
+
+  def view
+    _search_tree(container)
+  end
+
+  def DestroyView
+  end
+end
 
 MockDatacenter = Struct.new(
   # https://www.vmware.com/support/developer/vc-sdk/visdk41pubs/ApiReference/vim.Datacenter.html
@@ -382,6 +404,10 @@ def mock_RbVmomi_VIM_ComputeResource(options = {})
     mock_host = mock_RbVmomi_VIM_HostSystem(host_options)
     mock_host.parent = mock
     mock.host << mock_host
+  end
+
+  allow(mock).to receive(:is_a?) do |expected_type|
+    expected_type == RbVmomi::VIM::ComputeResource
   end
 
   mock
