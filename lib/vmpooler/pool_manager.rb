@@ -269,8 +269,17 @@ module Vmpooler
     end
 
     def generate_and_check_hostname(pool_name)
-      # Generate a randomized hostname
-      random_name = [@name_generator.adjective(max: 7), @name_generator.noun(max: 7)].join('-')
+      # Generate a randomized hostname. The total name must no longer than 15
+      # character including the hyphen. The shortest adjective in the corpus is
+      # three characters long. Therefore, we can technically select a noun up to 11
+      # characters long and still be guaranteed to have an available adjective.
+      # Because of the limited set of 11 letter nouns and corresponding 3
+      # letter adjectives, we actually limit the noun to 10 letters to avoid
+      # inviting more conflicts. We favor selecting a longer noun rather than a
+      # longer adjective because longer adjectives tend to be less fun.
+      noun = @name_generator.noun(max: 10)
+      adjective = @name_generator.adjective(max: 14-noun.length)
+      random_name = [adjective, noun].join('-')
       hostname = $config[:config]['prefix'] + random_name
       available = $redis.hlen('vmpooler__vm__' + hostname) == 0
 
