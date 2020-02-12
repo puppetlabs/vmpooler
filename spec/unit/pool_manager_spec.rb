@@ -2874,6 +2874,28 @@ EOT
         end
       end
     end
+
+    describe 'with the pool_reset wakeup option' do
+      let(:wakeup_option) {{
+        :pool_reset => true,
+        :poolname => pool
+      }}
+
+      let(:wakeup_period) { -1 } # A negative number forces the wakeup evaluation to always occur
+
+      context 'when a pool reset is requested' do
+        before(:each) do
+          redis.sadd('vmpooler__poolreset', pool)
+        end
+
+        it 'should sleep until the reset request is detected' do
+          expect(subject).to receive(:sleep).exactly(3).times
+          expect(redis).to receive(:sismember).with('vmpooler__poolreset', pool).and_return(false,false,true)
+
+          subject.sleep_with_wakeup_events(loop_delay, wakeup_period, wakeup_option)
+        end
+      end
+    end
   end
 
   describe "#check_pool" do

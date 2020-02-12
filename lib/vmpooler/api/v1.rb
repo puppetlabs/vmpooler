@@ -200,6 +200,17 @@ module Vmpooler
       result
     end
 
+    def reset_pool(payload)
+      result = { 'ok' => false }
+
+      payload.each do |poolname, count|
+        backend.sadd('vmpooler__poolreset', poolname)
+      end
+      status 201
+      result['ok'] = true
+      result
+    end
+
     def update_clone_target(payload)
       result = { 'ok' => false }
 
@@ -1055,6 +1066,44 @@ module Vmpooler
         else
           metrics.increment('config.invalid.unknown')
           status 404
+        end
+      else
+        status 405
+      end
+
+      JSON.pretty_generate(result)
+    end
+
+    post "#{api_prefix}/poolreset/?" do
+      content_type :json
+      result = { 'ok' => false }
+
+      if config['experimental_features']
+        need_token! if Vmpooler::API.settings.config[:auth]
+
+        begin
+          payload = JSON.parse(request.body.read)
+          if payload
+            invalid = invalid_templates(payload)
+            if invalid.empty?
+              result = reset_pool(payload)
+            else
+              invalid.each do |bad_pool|
+                metrics.increment("poolreset.invalid.#{bad_pool}")
+              end
+              result[:bad_pools] = invalid
+              status 400
+            end
+          else
+            metrics.increment('poolreset.invalid.unknown')
+            status 404
+          end
+        rescue JSON::ParserError
+          status 400
+          result = {
+            'ok' => false,
+            'message' => 'JSON payload could not be parsed'
+          }
         end
       else
         status 405
