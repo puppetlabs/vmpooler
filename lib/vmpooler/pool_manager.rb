@@ -714,6 +714,10 @@ module Vmpooler
     #   - Fires when a template configuration update is requested
     #   - Additional options
     #       :poolname
+    # :pool_reset
+    #   - Fires when a pool reset is requested
+    #   - Additional options
+    #       :poolname
     #
     def sleep_with_wakeup_events(loop_delay, wakeup_period = 5, options = {})
       exit_by = Time.now + loop_delay
@@ -760,6 +764,10 @@ module Vmpooler
             end
           end
 
+          if options[:pool_reset]
+            break if $redis.sismember('vmpooler__poolreset', options[:poolname])
+          end
+
         end
 
         break if time_passed?(:exit_by, exit_by)
@@ -797,7 +805,7 @@ module Vmpooler
               loop_delay = (loop_delay * loop_delay_decay).to_i
               loop_delay = loop_delay_max if loop_delay > loop_delay_max
             end
-            sleep_with_wakeup_events(loop_delay, loop_delay_min, pool_size_change: true, poolname: pool['name'], pool_template_change: true, clone_target_change: true)
+            sleep_with_wakeup_events(loop_delay, loop_delay_min, pool_size_change: true, poolname: pool['name'], pool_template_change: true, clone_target_change: true, pool_reset: true)
 
             unless maxloop.zero?
               break if loop_count >= maxloop
@@ -948,6 +956,17 @@ module Vmpooler
       return if poolsize == pool['size']
       mutex.synchronize do
         pool['size'] = poolsize
+      end
+    end
+
+    def reset_pool(pool)
+      poolname = pool['name']
+      return unless $redis.sismember('vmpooler__poolreset', poolname)
+      $redis.srem('vmpooler__poolreset', poolname)
+      mutex = pool_mutex(poolname)
+      mutex.synchronize do
+        drain_pool(poolname)
+        $logger.log('s', "[*] [#{poolname}] reset has cleared ready and pending instances")
       end
     end
 
@@ -1158,6 +1177,9 @@ module Vmpooler
 
       # Remove VMs in excess of the configured pool size
       remove_excess_vms(pool)
+
+      # Reset a pool when poolreset is requested from the API
+      reset_pool(pool)
 
       pool_check_response
     end

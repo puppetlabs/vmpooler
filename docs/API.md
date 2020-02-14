@@ -773,3 +773,29 @@ $ curl -X POST -H "Content-Type: application/json" -d '{"debian-7-i386":"templat
   "ok": true
 }
 ```
+
+##### POST /poolreset
+
+Clear all pending and ready instances in a pool, and deploy replacements
+
+All pool reset requests must be for pools that exist in the vmpooler configuration running, or a 404 code will be returned.
+
+When a pool reset is requested a 201 status will be returned.
+
+A pool reset will cause vmpooler manager to log that it has cleared ready and pending instances.
+
+For poolreset to be available it is necessary to enable experimental features. Additionally, the request must be performed with an authentication token when authentication is configured.
+
+Responses:
+* 201 - Pool reset requested received
+* 400 - An invalid configuration was provided causing requested changes to fail
+* 404 - An unknown error occurred
+* 405 - The endpoint is disabled because experimental features are disabled
+```
+$ curl -X POST -H "Content-Type: application/json" -d '{"debian-7-i386":"1"}' --url https://vmpooler.example.com/api/v1/poolreset
+```
+```json
+{
+  "ok": true
+}
+```
