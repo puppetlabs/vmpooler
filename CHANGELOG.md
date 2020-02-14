@@ -13,6 +13,10 @@ git logs & PR history.
 
 ## [Unreleased](https://github.com/puppetlabs/vmpooler/compare/0.10.0...master)
 
+## [0.10.1](https://github.com/puppetlabs/vmpooler/compare/0.10.0...0.10.1)
+
+- No changes, version bump only
+
 ## [0.10.0](https://github.com/puppetlabs/vmpooler/compare/0.9.1...0.10.0)
 
 ### Added
