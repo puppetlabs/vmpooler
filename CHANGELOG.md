@@ -11,7 +11,27 @@ Tracking in this Changelog began for this project with the tagging of version 0.
 If you're looking for changes from before this, refer to the project's
 git logs & PR history.
 
-## [Unreleased](https://github.com/puppetlabs/vmpooler/compare/0.8.2...master)
+## [Unreleased](https://github.com/puppetlabs/vmpooler/compare/0.10.0...master)
+
+## [0.10.0](https://github.com/puppetlabs/vmpooler/compare/0.9.1...0.10.0)
+
+### Added
+
+- API endpoint for resetting a pool clearing ready and pending instances (POOLER-153)
+
+## [0.9.1](https://github.com/puppetlabs/vmpooler/compare/0.9.0...0.9.1)
+
+### Added
+
+- Generate a wider set of human readable machine names
+
+## [0.9.0](https://github.com/puppetlabs/vmpooler/compare/0.8.2...0.9.0)
+
+### Added
+
+- Support nested folders in find_cluster()
+- Add capability to set a max machine TTL (POOLER-123)
+- Add marked as failed stat
 
 ## [0.8.2](https://github.com/puppetlabs/vmpooler/compare/0.8.1...0.8.2)
 
