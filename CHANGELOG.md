@@ -11,7 +11,15 @@ Tracking in this Changelog began for this project with the tagging of version 0.
 If you're looking for changes from before this, refer to the project's
 git logs & PR history.
 
-## [Unreleased](https://github.com/puppetlabs/vmpooler/compare/0.10.0...master)
+## [Unreleased](https://github.com/puppetlabs/vmpooler/compare/0.10.3...master)
+
+## [0.10.3](https://github.com/puppetlabs/vmpooler/compare/0.10.2...0.10.3)
+
+- Fix Redis update during migration to better reflect actual state (POOLER-154)
+- Update Rubocop config, now we can actually see all the failing cops
+
+## [0.10.2](https://github.com/puppetlabs/vmpooler/compare/0.10.1...0.10.2)
+- Version bump (no code changes)
 
 ## [0.10.1](https://github.com/puppetlabs/vmpooler/compare/0.10.0...0.10.1)
 

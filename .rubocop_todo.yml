@@ -10,7 +10,7 @@
 # Cop supports --auto-correct.
 # Configuration parameters: EnforcedStyle, SupportedStyles, IndentationWidth.
 # SupportedStyles: with_first_parameter, with_fixed_indentation
-Layout/AlignParameters:
+Layout/ParameterAlignment:
   Exclude:
     - 'lib/vmpooler/api/v1.rb'
 
@@ -55,7 +55,7 @@ Layout/EmptyLinesAroundModuleBody:
 # Cop supports --auto-correct.
 # Configuration parameters: EnforcedStyle, SupportedStyles, IndentationWidth.
 # SupportedStyles: special_inside_parentheses, consistent, align_braces
-Layout/IndentFirstHashElement:
+Layout/FirstHashElementIndentation:
   Exclude:
     - 'lib/vmpooler/api/helpers.rb'
     - 'lib/vmpooler/api/v1.rb'
@@ -96,12 +96,6 @@ Layout/SpaceAroundOperators:
   Exclude:
     - 'lib/vmpooler/api/v1.rb'
 
-# Offense count: 2
-# Cop supports --auto-correct.
-Layout/SpaceInsideBrackets:
-  Exclude:
-    - 'lib/vmpooler/api/v1.rb'
-
 # Offense count: 8
 # Cop supports --auto-correct.
 # Configuration parameters: EnforcedStyle, SupportedStyles, EnforcedStyleForEmptyBraces, SupportedStylesForEmptyBraces.
@@ -125,7 +119,7 @@ Lint/AssignmentInCondition:
     - 'lib/vmpooler/api/v1.rb'
 
 # Offense count: 2
-Lint/HandleExceptions:
+Lint/SuppressedException:
   Exclude:
     - 'lib/vmpooler/api/dashboard.rb'
 
@@ -147,12 +141,6 @@ Lint/UselessAssignment:
     - 'lib/vmpooler/api/dashboard.rb'
     - 'lib/vmpooler/api/helpers.rb'
 
-# Offense count: 2
-# Cop supports --auto-correct.
-Performance/RedundantMatch:
-  Exclude:
-    - 'lib/vmpooler/api/v1.rb'
-
 # Offense count: 6
 # Cop supports --auto-correct.
 # Configuration parameters: EnforcedStyle, SupportedStyles.
@@ -160,14 +148,6 @@ Performance/RedundantMatch:
 Style/AndOr:
   Exclude:
     - 'lib/vmpooler/api/helpers.rb'
-    - 'lib/vmpooler/api/v1.rb'
-
-# Offense count: 2
-# Cop supports --auto-correct.
-# Configuration parameters: EnforcedStyle, SupportedStyles.
-# SupportedStyles: braces, no_braces, context_dependent
-Style/BracesAroundHashParameters:
-  Exclude:
     - 'lib/vmpooler/api/v1.rb'
 
 # Offense count: 1
