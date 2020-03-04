@@ -17,7 +17,7 @@ Style/Documentation:
   Enabled: false
 
 # Line length is not useful
-Metrics/LineLength:
+Layout/LineLength:
   Enabled: false
 
 # Empty method definitions over more than one line is ok
@@ -69,3 +69,14 @@ Style/GuardClause:
 Layout/EndOfLine:
   EnforcedStyle: lf
 
+# Added in 0.80, don't really care about the change
+Style/HashEachMethods:
+  Enabled: false
+
+# Added in 0.80, don't really care about the change
+Style/HashTransformKeys:
+  Enabled: false
+
+# Added in 0.80, don't really care about the change
+Style/HashTransformValues:
+  Enabled: false
