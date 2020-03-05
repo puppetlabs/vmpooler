@@ -132,11 +132,11 @@ module Vmpooler
         def get_folder_children(folder_name, connection)
           folders = []
 
-          propSpecs = {
+          propSpecs = { # rubocop:disable Naming/VariableName
             entity: self,
             inventoryPath: folder_name
           }
-          folder_object = connection.searchIndex.FindByInventoryPath(propSpecs)
+          folder_object = connection.searchIndex.FindByInventoryPath(propSpecs) # rubocop:disable Naming/VariableName
 
           return folders if folder_object.nil?
 
@@ -700,12 +700,12 @@ module Vmpooler
           datacenter = get_target_datacenter_from_config(pool_name)
           return nil if datacenter.nil?
 
-          propSpecs = {
+          propSpecs = { # rubocop:disable Naming/VariableName
             entity: self,
             inventoryPath: "#{datacenter}/vm/#{folder}"
           }
 
-          folder_object = connection.searchIndex.FindByInventoryPath(propSpecs)
+          folder_object = connection.searchIndex.FindByInventoryPath(propSpecs) # rubocop:disable Naming/VariableName
           return nil unless folder_object.class == RbVmomi::VIM::Folder
 
           folder_object
@@ -891,12 +891,12 @@ module Vmpooler
           get_snapshot_list(vm.snapshot.rootSnapshotList, snapshotname) if vm.snapshot
         end
 
-        def build_propSpecs(datacenter, folder, vmname)
-          propSpecs = {
+        def build_propSpecs(datacenter, folder, vmname) # rubocop:disable Naming/MethodName
+          propSpecs = { # rubocop:disable Naming/VariableName
             entity => self,
             :inventoryPath => "#{datacenter}/vm/#{folder}/#{vmname}"
           }
-          propSpecs
+          propSpecs # rubocop:disable Naming/VariableName
         end
 
         def find_vm(pool_name, vmname, connection)
@@ -909,12 +909,12 @@ module Vmpooler
           datacenter = get_target_datacenter_from_config(pool_name)
           return nil if datacenter.nil?
 
-          propSpecs = {
+          propSpecs = { # rubocop:disable Naming/VariableName
             entity: self,
             inventoryPath: "#{datacenter}/vm/#{folder}/#{vmname}"
           }
 
-          connection.searchIndex.FindByInventoryPath(propSpecs)
+          connection.searchIndex.FindByInventoryPath(propSpecs) # rubocop:disable Naming/VariableName
         end
 
         def get_base_vm_container_from(connection)
@@ -1035,12 +1035,12 @@ module Vmpooler
           datacenter = get_target_datacenter_from_config(pool['name'])
           raise('cannot find datacenter') if datacenter.nil?
 
-          propSpecs = {
+          propSpecs = { # rubocop:disable Naming/VariableName
             entity: self,
             inventoryPath: "#{datacenter}/vm/#{pool['template']}"
           }
 
-          template_vm_object = connection.searchIndex.FindByInventoryPath(propSpecs)
+          template_vm_object = connection.searchIndex.FindByInventoryPath(propSpecs) # rubocop:disable Naming/VariableName
           raise("Pool #{pool['name']} specifies a template VM of #{pool['template']} which does not exist for the provider #{name}") if template_vm_object.nil?
 
           template_vm_object
