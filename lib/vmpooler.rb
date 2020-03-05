@@ -27,6 +27,14 @@ module Vmpooler
       # Take the name of the config file either from an ENV variable or from the filepath argument
       config_file = ENV['VMPOOLER_CONFIG_FILE'] || filepath
       parsed_config = YAML.load_file(config_file) if File.exist? config_file
+      parsed_config[:config]['extra_config'] = ENV['EXTRA_CONFIG'] if ENV['EXTRA_CONFIG']
+      if parsed_config[:config]['extra_config']
+        extra_configs = parsed_config[:config]['extra_config'].split(',')
+        extra_configs.each do |config|
+          extra_config = YAML.load_file(config)
+          parsed_config.merge!(extra_config)
+        end
+      end
     end
 
     parsed_config ||= { config: {} }
