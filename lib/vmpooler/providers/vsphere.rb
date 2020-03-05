@@ -1024,7 +1024,7 @@ module Vmpooler
 
         def create_folder(connection, new_folder, datacenter)
           dc = connection.serviceInstance.find_datacenter(datacenter)
-          folder_object = dc.vmFolder.traverse(new_folder, type = RbVmomi::VIM::Folder, create = true)
+          folder_object = dc.vmFolder.traverse(new_folder, RbVmomi::VIM::Folder, true)
           raise("Cannot create folder #{new_folder}") if folder_object.nil?
 
           folder_object
