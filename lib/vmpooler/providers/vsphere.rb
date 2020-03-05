@@ -794,7 +794,6 @@ module Vmpooler
           end
 
           versions.each do |version|
-            targets = []
             targets = select_least_used_hosts(architectures[version], percentage)
             architectures[version] = targets
           end
