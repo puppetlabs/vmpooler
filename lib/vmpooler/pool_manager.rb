@@ -330,11 +330,11 @@ module Vmpooler
         $logger.log('s', "[+] [#{pool_name}] '#{new_vmname}' cloned in #{finish} seconds")
 
         $metrics.timing("clone.#{pool_name}", finish)
-      rescue StandardError => _e
+      rescue StandardError
         $redis.srem("vmpooler__pending__#{pool_name}", new_vmname)
         expiration_ttl = $config[:redis]['data_ttl'].to_i * 60 * 60
         $redis.expire("vmpooler__vm__#{new_vmname}", expiration_ttl)
-        raise _e
+        raise
       ensure
         $redis.decr('vmpooler__tasks__clone')
       end
@@ -1153,7 +1153,7 @@ module Vmpooler
 
       begin
         inventory = create_inventory(pool, provider, pool_check_response)
-      rescue StandardError => e
+      rescue StandardError
         return(pool_check_response)
       end
 

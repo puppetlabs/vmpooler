@@ -173,9 +173,9 @@ module Vmpooler
               target[dc]['checking'] = true
               hosts_hash = find_least_used_hosts(cluster, datacenter, percentage)
               target[dc] = hosts_hash
-            rescue StandardError => _e
+            rescue StandardError
               target[dc] = {}
-              raise(_e)
+              raise
             ensure
               target[dc]['check_time_finished'] = Time.now
             end
@@ -344,11 +344,11 @@ module Vmpooler
             begin
               vm_target_folder = find_vm_folder(pool_name, connection)
               vm_target_folder = create_folder(connection, target_folder_path, target_datacenter_name) if vm_target_folder.nil? && @config[:config].key?('create_folders') && (@config[:config]['create_folders'] == true)
-            rescue StandardError => _e
+            rescue StandardError
               if @config[:config].key?('create_folders') && (@config[:config]['create_folders'] == true)
                 vm_target_folder = create_folder(connection, target_folder_path, target_datacenter_name)
               else
-                raise(_e)
+                raise
               end
             end
 
@@ -986,9 +986,9 @@ module Vmpooler
               else
                 logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{vm_hash['host_name']}")
               end
-            rescue StandardError => _e
+            rescue StandardError
               logger.log('s', "[!] [#{pool_name}] '#{vm_name}' is running on #{vm_hash['host_name']}")
-              raise _e
+              raise
             end
           end
         end
