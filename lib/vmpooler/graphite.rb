@@ -5,9 +5,7 @@ module Vmpooler
     attr_reader :server, :port, :prefix
 
     def initialize(params = {})
-      if params['server'].nil? || params['server'].empty?
-        raise ArgumentError, "Graphite server is required. Config: #{params.inspect}"
-      end
+      raise ArgumentError, "Graphite server is required. Config: #{params.inspect}" if params['server'].nil? || params['server'].empty?
 
       @server = params['server']
       @port   = params['port'] || 2003
@@ -35,8 +33,8 @@ module Vmpooler
           socket.close
         end
       end
-    rescue => err
-      $stderr.puts "Failure logging #{path} to graphite server [#{server}:#{port}]: #{err}"
+    rescue StandardError => e
+      warn "Failure logging #{path} to graphite server [#{server}:#{port}]: #{e}"
     end
   end
 end

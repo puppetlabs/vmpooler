@@ -63,7 +63,7 @@ module Vmpooler
           $redis.del("vmpooler__pool__#{pool}")
         end
       end
-      return
+      nil
     end
 
     # Check the state of a VM
@@ -71,8 +71,8 @@ module Vmpooler
       Thread.new do
         begin
           _check_pending_vm(vm, pool, timeout, provider)
-        rescue => err
-          $logger.log('s', "[!] [#{pool}] '#{vm}' #{timeout} #{provider} errored while checking a pending vm : #{err}")
+        rescue StandardError => e
+          $logger.log('s', "[!] [#{pool}] '#{vm}' #{timeout} #{provider} errored while checking a pending vm : #{e}")
           fail_pending_vm(vm, pool, timeout)
           raise
         end
@@ -82,6 +82,7 @@ module Vmpooler
     def _check_pending_vm(vm, pool, timeout, provider)
       mutex = vm_mutex(vm)
       return if mutex.locked?
+
       mutex.synchronize do
         if provider.vm_ready?(pool, vm)
           move_pending_vm_to_ready(vm, pool)
@@ -111,8 +112,8 @@ module Vmpooler
         end
       end
       true
-    rescue => err
-      $logger.log('d', "Fail pending VM failed with an error: #{err}")
+    rescue StandardError => e
+      $logger.log('d', "Fail pending VM failed with an error: #{e}")
       false
     end
 
@@ -134,8 +135,9 @@ module Vmpooler
     def vm_still_ready?(pool_name, vm_name, provider)
       # Check if the VM is still ready/available
       return true if provider.vm_ready?(pool_name, vm_name)
+
       raise("VM #{vm_name} is not ready")
-    rescue
+    rescue StandardError
       move_vm_queue(pool_name, vm_name, 'ready', 'completed', "is unreachable, removed from 'ready' queue")
     end
 
@@ -143,8 +145,8 @@ module Vmpooler
       Thread.new do
         begin
           _check_ready_vm(vm, pool_name, ttl, provider)
-        rescue => err
-          $logger.log('s', "[!] [#{pool_name}] '#{vm}' failed while checking a ready vm : #{err}")
+        rescue StandardError => e
+          $logger.log('s', "[!] [#{pool_name}] '#{vm}' failed while checking a ready vm : #{e}")
           raise
         end
       end
@@ -154,6 +156,7 @@ module Vmpooler
       # Periodically check that the VM is available
       mutex = vm_mutex(vm)
       return if mutex.locked?
+
       mutex.synchronize do
         check_stamp = $redis.hget('vmpooler__vm__' + vm, 'check')
         return if check_stamp && (((Time.now - Time.parse(check_stamp)) / 60) <= $config[:config]['vm_checktime'])
@@ -201,22 +204,24 @@ module Vmpooler
       # Check if the hostname has magically changed from underneath Pooler
       vm_hash = provider.get_vm(pool_name, vm)
       return unless vm_hash.is_a? Hash
+
       hostname = vm_hash['hostname']
 
       return if hostname.nil?
       return if hostname.empty?
       return if hostname == vm
+
       $redis.smove('vmpooler__ready__' + pool_name, 'vmpooler__completed__' + pool_name, vm)
       $logger.log('d', "[!] [#{pool_name}] '#{vm}' has mismatched hostname #{hostname}, removed from 'ready' queue")
-      return true
+      true
     end
 
     def check_running_vm(vm, pool, ttl, provider)
       Thread.new do
         begin
           _check_running_vm(vm, pool, ttl, provider)
-        rescue => err
-          $logger.log('s', "[!] [#{pool}] '#{vm}' failed while checking VM with an error: #{err}")
+        rescue StandardError => e
+          $logger.log('s', "[!] [#{pool}] '#{vm}' failed while checking VM with an error: #{e}")
           raise
         end
       end
@@ -225,6 +230,7 @@ module Vmpooler
     def _check_running_vm(vm, pool, ttl, provider)
       mutex = vm_mutex(vm)
       return if mutex.locked?
+
       mutex.synchronize do
         # Check that VM is within defined lifetime
         checkouttime = $redis.hget('vmpooler__active__' + pool, vm)
@@ -245,7 +251,7 @@ module Vmpooler
           if host
             return
           else
-            move_vm_queue(pool, vm, 'running', 'completed', "is no longer in inventory, removing from running")
+            move_vm_queue(pool, vm, 'running', 'completed', 'is no longer in inventory, removing from running')
           end
         end
       end
@@ -261,14 +267,14 @@ module Vmpooler
       Thread.new do
         begin
           _clone_vm(pool_name, provider)
-        rescue => err
-          $logger.log('s', "[!] [#{pool_name}] failed while cloning VM with an error: #{err}")
+        rescue StandardError => e
+          $logger.log('s', "[!] [#{pool_name}] failed while cloning VM with an error: #{e}")
           raise
         end
       end
     end
 
-    def generate_and_check_hostname(pool_name)
+    def generate_and_check_hostname(_pool_name)
       # Generate a randomized hostname. The total name must no longer than 15
       # character including the hyphen. The shortest adjective in the corpus is
       # three characters long. Therefore, we can technically select a noun up to 11
@@ -278,12 +284,12 @@ module Vmpooler
       # inviting more conflicts. We favor selecting a longer noun rather than a
       # longer adjective because longer adjectives tend to be less fun.
       noun = @name_generator.noun(max: 10)
-      adjective = @name_generator.adjective(max: 14-noun.length)
+      adjective = @name_generator.adjective(max: 14 - noun.length)
       random_name = [adjective, noun].join('-')
       hostname = $config[:config]['prefix'] + random_name
       available = $redis.hlen('vmpooler__vm__' + hostname) == 0
 
-      return hostname, available
+      [hostname, available]
     end
 
     def find_unique_hostname(pool_name)
@@ -297,9 +303,9 @@ module Vmpooler
         $metrics.increment("errors.duplicatehostname.#{pool_name}")
         $logger.log('s', "[!] [#{pool_name}] Generated hostname #{hostname} was not unique (attempt \##{hostname_retries} of #{max_hostname_retries})")
       end
-      
+
       raise "Unable to generate a unique hostname after #{hostname_retries} attempts. The last hostname checked was #{hostname}" unless available
-      
+
       hostname
     end
 
@@ -322,11 +328,11 @@ module Vmpooler
         $logger.log('s', "[+] [#{pool_name}] '#{new_vmname}' cloned in #{finish} seconds")
 
         $metrics.timing("clone.#{pool_name}", finish)
-      rescue => _err
+      rescue StandardError => _e
         $redis.srem("vmpooler__pending__#{pool_name}", new_vmname)
         expiration_ttl = $config[:redis]['data_ttl'].to_i * 60 * 60
         $redis.expire("vmpooler__vm__#{new_vmname}", expiration_ttl)
-        raise _err
+        raise _e
       ensure
         $redis.decr('vmpooler__tasks__clone')
       end
@@ -337,8 +343,8 @@ module Vmpooler
       Thread.new do
         begin
           _destroy_vm(vm, pool, provider)
-        rescue => err
-          $logger.log('d', "[!] [#{pool}] '#{vm}' failed while destroying the VM with an error: #{err}")
+        rescue StandardError => e
+          $logger.log('d', "[!] [#{pool}] '#{vm}' failed while destroying the VM with an error: #{e}")
           raise
         end
       end
@@ -347,6 +353,7 @@ module Vmpooler
     def _destroy_vm(vm, pool, provider)
       mutex = vm_mutex(vm)
       return if mutex.locked?
+
       mutex.synchronize do
         $redis.hdel('vmpooler__active__' + pool, vm)
         $redis.hset('vmpooler__vm__' + vm, 'destroy', Time.now)
@@ -370,11 +377,13 @@ module Vmpooler
 
     def get_vm_usage_labels(vm)
       return unless $config[:config]['usage_stats']
+
       checkout = $redis.hget("vmpooler__vm__#{vm}", 'checkout')
       return if checkout.nil?
+
       jenkins_build_url = $redis.hget("vmpooler__vm__#{vm}", 'tag:jenkins_build_url')
       user = $redis.hget("vmpooler__vm__#{vm}", 'token:user') || 'unauthenticated'
-      poolname = $redis.hget("vmpooler__vm__#{vm}", "template")
+      poolname = $redis.hget("vmpooler__vm__#{vm}", 'template')
 
       unless jenkins_build_url
         user = user.gsub('.', '_')
@@ -404,25 +413,24 @@ module Vmpooler
         poolname
       ]
 
-      metric_parts = metric_parts.reject { |s| s.nil? }
+      metric_parts = metric_parts.reject(&:nil?)
       metric_parts = metric_parts.map { |s| s.gsub('.', '_') }
 
       $metrics.increment(metric_parts.join('.'))
-    rescue => err
-      logger.log('d', "[!] [#{poolname}] failed while evaluating usage labels on '#{vm}' with an error: #{err}")
+    rescue StandardError => e
+      logger.log('d', "[!] [#{poolname}] failed while evaluating usage labels on '#{vm}' with an error: #{e}")
     end
 
     def component_to_test(match, labels_string)
       return if labels_string.nil?
+
       labels_string_parts = labels_string.split(',')
       labels_string_parts.each do |part|
         key, value = part.split('=')
         next if value.nil?
-        if key == match
-          return value
-        end
+        return value if key == match
       end
-      return
+      nil
     end
 
     def purge_unused_vms_and_folders
@@ -435,13 +443,13 @@ module Vmpooler
           Thread.new do
             begin
               purge_vms_and_folders($providers[provider.to_s])
-            rescue => err
-              $logger.log('s', "[!] failed while purging provider #{provider.to_s} VMs and folders with an error: #{err}")
+            rescue StandardError => e
+              $logger.log('s', "[!] failed while purging provider #{provider} VMs and folders with an error: #{e}")
             end
           end
         end
       end
-      return
+      nil
     end
 
     # Return a list of pool folders
@@ -450,6 +458,7 @@ module Vmpooler
       folders = {}
       $config[:pools].each do |pool|
         next unless pool['provider'] == provider_name
+
         folder_parts = pool['folder'].split('/')
         datacenter = provider.get_target_datacenter_from_config(pool['name'])
         folders[folder_parts.pop] = "#{datacenter}/vm/#{folder_parts.join('/')}"
@@ -459,7 +468,7 @@ module Vmpooler
 
     def get_base_folders(folders)
       base = []
-      folders.each do |key, value|
+      folders.each do |_key, value|
         base << value
       end
       base.uniq
@@ -476,8 +485,8 @@ module Vmpooler
       Thread.new do
         begin
           _create_vm_disk(pool_name, vm, disk_size, provider)
-        rescue => err
-          $logger.log('d', "[!] [#{pool_name}] '#{vm}' failed while creating disk: #{err}")
+        rescue StandardError => e
+          $logger.log('d', "[!] [#{pool_name}] '#{vm}' failed while creating disk: #{e}")
           raise
         end
       end
@@ -512,8 +521,8 @@ module Vmpooler
       Thread.new do
         begin
           _create_vm_snapshot(pool_name, vm, snapshot_name, provider)
-        rescue => err
-          $logger.log('d', "[!] [#{pool_name}] '#{vm}' failed while creating snapshot: #{err}")
+        rescue StandardError => e
+          $logger.log('d', "[!] [#{pool_name}] '#{vm}' failed while creating snapshot: #{e}")
           raise
         end
       end
@@ -541,8 +550,8 @@ module Vmpooler
       Thread.new do
         begin
           _revert_vm_snapshot(pool_name, vm, snapshot_name, provider)
-        rescue => err
-          $logger.log('d', "[!] [#{pool_name}] '#{vm}' failed while reverting snapshot: #{err}")
+        rescue StandardError => e
+          $logger.log('d', "[!] [#{pool_name}] '#{vm}' failed while reverting snapshot: #{e}")
           raise
         end
       end
@@ -574,14 +583,14 @@ module Vmpooler
     # ie. ["vsphere", "dummy"]
     def used_providers
       pools = config[:pools] || []
-      @used_providers ||= (pools.map { |pool| pool[:provider] || pool['provider'] }.compact + default_providers ).uniq
+      @used_providers ||= (pools.map { |pool| pool[:provider] || pool['provider'] }.compact + default_providers).uniq
     end
 
     # @return [Array] - returns a list of providers that should always be loaded
     # note: vsphere is the default if user does not specify although this should not be
     # if vsphere is to no longer be loaded by default please remove
     def default_providers
-      @default_providers ||= %w( vsphere dummy )
+      @default_providers ||= %w[vsphere dummy]
     end
 
     def get_pool_name_for_vm(vm_name)
@@ -594,6 +603,7 @@ module Vmpooler
     def get_provider_for_pool(pool_name)
       pool = $config[:pools].find { |pool| pool['name'] == pool_name }
       return nil unless pool
+
       provider_name = pool.fetch('provider', nil)
       $providers[provider_name]
     end
@@ -609,6 +619,7 @@ module Vmpooler
 
           unless maxloop.zero?
             break if loop_count >= maxloop
+
             loop_count += 1
           end
         end
@@ -627,8 +638,8 @@ module Vmpooler
           raise("Missing Provider for vm #{vm_name} in pool #{pool_name}") if provider.nil?
 
           create_vm_disk(pool_name, vm_name, disk_size, provider)
-        rescue => err
-          $logger.log('s', "[!] [disk_manager] disk creation appears to have failed: #{err}")
+        rescue StandardError => e
+          $logger.log('s', "[!] [disk_manager] disk creation appears to have failed: #{e}")
         end
       end
     end
@@ -644,6 +655,7 @@ module Vmpooler
 
           unless maxloop.zero?
             break if loop_count >= maxloop
+
             loop_count += 1
           end
         end
@@ -663,8 +675,8 @@ module Vmpooler
           raise("Missing Provider for vm #{vm_name} in pool #{pool_name}") if provider.nil?
 
           create_vm_snapshot(pool_name, vm_name, snapshot_name, provider)
-        rescue => err
-          $logger.log('s', "[!] [snapshot_manager] snapshot create appears to have failed: #{err}")
+        rescue StandardError => e
+          $logger.log('s', "[!] [snapshot_manager] snapshot create appears to have failed: #{e}")
         end
       end
 
@@ -680,8 +692,8 @@ module Vmpooler
           raise("Missing Provider for vm #{vm_name} in pool #{pool_name}") if provider.nil?
 
           revert_vm_snapshot(pool_name, vm_name, snapshot_name, provider)
-        rescue => err
-          $logger.log('s', "[!] [snapshot_manager] snapshot revert appears to have failed: #{err}")
+        rescue StandardError => e
+          $logger.log('s', "[!] [snapshot_manager] snapshot revert appears to have failed: #{e}")
         end
       end
     end
@@ -694,8 +706,8 @@ module Vmpooler
             $redis.srem("vmpooler__migrating__#{pool_name}", vm_name)
             provider.migrate_vm(pool_name, vm_name)
           end
-        rescue => err
-          $logger.log('s', "[x] [#{pool_name}] '#{vm_name}' migration failed with an error: #{err}")
+        rescue StandardError => e
+          $logger.log('s', "[x] [#{pool_name}] '#{vm_name}' migration failed with an error: #{e}")
         end
       end
     end
@@ -724,17 +736,11 @@ module Vmpooler
       wakeup_by = Time.now + wakeup_period
       return if time_passed?(:exit_by, exit_by)
 
-      if options[:pool_size_change]
-        initial_ready_size = $redis.scard("vmpooler__ready__#{options[:poolname]}")
-      end
+      initial_ready_size = $redis.scard("vmpooler__ready__#{options[:poolname]}") if options[:pool_size_change]
 
-      if options[:clone_target_change]
-        initial_clone_target = $redis.hget("vmpooler__pool__#{options[:poolname]}", options[:clone_target])
-      end
+      initial_clone_target = $redis.hget("vmpooler__pool__#{options[:poolname]}", options[:clone_target]) if options[:clone_target_change]
 
-      if options[:pool_template_change]
-        initial_template = $redis.hget('vmpooler__template__prepared', options[:poolname])
-      end
+      initial_template = $redis.hget('vmpooler__template__prepared', options[:poolname]) if options[:pool_template_change]
 
       loop do
         sleep(1)
@@ -751,7 +757,7 @@ module Vmpooler
           end
 
           if options[:clone_target_change]
-            clone_target = $redis.hget("vmpooler__config__clone_target}", options[:poolname])
+            clone_target = $redis.hget('vmpooler__config__clone_target}', options[:poolname])
             if clone_target
               break unless clone_target == initial_clone_target
             end
@@ -795,6 +801,7 @@ module Vmpooler
           loop_delay = loop_delay_min
           provider = get_provider_for_pool(pool['name'])
           raise("Could not find provider '#{pool['provider']}") if provider.nil?
+
           sync_pool_template(pool)
           loop do
             result = _check_pool(pool, provider)
@@ -809,11 +816,12 @@ module Vmpooler
 
             unless maxloop.zero?
               break if loop_count >= maxloop
+
               loop_count += 1
             end
           end
-        rescue => err
-          $logger.log('s', "[!] [#{pool['name']}] Error while checking the pool: #{err}")
+        rescue StandardError => e
+          $logger.log('s', "[!] [#{pool['name']}] Error while checking the pool: #{e}")
           raise
         end
       end
@@ -828,19 +836,13 @@ module Vmpooler
     end
 
     def dereference_mutex(vmname)
-      if @vm_mutex.delete(vmname)
-        return true
-      else
-        return
-      end
+      true if @vm_mutex.delete(vmname)
     end
 
     def sync_pool_template(pool)
       pool_template = $redis.hget('vmpooler__config__template', pool['name'])
       if pool_template
-        unless pool['template'] == pool_template
-          pool['template'] = pool_template
-        end
+        pool['template'] = pool_template unless pool['template'] == pool_template
       end
     end
 
@@ -850,8 +852,8 @@ module Vmpooler
           begin
             provider.create_template_delta_disks(pool)
             $redis.sadd('vmpooler__template__deltas', pool['template'])
-          rescue => err
-            $logger.log('s', "[!] [#{pool['name']}] failed while preparing a template with an error. As a result vmpooler could not create the template delta disks. Either a template delta disk already exists, or the template delta disk creation failed. The error is: #{err}")
+          rescue StandardError => e
+            $logger.log('s', "[!] [#{pool['name']}] failed while preparing a template with an error. As a result vmpooler could not create the template delta disks. Either a template delta disk already exists, or the template delta disk creation failed. The error is: #{e}")
           end
         end
       end
@@ -863,6 +865,7 @@ module Vmpooler
       prepared_template = $redis.hget('vmpooler__template__prepared', pool['name'])
       configured_template = $redis.hget('vmpooler__config__template', pool['name'])
       return if mutex.locked?
+
       if prepared_template.nil?
         mutex.synchronize do
           prepare_template(pool, provider)
@@ -878,6 +881,7 @@ module Vmpooler
       end
       return if configured_template.nil?
       return if configured_template == prepared_template
+
       mutex.synchronize do
         update_pool_template(pool, provider, configured_template, prepared_template)
       end
@@ -913,9 +917,11 @@ module Vmpooler
     def update_clone_target(pool)
       mutex = pool_mutex(pool['name'])
       return if mutex.locked?
+
       clone_target = $redis.hget('vmpooler__config__clone_target', pool['name'])
       return if clone_target.nil?
       return if clone_target == pool['clone_target']
+
       $logger.log('s', "[*] [#{pool['name']}] clone updated from #{pool['clone_target']} to #{clone_target}")
       mutex.synchronize do
         pool['clone_target'] = clone_target
@@ -930,9 +936,11 @@ module Vmpooler
       total = $redis.scard("vmpooler__pending__#{pool['name']}") + ready
       return if total.nil?
       return if total == 0
+
       mutex = pool_mutex(pool['name'])
       return if mutex.locked?
       return unless ready > pool['size']
+
       mutex.synchronize do
         difference = ready - pool['size']
         difference.times do
@@ -950,10 +958,13 @@ module Vmpooler
     def update_pool_size(pool)
       mutex = pool_mutex(pool['name'])
       return if mutex.locked?
+
       poolsize = $redis.hget('vmpooler__config__poolsize', pool['name'])
       return if poolsize.nil?
+
       poolsize = Integer(poolsize)
       return if poolsize == pool['size']
+
       mutex.synchronize do
         pool['size'] = poolsize
       end
@@ -962,6 +973,7 @@ module Vmpooler
     def reset_pool(pool)
       poolname = pool['name']
       return unless $redis.sismember('vmpooler__poolreset', poolname)
+
       $redis.srem('vmpooler__poolreset', poolname)
       mutex = pool_mutex(poolname)
       mutex.synchronize do
@@ -992,9 +1004,9 @@ module Vmpooler
             inventory[vm['name']] = 1
           end
         end
-      rescue => err
-        $logger.log('s', "[!] [#{pool['name']}] _check_pool failed with an error while running create_inventory: #{err}")
-        raise(err)
+      rescue StandardError => e
+        $logger.log('s', "[!] [#{pool['name']}] _check_pool failed with an error while running create_inventory: #{e}")
+        raise(e)
       end
       inventory
     end
@@ -1006,8 +1018,8 @@ module Vmpooler
             vm_lifetime = $redis.hget('vmpooler__vm__' + vm, 'lifetime') || $config[:config]['vm_lifetime'] || 12
             pool_check_response[:checked_running_vms] += 1
             check_running_vm(vm, pool_name, vm_lifetime, provider)
-          rescue => err
-            $logger.log('d', "[!] [#{pool_name}] _check_pool with an error while evaluating running VMs: #{err}")
+          rescue StandardError => e
+            $logger.log('d', "[!] [#{pool_name}] _check_pool with an error while evaluating running VMs: #{e}")
           end
         else
           move_vm_queue(pool_name, vm, 'running', 'completed', 'is a running VM but is missing from inventory.  Marking as completed.')
@@ -1021,8 +1033,8 @@ module Vmpooler
           begin
             pool_check_response[:checked_ready_vms] += 1
             check_ready_vm(vm, pool_name, pool_ttl || 0, provider)
-          rescue => err
-            $logger.log('d', "[!] [#{pool_name}] _check_pool failed with an error while evaluating ready VMs: #{err}")
+          rescue StandardError => e
+            $logger.log('d', "[!] [#{pool_name}] _check_pool failed with an error while evaluating ready VMs: #{e}")
           end
         else
           move_vm_queue(pool_name, vm, 'ready', 'completed', 'is a ready VM but is missing from inventory.  Marking as completed.')
@@ -1037,8 +1049,8 @@ module Vmpooler
           begin
             pool_check_response[:checked_pending_vms] += 1
             check_pending_vm(vm, pool_name, pool_timeout, provider)
-          rescue => err
-            $logger.log('d', "[!] [#{pool_name}] _check_pool failed with an error while evaluating pending VMs: #{err}")
+          rescue StandardError => e
+            $logger.log('d', "[!] [#{pool_name}] _check_pool failed with an error while evaluating pending VMs: #{e}")
           end
         else
           fail_pending_vm(vm, pool_name, pool_timeout, false)
@@ -1052,11 +1064,11 @@ module Vmpooler
           begin
             pool_check_response[:destroyed_vms] += 1
             destroy_vm(vm, pool_name, provider)
-          rescue => err
+          rescue StandardError => e
             $redis.srem("vmpooler__completed__#{pool_name}", vm)
             $redis.hdel("vmpooler__active__#{pool_name}", vm)
             $redis.del("vmpooler__vm__#{vm}")
-            $logger.log('d', "[!] [#{pool_name}] _check_pool failed with an error while evaluating completed VMs: #{err}")
+            $logger.log('d', "[!] [#{pool_name}] _check_pool failed with an error while evaluating completed VMs: #{e}")
           end
         else
           $logger.log('s', "[!] [#{pool_name}] '#{vm}' not found in inventory, removed from 'completed' queue")
@@ -1068,22 +1080,18 @@ module Vmpooler
     end
 
     def check_discovered_pool_vms(pool_name)
-      begin
-        $redis.smembers("vmpooler__discovered__#{pool_name}").reverse.each do |vm|
-          %w[pending ready running completed].each do |queue|
-            if $redis.sismember("vmpooler__#{queue}__#{pool_name}", vm)
-              $logger.log('d', "[!] [#{pool_name}] '#{vm}' found in '#{queue}', removed from 'discovered' queue")
-              $redis.srem("vmpooler__discovered__#{pool_name}", vm)
-            end
-          end
-
-          if $redis.sismember("vmpooler__discovered__#{pool_name}", vm)
-            $redis.smove("vmpooler__discovered__#{pool_name}", "vmpooler__completed__#{pool_name}", vm)
+      $redis.smembers("vmpooler__discovered__#{pool_name}").reverse.each do |vm|
+        %w[pending ready running completed].each do |queue|
+          if $redis.sismember("vmpooler__#{queue}__#{pool_name}", vm)
+            $logger.log('d', "[!] [#{pool_name}] '#{vm}' found in '#{queue}', removed from 'discovered' queue")
+            $redis.srem("vmpooler__discovered__#{pool_name}", vm)
           end
         end
-      rescue => err
-        $logger.log('d', "[!] [#{pool_name}] _check_pool failed with an error while evaluating discovered VMs: #{err}")
+
+        $redis.smove("vmpooler__discovered__#{pool_name}", "vmpooler__completed__#{pool_name}", vm) if $redis.sismember("vmpooler__discovered__#{pool_name}", vm)
       end
+    rescue StandardError => e
+      $logger.log('d', "[!] [#{pool_name}] _check_pool failed with an error while evaluating discovered VMs: #{e}")
     end
 
     def check_migrating_pool_vms(pool_name, provider, pool_check_response, inventory)
@@ -1092,8 +1100,8 @@ module Vmpooler
           begin
             pool_check_response[:migrated_vms] += 1
             migrate_vm(vm, pool_name, provider)
-          rescue => err
-            $logger.log('s', "[x] [#{pool_name}] '#{vm}' failed to migrate: #{err}")
+          rescue StandardError => e
+            $logger.log('s', "[x] [#{pool_name}] '#{vm}' failed to migrate: #{e}")
           end
         end
       end
@@ -1101,6 +1109,7 @@ module Vmpooler
 
     def repopulate_pool_vms(pool_name, provider, pool_check_response, pool_size)
       return if pool_mutex(pool_name).locked?
+
       ready = $redis.scard("vmpooler__ready__#{pool_name}")
       total = $redis.scard("vmpooler__pending__#{pool_name}") + ready
 
@@ -1120,8 +1129,8 @@ module Vmpooler
             $redis.incr('vmpooler__tasks__clone')
             pool_check_response[:cloned_vms] += 1
             clone_vm(pool_name, provider)
-          rescue => err
-            $logger.log('s', "[!] [#{pool_name}] clone failed during check_pool with an error: #{err}")
+          rescue StandardError => e
+            $logger.log('s', "[!] [#{pool_name}] clone failed during check_pool with an error: #{e}")
             $redis.decr('vmpooler__tasks__clone')
             raise
           end
@@ -1142,7 +1151,7 @@ module Vmpooler
 
       begin
         inventory = create_inventory(pool, provider, pool_check_response)
-      rescue => err
+      rescue StandardError => e
         return(pool_check_response)
       end
 
@@ -1195,6 +1204,7 @@ module Vmpooler
       provider_klass = Vmpooler::PoolManager::Provider
       provider_klass.constants.each do |classname|
         next unless classname.to_s.casecmp(provider_class) == 0
+
         return provider_klass.const_get(classname).new(config, logger, metrics, provider_name, options)
       end
       raise("Provider '#{provider_class}' is unknown for pool with provider name '#{provider_name}'") if provider.nil?
@@ -1257,8 +1267,8 @@ module Vmpooler
         end
         begin
           $providers[provider_name] = create_provider_object($config, $logger, $metrics, provider_class, provider_name, {}) if $providers[provider_name].nil?
-        rescue => err
-          $logger.log('s', "Error while creating provider for pool #{pool['name']}: #{err}")
+        rescue StandardError => e
+          $logger.log('s', "Error while creating provider for pool #{pool['name']}: #{e}")
           raise
         end
       end
@@ -1294,6 +1304,7 @@ module Vmpooler
 
         unless maxloop.zero?
           break if loop_count >= maxloop
+
           loop_count += 1
         end
       end

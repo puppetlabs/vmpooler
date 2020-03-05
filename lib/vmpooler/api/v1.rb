@@ -37,22 +37,24 @@ module Vmpooler
     end
 
     def checkoutlock
-      Vmpooler::API::settings.checkoutlock
+      Vmpooler::API.settings.checkoutlock
     end
 
     def fetch_single_vm(template)
       template_backends = [template]
       aliases = Vmpooler::API.settings.config[:alias]
       if aliases
-        template_backends = template_backends + aliases[template] if aliases[template].is_a?(Array)
+        template_backends += aliases[template] if aliases[template].is_a?(Array)
         template_backends << aliases[template] if aliases[template].is_a?(String)
         pool_index = pool_index(pools)
         weighted_pools = {}
         template_backends.each do |t|
           next unless pool_index.key? t
+
           index = pool_index[t]
           clone_target = pools[index]['clone_target'] || config['clone_target']
           next unless config.key?('backend_weight')
+
           weight = config['backend_weight'][clone_target]
           if weight
             weighted_pools[t] = weight
@@ -75,6 +77,7 @@ module Vmpooler
         template_backends.each do |template_backend|
           vms = backend.smembers("vmpooler__ready__#{template_backend}")
           next if vms.empty?
+
           vms.reverse.each do |vm|
             ready = vm_ready?(vm, config['domain'])
             if ready
@@ -104,7 +107,7 @@ module Vmpooler
 
         backend.hset('vmpooler__vm__' + vm, 'token:token', request.env['HTTP_X_AUTH_TOKEN'])
         backend.hset('vmpooler__vm__' + vm, 'token:user',
-          backend.hget('vmpooler__token__' + request.env['HTTP_X_AUTH_TOKEN'], 'user')
+                     backend.hget('vmpooler__token__' + request.env['HTTP_X_AUTH_TOKEN'], 'user')
         )
 
         if config['vm_lifetime_auth'].to_i > 0
@@ -136,14 +139,14 @@ module Vmpooler
             metrics.increment('checkout.empty.' + requested)
             break
           else
-            vms << [ vmpool, vmname, vmtemplate ]
+            vms << [vmpool, vmname, vmtemplate]
             metrics.increment('checkout.success.' + vmtemplate)
           end
         end
       end
 
       if failed
-        vms.each do |(vmpool, vmname, vmtemplate)|
+        vms.each do |(vmpool, vmname, _vmtemplate)|
           return_vm_to_ready_state(vmpool, vmname)
         end
         status 503
@@ -203,7 +206,7 @@ module Vmpooler
     def reset_pool(payload)
       result = { 'ok' => false }
 
-      payload.each do |poolname, count|
+      payload.each do |poolname, _count|
         backend.sadd('vmpooler__poolreset', poolname)
       end
       status 201
@@ -234,42 +237,36 @@ module Vmpooler
     def sync_pool_templates
       pool_index = pool_index(pools)
       template_configs = backend.hgetall('vmpooler__config__template')
-      unless template_configs.nil?
-        template_configs.each do |poolname, template|
+      template_configs&.each do |poolname, template|
           if pool_index.include? poolname
             unless pools[pool_index[poolname]]['template'] == template
               pools[pool_index[poolname]]['template'] = template
             end
           end
-        end
       end
     end
 
     def sync_pool_sizes
       pool_index = pool_index(pools)
       poolsize_configs = backend.hgetall('vmpooler__config__poolsize')
-      unless poolsize_configs.nil?
-        poolsize_configs.each do |poolname, size|
+      poolsize_configs&.each do |poolname, size|
           if pool_index.include? poolname
             unless pools[pool_index[poolname]]['size'] == size.to_i
               pools[pool_index[poolname]]['size'] == size.to_i
             end
           end
-        end
       end
     end
 
     def sync_clone_targets
       pool_index = pool_index(pools)
       clone_target_configs = backend.hgetall('vmpooler__config__clone_target')
-      unless clone_target_configs.nil?
-        clone_target_configs.each do |poolname, clone_target|
+      clone_target_configs&.each do |poolname, clone_target|
           if pool_index.include? poolname
             unless pools[pool_index[poolname]]['clone_target'] == clone_target
               pools[pool_index[poolname]]['clone_target'] == clone_target
               end
           end
-        end
       end
     end
 
@@ -368,36 +365,38 @@ module Vmpooler
       pending_hash = get_list_across_pools_redis_scard(pools, 'vmpooler__pending__', backend)
       lastBoot_hash = get_list_across_pools_redis_hget(pools, 'vmpooler__lastboot', backend)
 
-      pools.each do |pool|
-        # REMIND: move this out of the API and into the back-end
-        ready    = ready_hash[pool['name']]
-        running  = running_hash[pool['name']]
-        pending  = pending_hash[pool['name']]
-        max      = pool['size']
-        lastBoot = lastBoot_hash[pool['name']]
-        aka      = pool['alias']
+      unless views and not views.include?("pools")
+        pools.each do |pool|
+          # REMIND: move this out of the API and into the back-end
+          ready    = ready_hash[pool['name']]
+          running  = running_hash[pool['name']]
+          pending  = pending_hash[pool['name']]
+          max      = pool['size']
+          lastBoot = lastBoot_hash[pool['name']]
+          aka      = pool['alias']
 
-        result[:pools][pool['name']] = {
-          ready:    ready,
-          running:  running,
-          pending:  pending,
-          max:      max,
-          lastBoot: lastBoot
-        }
+          result[:pools][pool['name']] = {
+            ready: ready,
+            running: running,
+            pending: pending,
+            max: max,
+            lastBoot: lastBoot
+          }
 
-        if aka
-          result[:pools][pool['name']][:alias] = aka
+          if aka
+            result[:pools][pool['name']][:alias] = aka
+          end
+
+          # for backwards compatibility, include separate "empty" stats in "status" block
+          if ready == 0
+            result[:status][:empty] ||= []
+            result[:status][:empty].push(pool['name'])
+
+            result[:status][:ok] = false
+            result[:status][:message] = "Found #{result[:status][:empty].length} empty pools."
+          end
         end
-
-        # for backwards compatibility, include separate "empty" stats in "status" block
-        if ready == 0
-          result[:status][:empty] ||= []
-          result[:status][:empty].push(pool['name'])
-
-          result[:status][:ok] = false
-          result[:status][:message] = "Found #{result[:status][:empty].length} empty pools."
-        end
-      end unless views and not views.include?("pools")
+      end
 
       result[:status][:uptime] = (Time.now - Vmpooler::API.settings.config[:uptime]).round(1) if Vmpooler::API.settings.config[:uptime]
 
@@ -442,7 +441,6 @@ module Vmpooler
         if aka
           result[:pools][pool['name']][:alias] = aka
         end
-
       end
 
       ready_hash = get_list_across_pools_redis_scard(poolscopy, 'vmpooler__ready__', backend)
@@ -456,7 +454,7 @@ module Vmpooler
     get "#{api_prefix}/totalrunning/?" do
       content_type :json
       queue = {
-          running:   0,
+          running: 0
       }
 
       queue[:running] = get_total_across_pools_redis_scard(pools, 'vmpooler__running__', backend)
@@ -753,7 +751,7 @@ module Vmpooler
 
     def invalid_pool(payload)
       invalid = []
-      payload.each do |pool, clone_target|
+      payload.each do |pool, _clone_target|
         invalid << pool unless pool_exists?(pool)
       end
       invalid
@@ -837,7 +835,7 @@ module Vmpooler
         # Look up IP address of the hostname
         begin
           ipAddress = TCPSocket.gethostbyname(params[:hostname])[3]
-        rescue
+        rescue StandardError
           ipAddress = ""
         end
 
@@ -893,7 +891,7 @@ module Vmpooler
       if backend.exists('vmpooler__vm__' + params[:hostname])
         begin
           jdata = JSON.parse(request.body.read)
-        rescue
+        rescue StandardError
           halt 400, JSON.pretty_generate(result)
         end
 

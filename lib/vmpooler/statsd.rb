@@ -6,9 +6,7 @@ module Vmpooler
     attr_reader :server, :port, :prefix
 
     def initialize(params = {})
-      if params['server'].nil? || params['server'].empty?
-        raise ArgumentError, "Statsd server is required. Config: #{params.inspect}"
-      end
+      raise ArgumentError, "Statsd server is required. Config: #{params.inspect}" if params['server'].nil? || params['server'].empty?
 
       host    = params['server']
       @port   = params['port'] || 8125
@@ -18,20 +16,20 @@ module Vmpooler
 
     def increment(label)
       server.increment(prefix + '.' + label)
-    rescue => err
-      $stderr.puts "Failure incrementing #{prefix}.#{label} on statsd server [#{server}:#{port}]: #{err}"
+    rescue StandardError => e
+      warn "Failure incrementing #{prefix}.#{label} on statsd server [#{server}:#{port}]: #{e}"
     end
 
     def gauge(label, value)
       server.gauge(prefix + '.' + label, value)
-    rescue => err
-      $stderr.puts "Failure updating gauge #{prefix}.#{label} on statsd server [#{server}:#{port}]: #{err}"
+    rescue StandardError => e
+      warn "Failure updating gauge #{prefix}.#{label} on statsd server [#{server}:#{port}]: #{e}"
     end
 
     def timing(label, duration)
       server.timing(prefix + '.' + label, duration)
-    rescue => err
-      $stderr.puts "Failure updating timing #{prefix}.#{label} on statsd server [#{server}:#{port}]: #{err}"
+    rescue StandardError => e
+      warn "Failure updating timing #{prefix}.#{label} on statsd server [#{server}:#{port}]: #{e}"
     end
   end
 end

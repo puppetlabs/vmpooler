@@ -222,7 +222,7 @@ module Vmpooler
         #   [Hash] pool : Configuration for the pool
         # returns
         #   nil when successful. Raises error when encountered
-        def create_template_delta_disks(pool)
+        def create_template_delta_disks(_pool)
           raise("#{self.class.name} does not implement create_template_delta_disks")
         end
 
@@ -230,11 +230,11 @@ module Vmpooler
         #   [String] provider_name : Name of the provider
         # returns
         #   Hash of folders
-        def get_target_datacenter_from_config(provider_name)
+        def get_target_datacenter_from_config(_provider_name)
           raise("#{self.class.name} does not implement get_target_datacenter_from_config")
         end
 
-        def purge_unconfigured_folders(base_folders, configured_folders, whitelist)
+        def purge_unconfigured_folders(_base_folders, _configured_folders, _whitelist)
           raise("#{self.class.name} does not implement purge_unconfigured_folders")
         end
       end
