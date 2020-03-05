@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'vmpooler/providers/base'
 
 module Vmpooler
@@ -481,9 +483,9 @@ module Vmpooler
         end
 
         # vSphere helper methods
-        ADAPTER_TYPE = 'lsiLogic'.freeze
-        DISK_TYPE = 'thin'.freeze
-        DISK_MODE = 'persistent'.freeze
+        ADAPTER_TYPE = 'lsiLogic'
+        DISK_TYPE = 'thin'
+        DISK_MODE = 'persistent'
 
         def ensured_vsphere_connection(connection_pool_object)
           connection_pool_object[:connection] = connect_to_vsphere unless vsphere_connection_ok?(connection_pool_object[:connection])

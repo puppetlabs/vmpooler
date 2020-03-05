@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Vmpooler
   require 'date'
   require 'json'
@@ -41,7 +43,7 @@ module Vmpooler
 
     # Bail out if someone attempts to start vmpooler with dummy authentication
     # without enbaling debug mode.
-    if parsed_config.has_key? :auth
+    if parsed_config.key? :auth
       if parsed_config[:auth]['provider'] == 'dummy'
         unless ENV['VMPOOLER_DEBUG']
           warning = [
@@ -94,7 +96,7 @@ module Vmpooler
     parsed_config[:graphite]['port'] = string_to_int(ENV['GRAPHITE_PORT']) if ENV['GRAPHITE_PORT']
 
     parsed_config[:auth] = parsed_config[:auth] || {} if ENV['AUTH_PROVIDER']
-    if parsed_config.has_key? :auth
+    if parsed_config.key? :auth
       parsed_config[:auth]['provider'] = ENV['AUTH_PROVIDER'] if ENV['AUTH_PROVIDER']
       parsed_config[:auth][:ldap] = parsed_config[:auth][:ldap] || {} if parsed_config[:auth]['provider'] == 'ldap'
       parsed_config[:auth][:ldap]['host'] = ENV['LDAP_HOST'] if ENV['LDAP_HOST']

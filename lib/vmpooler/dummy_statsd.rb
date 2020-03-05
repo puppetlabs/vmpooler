@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Vmpooler
   class DummyStatsd
     attr_reader :server, :port, :prefix
