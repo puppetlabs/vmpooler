@@ -16,7 +16,7 @@ module Vmpooler
 
       puts "[#{stamp}] #{string}" if ENV['VMPOOLER_DEBUG']
 
-      open(@file, 'a') do |f|
+      File.open(@file, 'a') do |f|
         f.puts "[#{stamp}] #{string}"
       end
     end
