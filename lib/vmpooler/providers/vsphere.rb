@@ -75,7 +75,7 @@ module Vmpooler
           vm_object.PowerOffVM_Task.wait_for_completion if vm_object.runtime&.powerState && vm_object.runtime.powerState == 'poweredOn'
           vm_object.Destroy_Task.wait_for_completion
 
-          finish = format('%.2f', Time.now - start)
+          finish = format('%<time>.2f', time: Time.now - start)
           logger.log('s', "[-] [#{pool}] '#{vm_name}' destroyed in #{finish} seconds")
           metrics.timing("destroy.#{pool}", finish)
         rescue RuntimeError
@@ -1008,11 +1008,11 @@ module Vmpooler
         def migrate_vm_and_record_timing(pool_name, vm_name, vm_hash, target_host_object, dest_host_name)
           start = Time.now
           migrate_vm_host(vm_hash['object'], target_host_object)
-          finish = format('%.2f', Time.now - start)
+          finish = format('%<time>.2f', time: Time.now - start)
           metrics.timing("migrate.#{pool_name}", finish)
           metrics.increment("migrate_from.#{vm_hash['host_name']}")
           metrics.increment("migrate_to.#{dest_host_name}")
-          checkout_to_migration = format('%.2f', Time.now - Time.parse($redis.hget("vmpooler__vm__#{vm_name}", 'checkout')))
+          checkout_to_migration = format('%<time>.2f', time: Time.now - Time.parse($redis.hget("vmpooler__vm__#{vm_name}", 'checkout')))
           $redis.hset("vmpooler__vm__#{vm_name}", 'migration_time', finish)
           $redis.hset("vmpooler__vm__#{vm_name}", 'checkout_to_migration', checkout_to_migration)
           finish
