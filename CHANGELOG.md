@@ -22,9 +22,6 @@ git logs & PR history.
 - Fix Redis update during migration to better reflect actual state (POOLER-154)
 - Update Rubocop config, now we can actually see all the failing cops
 
-## [0.10.2](https://github.com/puppetlabs/vmpooler/compare/0.10.1...0.10.2)
-
-
 ## [0.10.2](https://github.com/puppetlabs/vmpooler/compare/0.9.1...0.10.2)
 
 ### Added
