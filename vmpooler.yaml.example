@@ -504,6 +504,12 @@
 #     lifetime (by checking how long it has already been running).
 #     (optional; default: unlimited)
 #
+#   - extra_config
+#     Specify additional application configuration files
+#     The argument can accept a full path to a file, or multiple files comma separated.
+#     Expects a string value
+#     (optional)
+#
 # Example:
 
 :config:

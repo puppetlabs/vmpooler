@@ -30,6 +30,7 @@ describe 'Vmpooler' do
         ['experimental_features', test_bool, nil],
         ['purge_unconfigured_folders', test_bool, nil],
         ['usage_stats', test_bool, nil],
+        ['extra_config', test_string, nil],
       ]
 
       test_cases.each do |key, value, default|

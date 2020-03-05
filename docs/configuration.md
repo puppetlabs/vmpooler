@@ -176,6 +176,13 @@ https://jenkins.example.com/job/platform\_puppet-agent-extra\_puppet-agent-integ
 Expects a boolean value
 (optional; default: false)
 
+### EXTRA\_CONFIG
+
+Specify additional application configuration files
+The argument can accept a full path to a file, or multiple files comma separated.
+Expects a string value
+(optional)
+
 ## API options <a name="API"></a>
 
 ### AUTH\_PROVIDER
