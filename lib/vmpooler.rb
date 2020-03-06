@@ -198,7 +198,7 @@ module Vmpooler
     obj.to_s.downcase == 'true'
   end
 
-  def self.set_linked_clone(parsed_config)
+  def self.set_linked_clone(parsed_config) # rubocop:disable Naming/AccessorMethodName
     parsed_config[:config]['create_linked_clones'] = parsed_config[:config]['create_linked_clones'] || true
     parsed_config[:config]['create_linked_clones'] = ENV['CREATE_LINKED_CLONES'] if ENV['CREATE_LINKED_CLONES'] =~ /true|false/
     parsed_config[:config]['create_linked_clones'] = true?(parsed_config[:config]['create_linked_clones']) if parsed_config[:config]['create_linked_clones']
