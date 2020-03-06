@@ -206,7 +206,7 @@ module Vmpooler
           loop_count = 1
           until target.key?(dc) && target[dc].key?('check_time_finished')
             sleep(loop_delay)
-            unless maxloop.zero?
+            unless maxloop == 0
               break if loop_count >= maxloop
 
               loop_count += 1
@@ -217,7 +217,7 @@ module Vmpooler
           loop_count = 1
           while Time.now - target[dc]['check_time_finished'] > max_age
             sleep(loop_delay)
-            unless maxloop.zero?
+            unless maxloop == 0
               break if loop_count >= maxloop
 
               loop_count += 1

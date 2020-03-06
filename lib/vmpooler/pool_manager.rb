@@ -619,7 +619,7 @@ module Vmpooler
           _check_disk_queue
           sleep(loop_delay)
 
-          unless maxloop.zero?
+          unless maxloop == 0
             break if loop_count >= maxloop
 
             loop_count += 1
@@ -655,7 +655,7 @@ module Vmpooler
           _check_snapshot_queue
           sleep(loop_delay)
 
-          unless maxloop.zero?
+          unless maxloop == 0
             break if loop_count >= maxloop
 
             loop_count += 1
@@ -816,7 +816,7 @@ module Vmpooler
             end
             sleep_with_wakeup_events(loop_delay, loop_delay_min, pool_size_change: true, poolname: pool['name'], pool_template_change: true, clone_target_change: true, pool_reset: true)
 
-            unless maxloop.zero?
+            unless maxloop == 0
               break if loop_count >= maxloop
 
               loop_count += 1
@@ -1119,8 +1119,8 @@ module Vmpooler
       $metrics.gauge("running.#{pool_name}", $redis.scard("vmpooler__running__#{pool_name}"))
 
       if $redis.get("vmpooler__empty__#{pool_name}")
-        $redis.del("vmpooler__empty__#{pool_name}") unless ready.zero?
-      elsif ready.zero?
+        $redis.del("vmpooler__empty__#{pool_name}") unless ready == 0
+      elsif ready == 0
         $redis.set("vmpooler__empty__#{pool_name}", 'true')
         $logger.log('s', "[!] [#{pool_name}] is empty")
       end
@@ -1304,7 +1304,7 @@ module Vmpooler
 
         sleep(loop_delay)
 
-        unless maxloop.zero?
+        unless maxloop == 0
           break if loop_count >= maxloop
 
           loop_count += 1
