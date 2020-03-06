@@ -2,26 +2,25 @@ require 'pathname'
 
 module Vmpooler
   class Providers
-
     # @param names [Array] - an array of names or string name of a provider
     # @return [Array] - list of provider files loaded
     # ie. ["lib/vmpooler/providers/base.rb", "lib/vmpooler/providers/dummy.rb", "lib/vmpooler/providers/vsphere.rb"]
     def self.load_by_name(names)
       names = Array(names)
-      instance = self.new
-      names.map {|name| instance.load_from_gems(name)}.flatten
+      instance = new
+      names.map { |name| instance.load_from_gems(name) }.flatten
     end
 
     # @return [Array] - array of provider files
     # ie. ["lib/vmpooler/providers/base.rb", "lib/vmpooler/providers/dummy.rb", "lib/vmpooler/providers/vsphere.rb"]
     # although these files can come from any gem
     def self.load_all_providers
-      self.new.load_from_gems
+      new.load_from_gems
     end
 
     # @return [Array] - returns an array of gem names that contain a provider
     def self.installed_providers
-      self.new.vmpooler_provider_gem_list.map(&:name)
+      new.vmpooler_provider_gem_list.map(&:name)
     end
 
     # @return [Array] returns a list of vmpooler providers gem plugin specs
@@ -50,7 +49,7 @@ module Vmpooler
     # @return [String] - the relative path to the vmpooler provider dir
     # this is used when searching gems for this path
     def provider_path
-      File.join('lib','vmpooler','providers')
+      File.join('lib', 'vmpooler', 'providers')
     end
 
     # Add constants to array to skip over classes, ie. Vmpooler::PoolManager::Provider::Dummy
@@ -81,8 +80,6 @@ module Vmpooler
       @plugin_map ||= Hash[plugin_classes.map { |gem| [gem.send(:name), gem] }]
     end
 
-
-
     # Internal: Retrieve a list of available gem paths from RubyGems.
     #
     # Returns an Array of Pathname objects.
@@ -90,11 +87,11 @@ module Vmpooler
       dirs = []
       if has_rubygems?
         dirs = gemspecs.map do |spec|
-          lib_path = File.expand_path(File.join(spec.full_gem_path,provider_path))
-          lib_path if File.exists? lib_path
+          lib_path = File.expand_path(File.join(spec.full_gem_path, provider_path))
+          lib_path if File.exist? lib_path
         end + included_lib_dirs
       end
-      dirs.reject { |dir| dir.nil? }.uniq
+      dirs.reject(&:nil?).uniq
     end
 
     # Internal: Check if RubyGems is loaded and available.
@@ -114,6 +111,5 @@ module Vmpooler
                       Gem.searcher.init_gemspecs
                     end
     end
-
   end
 end

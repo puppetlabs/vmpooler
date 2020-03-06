@@ -71,6 +71,7 @@ module Vmpooler
         )
 
         return true if ldap.bind
+
         return false
       end
 
@@ -90,7 +91,7 @@ module Vmpooler
                   auth[:ldap]['user_object'],
                   search_base,
                   username_str,
-                  password_str,
+                  password_str
                 )
                 return true if result == true
               end
@@ -101,7 +102,7 @@ module Vmpooler
                 auth[:ldap]['user_object'],
                 ldap_base,
                 username_str,
-                password_str,
+                password_str
               )
               return result
             end
@@ -124,6 +125,7 @@ module Vmpooler
 
         tags.each_pair do |tag, value|
           next unless filter = Vmpooler::API.settings.config[:tagfilter][tag]
+
           tags[tag] = value.match(filter).captures.join if value.match(filter)
         end
 
@@ -161,7 +163,7 @@ module Vmpooler
             backend.scard(key + pool['name'])
           end
         end
-        res.inject(0){ |m, x| m+x }.to_i
+        res.inject(0) { |m, x| m + x }.to_i
       end
 
       # Takes the pools and a key to run scard on
@@ -201,12 +203,12 @@ module Vmpooler
       def get_capacity_metrics(pools, backend)
         capacity = {
             current: 0,
-            total:   0,
+            total: 0,
             percent: 0
         }
 
         pools.each do |pool|
-          capacity[:total]   += pool['size'].to_i
+          capacity[:total] += pool['size'].to_i
         end
 
         capacity[:current] = get_total_across_pools_redis_scard(pools, 'vmpooler__ready__', backend)
@@ -220,16 +222,16 @@ module Vmpooler
 
       def get_queue_metrics(pools, backend)
         queue = {
-            pending:   0,
-            cloning:   0,
-            booting:   0,
-            ready:     0,
-            running:   0,
+            pending: 0,
+            cloning: 0,
+            booting: 0,
+            ready: 0,
+            running: 0,
             completed: 0,
-            total:     0
+            total: 0
         }
 
-        queue[:pending]   = get_total_across_pools_redis_scard(pools,'vmpooler__pending__', backend)
+        queue[:pending]   = get_total_across_pools_redis_scard(pools, 'vmpooler__pending__', backend)
         queue[:ready]     = get_total_across_pools_redis_scard(pools, 'vmpooler__ready__', backend)
         queue[:running]   = get_total_across_pools_redis_scard(pools, 'vmpooler__running__', backend)
         queue[:completed] = get_total_across_pools_redis_scard(pools, 'vmpooler__completed__', backend)
@@ -306,11 +308,11 @@ module Vmpooler
         task = {
             duration: {
                 average: 0,
-                min:     0,
-                max:     0,
-                total:   0
+                min: 0,
+                max: 0,
+                total: 0
             },
-            count:    {
+            count: {
                 total: 0
             }
         }
@@ -450,7 +452,7 @@ module Vmpooler
       def pool_index(pools)
         pools_hash = {}
         index = 0
-        for pool in pools
+        pools.each do |pool|
           pools_hash[pool['name']] = index
           index += 1
         end
@@ -461,13 +463,14 @@ module Vmpooler
         prepared_template = backend.hget('vmpooler__template__prepared', pool['name'])
         return false if prepared_template.nil?
         return true if pool['template'] == prepared_template
+
         return false
       end
 
       def is_integer?(x)
         Integer(x)
         true
-      rescue
+      rescue StandardError
         false
       end
 
@@ -487,7 +490,7 @@ module Vmpooler
       def vm_ready?(vm_name, domain = nil)
         begin
           open_socket(vm_name, domain)
-        rescue => _err
+        rescue StandardError => _e
           return false
         end
 

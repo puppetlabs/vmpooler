@@ -49,6 +49,4 @@ if ENV['VMPOOLER_DEBUG']
   end
 end
 
-torun_threads.each do |th|
-  th.join
-end
+torun_threads.each(&:join)

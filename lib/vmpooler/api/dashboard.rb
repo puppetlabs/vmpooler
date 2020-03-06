@@ -1,7 +1,6 @@
 module Vmpooler
   class API
     class Dashboard < Sinatra::Base
-
       helpers do
         include Vmpooler::API::Helpers
       end
@@ -21,9 +20,11 @@ module Vmpooler
 
         if config[:graphs]
           return false unless config[:graphs]['server']
+
           @graph_server = config[:graphs]['server']
         elsif config[:graphite]
           return false unless config[:graphite]['server']
+
           @graph_server = config[:graphite]['server']
         else
           false
@@ -36,9 +37,11 @@ module Vmpooler
 
         if config[:graphs]
           return 'vmpooler' unless config[:graphs]['prefix']
+
           @graph_prefix = config[:graphs]['prefix']
         elsif config[:graphite]
           return false unless config[:graphite]['prefix']
+
           @graph_prefix = config[:graphite]['prefix']
         else
           false
@@ -48,12 +51,14 @@ module Vmpooler
       # what is the base URL for viewable graphs?
       def graph_url
         return false unless graph_server && graph_prefix
+
         @graph_url ||= "http://#{graph_server}/render?target=#{graph_prefix}"
       end
 
       # return a full URL to a viewable graph for a given metrics target (graphite syntax)
       def graph_link(target = '')
         return '' unless graph_url
+
         graph_url + target
       end
 
@@ -100,7 +105,7 @@ module Vmpooler
                   end
                 end
               end
-            rescue
+            rescue StandardError
             end
           else
             pools.each do |pool|
@@ -147,7 +152,7 @@ module Vmpooler
                   end
                 end
               end
-            rescue
+            rescue StandardError
             end
           end
         end

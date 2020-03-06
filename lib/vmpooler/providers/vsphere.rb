@@ -50,7 +50,8 @@ module Vmpooler
           end
           return false unless configured_folders.keys.include?(folder_title)
           return false unless configured_folders[folder_title] == base_folder
-          return true
+
+          true
         end
 
         def destroy_vm_and_log(vm_name, vm_object, pool, data_ttl)
@@ -69,7 +70,7 @@ module Vmpooler
             logger.log('s', "[!] [#{pool}] '#{vm_name}' is a folder, bailing on destroying")
             raise('Expected VM, but received a folder object')
           end
-          vm_object.PowerOffVM_Task.wait_for_completion if vm_object.runtime && vm_object.runtime.powerState && vm_object.runtime.powerState == 'poweredOn'
+          vm_object.PowerOffVM_Task.wait_for_completion if vm_object.runtime&.powerState && vm_object.runtime.powerState == 'poweredOn'
           vm_object.Destroy_Task.wait_for_completion
 
           finish = format('%.2f', Time.now - start)
@@ -77,9 +78,9 @@ module Vmpooler
           metrics.timing("destroy.#{pool}", finish)
         rescue RuntimeError
           raise
-        rescue => err
+        rescue StandardError => e
           try += 1
-          logger.log('s', "[!] [#{pool}] failed to destroy '#{vm_name}' with an error: #{err}")
+          logger.log('s', "[!] [#{pool}] failed to destroy '#{vm_name}' with an error: #{e}")
           try >= max_tries ? raise : retry
         end
 
@@ -104,7 +105,7 @@ module Vmpooler
           max_tries = 3
           logger.log('s', "[-] [#{folder_object.name}] removing unconfigured folder")
           folder_object.Destroy_Task.wait_for_completion
-        rescue
+        rescue StandardError
           try += 1
           try >= max_tries ? raise : retry
         end
@@ -118,9 +119,7 @@ module Vmpooler
               unless folder_children.empty?
                 folder_children.each do |folder_hash|
                   folder_hash.each do |folder_title, folder_object|
-                    unless folder_configured?(folder_title, base_folder, configured_folders, whitelist)
-                      destroy_folder_and_children(folder_object)
-                    end
+                    destroy_folder_and_children(folder_object) unless folder_configured?(folder_title, base_folder, configured_folders, whitelist)
                   end
                 end
               end
@@ -132,8 +131,8 @@ module Vmpooler
           folders = []
 
           propSpecs = {
-            :entity => self,
-            :inventoryPath => folder_name
+            entity: self,
+            inventoryPath: folder_name
           }
           folder_object = connection.searchIndex.FindByInventoryPath(propSpecs)
 
@@ -141,6 +140,7 @@ module Vmpooler
 
           folder_object.childEntity.each do |folder|
             next unless folder.is_a? RbVmomi::VIM::Folder
+
             folders << { folder.name => folder }
           end
 
@@ -171,9 +171,9 @@ module Vmpooler
               target[dc]['checking'] = true
               hosts_hash = find_least_used_hosts(cluster, datacenter, percentage)
               target[dc] = hosts_hash
-            rescue => _err
+            rescue StandardError => _e
               target[dc] = {}
-              raise(_err)
+              raise(_e)
             ensure
               target[dc]['check_time_finished'] = Time.now
             end
@@ -188,36 +188,36 @@ module Vmpooler
           cluster = get_target_cluster_from_config(pool_name)
           raise("cluster for pool #{pool_name} cannot be identified") if cluster.nil?
           raise("datacenter for pool #{pool_name} cannot be identified") if datacenter.nil?
+
           dc = "#{datacenter}_#{cluster}"
           unless target.key?(dc)
             select_target_hosts(target, cluster, datacenter)
             return
           end
-          if target[dc].key?('checking')
-            wait_for_host_selection(dc, target, loop_delay, max_age)
-          end
+          wait_for_host_selection(dc, target, loop_delay, max_age) if target[dc].key?('checking')
           if target[dc].key?('check_time_finished')
-            if now - target[dc]['check_time_finished'] > max_age
-              select_target_hosts(target, cluster, datacenter)
-            end
+            select_target_hosts(target, cluster, datacenter) if now - target[dc]['check_time_finished'] > max_age
           end
         end
 
         def wait_for_host_selection(dc, target, maxloop = 0, loop_delay = 1, max_age = 60)
           loop_count = 1
-          until target.key?(dc) and target[dc].key?('check_time_finished')
+          until target.key?(dc) && target[dc].key?('check_time_finished')
             sleep(loop_delay)
             unless maxloop.zero?
               break if loop_count >= maxloop
+
               loop_count += 1
             end
           end
           return unless target[dc].key?('check_time_finished')
+
           loop_count = 1
           while Time.now - target[dc]['check_time_finished'] > max_age
             sleep(loop_delay)
             unless maxloop.zero?
               break if loop_count >= maxloop
+
               loop_count += 1
             end
           end
@@ -228,10 +228,12 @@ module Vmpooler
           cluster = get_target_cluster_from_config(pool_name)
           raise("cluster for pool #{pool_name} cannot be identified") if cluster.nil?
           raise("datacenter for pool #{pool_name} cannot be identified") if datacenter.nil?
+
           dc = "#{datacenter}_#{cluster}"
           @provider_hosts_lock.synchronize do
             if architecture
               raise("there is no candidate in vcenter that meets all the required conditions, that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory") unless target[dc].key?('architectures')
+
               host = target[dc]['architectures'][architecture].shift
               target[dc]['architectures'][architecture] << host
               if target[dc]['hosts'].include?(host)
@@ -241,12 +243,11 @@ module Vmpooler
               return host
             else
               raise("there is no candidate in vcenter that meets all the required conditions, that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory") unless target[dc].key?('hosts')
+
               host = target[dc]['hosts'].shift
               target[dc]['hosts'] << host
               target[dc]['architectures'].each do |arch|
-                if arch.include?(host)
-                  target[dc]['architectures'][arch] = arch.partition { |v| v != host }.flatten
-                end
+                target[dc]['architectures'][arch] = arch.partition { |v| v != host }.flatten if arch.include?(host)
               end
               return host
             end
@@ -258,11 +259,13 @@ module Vmpooler
           cluster = get_target_cluster_from_config(pool_name)
           raise("cluster for pool #{pool_name} cannot be identified") if cluster.nil?
           raise("datacenter for pool #{pool_name} cannot be identified") if datacenter.nil?
+
           dc = "#{datacenter}_#{cluster}"
           raise("there is no candidate in vcenter that meets all the required conditions, that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory") unless target[dc].key?('hosts')
           return true if target[dc]['hosts'].include?(parent_host)
           return true if target[dc]['architectures'][architecture].include?(parent_host)
-          return false
+
+          false
         end
 
         def get_vm(pool_name, vm_name)
@@ -280,6 +283,7 @@ module Vmpooler
         def create_vm(pool_name, new_vmname)
           pool = pool_config(pool_name)
           raise("Pool #{pool_name} does not exist for the provider #{name}") if pool.nil?
+
           vm_hash = nil
           @connection_pool.with_metrics do |pool_object|
             connection = ensured_vsphere_connection(pool_object)
@@ -322,7 +326,7 @@ module Vmpooler
               host_object = find_host_by_dnsname(connection, target_host)
               relocate_spec.host = host_object
             else
-            # Choose a cluster/host to place the new VM on
+              # Choose a cluster/host to place the new VM on
               target_cluster_object = find_cluster(target_cluster_name, connection, target_datacenter_name)
               relocate_spec.pool = target_cluster_object.resourcePool
             end
@@ -337,14 +341,12 @@ module Vmpooler
 
             begin
               vm_target_folder = find_vm_folder(pool_name, connection)
-              if vm_target_folder.nil? and @config[:config].key?('create_folders') and @config[:config]['create_folders'] == true
-                vm_target_folder = create_folder(connection, target_folder_path, target_datacenter_name)
-              end
-            rescue => _err
-              if @config[:config].key?('create_folders') and @config[:config]['create_folders'] == true
+              vm_target_folder = create_folder(connection, target_folder_path, target_datacenter_name) if vm_target_folder.nil? && @config[:config].key?('create_folders') && (@config[:config]['create_folders'] == true)
+            rescue StandardError => _e
+              if @config[:config].key?('create_folders') && (@config[:config]['create_folders'] == true)
                 vm_target_folder = create_folder(connection, target_folder_path, target_datacenter_name)
               else
-                raise(_err)
+                raise(_e)
               end
             end
 
@@ -418,7 +420,7 @@ module Vmpooler
             return true if vm_object.nil?
 
             # Poweroff the VM if it's running
-            vm_object.PowerOffVM_Task.wait_for_completion if vm_object.runtime && vm_object.runtime.powerState && vm_object.runtime.powerState == 'poweredOn'
+            vm_object.PowerOffVM_Task.wait_for_completion if vm_object.runtime&.powerState && vm_object.runtime.powerState == 'poweredOn'
 
             # Kill it with fire
             vm_object.Destroy_Task.wait_for_completion
@@ -429,7 +431,7 @@ module Vmpooler
         def vm_ready?(_pool_name, vm_name)
           begin
             open_socket(vm_name, global_config[:config]['domain'])
-          rescue => _err
+          rescue StandardError => _e
             return false
           end
 
@@ -464,9 +466,9 @@ module Vmpooler
           pool_configuration = pool_config(pool_name)
           return nil if pool_configuration.nil?
 
-          hostname = vm_object.summary.guest.hostName if vm_object.summary && vm_object.summary.guest && vm_object.summary.guest.hostName
-          boottime = vm_object.runtime.bootTime if vm_object.runtime && vm_object.runtime.bootTime
-          powerstate = vm_object.runtime.powerState if vm_object.runtime && vm_object.runtime.powerState
+          hostname = vm_object.summary.guest.hostName if vm_object.summary&.guest && vm_object.summary.guest.hostName
+          boottime = vm_object.runtime.bootTime if vm_object.runtime&.bootTime
+          powerstate = vm_object.runtime.powerState if vm_object.runtime&.powerState
 
           hash = {
             'name' => vm_object.name,
@@ -474,7 +476,7 @@ module Vmpooler
             'template' => pool_configuration['template'],
             'poolname' => pool_name,
             'boottime' => boottime,
-            'powerstate' => powerstate,
+            'powerstate' => powerstate
           }
 
           hash
@@ -492,9 +494,9 @@ module Vmpooler
 
         def vsphere_connection_ok?(connection)
           _result = connection.serviceInstance.CurrentTime
-          return true
-        rescue
-          return false
+          true
+        rescue StandardError
+          false
         end
 
         def connect_to_vsphere
@@ -507,10 +509,11 @@ module Vmpooler
                                               password: provider_config['password'],
                                               insecure: provider_config['insecure'] || false
             metrics.increment('connect.open')
-            return connection
-          rescue => err
+            connection
+          rescue StandardError => e
             metrics.increment('connect.fail')
-            raise err if try >= max_tries
+            raise e if try >= max_tries
+
             sleep(try * retry_factor)
             try += 1
             retry
@@ -610,6 +613,7 @@ module Vmpooler
         def find_datastore(datastorename, connection, datacentername)
           datacenter = connection.serviceInstance.find_datacenter(datacentername)
           raise("Datacenter #{datacentername} does not exist") if datacenter.nil?
+
           datacenter.find_datastore(datastorename)
         end
 
@@ -625,9 +629,7 @@ module Vmpooler
           devices = find_disk_devices(vm)
 
           devices.keys.sort.each do |device|
-            if devices[device]['children'].length < 15
-              return find_device(vm, devices[device]['device'].deviceInfo.label)
-            end
+            return find_device(vm, devices[device]['device'].deviceInfo.label) if devices[device]['children'].length < 15
           end
 
           nil
@@ -667,6 +669,7 @@ module Vmpooler
 
           devices.keys.sort.each do |c|
             next unless controller.key == devices[c]['device'].key
+
             used_unit_numbers.push(devices[c]['device'].scsiCtlrUnitNumber)
             devices[c]['children'].each do |disk|
               used_unit_numbers.push(disk.unitNumber)
@@ -674,12 +677,10 @@ module Vmpooler
           end
 
           (0..15).each do |scsi_id|
-            if used_unit_numbers.grep(scsi_id).length <= 0
-              available_unit_numbers.push(scsi_id)
-            end
+            available_unit_numbers.push(scsi_id) if used_unit_numbers.grep(scsi_id).length <= 0
           end
 
-          available_unit_numbers.sort[0]
+          available_unit_numbers.min
         end
 
         # Finds a folder object by inventory path
@@ -692,17 +693,19 @@ module Vmpooler
           # Returns nil when the object found is not a folder
           pool_configuration = pool_config(pool_name)
           return nil if pool_configuration.nil?
+
           folder = pool_configuration['folder']
           datacenter = get_target_datacenter_from_config(pool_name)
           return nil if datacenter.nil?
 
           propSpecs = {
-            :entity => self,
-            :inventoryPath => "#{datacenter}/vm/#{folder}"
+            entity: self,
+            inventoryPath: "#{datacenter}/vm/#{folder}"
           }
 
           folder_object = connection.searchIndex.FindByInventoryPath(propSpecs)
           return nil unless folder_object.class == RbVmomi::VIM::Folder
+
           folder_object
         end
 
@@ -752,6 +755,7 @@ module Vmpooler
         def cpu_utilization_for(host)
           cpu_usage = host.summary.quickStats.overallCpuUsage
           return nil if cpu_usage.nil?
+
           cpu_size = host.summary.hardware.cpuMhz * host.summary.hardware.numCpuCores
           (cpu_usage.to_f / cpu_size.to_f) * 100
         end
@@ -759,6 +763,7 @@ module Vmpooler
         def memory_utilization_for(host)
           memory_usage = host.summary.quickStats.overallMemoryUsage
           return nil if memory_usage.nil?
+
           memory_size = host.summary.hardware.memorySize / 1024 / 1024
           (memory_usage.to_f / memory_size.to_f) * 100
         end
@@ -769,13 +774,13 @@ module Vmpooler
         end
 
         def build_compatible_hosts_lists(hosts, percentage)
-          hosts_with_arch_versions = hosts.map { |h|
+          hosts_with_arch_versions = hosts.map do |h|
             {
-            'utilization' => h[0],
-            'host_object' => h[1],
-            'architecture' => get_host_cpu_arch_version(h[1])
+              'utilization' => h[0],
+              'host_object' => h[1],
+              'architecture' => get_host_cpu_arch_version(h[1])
             }
-          }
+          end
           versions = hosts_with_arch_versions.map { |host| host['architecture'] }.uniq
           architectures = {}
           versions.each do |version|
@@ -796,12 +801,13 @@ module Vmpooler
 
         def select_least_used_hosts(hosts, percentage)
           raise('Provided hosts list to select_least_used_hosts is empty') if hosts.empty?
+
           average_utilization = get_average_cluster_utilization(hosts)
           least_used_hosts = []
           hosts.each do |host|
             least_used_hosts << host if host[0] <= average_utilization
           end
-          hosts_to_select = (hosts.count * (percentage  / 100.0)).to_int
+          hosts_to_select = (hosts.count * (percentage / 100.0)).to_int
           hosts_to_select = hosts.count - 1 if percentage == 100
           least_used_hosts.sort[0..hosts_to_select].map { |host| host[1].name }
         end
@@ -811,8 +817,10 @@ module Vmpooler
             connection = ensured_vsphere_connection(pool_object)
             cluster_object = find_cluster(cluster, connection, datacentername)
             raise("Cluster #{cluster} cannot be found") if cluster_object.nil?
+
             target_hosts = get_cluster_host_utilization(cluster_object)
             raise("there is no candidate in vcenter that meets all the required conditions, that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory'") if target_hosts.empty?
+
             architectures = build_compatible_hosts_lists(target_hosts, percentage)
             least_used_hosts = select_least_used_hosts(target_hosts, percentage)
             {
@@ -825,6 +833,7 @@ module Vmpooler
         def find_host_by_dnsname(connection, dnsname)
           host_object = connection.searchIndex.FindByDnsName(dnsName: dnsname, vmSearch: false)
           return nil if host_object.nil?
+
           host_object
         end
 
@@ -832,7 +841,8 @@ module Vmpooler
           cluster_object = find_cluster(cluster, connection, datacentername)
           target_hosts = get_cluster_host_utilization(cluster_object)
           raise("There is no host candidate in vcenter that meets all the required conditions, check that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory'") if target_hosts.empty?
-          least_used_host = target_hosts.sort[0][1]
+
+          least_used_host = target_hosts.min[1]
           least_used_host
         end
 
@@ -848,7 +858,7 @@ module Vmpooler
           cv = connection.serviceContent.viewManager.CreateContainerView(
             container: datacenter.hostFolder,
             type: ['ComputeResource', 'ClusterComputeResource'],
-            recursive: true,
+            recursive: true
           )
           cluster = cv.view.find { |cluster_object| cluster_object.name == cluster }
           cv.DestroyView
@@ -870,7 +880,8 @@ module Vmpooler
           cluster = source_host.parent
           target_hosts = get_cluster_host_utilization(cluster, model)
           raise("There is no host candidate in vcenter that meets all the required conditions, check that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory'") if target_hosts.empty?
-          target_host = target_hosts.sort[0][1]
+
+          target_host = target_hosts.min[1]
           [target_host, target_host.name]
         end
 
@@ -891,13 +902,14 @@ module Vmpooler
           # Returns nil when a VM, or pool configuration, cannot be found
           pool_configuration = pool_config(pool_name)
           return nil if pool_configuration.nil?
+
           folder = pool_configuration['folder']
           datacenter = get_target_datacenter_from_config(pool_name)
           return nil if datacenter.nil?
 
           propSpecs = {
-            :entity => self,
-            :inventoryPath => "#{datacenter}/vm/#{folder}/#{vmname}"
+            entity: self,
+            inventoryPath: "#{datacenter}/vm/#{folder}/#{vmname}"
           }
 
           connection.searchIndex.FindByInventoryPath(propSpecs)
@@ -929,8 +941,10 @@ module Vmpooler
         def get_vm_details(pool_name, vm_name, connection)
           vm_object = find_vm(pool_name, vm_name, connection)
           return nil if vm_object.nil?
-          parent_host_object = vm_object.summary.runtime.host if vm_object.summary && vm_object.summary.runtime && vm_object.summary.runtime.host
+
+          parent_host_object = vm_object.summary.runtime.host if vm_object.summary&.runtime && vm_object.summary.runtime.host
           raise('Unable to determine which host the VM is running on') if parent_host_object.nil?
+
           parent_host = parent_host_object.name
           architecture = get_host_cpu_arch_version(parent_host_object)
           {
@@ -944,6 +958,7 @@ module Vmpooler
           migration_limit = config[:config]['migration_limit']
           return false unless migration_limit.is_a? Integer
           return true if migration_limit > 0
+
           false
         end
 
@@ -969,9 +984,9 @@ module Vmpooler
               else
                 logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{vm_hash['host_name']}")
               end
-            rescue => _err
+            rescue StandardError => _e
               logger.log('s', "[!] [#{pool_name}] '#{vm_name}' is running on #{vm_hash['host_name']}")
-              raise _err
+              raise _e
             end
           end
         end
@@ -1008,8 +1023,9 @@ module Vmpooler
 
         def create_folder(connection, new_folder, datacenter)
           dc = connection.serviceInstance.find_datacenter(datacenter)
-          folder_object = dc.vmFolder.traverse(new_folder, type=RbVmomi::VIM::Folder, create=true)
+          folder_object = dc.vmFolder.traverse(new_folder, type = RbVmomi::VIM::Folder, create = true)
           raise("Cannot create folder #{new_folder}") if folder_object.nil?
+
           folder_object
         end
 
@@ -1018,8 +1034,8 @@ module Vmpooler
           raise('cannot find datacenter') if datacenter.nil?
 
           propSpecs = {
-            :entity => self,
-            :inventoryPath => "#{datacenter}/vm/#{pool['template']}"
+            entity: self,
+            inventoryPath: "#{datacenter}/vm/#{pool['template']}"
           }
 
           template_vm_object = connection.searchIndex.FindByInventoryPath(propSpecs)
@@ -1041,12 +1057,14 @@ module Vmpooler
           return false unless template.include?('/')
           return false if template[0] == '/'
           return false if template[-1] == '/'
-          return true
+
+          true
         end
 
         def get_disk_backing(pool)
           return :moveChildMostDiskBacking if linked_clone?(pool)
-          return :moveAllDiskBackingsAndConsolidate
+
+          :moveAllDiskBackingsAndConsolidate
         end
 
         def linked_clone?(pool)

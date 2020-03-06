@@ -58,7 +58,7 @@ module Vmpooler
     parsed_config[:config]['task_limit'] = string_to_int(ENV['TASK_LIMIT']) || parsed_config[:config]['task_limit'] || 10
     parsed_config[:config]['migration_limit'] = string_to_int(ENV['MIGRATION_LIMIT']) if ENV['MIGRATION_LIMIT']
     parsed_config[:config]['vm_checktime'] = string_to_int(ENV['VM_CHECKTIME']) || parsed_config[:config]['vm_checktime'] || 1
-    parsed_config[:config]['vm_lifetime'] = string_to_int(ENV['VM_LIFETIME']) || parsed_config[:config]['vm_lifetime']  || 24
+    parsed_config[:config]['vm_lifetime'] = string_to_int(ENV['VM_LIFETIME']) || parsed_config[:config]['vm_lifetime'] || 24
     parsed_config[:config]['prefix'] = ENV['PREFIX'] || parsed_config[:config]['prefix'] || ''
 
     parsed_config[:config]['logfile'] = ENV['LOGFILE'] if ENV['LOGFILE']
@@ -130,10 +130,8 @@ module Vmpooler
       end
     end
 
-    if parsed_config[:tagfilter]
-      parsed_config[:tagfilter].keys.each do |tag|
-        parsed_config[:tagfilter][tag] = Regexp.new(parsed_config[:tagfilter][tag])
-      end
+    parsed_config[:tagfilter]&.keys&.each do |tag|
+      parsed_config[:tagfilter][tag] = Regexp.new(parsed_config[:tagfilter][tag])
     end
 
     parsed_config[:uptime] = Time.now
@@ -179,7 +177,7 @@ module Vmpooler
   def self.pool_index(pools)
     pools_hash = {}
     index = 0
-    for pool in pools
+    pools.each do |pool|
       pools_hash[pool['name']] = index
       index += 1
     end
@@ -190,11 +188,12 @@ module Vmpooler
     # Returns a integer if input is a string
     return if s.nil?
     return unless s =~ /\d/
-    return Integer(s)
+
+    Integer(s)
   end
 
   def self.true?(obj)
-    obj.to_s.downcase == "true"
+    obj.to_s.downcase == 'true'
   end
 
   def self.set_linked_clone(parsed_config)

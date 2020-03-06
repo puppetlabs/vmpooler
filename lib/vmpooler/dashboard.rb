@@ -1,6 +1,5 @@
 module Vmpooler
   class Dashboard < Sinatra::Base
-
     def config
       Vmpooler.config
     end

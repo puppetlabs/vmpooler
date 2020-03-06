@@ -20,15 +20,15 @@ module Vmpooler
             start = Time.now
             conn = checkout(options)
             timespan_ms = ((Time.now - start) * 1000).to_i
-            @metrics.gauge(@metric_prefix + '.available', @available.length) unless @metrics.nil?
-            @metrics.timing(@metric_prefix + '.waited', timespan_ms) unless @metrics.nil?
+            @metrics&.gauge(@metric_prefix + '.available', @available.length)
+            @metrics&.timing(@metric_prefix + '.waited', timespan_ms)
             begin
               Thread.handle_interrupt(Exception => :immediate) do
                 yield conn
               end
             ensure
               checkin
-              @metrics.gauge(@metric_prefix + '.available', @available.length) unless @metrics.nil?
+              @metrics&.gauge(@metric_prefix + '.available', @available.length)
             end
           end
         end
@@ -38,13 +38,13 @@ module Vmpooler
           start = Time.now
           conn = checkout(options)
           timespan_ms = ((Time.now - start) * 1000).to_i
-          @metrics.gauge(@metric_prefix + '.available', @available.length) unless @metrics.nil?
-          @metrics.timing(@metric_prefix + '.waited', timespan_ms) unless @metrics.nil?
+          @metrics&.gauge(@metric_prefix + '.available', @available.length)
+          @metrics&.timing(@metric_prefix + '.waited', timespan_ms)
           begin
             yield conn
           ensure
             checkin
-            @metrics.gauge(@metric_prefix + '.available', @available.length) unless @metrics.nil?
+            @metrics&.gauge(@metric_prefix + '.available', @available.length)
           end
         end
       end

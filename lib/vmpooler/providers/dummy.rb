@@ -73,10 +73,10 @@ module Vmpooler
           return current_vm['vm_host'] if provider_config['migratevm_couldmove_percent'].nil?
 
           # Only migrate if migratevm_couldmove_percent is met
-          return current_vm['vm_host'] if 1 + rand(100) > provider_config['migratevm_couldmove_percent']
+          return current_vm['vm_host'] if rand(1..100) > provider_config['migratevm_couldmove_percent']
 
           # Simulate a 10 node cluster and randomly pick a different one
-          new_host = 'HOST' + (1 + rand(10)).to_s while new_host == current_vm['vm_host']
+          new_host = 'HOST' + rand(1..10).to_s while new_host == current_vm['vm_host']
 
           new_host
         end
@@ -93,7 +93,7 @@ module Vmpooler
 
             # Inject clone failure
             unless provider_config['migratevm_fail_percent'].nil?
-              raise('Dummy Failure for migratevm_fail_percent') if 1 + rand(100) <= provider_config['migratevm_fail_percent']
+              raise('Dummy Failure for migratevm_fail_percent') if rand(1..100) <= provider_config['migratevm_fail_percent']
             end
 
             @write_lock.synchronize do
@@ -114,7 +114,7 @@ module Vmpooler
 
             # Randomly power off the VM
             unless dummy['powerstate'] != 'PoweredOn' || provider_config['getvm_poweroff_percent'].nil?
-              if 1 + rand(100) <= provider_config['getvm_poweroff_percent']
+              if rand(1..100) <= provider_config['getvm_poweroff_percent']
                 @write_lock.synchronize do
                   dummy = get_dummy_vm(pool_name, vm_name)
                   dummy['powerstate'] = 'PoweredOff'
@@ -126,7 +126,7 @@ module Vmpooler
 
             # Randomly rename the host
             unless dummy['hostname'] != dummy['name'] || provider_config['getvm_rename_percent'].nil?
-              if 1 + rand(100) <= provider_config['getvm_rename_percent']
+              if rand(1..100) <= provider_config['getvm_rename_percent']
                 @write_lock.synchronize do
                   dummy = get_dummy_vm(pool_name, vm_name)
                   dummy['hostname'] = 'DUMMY' + dummy['name']
@@ -194,7 +194,7 @@ module Vmpooler
             begin
               # Inject clone failure
               unless provider_config['createvm_fail_percent'].nil?
-                raise('Dummy Failure for createvm_fail_percent') if 1 + rand(100) <= provider_config['createvm_fail_percent']
+                raise('Dummy Failure for createvm_fail_percent') if rand(1..100) <= provider_config['createvm_fail_percent']
               end
 
               # Assert the VM is ready for use
@@ -202,7 +202,7 @@ module Vmpooler
                 vm['dummy_state'] = 'RUNNING'
                 write_backing_file
               end
-            rescue => _err
+            rescue StandardError => _e
               @write_lock.synchronize do
                 remove_dummy_vm(pool_name, dummy_hostname)
                 write_backing_file
@@ -227,7 +227,7 @@ module Vmpooler
 
             # Inject create failure
             unless provider_config['createdisk_fail_percent'].nil?
-              raise('Dummy Failure for createdisk_fail_percent') if 1 + rand(100) <= provider_config['createdisk_fail_percent']
+              raise('Dummy Failure for createdisk_fail_percent') if rand(1..100) <= provider_config['createdisk_fail_percent']
             end
 
             @write_lock.synchronize do
@@ -253,7 +253,7 @@ module Vmpooler
 
             # Inject create failure
             unless provider_config['createsnapshot_fail_percent'].nil?
-              raise('Dummy Failure for createsnapshot_fail_percent') if 1 + rand(100) <= provider_config['createsnapshot_fail_percent']
+              raise('Dummy Failure for createsnapshot_fail_percent') if rand(1..100) <= provider_config['createsnapshot_fail_percent']
             end
 
             @write_lock.synchronize do
@@ -280,7 +280,7 @@ module Vmpooler
 
             # Inject create failure
             unless provider_config['revertsnapshot_fail_percent'].nil?
-              raise('Dummy Failure for revertsnapshot_fail_percent') if 1 + rand(100) <= provider_config['revertsnapshot_fail_percent']
+              raise('Dummy Failure for revertsnapshot_fail_percent') if rand(1..100) <= provider_config['revertsnapshot_fail_percent']
             end
           end
 
@@ -318,7 +318,7 @@ module Vmpooler
 
             # Inject destroy VM failure
             unless provider_config['destroyvm_fail_percent'].nil?
-              raise('Dummy Failure for migratevm_fail_percent') if 1 + rand(100) <= provider_config['destroyvm_fail_percent']
+              raise('Dummy Failure for migratevm_fail_percent') if rand(1..100) <= provider_config['destroyvm_fail_percent']
             end
 
             # 'Destroy' the VM
@@ -352,7 +352,7 @@ module Vmpooler
             sleep(2)
 
             unless provider_config['vmready_fail_percent'].nil?
-              raise('Dummy Failure for vmready_fail_percent') if 1 + rand(100) <= provider_config['vmready_fail_percent']
+              raise('Dummy Failure for vmready_fail_percent') if rand(1..100) <= provider_config['vmready_fail_percent']
             end
 
             @write_lock.synchronize do
@@ -370,6 +370,7 @@ module Vmpooler
 
         def remove_dummy_vm(pool_name, vm_name)
           return if @dummylist['pool'][pool_name].nil?
+
           new_poollist = @dummylist['pool'][pool_name].delete_if { |vm| vm['name'] == vm_name }
           @dummylist['pool'][pool_name] = new_poollist
         end
@@ -395,6 +396,7 @@ module Vmpooler
         def write_backing_file
           dummyfilename = provider_config['filename']
           return if dummyfilename.nil?
+
           File.open(dummyfilename, 'w') { |file| file.write(YAML.dump(@dummylist)) }
         end
       end
