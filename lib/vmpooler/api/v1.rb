@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Vmpooler
   class API
   class V1 < Sinatra::Base
@@ -934,7 +936,7 @@ module Vmpooler
           end
         end
 
-        if failure.size > 0
+        if !failure.empty?
           status 400
           result['failure'] = failure
         else

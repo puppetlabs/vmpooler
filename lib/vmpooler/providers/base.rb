@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Vmpooler
   class PoolManager
     class Provider

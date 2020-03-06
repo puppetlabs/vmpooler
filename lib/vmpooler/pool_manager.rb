@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'vmpooler/providers'
 require 'spicy-proton'
 
@@ -54,7 +56,7 @@ module Vmpooler
         pool_keys.each do |k|
           to_set[k] = pool[k]
         end
-        to_set['alias'] = pool['alias'].join(',') if to_set.has_key?('alias')
+        to_set['alias'] = pool['alias'].join(',') if to_set.key?('alias')
         $redis.hmset("vmpooler__pool__#{pool['name']}", to_set.to_a.flatten) unless to_set.empty?
       end
       previously_configured_pools.each do |pool|

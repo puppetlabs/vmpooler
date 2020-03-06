@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'pathname'
 
 module Vmpooler
@@ -37,7 +39,7 @@ module Vmpooler
         # we don't exactly know if the provider name matches the main file name that should be loaded
         # so we use globs to get everything like the name
         # this could mean that vsphere5 and vsphere6 are loaded when only vsphere5 is used
-        Dir.glob(File.join(gem_path, "*#{name}*.rb")).each do |file|
+        Dir.glob(File.join(gem_path, "*#{name}*.rb")).sort.each do |file|
           require file
         end
       end
