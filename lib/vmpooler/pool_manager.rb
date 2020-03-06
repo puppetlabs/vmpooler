@@ -603,7 +603,7 @@ module Vmpooler
     # @param pool_name [String] - the name of the pool
     # @return [Provider] - returns the provider class Object
     def get_provider_for_pool(pool_name)
-      pool = $config[:pools].find { |pool| pool['name'] == pool_name }
+      pool = $config[:pools].find { |p| p['name'] == pool_name }
       return nil unless pool
 
       provider_name = pool.fetch('provider', nil)
