@@ -225,7 +225,7 @@ module Vmpooler
 
       payload.each do |poolname, clone_target|
         unless pools[pool_index[poolname]]['clone_target'] == clone_target
-          pools[pool_index[poolname]]['clone_target'] == clone_target
+          pools[pool_index[poolname]]['clone_target'] = clone_target
           backend.hset('vmpooler__config__clone_target', poolname, clone_target)
           pools_updated += 1
           status 201
