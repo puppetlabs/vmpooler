@@ -974,7 +974,7 @@ module Vmpooler
               if migration_enabled? @config
                 if migration_count >= migration_limit
                   logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{vm_hash['host_name']}. No migration will be evaluated since the migration_limit has been reached")
-                  return
+                  break
                 end
                 run_select_hosts(pool_name, @provider_hosts)
                 if vm_in_target?(pool_name, vm_hash['host_name'], vm_hash['architecture'], @provider_hosts)
