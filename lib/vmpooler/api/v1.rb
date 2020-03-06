@@ -267,7 +267,7 @@ module Vmpooler
           if pool_index.include? poolname
             unless pools[pool_index[poolname]]['clone_target'] == clone_target
               pools[pool_index[poolname]]['clone_target'] == clone_target
-              end
+            end
           end
       end
     end
