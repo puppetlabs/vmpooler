@@ -87,7 +87,7 @@ module Vmpooler
     # Returns an Array of Pathname objects.
     def gem_directories
       dirs = []
-      if has_rubygems?
+      if rubygems?
         dirs = gemspecs.map do |spec|
           lib_path = File.expand_path(File.join(spec.full_gem_path, provider_path))
           lib_path if File.exist? lib_path
@@ -99,7 +99,7 @@ module Vmpooler
     # Internal: Check if RubyGems is loaded and available.
     #
     # Returns true if RubyGems is available, false if not.
-    def has_rubygems?
+    def rubygems?
       defined? ::Gem
     end
 

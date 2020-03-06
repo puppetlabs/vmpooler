@@ -181,13 +181,13 @@ module Vmpooler
           end
         end
 
-        return if has_mismatched_hostname?(vm, pool_name, provider)
+        return if mismatched_hostname?(vm, pool_name, provider)
 
         vm_still_ready?(pool_name, vm, provider)
       end
     end
 
-    def has_mismatched_hostname?(vm, pool_name, provider)
+    def mismatched_hostname?(vm, pool_name, provider)
       pool_config = $config[:pools][$config[:pool_index][pool_name]]
       check_hostname = pool_config['check_hostname_for_mismatch']
       check_hostname = $config[:config]['check_ready_vm_hostname_for_mismatch'] if check_hostname.nil?
