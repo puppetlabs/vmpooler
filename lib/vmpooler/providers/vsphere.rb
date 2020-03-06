@@ -242,7 +242,6 @@ module Vmpooler
                 target[dc]['hosts'].delete(host)
                 target[dc]['hosts'] << host
               end
-              return host
             else
               raise("there is no candidate in vcenter that meets all the required conditions, that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory") unless target[dc].key?('hosts')
 
@@ -251,8 +250,9 @@ module Vmpooler
               target[dc]['architectures'].each do |arch|
                 target[dc]['architectures'][arch] = arch.partition { |v| v != host }.flatten if arch.include?(host)
               end
-              return host
             end
+
+            return host
           end
         end
 
