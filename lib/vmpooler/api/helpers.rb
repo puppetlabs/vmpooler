@@ -216,7 +216,7 @@ module Vmpooler
         capacity[:current] = get_total_across_pools_redis_scard(pools, 'vmpooler__ready__', backend)
 
         if capacity[:total] > 0
-          capacity[:percent] = ((capacity[:current].to_f / capacity[:total].to_f) * 100.0).round(1)
+          capacity[:percent] = (capacity[:current].fdiv(capacity[:total]) * 100.0).round(1)
         end
 
         capacity

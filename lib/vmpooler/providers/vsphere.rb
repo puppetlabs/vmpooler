@@ -759,7 +759,7 @@ module Vmpooler
           return nil if cpu_usage.nil?
 
           cpu_size = host.summary.hardware.cpuMhz * host.summary.hardware.numCpuCores
-          (cpu_usage.to_f / cpu_size.to_f) * 100
+          cpu_usage.fdiv(cpu_size) * 100
         end
 
         def memory_utilization_for(host)
@@ -767,7 +767,7 @@ module Vmpooler
           return nil if memory_usage.nil?
 
           memory_size = host.summary.hardware.memorySize / 1024 / 1024
-          (memory_usage.to_f / memory_size.to_f) * 100
+          memory_usage.fdiv(memory_size) * 100
         end
 
         def get_average_cluster_utilization(hosts)
