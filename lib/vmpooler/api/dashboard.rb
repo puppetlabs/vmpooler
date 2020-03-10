@@ -83,7 +83,7 @@ module Vmpooler
             history ||= {}
 
             begin
-              buffer = open(graph_link('.ready.*&from=-1hour&format=json')).read
+              buffer = URI.parse(graph_link('.ready.*&from=-1hour&format=json')).read
               history = JSON.parse(buffer)
 
               history.each do |pool|
@@ -136,7 +136,7 @@ module Vmpooler
         if params[:history]
           if graph_url
             begin
-              buffer = open(graph_link('.running.*&from=-1hour&format=json')).read
+              buffer = URI.parse(graph_link('.running.*&from=-1hour&format=json')).read
               JSON.parse(buffer).each do |pool|
                 if pool['target'] =~ /.*\.(.*)$/
                   pool['name'] = Regexp.last_match[1]

@@ -121,7 +121,7 @@ module Vmpooler
 
     def move_pending_vm_to_ready(vm, pool)
       clone_time = $redis.hget('vmpooler__vm__' + vm, 'clone')
-      finish = format('%.2f', Time.now - Time.parse(clone_time)) if clone_time
+      finish = format('%<time>.2f', time: Time.now - Time.parse(clone_time)) if clone_time
 
       $redis.smove('vmpooler__pending__' + pool, 'vmpooler__ready__' + pool, vm)
       $redis.hset('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm, finish) # maybe remove as this is never used by vmpooler itself?
@@ -181,13 +181,13 @@ module Vmpooler
           end
         end
 
-        return if has_mismatched_hostname?(vm, pool_name, provider)
+        return if mismatched_hostname?(vm, pool_name, provider)
 
         vm_still_ready?(pool_name, vm, provider)
       end
     end
 
-    def has_mismatched_hostname?(vm, pool_name, provider)
+    def mismatched_hostname?(vm, pool_name, provider)
       pool_config = $config[:pools][$config[:pool_index][pool_name]]
       check_hostname = pool_config['check_hostname_for_mismatch']
       check_hostname = $config[:config]['check_ready_vm_hostname_for_mismatch'] if check_hostname.nil?
@@ -323,18 +323,18 @@ module Vmpooler
         $logger.log('d', "[ ] [#{pool_name}] Starting to clone '#{new_vmname}'")
         start = Time.now
         provider.create_vm(pool_name, new_vmname)
-        finish = format('%.2f', Time.now - start)
+        finish = format('%<time>.2f', time: Time.now - start)
 
         $redis.hset('vmpooler__clone__' + Date.today.to_s, pool_name + ':' + new_vmname, finish)
         $redis.hset('vmpooler__vm__' + new_vmname, 'clone_time', finish)
         $logger.log('s', "[+] [#{pool_name}] '#{new_vmname}' cloned in #{finish} seconds")
 
         $metrics.timing("clone.#{pool_name}", finish)
-      rescue StandardError => _e
+      rescue StandardError
         $redis.srem("vmpooler__pending__#{pool_name}", new_vmname)
         expiration_ttl = $config[:redis]['data_ttl'].to_i * 60 * 60
         $redis.expire("vmpooler__vm__#{new_vmname}", expiration_ttl)
-        raise _e
+        raise
       ensure
         $redis.decr('vmpooler__tasks__clone')
       end
@@ -369,7 +369,7 @@ module Vmpooler
 
         $redis.srem('vmpooler__completed__' + pool, vm)
 
-        finish = format('%.2f', Time.now - start)
+        finish = format('%<time>.2f', time: Time.now - start)
         $logger.log('s', "[-] [#{pool}] '#{vm}' destroyed in #{finish} seconds")
         $metrics.timing("destroy.#{pool}", finish)
         get_vm_usage_labels(vm)
@@ -503,7 +503,7 @@ module Vmpooler
 
       result = provider.create_disk(pool_name, vm_name, disk_size.to_i)
 
-      finish = format('%.2f', Time.now - start)
+      finish = format('%<time>.2f', time: Time.now - start)
 
       if result
         rdisks = $redis.hget('vmpooler__vm__' + vm_name, 'disk')
@@ -536,7 +536,7 @@ module Vmpooler
 
       result = provider.create_snapshot(pool_name, vm_name, snapshot_name)
 
-      finish = format('%.2f', Time.now - start)
+      finish = format('%<time>.2f', time: Time.now - start)
 
       if result
         $redis.hset('vmpooler__vm__' + vm_name, 'snapshot:' + snapshot_name, Time.now.to_s)
@@ -565,7 +565,7 @@ module Vmpooler
 
       result = provider.revert_snapshot(pool_name, vm_name, snapshot_name)
 
-      finish = format('%.2f', Time.now - start)
+      finish = format('%<time>.2f', time: Time.now - start)
 
       if result
         $logger.log('s', "[+] [snapshot_manager] '#{vm_name}' reverted to snapshot '#{snapshot_name}' in #{finish} seconds")
@@ -603,7 +603,7 @@ module Vmpooler
     # @param pool_name [String] - the name of the pool
     # @return [Provider] - returns the provider class Object
     def get_provider_for_pool(pool_name)
-      pool = $config[:pools].find { |pool| pool['name'] == pool_name }
+      pool = $config[:pools].find { |p| p['name'] == pool_name }
       return nil unless pool
 
       provider_name = pool.fetch('provider', nil)
@@ -619,7 +619,7 @@ module Vmpooler
           _check_disk_queue
           sleep(loop_delay)
 
-          unless maxloop.zero?
+          unless maxloop == 0
             break if loop_count >= maxloop
 
             loop_count += 1
@@ -655,7 +655,7 @@ module Vmpooler
           _check_snapshot_queue
           sleep(loop_delay)
 
-          unless maxloop.zero?
+          unless maxloop == 0
             break if loop_count >= maxloop
 
             loop_count += 1
@@ -816,7 +816,7 @@ module Vmpooler
             end
             sleep_with_wakeup_events(loop_delay, loop_delay_min, pool_size_change: true, poolname: pool['name'], pool_template_change: true, clone_target_change: true, pool_reset: true)
 
-            unless maxloop.zero?
+            unless maxloop == 0
               break if loop_count >= maxloop
 
               loop_count += 1
@@ -1119,8 +1119,8 @@ module Vmpooler
       $metrics.gauge("running.#{pool_name}", $redis.scard("vmpooler__running__#{pool_name}"))
 
       if $redis.get("vmpooler__empty__#{pool_name}")
-        $redis.del("vmpooler__empty__#{pool_name}") unless ready.zero?
-      elsif ready.zero?
+        $redis.del("vmpooler__empty__#{pool_name}") unless ready == 0
+      elsif ready == 0
         $redis.set("vmpooler__empty__#{pool_name}", 'true')
         $logger.log('s', "[!] [#{pool_name}] is empty")
       end
@@ -1153,7 +1153,7 @@ module Vmpooler
 
       begin
         inventory = create_inventory(pool, provider, pool_check_response)
-      rescue StandardError => e
+      rescue StandardError
         return(pool_check_response)
       end
 
@@ -1304,7 +1304,7 @@ module Vmpooler
 
         sleep(loop_delay)
 
-        unless maxloop.zero?
+        unless maxloop == 0
           break if loop_count >= maxloop
 
           loop_count += 1

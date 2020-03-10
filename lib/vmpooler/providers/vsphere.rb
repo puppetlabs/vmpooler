@@ -75,7 +75,7 @@ module Vmpooler
           vm_object.PowerOffVM_Task.wait_for_completion if vm_object.runtime&.powerState && vm_object.runtime.powerState == 'poweredOn'
           vm_object.Destroy_Task.wait_for_completion
 
-          finish = format('%.2f', Time.now - start)
+          finish = format('%<time>.2f', time: Time.now - start)
           logger.log('s', "[-] [#{pool}] '#{vm_name}' destroyed in #{finish} seconds")
           metrics.timing("destroy.#{pool}", finish)
         rescue RuntimeError
@@ -132,11 +132,11 @@ module Vmpooler
         def get_folder_children(folder_name, connection)
           folders = []
 
-          propSpecs = {
+          propSpecs = { # rubocop:disable Naming/VariableName
             entity: self,
             inventoryPath: folder_name
           }
-          folder_object = connection.searchIndex.FindByInventoryPath(propSpecs)
+          folder_object = connection.searchIndex.FindByInventoryPath(propSpecs) # rubocop:disable Naming/VariableName
 
           return folders if folder_object.nil?
 
@@ -173,9 +173,9 @@ module Vmpooler
               target[dc]['checking'] = true
               hosts_hash = find_least_used_hosts(cluster, datacenter, percentage)
               target[dc] = hosts_hash
-            rescue StandardError => _e
+            rescue StandardError
               target[dc] = {}
-              raise(_e)
+              raise
             ensure
               target[dc]['check_time_finished'] = Time.now
             end
@@ -206,7 +206,7 @@ module Vmpooler
           loop_count = 1
           until target.key?(dc) && target[dc].key?('check_time_finished')
             sleep(loop_delay)
-            unless maxloop.zero?
+            unless maxloop == 0
               break if loop_count >= maxloop
 
               loop_count += 1
@@ -217,7 +217,7 @@ module Vmpooler
           loop_count = 1
           while Time.now - target[dc]['check_time_finished'] > max_age
             sleep(loop_delay)
-            unless maxloop.zero?
+            unless maxloop == 0
               break if loop_count >= maxloop
 
               loop_count += 1
@@ -242,7 +242,6 @@ module Vmpooler
                 target[dc]['hosts'].delete(host)
                 target[dc]['hosts'] << host
               end
-              return host
             else
               raise("there is no candidate in vcenter that meets all the required conditions, that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory") unless target[dc].key?('hosts')
 
@@ -251,8 +250,9 @@ module Vmpooler
               target[dc]['architectures'].each do |arch|
                 target[dc]['architectures'][arch] = arch.partition { |v| v != host }.flatten if arch.include?(host)
               end
-              return host
             end
+
+            return host
           end
         end
 
@@ -344,11 +344,11 @@ module Vmpooler
             begin
               vm_target_folder = find_vm_folder(pool_name, connection)
               vm_target_folder = create_folder(connection, target_folder_path, target_datacenter_name) if vm_target_folder.nil? && @config[:config].key?('create_folders') && (@config[:config]['create_folders'] == true)
-            rescue StandardError => _e
+            rescue StandardError
               if @config[:config].key?('create_folders') && (@config[:config]['create_folders'] == true)
                 vm_target_folder = create_folder(connection, target_folder_path, target_datacenter_name)
               else
-                raise(_e)
+                raise
               end
             end
 
@@ -700,12 +700,12 @@ module Vmpooler
           datacenter = get_target_datacenter_from_config(pool_name)
           return nil if datacenter.nil?
 
-          propSpecs = {
+          propSpecs = { # rubocop:disable Naming/VariableName
             entity: self,
             inventoryPath: "#{datacenter}/vm/#{folder}"
           }
 
-          folder_object = connection.searchIndex.FindByInventoryPath(propSpecs)
+          folder_object = connection.searchIndex.FindByInventoryPath(propSpecs) # rubocop:disable Naming/VariableName
           return nil unless folder_object.class == RbVmomi::VIM::Folder
 
           folder_object
@@ -759,7 +759,7 @@ module Vmpooler
           return nil if cpu_usage.nil?
 
           cpu_size = host.summary.hardware.cpuMhz * host.summary.hardware.numCpuCores
-          (cpu_usage.to_f / cpu_size.to_f) * 100
+          cpu_usage.fdiv(cpu_size) * 100
         end
 
         def memory_utilization_for(host)
@@ -767,7 +767,7 @@ module Vmpooler
           return nil if memory_usage.nil?
 
           memory_size = host.summary.hardware.memorySize / 1024 / 1024
-          (memory_usage.to_f / memory_size.to_f) * 100
+          memory_usage.fdiv(memory_size) * 100
         end
 
         def get_average_cluster_utilization(hosts)
@@ -794,7 +794,6 @@ module Vmpooler
           end
 
           versions.each do |version|
-            targets = []
             targets = select_least_used_hosts(architectures[version], percentage)
             architectures[version] = targets
           end
@@ -891,12 +890,12 @@ module Vmpooler
           get_snapshot_list(vm.snapshot.rootSnapshotList, snapshotname) if vm.snapshot
         end
 
-        def build_propSpecs(datacenter, folder, vmname)
-          propSpecs = {
+        def build_propSpecs(datacenter, folder, vmname) # rubocop:disable Naming/MethodName
+          propSpecs = { # rubocop:disable Naming/VariableName
             entity => self,
             :inventoryPath => "#{datacenter}/vm/#{folder}/#{vmname}"
           }
-          propSpecs
+          propSpecs # rubocop:disable Naming/VariableName
         end
 
         def find_vm(pool_name, vmname, connection)
@@ -909,12 +908,12 @@ module Vmpooler
           datacenter = get_target_datacenter_from_config(pool_name)
           return nil if datacenter.nil?
 
-          propSpecs = {
+          propSpecs = { # rubocop:disable Naming/VariableName
             entity: self,
             inventoryPath: "#{datacenter}/vm/#{folder}/#{vmname}"
           }
 
-          connection.searchIndex.FindByInventoryPath(propSpecs)
+          connection.searchIndex.FindByInventoryPath(propSpecs) # rubocop:disable Naming/VariableName
         end
 
         def get_base_vm_container_from(connection)
@@ -975,7 +974,7 @@ module Vmpooler
               if migration_enabled? @config
                 if migration_count >= migration_limit
                   logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{vm_hash['host_name']}. No migration will be evaluated since the migration_limit has been reached")
-                  return
+                  break
                 end
                 run_select_hosts(pool_name, @provider_hosts)
                 if vm_in_target?(pool_name, vm_hash['host_name'], vm_hash['architecture'], @provider_hosts)
@@ -986,9 +985,9 @@ module Vmpooler
               else
                 logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{vm_hash['host_name']}")
               end
-            rescue StandardError => _e
+            rescue StandardError
               logger.log('s', "[!] [#{pool_name}] '#{vm_name}' is running on #{vm_hash['host_name']}")
-              raise _e
+              raise
             end
           end
         end
@@ -1008,11 +1007,11 @@ module Vmpooler
         def migrate_vm_and_record_timing(pool_name, vm_name, vm_hash, target_host_object, dest_host_name)
           start = Time.now
           migrate_vm_host(vm_hash['object'], target_host_object)
-          finish = format('%.2f', Time.now - start)
+          finish = format('%<time>.2f', time: Time.now - start)
           metrics.timing("migrate.#{pool_name}", finish)
           metrics.increment("migrate_from.#{vm_hash['host_name']}")
           metrics.increment("migrate_to.#{dest_host_name}")
-          checkout_to_migration = format('%.2f', Time.now - Time.parse($redis.hget("vmpooler__vm__#{vm_name}", 'checkout')))
+          checkout_to_migration = format('%<time>.2f', time: Time.now - Time.parse($redis.hget("vmpooler__vm__#{vm_name}", 'checkout')))
           $redis.hset("vmpooler__vm__#{vm_name}", 'migration_time', finish)
           $redis.hset("vmpooler__vm__#{vm_name}", 'checkout_to_migration', checkout_to_migration)
           finish
@@ -1025,7 +1024,7 @@ module Vmpooler
 
         def create_folder(connection, new_folder, datacenter)
           dc = connection.serviceInstance.find_datacenter(datacenter)
-          folder_object = dc.vmFolder.traverse(new_folder, type = RbVmomi::VIM::Folder, create = true)
+          folder_object = dc.vmFolder.traverse(new_folder, RbVmomi::VIM::Folder, true)
           raise("Cannot create folder #{new_folder}") if folder_object.nil?
 
           folder_object
@@ -1035,12 +1034,12 @@ module Vmpooler
           datacenter = get_target_datacenter_from_config(pool['name'])
           raise('cannot find datacenter') if datacenter.nil?
 
-          propSpecs = {
+          propSpecs = { # rubocop:disable Naming/VariableName
             entity: self,
             inventoryPath: "#{datacenter}/vm/#{pool['template']}"
           }
 
-          template_vm_object = connection.searchIndex.FindByInventoryPath(propSpecs)
+          template_vm_object = connection.searchIndex.FindByInventoryPath(propSpecs) # rubocop:disable Naming/VariableName
           raise("Pool #{pool['name']} specifies a template VM of #{pool['template']} which does not exist for the provider #{name}") if template_vm_object.nil?
 
           template_vm_object

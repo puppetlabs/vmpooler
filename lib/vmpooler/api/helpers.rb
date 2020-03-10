@@ -79,38 +79,38 @@ module Vmpooler
 
       def authenticate(auth, username_str, password_str)
         case auth['provider']
-          when 'dummy'
-            return (username_str != password_str)
-          when 'ldap'
-            ldap_base = auth[:ldap]['base']
-            ldap_port = auth[:ldap]['port'] || 389
+        when 'dummy'
+          return (username_str != password_str)
+        when 'ldap'
+          ldap_base = auth[:ldap]['base']
+          ldap_port = auth[:ldap]['port'] || 389
 
-            if ldap_base.is_a? Array
-              ldap_base.each do |search_base|
-                result = authenticate_ldap(
-                  ldap_port,
-                  auth[:ldap]['host'],
-                  auth[:ldap]['user_object'],
-                  search_base,
-                  username_str,
-                  password_str
-                )
-                return true if result == true
-              end
-            else
+          if ldap_base.is_a? Array
+            ldap_base.each do |search_base|
               result = authenticate_ldap(
                 ldap_port,
                 auth[:ldap]['host'],
                 auth[:ldap]['user_object'],
-                ldap_base,
+                search_base,
                 username_str,
                 password_str
               )
-              return result
+              return true if result == true
             end
-
-            return false
+          else
+            result = authenticate_ldap(
+              ldap_port,
+              auth[:ldap]['host'],
+              auth[:ldap]['user_object'],
+              ldap_base,
+              username_str,
+              password_str
+            )
+            return result
           end
+
+          return false
+        end
       end
 
       def export_tags(backend, hostname, tags)
@@ -216,7 +216,7 @@ module Vmpooler
         capacity[:current] = get_total_across_pools_redis_scard(pools, 'vmpooler__ready__', backend)
 
         if capacity[:total] > 0
-          capacity[:percent] = ((capacity[:current].to_f / capacity[:total].to_f) * 100.0).round(1)
+          capacity[:percent] = (capacity[:current].fdiv(capacity[:total]) * 100.0).round(1)
         end
 
         capacity

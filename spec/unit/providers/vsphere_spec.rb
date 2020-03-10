@@ -2715,7 +2715,7 @@ EOT
 
     it 'creates a folder' do
       expect(connection.serviceInstance).to receive(:find_datacenter).with(datacenter).and_return(datacenter_object)
-      expect(datacenter_object.vmFolder).to receive(:traverse).with(new_folder, type=RbVmomi::VIM::Folder, create=true).and_return(folder_object)
+      expect(datacenter_object.vmFolder).to receive(:traverse).with(new_folder, RbVmomi::VIM::Folder, true).and_return(folder_object)
 
       result = subject.create_folder(connection, new_folder, datacenter)
       expect(result).to eq(folder_object)
@@ -2724,7 +2724,7 @@ EOT
     context 'with folder_object returning nil' do
       it 'shoud raise an error' do
         expect(connection.serviceInstance).to receive(:find_datacenter).with(datacenter).and_return(datacenter_object)
-        expect(datacenter_object.vmFolder).to receive(:traverse).with(new_folder, type=RbVmomi::VIM::Folder, create=true).and_return(nil)
+        expect(datacenter_object.vmFolder).to receive(:traverse).with(new_folder, RbVmomi::VIM::Folder, true).and_return(nil)
 
         expect{subject.create_folder(connection, new_folder, datacenter)}.to raise_error("Cannot create folder #{new_folder}")
       end

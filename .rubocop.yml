@@ -80,3 +80,17 @@ Style/HashTransformKeys:
 # Added in 0.80, don't really care about the change
 Style/HashTransformValues:
   Enabled: false
+
+# These short variable names make sense as exceptions to the rule, but generally I think short variable names do hurt readability
+Naming/MethodParameterName:
+  AllowedNames:
+    - vm
+    - dc
+    - s
+    - x
+    - f
+
+# Standard comparisons seem more readable
+Style/NumericPredicate:
+  Enabled: true
+  EnforcedStyle: comparison
