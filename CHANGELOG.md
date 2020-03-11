@@ -11,11 +11,18 @@ Tracking in this Changelog began for this project with the tagging of version 0.
 If you're looking for changes from before this, refer to the project's
 git logs & PR history.
 
-## [Unreleased](https://github.com/puppetlabs/vmpooler/compare/0.10.3...master)
+## [Unreleased](https://github.com/puppetlabs/vmpooler/compare/0.11.0...master)
+
+## [0.11.0](https://github.com/puppetlabs/vmpooler/compare/0.10.3...0.11.0)
 
 ### Added
 
 - Option to provide path to additional configuration files (POOLER-157)
+
+### Fixed
+
+- Pin Dockerfiles to use JRuby 9.2.9 instead of 9.2.11 to avoid a StackOverlow that was occuring.
+- Fixes or adds exceptions for all outstanding Rubocop issues and enables mandatory Rubocop checks on PRs
 
 ## [0.10.3](https://github.com/puppetlabs/vmpooler/compare/0.10.2...0.10.3)
 
