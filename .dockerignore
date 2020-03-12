@@ -1,0 +1,13 @@
+**/*.yml
+**/*.yaml
+**/*.md
+**/*example
+**/Dockerfile*
+Gemfile.lock
+Rakefile
+Vagrantfile
+coverage
+docs
+examples
+scripts
+vendor
