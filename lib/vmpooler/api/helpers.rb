@@ -57,11 +57,13 @@ module Vmpooler
       end
 
       def authenticate_ldap(port, host, user_object, base, username_str, password_str)
+        auth_method = :start_tls if port == 389
+        auth_method = :simple_tls if port == 636
         ldap = Net::LDAP.new(
           :host => host,
           :port => port,
           :encryption => {
-            :method => :start_tls,
+            :method => auth_method,
             :tls_options => { :ssl_version => 'TLSv1' }
           },
           :base => base,
