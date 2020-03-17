@@ -2792,6 +2792,16 @@ EOT
         subject.execute!(maxloop,0)
       end
     end
+
+    context 'when redis server connection is not available' do
+      let(:maxloop) { 2 }
+      it 'should log a failure and raise the error' do
+        expect(redis).to receive(:set).with('vmpooler__tasks__clone', 0).and_raise(Redis::CannotConnectError)
+        expect(logger).to receive(:log).with('s', 'Cannot connect to the redis server: Redis::CannotConnectError')
+
+        expect{subject.execute!(maxloop,0)}.to raise_error Redis::CannotConnectError
+      end
+    end
   end
 
   describe "#sleep_with_wakeup_events" do
@@ -2984,6 +2994,18 @@ EOT
         expect(subject).to receive(:sleep_with_wakeup_events).with(loop_delay, Numeric, hash_including(:poolname => pool)).exactly(maxloop).times
 
         subject.check_pool(pool_object,maxloop,loop_delay,loop_delay)
+      end
+    end
+
+    context 'when redis connection fails' do
+      let(:maxloop) { 2 }
+      let(:loop_delay) { 1 }
+
+      it 'should raise the error' do
+        allow(subject).to receive(:_check_pool).and_raise(Redis::CannotConnectError)
+        expect(logger).to receive(:log).with('d', "[*] [#{pool}] starting worker thread")
+
+        expect{subject.check_pool(pool_object,maxloop,loop_delay,loop_delay)}.to raise_error Redis::CannotConnectError
       end
     end
 
