@@ -20,7 +20,7 @@ Gem::Specification.new do |s|
   s.add_dependency 'pickup', '~> 0.0.11'
   s.add_dependency 'puma', '~> 4.3'
   s.add_dependency 'rack', '~> 2.2'
-  s.add_dependency 'rake', '~> 12.3'
+  s.add_dependency 'rake', '>= 12.3', '< 14.0'
   s.add_dependency 'redis', '~> 4.1'
   s.add_dependency 'rbvmomi', '~> 2.1'
   s.add_dependency 'sinatra', '~> 2.0'
