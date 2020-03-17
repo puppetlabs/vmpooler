@@ -13,6 +13,16 @@ git logs & PR history.
 
 ## [Unreleased](https://github.com/puppetlabs/vmpooler/compare/0.11.0...master)
 
+## [0.11.1](https://github.com/puppetlabs/vmpooler/compare/0.11.0...0.11.1)
+
+### Added
+
+- Reconnect to Redis if it fails to connect (POOLER-156)
+
+### Fixed/Security
+
+- Update Gem dependencies
+
 ## [0.11.0](https://github.com/puppetlabs/vmpooler/compare/0.10.3...0.11.0)
 
 ### Added
