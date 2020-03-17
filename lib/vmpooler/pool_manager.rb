@@ -822,6 +822,8 @@ module Vmpooler
               loop_count += 1
             end
           end
+        rescue Redis::CannotConnectError => e
+          raise
         rescue StandardError => e
           $logger.log('s', "[!] [#{pool['name']}] Error while checking the pool: #{e}")
           raise
@@ -1310,6 +1312,9 @@ module Vmpooler
           loop_count += 1
         end
       end
+    rescue Redis::CannotConnectError => e
+      $logger.log('s', "Cannot connect to the redis server: #{e}")
+      raise
     end
   end
 end
