@@ -1213,6 +1213,55 @@ module Vmpooler
       raise("Provider '#{provider_class}' is unknown for pool with provider name '#{provider_name}'") if provider.nil?
     end
 
+    def check_ondemand_requests(maxloop = 0,
+                                loop_delay_min = CHECK_LOOP_DELAY_MIN_DEFAULT,
+                                loop_delay_max = CHECK_LOOP_DELAY_MAX_DEFAULT,
+                                loop_delay_decay = CHECK_LOOP_DELAY_DECAY_DEFAULT)
+
+      # Use the pool setings if they exist
+      loop_delay_min = pool['check_loop_delay_min'] unless pool['check_loop_delay_min'].nil?
+      loop_delay_max = pool['check_loop_delay_max'] unless pool['check_loop_delay_max'].nil?
+      loop_delay_decay = pool['check_loop_delay_decay'] unless pool['check_loop_delay_decay'].nil?
+
+      loop_delay_decay = 2.0 if loop_delay_decay <= 1.0
+      loop_delay_max = loop_delay_min if loop_delay_max.nil? || loop_delay_max < loop_delay_min
+
+      loop_count = 1
+      loop_delay = loop_delay_min
+
+      loop do
+        result = process_ondemand_requests
+
+        loop_delay = (loop_delay * loop_delay_decay).to_i
+        loop_delay = loop_delay_min if result > 0
+        loop_delay = loop_delay_max if loop_delay > loop_delay_max
+        sleep_with_wakeup_events(loop_delay, loop_delay_min, ondemand_request: true)
+
+        unless maxloop == 0
+          break if loop_count >= maxloop
+
+          loop_count += 1
+        end
+      end
+    end
+
+    def process_ondemand_requests
+      requests = $redis.zrange('vmpooler__provisioning__requests', 0, -1)
+      return 0 if requests.empty?
+
+      requests.each do |request_id|
+        create_ondemand_vms(request_id)
+        $redis.zrem('vmpooler__provisioning__requests', request_id)
+      end
+
+      return requests.length
+    end
+
+    def create_ondemand_vms(request_id)
+      requested = $redis.hget("vmpooler__odrequest__#{request_id}", 'requested')
+      requested = requested.split(',')
+    end
+
     def execute!(maxloop = 0, loop_delay = 1)
       $logger.log('d', 'starting vmpooler')
 
@@ -1301,6 +1350,13 @@ module Vmpooler
             $logger.log('d', "[!] [#{pool['name']}] worker thread died, restarting")
             check_pool(pool, check_loop_delay_min, check_loop_delay_max, check_loop_delay_decay)
           end
+        end
+
+        if !$threads['ondemand_provisioner']
+          check_ondemand_requests
+        elsif !$threads['ondemand_provisioner'].alive?
+          $logger.log('d', '[!] [ondemand_provisioner] worker thread died, restarting')
+          check_ondemand_requests
         end
 
         sleep(loop_delay)

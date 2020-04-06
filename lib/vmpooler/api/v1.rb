@@ -277,6 +277,35 @@ module Vmpooler
       end
     end
 
+    def generate_ondemand_request(payload)
+      result = { 'ok': false }
+
+      request_id = payload[:request_id]
+      request_id = generate_request_id if request_id.nil?
+      score = Time.now.to_i
+
+      result['request_id'] = request_id
+
+      if backend.exists("vmpooler__odrequest__#{request_id}")
+        result['message'] = "request_id '#{request_id}' has already been created"
+        return result
+      end
+
+      return result unless backend.zadd('vmpooler__provisioning__request', score, request_id)
+
+      status 201
+
+      requested = payload[:requested].map { |poolname, count| "#{poolname}:#{count}" }.join(',')
+      backend.hset("vmpooler__odrequest__#{request_id}", 'requested', requested)
+
+      result['ok'] = true
+      result
+    end
+
+    def generate_request_id
+      SecureRandom.uuid
+    end
+
     get '/' do
       sync_pool_sizes
       redirect to('/dashboard/')
@@ -689,6 +718,41 @@ module Vmpooler
       JSON.pretty_generate(result)
     end
 
+    post "#{api_prefix}/ondemandrequest/?" do
+      content_type :json
+      result = { 'ok' => false }
+
+      payload = JSON.parse(request.body.read)
+
+      if payload
+        invalid = invalid_templates(payload)
+        if invalid.empty?
+          result = generate_ondemand_request(payload)
+        else
+          invalid.each do |bad_template|
+            metrics.increment('ondemandrequest.invalid.' + bad_template)
+          end
+          status 404
+        end
+      else
+        metrics.increment('ondemandrequest.invalid.unknown')
+        status 404
+      end
+
+      JSON.pretty_generate(result)
+    end
+
+    get "#{api_prefix}/ondemandrequest/:requestid/?" do
+      content_type :json
+
+      result = {'ok': false}
+
+      status 404
+      result = check_ondemand_request(payload)
+
+      JSON.pretty_generate(result)
+    end
+
     post "#{api_prefix}/vm/?" do
       content_type :json
       result = { 'ok' => false }
@@ -762,6 +826,29 @@ module Vmpooler
         invalid << pool unless pool_exists?(pool)
       end
       invalid
+    end
+
+    def check_ondemand_request(payload)
+      result = {'ok': false}
+      request_id = payload[:request_id]
+      request_hash = backend.hgetall("vmpooler__odrequest__#{request_id}")
+      if request_hash.empty?
+        result['message'] = "no request found for request_id '#{request_id}'"
+        return result
+      end
+
+      if request_hash['status'] == 'ready'
+        result['status'] = 'ready'
+        instances = {}
+        platforms = request_hash['requested'].split(',').map( { |r| r.split(':')[0] } )
+        platforms.each do |platform|
+          instances[platform] = request_hash[platform].split(':')
+        end
+        result['instances'] = instances
+        status 200
+      end
+
+      result
     end
 
     post "#{api_prefix}/vm/:template/?" do
