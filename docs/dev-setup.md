@@ -1,12 +1,14 @@
 # Setting up a vmpooler development environment
 
-## Requirements
+## Docker is the preferred development environment
+
+The docker compose file is the easiest way to get vmpooler running with any local code changes. The docker compose file expects to find a vmpooler.yaml configuration file in the root vmpooler directory. The file is mapped into the running container for the vmpooler application. This file primarily contains the pools configuration. Nearly all other configuration can be supplied with environment variables.
+
+## Requirements for local installation directly on your system (not recommended)
 
 * Supported on OSX, Windows and Linux
 
 * Ruby or JRuby
-
-  Note - Ruby 1.x support will be removed so it is best to use more modern ruby versions
 
   Note - It is recommended to user Bundler instead of installing gems into the system repository
 

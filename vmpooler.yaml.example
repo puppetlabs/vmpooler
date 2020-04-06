@@ -195,13 +195,20 @@
 #
 #   - data_ttl
 #     How long (in hours) to retain metadata in Redis after VM destruction.
-#     (optional; default: '168')
+#     (default: 168)
+#
+#   - redis_connection_pool_size
+#     Maximum number of connections to utilize for the redis connection pool.
+#     (default: 10)
+#
+#   - redis_connection_pool_timeout
+#     How long a task should wait (in seconds) for a redis connection when all connections are in use.
+#     (default: 5)
 
 # Example:
 
 :redis:
   server: 'redis.example.com'
-
 
 # :graphs:
 #
@@ -368,15 +375,19 @@
 #
 #   - task_limit
 #     The number of concurrent VM creation tasks to perform.
-#     (optional; default: '10')
+#     (default: 10)
+#
+#   - ondemand_clone_limit
+#     The number of concurrent VM creation tasks to perform for ondemand VM requests.
+#     (default: 10)
 #
 #   - timeout
 #     How long (in minutes) before marking a clone in 'pending' queues as 'failed' and retrying.
-#     (optional; default: '15')
+#     (default: 15)
 #
 #   - vm_checktime
 #     How often (in minutes) to check the sanity of VMs in 'ready' queues.
-#     (optional; default: '1')
+#     (default: 1)
 #
 #   - vm_lifetime
 #     How long (in hours) to keep VMs in 'running' queues before destroying.
@@ -510,10 +521,21 @@
 #     Expects a string value
 #     (optional)
 #
+#   - max_ondemand_instances_per_request
+#     The maximum number of instances any individual ondemand request may contain per pool.
+#     (default: 10)
+#
+#   - ondemand_request_ttl
+#     The amount of time (in minutes) to give for a ondemand request to be fulfilled before considering it to have failed.
+#     (default: 5)
+#
+#   - ready_ttl
+#     How long (in minutes) a ready VM should stay in the ready queue.
+#     (default: 60)
+#
 # Example:
 
-:config:
-  site_name: 'vmpooler'
+:config: site_name: 'vmpooler'
   logfile: '/var/log/vmpooler.log'
   task_limit: 10
   timeout: 15

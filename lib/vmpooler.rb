@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 module Vmpooler
+  require 'concurrent'
   require 'date'
   require 'json'
   require 'net/ldap'
@@ -58,9 +59,14 @@ module Vmpooler
 
     # Set some configuration defaults
     parsed_config[:config]['task_limit'] = string_to_int(ENV['TASK_LIMIT']) || parsed_config[:config]['task_limit'] || 10
+    parsed_config[:config]['ondemand_clone_limit'] = string_to_int(ENV['ONDEMAND_CLONE_LIMIT']) || parsed_config[:config]['ondemand_clone_limit'] || 10
+    parsed_config[:config]['max_ondemand_instances_per_request'] = string_to_int(ENV['MAX_ONDEMAND_INSTANCES_PER_REQUEST']) || parsed_config[:config]['max_ondemand_instances_per_request'] || 10
     parsed_config[:config]['migration_limit'] = string_to_int(ENV['MIGRATION_LIMIT']) if ENV['MIGRATION_LIMIT']
     parsed_config[:config]['vm_checktime'] = string_to_int(ENV['VM_CHECKTIME']) || parsed_config[:config]['vm_checktime'] || 1
     parsed_config[:config]['vm_lifetime'] = string_to_int(ENV['VM_LIFETIME']) || parsed_config[:config]['vm_lifetime'] || 24
+    parsed_config[:config]['max_lifetime_upper_limit'] = string_to_int(ENV['MAX_LIFETIME_UPPER_LIMIT']) || parsed_config[:config]['max_lifetime_upper_limit']
+    parsed_config[:config]['ready_ttl'] = string_to_int(ENV['READY_TTL']) || parsed_config[:config]['ready_ttl'] || 60
+    parsed_config[:config]['ondemand_request_ttl'] = string_to_int(ENV['ONDEMAND_REQUEST_TTL']) || parsed_config[:config]['ondemand_request_ttl'] || 5
     parsed_config[:config]['prefix'] = ENV['PREFIX'] || parsed_config[:config]['prefix'] || ''
 
     parsed_config[:config]['logfile'] = ENV['LOGFILE'] if ENV['LOGFILE']
@@ -84,6 +90,8 @@ module Vmpooler
     parsed_config[:redis]['port'] = string_to_int(ENV['REDIS_PORT']) if ENV['REDIS_PORT']
     parsed_config[:redis]['password'] = ENV['REDIS_PASSWORD'] if ENV['REDIS_PASSWORD']
     parsed_config[:redis]['data_ttl'] = string_to_int(ENV['REDIS_DATA_TTL']) || parsed_config[:redis]['data_ttl'] || 168
+    parsed_config[:redis]['connection_pool_size'] = string_to_int(ENV['REDIS_CONNECTION_POOL_SIZE']) || parsed_config[:redis]['connection_pool_size'] || 10
+    parsed_config[:redis]['connection_pool_timeout'] = string_to_int(ENV['REDIS_CONNECTION_POOL_TIMEOUT']) || parsed_config[:redis]['connection_pool_timeout'] || 5
 
     parsed_config[:statsd] = parsed_config[:statsd] || {} if ENV['STATSD_SERVER']
     parsed_config[:statsd]['server'] = ENV['STATSD_SERVER'] if ENV['STATSD_SERVER']
@@ -117,6 +125,7 @@ module Vmpooler
 
     parsed_config[:pools].each do |pool|
       parsed_config[:pool_names] << pool['name']
+      pool['ready_ttl'] ||= parsed_config[:config]['ready_ttl']
       if pool['alias']
         if pool['alias'].is_a?(Array)
           pool['alias'].each do |pool_alias|
@@ -152,6 +161,19 @@ module Vmpooler
       pools << pool_hash
     end
     pools
+  end
+
+  def self.redis_connection_pool(host, port, password, size, timeout, metrics)
+    Vmpooler::PoolManager::GenericConnectionPool.new(
+      metrics: metrics,
+      metric_prefix: 'redis_connection_pool',
+      size: size,
+      timeout: timeout
+    ) do
+      connection = Concurrent::Hash.new
+      redis = new_redis(host, port, password)
+      connection['connection'] = redis
+    end
   end
 
   def self.new_redis(host = 'localhost', port = nil, password = nil)

@@ -42,6 +42,68 @@ module Vmpooler
       Vmpooler::API.settings.checkoutlock
     end
 
+    def get_template_aliases(template)
+      result = []
+      aliases = Vmpooler::API.settings.config[:alias]
+      if aliases
+        result += aliases[template] if aliases[template].is_a?(Array)
+        template_backends << aliases[template] if aliases[template].is_a?(String)
+      end
+      result
+    end
+
+    def get_pool_weights(template_backends)
+      pool_index = pool_index(pools)
+      weighted_pools = {}
+      template_backends.each do |t|
+        next unless pool_index.key? t
+
+        index = pool_index[t]
+        clone_target = pools[index]['clone_target'] || config['clone_target']
+        next unless config.key?('backend_weight')
+
+        weight = config['backend_weight'][clone_target]
+        if weight
+          weighted_pools[t] = weight
+        end
+      end
+      weighted_pools
+    end
+
+    def count_selection(selection)
+      result = {}
+      selection.uniq.each do |poolname|
+        result[poolname] = selection.count(poolname)
+      end
+      result
+    end
+
+    def evaluate_template_aliases(template, count)
+      template_backends = []
+      template_backends << template if backend.sismember('vmpooler__pools', template)
+      selection = []
+      aliases = get_template_aliases(template)
+      if aliases
+        template_backends += aliases
+        weighted_pools = get_pool_weights(template_backends)
+
+        pickup = Pickup.new(weighted_pools) if weighted_pools.count == template_backends.count
+        count.to_i.times do
+          if pickup
+            selection << pickup.pick
+          else
+            selection << template_backends.sample
+          end
+        end
+      else
+        count.to_i.times do
+          selection << template
+        end
+      end
+
+      count_selection(selection)
+    end
+
     def fetch_single_vm(template)
       template_backends = [template]
       aliases = Vmpooler::API.settings.config[:alias]
@@ -245,11 +307,9 @@ module Vmpooler
       pool_index = pool_index(pools)
       template_configs = backend.hgetall('vmpooler__config__template')
       template_configs&.each do |poolname, template|
-          if pool_index.include? poolname
-            unless pools[pool_index[poolname]]['template'] == template
-              pools[pool_index[poolname]]['template'] = template
-            end
-          end
+        next unless pool_index.include? poolname
+
+        pools[pool_index[poolname]]['template'] = template
       end
     end
 
@@ -257,11 +317,9 @@ module Vmpooler
       pool_index = pool_index(pools)
       poolsize_configs = backend.hgetall('vmpooler__config__poolsize')
       poolsize_configs&.each do |poolname, size|
-          if pool_index.include? poolname
-            unless pools[pool_index[poolname]]['size'] == size.to_i
-              pools[pool_index[poolname]]['size'] == size.to_i
-            end
-          end
+        next unless pool_index.include? poolname
+
+        pools[pool_index[poolname]]['size'] = size.to_i
       end
     end
 
@@ -269,12 +327,67 @@ module Vmpooler
       pool_index = pool_index(pools)
       clone_target_configs = backend.hgetall('vmpooler__config__clone_target')
       clone_target_configs&.each do |poolname, clone_target|
-          if pool_index.include? poolname
-            unless pools[pool_index[poolname]]['clone_target'] == clone_target
-              pools[pool_index[poolname]]['clone_target'] == clone_target
-            end
-          end
+        next unless pool_index.include? poolname
+
+        pools[pool_index[poolname]]['clone_target'] = clone_target
       end
+    end
+
+    def too_many_requested?(payload)
+      payload&.each do |_poolname, count|
+        next unless count.to_i > config['max_ondemand_instances_per_request']
+
+        return true
+      end
+      false
+    end
+
+    def generate_ondemand_request(payload)
+      result = { 'ok': false }
+
+      requested_instances = payload.reject { |k, _v| k == 'request_id' }
+      if too_many_requested?(requested_instances)
+        result['message'] = "requested amount of instances exceeds the maximum #{config['max_ondemand_instances_per_request']}"
+        status 403
+        return result
+      end
+
+      score = Time.now.to_i
+      request_id = payload['request_id']
+      request_id ||= generate_request_id
+      result['request_id'] = request_id
+
+      if backend.exists("vmpooler__odrequest__#{request_id}")
+        result['message'] = "request_id '#{request_id}' has already been created"
+        status 409
+        return result
+      end
+
+      status 201
+
+      platforms_with_aliases = []
+      requested_instances.each do |poolname, count|
+        selection = evaluate_template_aliases(poolname, count)
+        selection.map { |selected_pool, selected_pool_count| platforms_with_aliases << "#{poolname}:#{selected_pool}:#{selected_pool_count}" }
+      end
+      platforms_string = platforms_with_aliases.join(',')
+
+      return result unless backend.zadd('vmpooler__provisioning__request', score, request_id)
+
+      backend.hset("vmpooler__odrequest__#{request_id}", 'requested', platforms_string)
+      if Vmpooler::API.settings.config[:auth] and has_token?
+        backend.hset("vmpooler__odrequest__#{request_id}", 'token:token', request.env['HTTP_X_AUTH_TOKEN'])
+        backend.hset("vmpooler__odrequest__#{request_id}", 'token:user',
+                     backend.hget('vmpooler__token__' + request.env['HTTP_X_AUTH_TOKEN'], 'user'))
+      end
+
+      result['domain'] = config['domain'] if config['domain']
+      result[:ok] = true
+      result
+    end
+
+    def generate_request_id
+      SecureRandom.uuid
     end
 
     get '/' do
@@ -395,7 +508,7 @@ module Vmpooler
           end
 
           # for backwards compatibility, include separate "empty" stats in "status" block
-          if ready == 0
+          if ready == 0 && max != 0
             result[:status][:empty] ||= []
             result[:status][:empty].push(pool['name'])
 
@@ -689,6 +802,61 @@ module Vmpooler
       JSON.pretty_generate(result)
     end
 
+    post "#{api_prefix}/ondemandvm/?" do
+      content_type :json
+
+      need_token! if Vmpooler::API.settings.config[:auth]
+
+      result = { 'ok' => false }
+
+      begin
+        payload = JSON.parse(request.body.read)
+
+        if payload
+          invalid = invalid_templates(payload.reject { |k, _v| k == 'request_id' })
+          if invalid.empty?
+            result = generate_ondemand_request(payload)
+          else
+            result[:bad_templates] = invalid
+            invalid.each do |bad_template|
+              metrics.increment('ondemandrequest.invalid.' + bad_template)
+            end
+            status 404
+          end
+        else
+          metrics.increment('ondemandrequest.invalid.unknown')
+          status 404
+        end
+      rescue JSON::ParserError
+        status 400
+        result = {
+          'ok' => false,
+          'message' => 'JSON payload could not be parsed'
+        }
+      end
+
+      JSON.pretty_generate(result)
+    end
+
+    get "#{api_prefix}/ondemandvm/:requestid/?" do
+      content_type :json
+
+      status 404
+      result = check_ondemand_request(params[:requestid])
+
+      JSON.pretty_generate(result)
+    end
+
+    delete "#{api_prefix}/ondemandvm/:requestid/?" do
+      content_type :json
+      need_token! if Vmpooler::API.settings.config[:auth]
+
+      status 404
+      result = delete_ondemand_request(params[:requestid])
+
+      JSON.pretty_generate(result)
+    end
+
     post "#{api_prefix}/vm/?" do
       content_type :json
       result = { 'ok' => false }
@@ -762,6 +930,78 @@ module Vmpooler
         invalid << pool unless pool_exists?(pool)
       end
       invalid
+    end
+
+    def check_ondemand_request(request_id)
+      result = { 'ok' => false }
+      request_hash = backend.hgetall("vmpooler__odrequest__#{request_id}")
+      if request_hash.empty?
+        result['message'] = "no request found for request_id '#{request_id}'"
+        return result
+      end
+
+      result['request_id'] = request_id
+      result['ready'] = false
+      result['ok'] = true
+      status 202
+
+      if request_hash['status'] == 'ready'
+        result['ready'] = true
+        platform_parts = request_hash['requested'].split(',')
+        platform_parts.each do |platform|
+          pool_alias, pool, _count = platform.split(':')
+          instances = backend.smembers("vmpooler__#{request_id}__#{pool_alias}__#{pool}")
+          result[pool_alias] = { 'hostname': instances }
+        end
+        result['domain'] = config['domain'] if config['domain']
+        status 200
+      elsif request_hash['status'] == 'failed'
+        result['message'] = "The request failed to provision instances within the configured ondemand_request_ttl '#{config['ondemand_request_ttl']}'"
+        status 200
+      elsif request_hash['status'] == 'deleted'
+        result['message'] = 'The request has been deleted'
+        status 200
+      else
+        platform_parts = request_hash['requested'].split(',')
+        platform_parts.each do |platform|
+          pool_alias, pool, count = platform.split(':')
+          instance_count = backend.scard("vmpooler__#{request_id}__#{pool_alias}__#{pool}")
+          result[pool_alias] = {
+            'ready': instance_count.to_s,
+            'pending': (count.to_i - instance_count.to_i).to_s
+          }
+        end
+      end
+
+      result
+    end
+
+    def delete_ondemand_request(request_id)
+      result = { 'ok' => false }
+
+      platforms = backend.hget("vmpooler__odrequest__#{request_id}", 'requested')
+      unless platforms
+        result['message'] = "no request found for request_id '#{request_id}'"
+        return result
+      end
+
+      if backend.hget("vmpooler__odrequest__#{request_id}", 'status') == 'deleted'
+        result['message'] = 'the request has already been deleted'
+      else
+        backend.hset("vmpooler__odrequest__#{request_id}", 'status', 'deleted')
+
+        platforms.split(',').each do |platform|
+          pool_alias, pool, _count = platform.split(':')
+          backend.smembers("vmpooler__#{request_id}__#{pool_alias}__#{pool}")&.each do |vm|
+            backend.smove("vmpooler__running__#{pool}", "vmpooler__completed__#{pool}", vm)
+          end
+          backend.del("vmpooler__#{request_id}__#{pool_alias}__#{pool}")
+        end
+        backend.expire("vmpooler__odrequest__#{request_id}", 129_600_0)
+      end
+      status 200
+      result['ok'] = true
+      result
     end
 
     post "#{api_prefix}/vm/:template/?" do
@@ -923,6 +1163,7 @@ module Vmpooler
               unless arg.to_i > 0
                 failure.push("You provided a lifetime (#{arg}) but you must provide a positive number.")
               end
+
             when 'tags'
               unless arg.is_a?(Hash)
                 failure.push("You provided tags (#{arg}) as something other than a hash.")
@@ -1047,7 +1288,7 @@ module Vmpooler
             invalid.each do |bad_template|
               metrics.increment("config.invalid.#{bad_template}")
             end
-            result[:bad_templates] = invalid
+            result[:not_configured] = invalid
             status 400
           end
         else

@@ -7,6 +7,8 @@ config = Vmpooler.config
 redis_host = config[:redis]['server']
 redis_port = config[:redis]['port']
 redis_password = config[:redis]['password']
+redis_connection_pool_size = config[:redis]['connection_pool_size']
+redis_connection_pool_timeout = config[:redis]['connection_pool_timeout']
 logger_file = config[:config]['logfile']
 
 metrics = Vmpooler.new_metrics(config)
@@ -36,7 +38,7 @@ if torun.include? 'manager'
     Vmpooler::PoolManager.new(
       config,
       Vmpooler.new_logger(logger_file),
-      Vmpooler.new_redis(redis_host, redis_port, redis_password),
+      Vmpooler.redis_connection_pool(redis_host, redis_port, redis_password, redis_connection_pool_size, redis_connection_pool_timeout, metrics),
       metrics
     ).execute!
   end

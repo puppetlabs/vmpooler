@@ -74,6 +74,16 @@ The prefix to use while storing Graphite data.
 The TCP port to communicate with the graphite server.
 (optional; default: 2003)
 
+### MAX\_ONDEMAND\_INSTANCES\_PER\_REQUEST
+
+The maximum number of instances any individual ondemand request may contain per pool.
+(default: 10)
+
+### ONDEMAND\_REQUEST\_TTL
+
+The amount of time (in minutes) to give for a ondemand request to be fulfilled before considering it to have failed.
+(default: 5)
+
 ## Manager options <a name="manager"></a>
 
 ### TASK\_LIMIT
@@ -123,6 +133,11 @@ The target cluster VMs are cloned into (host with least VMs chosen)
 How long (in minutes) before marking a clone as 'failed' and retrying.
 (optional; default: 15)
 
+### READY\_TTL
+
+How long (in minutes) a ready VM should stay in the ready queue.
+(default: 60)
+
 ### MAX\_TRIES
 
 Set the max number of times a connection should retry in VM providers. This optional setting allows a user to dial in retry limits to suit your environment.
@@ -130,7 +145,7 @@ Set the max number of times a connection should retry in VM providers. This opti
 
 ### RETRY\_FACTOR
 
-When retrying, each attempt sleeps for the try count * retry_factor.
+When retrying, each attempt sleeps for the try count * retry\_factor.
 Increase this number to lengthen the delay between retry attempts.
 This is particularly useful for instances with a large number of pools
 to prevent a thundering herd when retrying connections.
@@ -183,6 +198,21 @@ The argument can accept a full path to a file, or multiple files comma separated
 Expects a string value
 (optional)
 
+### ONDEMAND\_CLONE\_LIMIT
+
+Maximum number of simultaneous clones to perform for ondemand provisioning requests.
+(default: 10)
+
+### REDIS\_CONNECTION\_POOL\_SIZE
+
+Maximum number of connections to utilize for the redis connection pool.
+(default: 10)
+
+### REDIS\_CONNECTION\_POOL\_TIMEOUT
+
+How long a task should wait (in seconds) for a redis connection when all connections are in use.
+(default: 5)
+
 ## API options <a name="API"></a>
 
 ### AUTH\_PROVIDER
@@ -221,3 +251,8 @@ The name of your deployment.
 Enable experimental API capabilities such as changing pool template and size without application restart
 Expects a boolean value
 (optional; default: false)
+
+### MAX\_LIFETIME\_UPPER\_LIMIT
+
+Specify a maximum lifetime that a VM may be extended to in hours.
+(optional)
