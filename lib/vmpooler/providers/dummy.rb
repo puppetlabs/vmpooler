@@ -9,8 +9,8 @@ module Vmpooler
       class Dummy < Vmpooler::PoolManager::Provider::Base
         # Fake VM Provider for testing
 
-        def initialize(config, logger, metrics, name, options)
-          super(config, logger, metrics, name, options)
+        def initialize(config, logger, metrics, redis_connection_pool, name, options)
+          super(config, logger, metrics, redis_connection_pool, name, options)
           dummyfilename = provider_config['filename']
 
           # This initial_state option is only intended to be used by spec tests

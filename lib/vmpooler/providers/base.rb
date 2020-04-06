@@ -14,10 +14,11 @@ module Vmpooler
         # Provider options passed in during initialization
         attr_reader :provider_options
 
-        def initialize(config, logger, metrics, name, options)
+        def initialize(config, logger, metrics, redis_connection_pool, name, options)
           @config = config
           @logger = logger
           @metrics = metrics
+          @redis = redis_connection_pool
           @provider_name = name
 
           # Ensure that there is not a nil provider configuration

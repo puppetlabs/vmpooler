@@ -17,7 +17,7 @@ services:
       - VMPOOLER_DEBUG=true # for use of dummy auth
       - VMPOOLER_CONFIG_FILE=/etc/vmpooler/vmpooler.yaml
       - REDIS_SERVER=redislocal
-      - LOGFILE=/dev/stdout
+      - LOGFILE=/dev/null
     image: vmpooler-local
     depends_on:
       - redislocal

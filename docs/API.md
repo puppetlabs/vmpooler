@@ -6,6 +6,7 @@
 5. [VM snapshots](#vmsnapshots)
 6. [Status and metrics](#statusmetrics)
 7. [Pool configuration](#poolconfig)
+8. [Ondemand VM provisioning](#ondemandvm)
 
 ### API <a name="API"></a>
 
@@ -793,6 +794,96 @@ Responses:
 * 405 - The endpoint is disabled because experimental features are disabled
 ```
 $ curl -X POST -H "Content-Type: application/json" -d '{"debian-7-i386":"1"}' --url https://vmpooler.example.com/api/v1/poolreset
+```
+```json
+{
+  "ok": true
+}
+```
+
+#### Ondemand VM operations <a name="ondemandvm"></a>
+
+Ondemand VM operations offer a user an option to directly request instances to be allocated for use. This can be very useful when supporting a wide range of images because idle instances can be eliminated.
+
+##### POST /ondemandvm
+
+All instance types requested must match a pool name or alias in the running application configuration, or a 404 code will be returned
+
+When a provisioning request is accepted the API will return an indication that the request is successful. You may then poll /ondemandvm to monitor request status.
+
+An authentication token is required in order to request instances on demand when authentication is configured.
+
+Responses:
+* 201 - Provisioning request accepted
+* 400 - Payload contains invalid JSON and cannot be parsed
+* 401 - No auth token provided, or provided auth token is not valid, and auth is enabled
+* 403 - Request exceeds the configured per pool maximum
+* 404 - A pool was requested, which is not available in the running configuration, or an unknown error occurred.
+* 409 - A request of the matching ID has already been created
+```
+$ curl -X POST -H "Content-Type: application/json" -d '{"debian-7-i386":"4"}' --url https://vmpooler.example.com/api/v1/ondemandvm
+```
+```json
+{
+  "ok": true,
+  "request_id": "e3ff6271-d201-4f31-a315-d17f4e15863a"
+}
+```
+
+##### GET /ondemandvm
+
+Get the status of an ondemandvm request that has already been posted.
+
+When the request is ready the ready status will change to 'true'.
+
+The number of instances pending vs ready will be reflected in the API response.
+
+Responses:
+* 200 - The API request was successful and the status is ok
+* 202 - The request is not ready yet
+* 404 - The request can not be found, or an unknown error occurred
+```
+$ curl https://vmpooler.example.com/api/v1/ondemandvm/e3ff6271-d201-4f31-a315-d17f4e15863a
+```
+```json
+{
+  "ok": true,
+  "request_id": "e3ff6271-d201-4f31-a315-d17f4e15863a",
+  "ready": false,
+  "debian-7-i386": {
+    "ready": "3",
+    "pending": "1"
+  }
+}
+```
+```json
+{
+  "ok": true,
+  "request_id": "e3ff6271-d201-4f31-a315-d17f4e15863a",
+  "ready": true,
+  "debian-7-i386": {
+    "hostname": [
+      "vm1",
+      "vm2",
+      "vm3",
+      "vm4"
+    ]
+  }
+}
+```
+
+##### DELETE /ondemandvm
+
+Delete a ondemand request
+
+Deleting a ondemand request will delete any instances created for the request and mark the backend data for expiration in two weeks. Any subsequent attempts to retrieve request data will indicate it has been deleted.
+
+Responses:
+* 200 - The API request was sucessful. A message will indicate if the request has already been deleted.
+* 401 - No auth token provided, or provided auth token is not valid, and auth is enabled
+* 404 - The request can not be found, or an unknown error occurred.
+```
+$ curl -X DELETE https://vmpooler.example.com/api/v1/ondemandvm/e3ff6271-d201-4f31-a315-d17f4e15863a
 ```
 ```json
 {

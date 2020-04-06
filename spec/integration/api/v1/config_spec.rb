@@ -160,7 +160,7 @@ describe Vmpooler::API::V1 do
         expect_json(ok = false, http = 400)
         expected = {
           ok: false,
-          bad_templates: ['pool10']
+          not_configured: ['pool10']
         }
 
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
@@ -190,7 +190,7 @@ describe Vmpooler::API::V1 do
 
         expected = {
           ok: false,
-          bad_templates: ['pool1']
+          not_configured: ['pool1']
         }
 
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
@@ -202,7 +202,7 @@ describe Vmpooler::API::V1 do
 
         expected = {
           ok: false,
-          bad_templates: ['pool1']
+          not_configured: ['pool1']
         }
 
         expect(last_response.body).to eq(JSON.pretty_generate(expected))

@@ -13,6 +13,7 @@ gem 'statsd-ruby', '~> 1.4.0', :require => 'statsd'
 gem 'connection_pool', '~> 2.2'
 gem 'nokogiri', '~> 1.10'
 gem 'spicy-proton', '~> 2.1'
+gem 'concurrent-ruby', '~> 1.1'
 
 group :development do
   gem 'pry'

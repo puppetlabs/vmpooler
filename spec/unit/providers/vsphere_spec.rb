@@ -77,9 +77,15 @@ EOT
   let(:connection_options) {{}}
   let(:connection) { mock_RbVmomi_VIM_Connection(connection_options) }
   let(:vmname) { 'vm1' }
-  let(:redis) { MockRedis.new }
+  let(:redis_connection_pool) { Vmpooler::PoolManager::GenericConnectionPool.new(
+    metrics: metrics,
+    metric_prefix: 'redis_connection_pool',
+    size: 1,
+    timeout: 5
+  ) { MockRedis.new }
+  }
 
-  subject { Vmpooler::PoolManager::Provider::VSphere.new(config, logger, metrics, 'vsphere', provider_options) }
+  subject { Vmpooler::PoolManager::Provider::VSphere.new(config, logger, metrics, redis_connection_pool, 'vsphere', provider_options) }
 
   before(:each) do
     allow(subject).to receive(:vsphere_connection_ok?).and_return(true)
@@ -149,26 +155,19 @@ EOT
         allow(destroy_task).to receive(:wait_for_completion)
         allow(vm_object).to receive(:PowerOffVM_Task).and_return(power_off_task)
         allow(vm_object).to receive(:Destroy_Task).and_return(destroy_task)
-        $redis = redis
-      end
-
-      it 'should remove redis data and expire the vm key' do
-        allow(Time).to receive(:now).and_return(now)
-        expect(redis).to receive(:srem).with("vmpooler__completed__#{pool}", vmname)
-        expect(redis).to receive(:hdel).with("vmpooler__active__#{pool}", vmname)
-        expect(redis).to receive(:hset).with("vmpooler__vm__#{vmname}", 'destroy', now)
-        expect(redis).to receive(:expire).with("vmpooler__vm__#{vmname}", data_ttl * 60 * 60)
-
-        subject.destroy_vm_and_log(vmname, vm_object, pool, data_ttl)
       end
 
       it 'should log a message that the vm is destroyed' do
+        # Ensure Time returns a consistent value so finish is predictable
+        # Otherwise finish occasionally increases to 0.01 and causes a failure
+        allow(Time).to receive(:now).and_return(Time.now)
         expect(logger).to receive(:log).with('s', "[-] [#{pool}] '#{vmname}' destroyed in #{finish} seconds")
 
         subject.destroy_vm_and_log(vmname, vm_object, pool, data_ttl)
       end
 
       it 'should record metrics' do
+        expect(metrics).to receive(:timing).with('redis_connection_pool.waited', 0)
         expect(metrics).to receive(:timing).with("destroy.#{pool}", finish)
 
         subject.destroy_vm_and_log(vmname, vm_object, pool, data_ttl)
@@ -644,6 +643,18 @@ EOT
 
       it 'should raise an error' do
         expect{ subject.create_vm(poolname, vmname) }.to raise_error(/specifies a template VM of .+ which does not exist/)
+      end
+    end
+
+    context 'when create_vm_folder returns nil' do
+      before(:each) do
+        template_vm = new_template_object
+        allow(subject).to receive(:find_template_vm).and_return(new_template_object)
+        expect(subject).to receive(:find_vm_folder).and_return(nil)
+      end
+
+      it 'should raise an error' do
+        expect{ subject.create_vm(poolname, vmname) }.to raise_error(ArgumentError)
       end
     end
 
@@ -2573,10 +2584,12 @@ EOT
         subject.connection_pool.with_metrics do |pool_object|
           expect(subject).to receive(:ensured_vsphere_connection).with(pool_object).and_return(connection)
           expect(subject).to receive(:get_vm_details).and_return(vm_details)
-          allow($redis).to receive(:hset)
           expect(subject).to receive(:run_select_hosts).with(poolname, {})
           expect(subject).to receive(:vm_in_target?).and_return false
           expect(subject).to receive(:migration_enabled?).and_return true
+          redis_connection_pool.with do |redis|
+            redis.hset("vmpooler__vm__#{vmname}", 'checkout', Time.now)
+          end
         end
         vm_object.summary.runtime.host = host_object
       end
@@ -2585,7 +2598,6 @@ EOT
         expect(subject).to receive(:select_next_host).and_return(new_host)
         expect(subject).to receive(:find_host_by_dnsname).and_return(new_host_object)
         expect(subject).to receive(:migrate_vm_host).with(vm_object, new_host_object)
-        expect($redis).to receive(:hget).with("vmpooler__vm__#{vmname}", 'checkout').and_return((Time.now - 1).to_s)
         expect(logger).to receive(:log).with('s', "[>] [#{poolname}] '#{vmname}' migrated from #{parent_host} to #{new_host} in 0.00 seconds")
 
         subject.migrate_vm(poolname, vmname)
@@ -2603,7 +2615,6 @@ EOT
         subject.connection_pool.with_metrics do |pool_object|
           expect(subject).to receive(:ensured_vsphere_connection).with(pool_object).and_return(connection)
           expect(subject).to receive(:get_vm_details).and_return(vm_details)
-          expect($redis).to receive(:hset).with("vmpooler__vm__#{vmname}", 'host', parent_host)
           expect(subject).to receive(:run_select_hosts).with(poolname, {})
           expect(subject).to receive(:vm_in_target?).and_return true
           expect(subject).to receive(:migration_enabled?).and_return true
@@ -2622,11 +2633,13 @@ EOT
       before(:each) do
         subject.connection_pool.with_metrics do |pool_object|
           expect(subject).to receive(:ensured_vsphere_connection).with(pool_object).and_return(connection)
-          expect($redis).to receive(:scard).with('vmpooler__migration').and_return(5)
           expect(subject).to receive(:get_vm_details).and_return(vm_details)
           expect(subject).to_not receive(:run_select_hosts)
           expect(subject).to_not receive(:vm_in_target?)
           expect(subject).to receive(:migration_enabled?).and_return true
+          redis_connection_pool.with do |redis|
+            expect(redis).to receive(:scard).with('vmpooler__migration').and_return(5)
+          end
         end
         vm_object.summary.runtime.host = host_object
       end
@@ -2691,14 +2704,10 @@ EOT
     end
 
     it' migrates a vm' do
-      expect($redis).to receive(:sadd).with('vmpooler__migration', vmname)
       expect(subject).to receive(:select_next_host).and_return(new_host)
-      expect($redis).to receive(:hset).with("vmpooler__vm__#{vmname}", 'host', new_host)
-      expect($redis).to receive(:hset).with("vmpooler__vm__#{vmname}", 'migrated', true)
       expect(subject).to receive(:find_host_by_dnsname).and_return(new_host_object)
       expect(subject).to receive(:migrate_vm_and_record_timing).and_return(format('%.2f', (Time.now - (Time.now - 15))))
       expect(logger).to receive(:log).with('s', "[>] [#{poolname}] '#{vmname}' migrated from host1 to host2 in 15.00 seconds")
-      expect($redis).to receive(:srem).with('vmpooler__migration', vmname)
       subject.migrate_vm_to_new_host(poolname, vmname, vm_details, connection)
     end
   end
