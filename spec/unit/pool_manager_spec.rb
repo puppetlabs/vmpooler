@@ -1096,15 +1096,15 @@ EOT
     }
 
     it 'should return a list of pool folders' do
-      expect(provider).to receive(:get_target_datacenter_from_config).with(pool).and_return(datacenter)
+      expect($providers[provider_name]).to receive(:get_target_datacenter_from_config).with(pool).and_return(datacenter)
 
-      expect(subject.pool_folders(provider)).to eq(expected_response)
+      expect(subject.pool_folders(provider_name)).to eq(expected_response)
     end
 
     it 'should raise an error when the provider fails to get the datacenter' do
-      expect(provider).to receive(:get_target_datacenter_from_config).with(pool).and_raise('mockerror')
+      expect($providers[provider_name]).to receive(:get_target_datacenter_from_config).with(pool).and_raise('mockerror')
 
-      expect{ subject.pool_folders(provider) }.to raise_error(RuntimeError, 'mockerror')
+      expect{ subject.pool_folders(provider_name) }.to raise_error(RuntimeError, 'mockerror')
     end
   end
 
@@ -1135,14 +1135,16 @@ EOT
 
     it 'should run purge_unconfigured_folders' do
       expect(subject).to receive(:pool_folders).and_return(configured_folders)
-      expect(provider).to receive(:purge_unconfigured_folders).with(base_folders, configured_folders, whitelist)
+      expect($providers[provider_name]).to receive(:purge_unconfigured_folders).with(base_folders, configured_folders, whitelist)
+      expect($providers[provider_name]).to receive(:provider_config).and_return({})
 
       subject.purge_vms_and_folders(provider)
     end
 
     it 'should raise any errors' do
       expect(subject).to receive(:pool_folders).and_return(configured_folders)
-      expect(provider).to receive(:purge_unconfigured_folders).with(base_folders, configured_folders, whitelist).and_raise('mockerror')
+      expect($providers[provider_name]).to receive(:purge_unconfigured_folders).with(base_folders, configured_folders, whitelist).and_raise('mockerror')
+      expect($providers[provider_name]).to receive(:provider_config).and_return({})
 
       expect{ subject.purge_vms_and_folders(provider) }.to raise_error(RuntimeError, 'mockerror')
     end

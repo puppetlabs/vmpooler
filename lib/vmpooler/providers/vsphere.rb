@@ -118,10 +118,12 @@ module Vmpooler
 
             base_folders.each do |base_folder|
               folder_children = get_folder_children(base_folder, connection)
-              unless folder_children.empty?
-                folder_children.each do |folder_hash|
-                  folder_hash.each do |folder_title, folder_object|
-                    destroy_folder_and_children(folder_object) unless folder_configured?(folder_title, base_folder, configured_folders, whitelist)
+              next if folder_children.empty?
+
+              folder_children.each do |folder_hash|
+                folder_hash.each do |folder_title, folder_object|
+                  unless folder_configured?(folder_title, base_folder, configured_folders, whitelist)
+                    destroy_folder_and_children(folder_object)
                   end
                 end
               end
