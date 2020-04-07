@@ -446,7 +446,7 @@ module Vmpooler
             begin
               purge_vms_and_folders(provider.to_s)
             rescue StandardError => e
-              $logger.log('s', "[!] failed while purging provider #{provider.to_s} VMs and folders with an error: #{e}")
+              $logger.log('s', "[!] failed while purging provider #{provider} VMs and folders with an error: #{e}")
             end
           end
         end

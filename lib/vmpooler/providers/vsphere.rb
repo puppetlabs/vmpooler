@@ -122,9 +122,7 @@ module Vmpooler
 
               folder_children.each do |folder_hash|
                 folder_hash.each do |folder_title, folder_object|
-                  unless folder_configured?(folder_title, base_folder, configured_folders, whitelist)
-                    destroy_folder_and_children(folder_object)
-                  end
+                  destroy_folder_and_children(folder_object) unless folder_configured?(folder_title, base_folder, configured_folders, whitelist)
                 end
               end
             end
