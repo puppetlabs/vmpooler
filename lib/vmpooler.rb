@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 module Vmpooler
+  require 'concurrent'
   require 'date'
   require 'json'
   require 'net/ldap'

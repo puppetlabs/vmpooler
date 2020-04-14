@@ -42,26 +42,73 @@ module Vmpooler
       Vmpooler::API.settings.checkoutlock
     end
 
-    def fetch_single_vm(template)
-      template_backends = [template]
+    def get_template_aliases(template)
+      result = []
       aliases = Vmpooler::API.settings.config[:alias]
       if aliases
-        template_backends += aliases[template] if aliases[template].is_a?(Array)
+        result += aliases[template] if aliases[template].is_a?(Array)
         template_backends << aliases[template] if aliases[template].is_a?(String)
-        pool_index = pool_index(pools)
-        weighted_pools = {}
-        template_backends.each do |t|
-          next unless pool_index.key? t
+      end
+      result
+    end
 
-          index = pool_index[t]
-          clone_target = pools[index]['clone_target'] || config['clone_target']
-          next unless config.key?('backend_weight')
+    def get_pool_weights(template_backends)
+      pool_index = pool_index(pools)
+      weighted_pools = {}
+      template_backends.each do |t|
+        next unless pool_index.key? t
 
-          weight = config['backend_weight'][clone_target]
-          if weight
-            weighted_pools[t] = weight
+        index = pool_index[t]
+        clone_target = pools[index]['clone_target'] || config['clone_target']
+        next unless config.key?('backend_weight')
+
+        weight = config['backend_weight'][clone_target]
+        if weight
+          weighted_pools[t] = weight
+        end
+      end
+      weighted_pools
+    end
+
+    def count_selection(selection)
+      result = {}
+      selection.uniq.each do |poolname|
+        result[poolname] = selection.count(poolname)
+      end
+      result
+    end
+
+    def evaluate_template_aliases(template, count)
+      template_backends = [template]
+      selection = []
+      aliases = get_template_aliases(template)
+      if aliases
+        template_backends += aliases
+        weighted_pools = get_pool_weights(template_backends)
+
+        pickup = Pickup.new(weighted_pools) if weighted_pools.count == template_backends.count
+        count.times do
+          if pickup
+            selection << pickup.pick
+          else
+            selection << template_backends.sample
           end
         end
+      else
+        count.times do
+          selection << template
+        end
+      end
+
+      return count_selection(selection)
+    end
+
+    def fetch_single_vm(template)
+      template_backends = [template]
+      aliases = get_template_aliases(template)
+      if aliases
+        template_backends += aliases
+        weighted_pools = get_pool_weights(template_backends)
 
         if weighted_pools.count == template_backends.count
           pickup = Pickup.new(weighted_pools)
@@ -295,8 +342,15 @@ module Vmpooler
 
       status 201
 
-      requested = payload[:requested].map { |poolname, count| "#{poolname}:#{count}" }.join(',')
-      backend.hset("vmpooler__odrequest__#{request_id}", 'requested', requested)
+      requested = payload[:requested]
+      platforms_with_aliases = []
+      requested.each do |poolname, count|
+        selection = evaluate_template_aliases(poolname, count)
+        selection.map { |aliasname, count| platforms_with_aliases << "#{poolname}:#{aliasname}:#{count}" }
+      end
+
+      platforms_string = platforms_with_aliases.join(',')
+      backend.hset("vmpooler__odrequest__#{request_id}", 'requested', platforms_string)
 
       result['ok'] = true
       result
