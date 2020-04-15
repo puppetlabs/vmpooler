@@ -1278,41 +1278,53 @@ module Vmpooler
 
     def process_ondemand_requests
       requests = $redis.zrange('vmpooler__provisioning__requests', 0, -1)
-      if ! requests.empty?
 
-        requests.each do |request_id|
-          create_ondemand_vms(request_id)
-          $redis.zrem('vmpooler__provisioning__requests', request_id)
-        end
+      requests&.map { |request_id| create_ondemand_vms(request_id) }
 
-      end
+      provisioning_tasks = process_ondemand_vms
 
-      provisioning_tasks = $redis.zrange('vmpooler__odcreate__task', 0, -1)
-      if ! requests.empty?
-        process_ondemand_vms(provisioning_tasks) unless provisioning_tasks.empty?
-      end
-
-      return requests.length + provisioning_tasks.length
+      return requests.length + provisioning_tasks
     end
 
     def create_ondemand_vms(request_id)
       requested = $redis.hget("vmpooler__odrequest__#{request_id}", 'requested')
       requested = requested.split(',')
+
       $redis.multi
       requested.map { |request| $redis.zadd('vmpooler__odcreate__task', Time.now, "#{request}:#{request_id}") }
+      $redis.zrem('vmpooler__provisioning__requests', request_id)
       $redis.exec
     end
 
-    def process_ondemand_vms(queue)
+    def process_ondemand_vms
+      queue_key = 'vmpooler__odcreate__task'
+      queue = $redis.zrange(queue_key, 0, -1)
       ondemand_clone_limit = $config[:config]['ondemand_clone_limit'].to_i
       queue.each do |request|
-        platform, count, request_id = request.split(':')
-        if @tasks['ondemand_clone_count'] + count <= ondemand_clone_limit
+        requested_platform, fulfilled_platform, count, request_id = request.split(':')
+        if @tasks['ondemand_clone_count'] < ondemand_clone_limit
           provider = get_provider_for_pool(platform)
-          count.times do
-            @tasks['ondemand_clone_count'] += 1
-            clone_vm(platform, provider, request_id)
+          delta = ondemand_clone_limit - @tasks['ondemand_clone_count']
+          if delta >= count
+            count.times do
+              @tasks['ondemand_clone_count'] += 1
+              clone_vm(platform, provider, request_id)
+            end
+            $redis.zrem(queue_key, request_id)
+          else
+            available_slots = delta - count
+            available_slots.times do
+              @tasks['ondemand_clone_count'] += 1
+              clone_vm(platform, provider, request_id)
+            end
+            score = $redis.zscore(queue_key, request_id)
+            $redis.multi
+            $redis.zrem(queue_key, request)
+            $redis.zadd(queue_key, score, "#{requested_platform}:#{fulfilled_platform}:#{count - delta}:#{request_id}")
+            $redis.exec
           end
+        else
+          break
         end
       end
     end
