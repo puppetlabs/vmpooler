@@ -909,13 +909,6 @@ module Vmpooler
                 max_lifetime_upper_limit = max_lifetime_upper_limit.to_i
                 if arg.to_i >= max_lifetime_upper_limit
                   failure.push("You provided a lifetime (#{arg}) that exceeds the configured maximum of #{max_lifetime_upper_limit}.")
-                else
-                  # also make sure we do not extend past max_lifetime_upper_limit
-                  rdata = backend.hgetall('vmpooler__vm__' + params[:hostname])
-                  running = ((Time.now - Time.parse(rdata['checkout'])) / 60 / 60).round(2)
-                  unless running + arg.to_i < max_lifetime_upper_limit
-                    failure.push("You provided a lifetime (#{arg}) that will extend the current lifetime past the configured maximum of #{max_lifetime_upper_limit}.")
-                  end
                 end
               end
 

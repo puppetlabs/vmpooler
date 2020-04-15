@@ -134,7 +134,7 @@ describe Vmpooler::API::V1 do
           expect(vm['lifetime']).to eq("20000")
         end
 
-        it 'does not allow a lifetime to be initially past config 168' do
+        it 'does not allow a lifetime to be initially past config max_lifetime_upper_limit' do
           app.settings.set :config,
                            { :config => { 'max_lifetime_upper_limit' => 168 } }
           create_vm('testhost')
@@ -146,18 +146,6 @@ describe Vmpooler::API::V1 do
           expect(vm['lifetime']).to be_nil
         end
 
-        it 'does not allow a lifetime to be extended past config 168' do
-          app.settings.set :config,
-                           { :config => { 'max_lifetime_upper_limit' => 168 } }
-          create_vm('testhost')
-
-          set_vm_data('testhost', "checkout", (Time.now - (69*60*60)))
-          put "#{prefix}/vm/testhost", '{"lifetime":"100"}'
-          expect_json(ok = false, http = 400)
-
-          vm = fetch_vm('testhost')
-          expect(vm['lifetime']).to be_nil
-        end
       end
 
       context '(auth configured)' do
