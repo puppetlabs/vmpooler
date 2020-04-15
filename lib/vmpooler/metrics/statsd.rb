@@ -4,7 +4,7 @@ require 'rubygems' unless defined?(Gem)
 require 'statsd'
 
 module Vmpooler
-  class Statsd
+  class Statsd < Metrics
     attr_reader :server, :port, :prefix
 
     def initialize(params = {})

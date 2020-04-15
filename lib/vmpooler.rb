@@ -15,7 +15,10 @@ module Vmpooler
   require 'timeout'
   require 'yaml'
 
-  %w[api graphite logger pool_manager statsd dummy_statsd generic_connection_pool].each do |lib|
+  require 'prometheus/middleware/collector'
+  require 'prometheus/middleware/exporter'
+
+  %w[api metrics logger pool_manager generic_connection_pool].each do |lib|
     require "vmpooler/#{lib}"
   end
 
@@ -103,6 +106,12 @@ module Vmpooler
     parsed_config[:graphite]['prefix'] = ENV['GRAPHITE_PREFIX'] if ENV['GRAPHITE_PREFIX']
     parsed_config[:graphite]['port'] = string_to_int(ENV['GRAPHITE_PORT']) if ENV['GRAPHITE_PORT']
 
+    if parsed_config.key? :prometheus
+#      parsed_config[:prometheus]['endpoint'] = ENV['PROMETHEUS_ENDPOINT'] if ENV['PROMETHEUS_ENDPOINT']
+#      parsed_config[:prometheus]['prefix'] = ENV['PROMETHEUS_PREFIX'] if ENV['PROMETHEUS_PREFIX']
+#      parsed_config[:prometheus]['metrics_prefix'] = ENV['PROMETHEUS_METRICS_PREFIX'] if ENV['PROMETHEUS_METRICS_PREFIX']
+    end
+
     parsed_config[:auth] = parsed_config[:auth] || {} if ENV['AUTH_PROVIDER']
     if parsed_config.key? :auth
       parsed_config[:auth]['provider'] = ENV['AUTH_PROVIDER'] if ENV['AUTH_PROVIDER']
@@ -182,16 +191,6 @@ module Vmpooler
 
   def self.new_logger(logfile)
     Vmpooler::Logger.new logfile
-  end
-
-  def self.new_metrics(params)
-    if params[:statsd]
-      Vmpooler::Statsd.new(params[:statsd])
-    elsif params[:graphite]
-      Vmpooler::Graphite.new(params[:graphite])
-    else
-      Vmpooler::DummyStatsd.new
-    end
   end
 
   def self.pools(conf)

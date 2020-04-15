@@ -3,7 +3,7 @@
 require 'rubygems' unless defined?(Gem)
 
 module Vmpooler
-  class Graphite
+  class Graphite < Metrics
     attr_reader :server, :port, :prefix
 
     def initialize(params = {})

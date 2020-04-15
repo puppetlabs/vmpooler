@@ -11,7 +11,7 @@ redis_connection_pool_size = config[:redis]['connection_pool_size']
 redis_connection_pool_timeout = config[:redis]['connection_pool_timeout']
 logger_file = config[:config]['logfile']
 
-metrics = Vmpooler.new_metrics(config)
+metrics = Vmpooler::Metrics.init(config)
 
 torun_threads = []
 if ARGV.count == 0

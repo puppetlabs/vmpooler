@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module Vmpooler
-  class DummyStatsd
+  class DummyStatsd < Metrics
     attr_reader :server, :port, :prefix
 
     def initialize(*)

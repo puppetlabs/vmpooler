@@ -8,7 +8,7 @@ require 'rbvmomi'
 require 'rspec'
 require 'vmpooler'
 require 'redis'
-require 'vmpooler/statsd'
+require 'vmpooler/metrics'
 
 def project_root_dir
   File.dirname(File.dirname(__FILE__))
