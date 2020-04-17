@@ -87,7 +87,7 @@ module Vmpooler
         weighted_pools = get_pool_weights(template_backends)
 
         pickup = Pickup.new(weighted_pools) if weighted_pools.count == template_backends.count
-        count.times do
+        count.to_i.times do
           if pickup
             selection << pickup.pick
           else
@@ -95,12 +95,12 @@ module Vmpooler
           end
         end
       else
-        count.times do
+        count.to_i.times do
           selection << template
         end
       end
 
-      return count_selection(selection)
+      count_selection(selection)
     end
 
     def fetch_single_vm(template)
@@ -342,17 +342,22 @@ module Vmpooler
 
       status 201
 
-      requested = payload[:requested]
       platforms_with_aliases = []
-      requested.each do |poolname, count|
+      payload.delete('request_id')
+      payload.each do |poolname, count|
         selection = evaluate_template_aliases(poolname, count)
-        selection.map { |aliasname, count| platforms_with_aliases << "#{poolname}:#{aliasname}:#{count}" }
+        selection.map { |alias_name, alias_count| platforms_with_aliases << "#{poolname}:#{alias_name}:#{alias_count}" }
       end
 
       platforms_string = platforms_with_aliases.join(',')
       backend.hset("vmpooler__odrequest__#{request_id}", 'requested', platforms_string)
+      if Vmpooler::API.settings.config[:auth] and has_token?
+        backend.hset("vmpooler__odrequest__#{request_id}", 'token:token', request.env['HTTP_X_AUTH_TOKEN'])
+        backend.hset("vmpooler__odrequest__#{request_id}", 'token:user',
+                     backend.hget('vmpooler__token__' + request.env['HTTP_X_AUTH_TOKEN'], 'user'))
+      end
 
-      result['ok'] = true
+      result[:ok] = true
       result
     end
 
@@ -772,7 +777,7 @@ module Vmpooler
       JSON.pretty_generate(result)
     end
 
-    post "#{api_prefix}/ondemandrequest/?" do
+    post "#{api_prefix}/ondemandvm/?" do
       content_type :json
       result = { 'ok' => false }
 
@@ -796,13 +801,12 @@ module Vmpooler
       JSON.pretty_generate(result)
     end
 
-    get "#{api_prefix}/ondemandrequest/:requestid/?" do
+    get "#{api_prefix}/ondemandvm/:requestid/?" do
       content_type :json
-
-      result = {'ok': false}
+      result = { 'ok' => false }
 
       status 404
-      result = check_ondemand_request(payload)
+      result = check_ondemand_request(params[:requestid])
 
       JSON.pretty_generate(result)
     end
@@ -882,23 +886,26 @@ module Vmpooler
       invalid
     end
 
-    def check_ondemand_request(payload)
-      result = {'ok': false}
-      request_id = payload[:request_id]
+    def check_ondemand_request(request_id)
+      result = { 'ok' => false }
+      result['request_id'] = request_id
+      result['ready'] = false
       request_hash = backend.hgetall("vmpooler__odrequest__#{request_id}")
       if request_hash.empty?
         result['message'] = "no request found for request_id '#{request_id}'"
         return result
       end
 
+      status 202
+      result['ok'] = true
+
       if request_hash['status'] == 'ready'
-        result['status'] = 'ready'
-        instances = {}
-        platforms = request_hash['requested'].split(',').map( { |r| r.split(':')[0] } )
-        platforms.each do |platform|
-          instances[platform] = request_hash[platform].split(':')
+        result['ready'] = true
+        platform_parts = request_hash['requested'].split(',')
+        platform_parts.each do |platform|
+          pool_alias, pool, _count = platform.split(':')
+          result[pool_alias] = { 'hostname': request_hash[pool].split(':') }
         end
-        result['instances'] = instances
         status 200
       end
 

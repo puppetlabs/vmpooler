@@ -88,11 +88,11 @@ module Vmpooler
       return if mutex.locked?
 
       mutex.synchronize do
-        request_id = $redis.hget("vmpooler__vm__#{vm}", request_id)
+        request_id = $redis.hget("vmpooler__vm__#{vm}", 'request_id')
         if provider.vm_ready?(pool, vm)
           move_pending_vm_to_ready(vm, pool, request_id)
         else
-          fail_pending_vm(vm, pool, timeout, request_id=request_id)
+          fail_pending_vm(vm, pool, timeout, request_id = request_id)
         end
       end
     end
@@ -109,9 +109,10 @@ module Vmpooler
       time_since_clone = (Time.now - Time.parse(clone_stamp)) / 60
       if time_since_clone > timeout
         if exists
+          pool_alias = get_alias_for_request(pool, request_id) if $request_id
           $redis.multi
           $redis.smove('vmpooler__pending__' + pool, 'vmpooler__completed__' + pool, vm)
-          $redis.zadd('vmpooler__odcreate__task', 1, "#{pool_name}:1:#{request_id}") if request_id
+          $redis.zadd('vmpooler__odcreate__task', 1, "#{pool_alias}:#{pool_name}:1:#{request_id}") if request_id
           $redis.exec
           $metrics.increment("errors.markedasfailed.#{pool}")
           $logger.log('d', "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes")
@@ -131,11 +132,14 @@ module Vmpooler
 
       if request_id
         fulfilled = $redis.hget("vmpooler__odrequest__#{request_id}", pool)
-        fulfilled = "#{fulfilled}:vm" if fulfilled
-        fulfilled = vm unless fulfilled
+        fulfilled = "#{fulfilled}:#{vm}" if fulfilled
+        fulfilled ||= vm
+
         $redis.multi
+        $redis.hset("vmpooler__active__#{pool}", vm, Time.now)
+        $redis.hset("vmpooler__vm__#{vm}", 'checkout', Time.now)
         $redis.hset("vmpooler__odrequest__#{request_id}", pool, fulfilled)
-        $redis.smove('vmpooler__pending__' + pool, 'vmpooler__running__' + pool, vm)
+        move_vm_queue(pool, vm, 'pending', 'running')
       else
         $redis.multi
         $redis.smove('vmpooler__pending__' + pool, 'vmpooler__ready__' + pool, vm)
@@ -289,8 +293,10 @@ module Vmpooler
           _clone_vm(pool_name, provider, request_id)
         rescue StandardError => e
           if request_id
-            $logger.log('s', "[!] [#{pool_name}] failed while cloning VM for request #{request_id} with an error: #{e}") if request_id
-            $redis.zadd('vmpooler__odcreate__task', 1, "#{pool_name}:1:#{request_id}") if request_id
+            $logger.log('s', "[!] [#{pool_name}] failed while cloning VM for request #{request_id} with an error: #{e}")
+            pool_alias = get_alias_for_request(pool, request_id)
+            $logger.log('s', "Pool_alias is #{pool_alias}")
+            $redis.zadd('vmpooler__odcreate__task', 1, "#{pool_alias}:#{pool_name}:1:#{request_id}")
           else
             $logger.log('s', "[!] [#{pool_name}] failed while cloning VM with an error: #{e}")
           end
@@ -806,6 +812,17 @@ module Vmpooler
             break if $redis.sismember('vmpooler__poolreset', options[:poolname])
           end
 
+          if options[:pending_vm]
+            pending = $redis.scard("vmpooler__pending__#{options[:poolname]}")
+            break if pending
+          end
+
+          if options[:ondemand_request]
+            break if $redis.zcard('vmpooler__provisioning__request')
+            break if $redis.zcard('vmpooler__provisioning__processing')
+            break if $redis.zcard('vmpooler__odcreate__task')
+          end
+
         end
 
         break if time_passed?(:exit_by, exit_by)
@@ -844,7 +861,7 @@ module Vmpooler
               loop_delay = (loop_delay * loop_delay_decay).to_i
               loop_delay = loop_delay_max if loop_delay > loop_delay_max
             end
-            sleep_with_wakeup_events(loop_delay, loop_delay_min, pool_size_change: true, poolname: pool['name'], pool_template_change: true, clone_target_change: true, pool_reset: true)
+            sleep_with_wakeup_events(loop_delay, loop_delay_min, pool_size_change: true, poolname: pool['name'], pool_template_change: true, clone_target_change: true, pending_vm: true, pool_reset: true)
 
             unless maxloop == 0
               break if loop_count >= maxloop
@@ -1277,45 +1294,58 @@ module Vmpooler
     end
 
     def process_ondemand_requests
-      requests = $redis.zrange('vmpooler__provisioning__requests', 0, -1)
+      requests = $redis.zrange('vmpooler__provisioning__request', 0, -1)
 
       requests&.map { |request_id| create_ondemand_vms(request_id) }
 
       provisioning_tasks = process_ondemand_vms
 
-      return requests.length + provisioning_tasks
+      requests_ready = check_ondemand_requests_ready
+
+      requests.length + provisioning_tasks + requests_ready
     end
 
     def create_ondemand_vms(request_id)
       requested = $redis.hget("vmpooler__odrequest__#{request_id}", 'requested')
+      if ! requested
+        $logger.log('s', "Failed to find odrequest for request_id '#{request_id}'")
+        $redis.zrem('vmpooler__provisioning__request', request_id)
+        return
+      end
+      score = $redis.zscore('vmpooler__provisioning__request', request_id)
       requested = requested.split(',')
 
       $redis.multi
-      requested.map { |request| $redis.zadd('vmpooler__odcreate__task', Time.now, "#{request}:#{request_id}") }
-      $redis.zrem('vmpooler__provisioning__requests', request_id)
+      requested.each do |request|
+        $redis.zadd('vmpooler__odcreate__task', Time.now.to_i, "#{request}:#{request_id}")
+      end
+      $redis.zrem('vmpooler__provisioning__request', request_id)
+      $redis.zadd('vmpooler__provisioning__processing', score, request_id)
       $redis.exec
     end
 
     def process_ondemand_vms
       queue_key = 'vmpooler__odcreate__task'
       queue = $redis.zrange(queue_key, 0, -1)
-      ondemand_clone_limit = $config[:config]['ondemand_clone_limit'].to_i
+      ondemand_clone_limit = $config[:config]['ondemand_clone_limit']
+      @tasks['ondemand_clone_count'] = 0 unless @tasks['ondemand_clone_count']
       queue.each do |request|
-        requested_platform, fulfilled_platform, count, request_id = request.split(':')
         if @tasks['ondemand_clone_count'] < ondemand_clone_limit
-          provider = get_provider_for_pool(platform)
+          requested_platform, fulfilled_platform, count, request_id = request.split(':')
+          count = count.to_i
+          provider = get_provider_for_pool(fulfilled_platform)
           delta = ondemand_clone_limit - @tasks['ondemand_clone_count']
           if delta >= count
             count.times do
               @tasks['ondemand_clone_count'] += 1
-              clone_vm(platform, provider, request_id)
+              clone_vm(fulfilled_platform, provider, request_id)
             end
-            $redis.zrem(queue_key, request_id)
+            $redis.zrem(queue_key, request)
           else
             available_slots = delta - count
             available_slots.times do
               @tasks['ondemand_clone_count'] += 1
-              clone_vm(platform, provider, request_id)
+              clone_vm(fulfilled_platform, provider, request_id)
             end
             score = $redis.zscore(queue_key, request_id)
             $redis.multi
@@ -1327,6 +1357,51 @@ module Vmpooler
           break
         end
       end
+      queue.length
+    end
+
+    def get_alias_for_request(pool, request_id)
+      # Identify the alias associated with a request_id for retries to get tagged properly
+      requested = $redis.hget("vmpooler__odrequest__#{request_id}", 'requested')
+      requested.split(',').each do |request|
+        pool_alias, pool_name, count = request.split(':')
+        return pool_alias if pool_name == pool
+      end
+    end
+
+    def vms_ready?(request_id)
+      catch :request_not_ready do
+        request_hash = $redis.hgetall("vmpooler__odrequest__#{request_id}")
+        requested_platforms = request_hash['requested'].split(',')
+        requested_platforms.each do |platform|
+          _platform_alias, pool, count = platform.split(':')
+          pools_filled = request_hash[pool]
+          throw :request_not_ready unless pools_filled
+          fulfilled_count = request_hash[pool].split(':').size
+          throw :request_not_ready unless fulfilled_count == count.to_i
+        end
+        return true
+      end
+      false
+    end
+
+    def check_ondemand_requests_ready
+      in_progress_requests = $redis.zrange('vmpooler__provisioning__processing', 0, -1)
+      in_progress_requests&.each do |request_id|
+        next unless vms_ready?(request_id)
+
+        $redis.multi
+        $redis.hset("vmpooler__odrequest__#{request_id}", 'status', 'ready')
+        $redis.zrem('vmpooler__provisioning__processing', request_id)
+        $redis.exec
+      end
+      in_progress_requests.length
+    end
+
+    def move_vm_to_running(vm, pool, request_id)
+      $redis.multi
+      $redis.exec
+      # Need to add auth data here
     end
 
     def execute!(maxloop = 0, loop_delay = 1)
