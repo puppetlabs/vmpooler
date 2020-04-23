@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'prometheus/client'
+
 module Vmpooler
   class Promstats < Metrics
     attr_reader :prefix, :endpoint, :metrics_prefix

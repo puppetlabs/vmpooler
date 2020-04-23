@@ -5,7 +5,14 @@ describe Vmpooler::API::V1 do
   include Rack::Test::Methods
 
   def app()
-    Vmpooler::API end
+    Vmpooler::API
+  end
+  # Added to ensure no leakage in rack state from previous tests.
+  # Removes all routes, filters, middleware and extension hooks from the current class
+  # https://rubydoc.info/gems/sinatra/Sinatra/Base#reset!-class_method 
+  before(:each) do
+    app.reset!
+  end
 
   describe '/ondemandvm' do
     let(:prefix) { '/api/v1' }
@@ -32,13 +39,11 @@ describe Vmpooler::API::V1 do
     let(:current_time) { Time.now }
     let(:vmname) { 'abcdefghijkl' }
     let(:checkoutlock) { Mutex.new }
-    let(:redis) { MockRedis.new }
     let(:uuid) { SecureRandom.uuid }
 
     before(:each) do
-      app.settings.set :config, config
-      app.settings.set :redis, redis
-      app.settings.set :metrics, metrics
+      expect(app).to receive(:run!).once
+      app.execute(['api'], config, redis, metrics)
       app.settings.set :config, auth: false
       app.settings.set :checkoutlock, checkoutlock
       create_token('abcdefghijklmnopqrstuvwxyz012345', 'jdoe', current_time)

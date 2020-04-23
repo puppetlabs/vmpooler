@@ -25,12 +25,16 @@ end
 
 if torun.include? 'api'
   api = Thread.new do
-    thr = Vmpooler::API.new
     redis = Vmpooler.new_redis(redis_host, redis_port, redis_password)
-    thr.helpers.configure(config, redis, metrics)
-    thr.helpers.execute!
+    Vmpooler::API.execute(torun, config, redis, metrics)
   end
   torun_threads << api
+elsif metrics.respond_to?(:setup_prometheus_metrics)
+  # Run the cut down API - Prometheus Metrics only.
+  prometheus_only_api = Thread.new do
+    Vmpooler::API.execute(torun, config, nil, metrics)
+  end
+  torun_threads << prometheus_only_api
 end
 
 if torun.include? 'manager'

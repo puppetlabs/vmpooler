@@ -27,7 +27,6 @@ describe 'Pool Manager' do
     timeout: 5
   ) { MockRedis.new }
   }
-  let(:redis) { MockRedis.new }
 
   let(:provider) { Vmpooler::PoolManager::Provider::Base.new(config, logger, metrics, redis_connection_pool, 'mock_provider', provider_options) }
 

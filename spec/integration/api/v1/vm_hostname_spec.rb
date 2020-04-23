@@ -12,8 +12,16 @@ describe Vmpooler::API::V1 do
     Vmpooler::API
   end
 
+  # Added to ensure no leakage in rack state from previous tests.
+  # Removes all routes, filters, middleware and extension hooks from the current class
+  # https://rubydoc.info/gems/sinatra/Sinatra/Base#reset!-class_method 
+  before(:each) do
+    app.reset!
+  end
+
   describe '/vm/:hostname' do
     let(:prefix) { '/api/v1' }
+    let(:metrics) { Vmpooler::DummyStatsd.new }
 
     let(:config) {
       {
@@ -33,11 +41,9 @@ describe Vmpooler::API::V1 do
 
     let(:current_time) { Time.now }
 
-    let(:redis) { MockRedis.new }
-
     before(:each) do
-      app.settings.set :config, config
-      app.settings.set :redis, redis
+      expect(app).to receive(:run!).once
+      app.execute(['api'], config, redis, metrics)
       create_token('abcdefghijklmnopqrstuvwxyz012345', 'jdoe', current_time)
     end
 
@@ -81,9 +87,9 @@ describe Vmpooler::API::V1 do
       end
 
       context '(tagfilter configured)' do
-        let(:config) { {
-          tagfilter: { 'url' => '(.*)\/' },
-        } }
+        before(:each) do
+          app.settings.set :config, tagfilter: { 'url' => '(.*)\/' }
+        end
 
         it 'correctly filters tags' do
           create_vm('testhost', redis)
@@ -104,7 +110,9 @@ describe Vmpooler::API::V1 do
       end
 
       context '(auth not configured)' do
-        let(:config) { { auth: false } }
+        before(:each) do
+          app.settings.set :config, auth: false
+        end
 
         it 'allows VM lifetime to be modified without a token' do
           create_vm('testhost', redis)

@@ -8,14 +8,21 @@ describe Vmpooler::API::V1 do
     Vmpooler::API
   end
 
+  # Added to ensure no leakage in rack state from previous tests.
+  # Removes all routes, filters, middleware and extension hooks from the current class
+  # https://rubydoc.info/gems/sinatra/Sinatra/Base#reset!-class_method 
+  before(:each) do
+    app.reset!
+  end
+
   describe '/token' do
     let(:prefix) { '/api/v1' }
     let(:current_time) { Time.now }
     let(:config) { { } }
 
-    before do
-      app.settings.set :config, config
-      app.settings.set :redis, redis
+    before(:each) do
+      expect(app).to receive(:run!).once
+      app.execute(['api'], config, redis, nil)
     end
 
     describe 'GET /token' do
@@ -97,7 +104,9 @@ describe Vmpooler::API::V1 do
     let(:prefix) { '/api/v1' }
     let(:current_time) { Time.now }
 
-    before do
+    before(:each) do
+      expect(app).to receive(:run!).once
+      app.execute(['api'], config, redis, nil)
       app.settings.set :config, config
       app.settings.set :redis, redis
     end

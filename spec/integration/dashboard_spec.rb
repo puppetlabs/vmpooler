@@ -5,13 +5,35 @@ describe Vmpooler::API do
   include Rack::Test::Methods
 
   def app()
-    described_class
+    Vmpooler::API
+  end
+
+  # Added to ensure no leakage in rack state from previous tests.
+  # Removes all routes, filters, middleware and extension hooks from the current class
+  # https://rubydoc.info/gems/sinatra/Sinatra/Base#reset!-class_method 
+  before(:each) do
+    app.reset!
   end
 
   describe 'Dashboard' do
 
+    let(:config) { {
+      pools: [
+          {'name' => 'pool1', 'size' => 5}
+      ],
+      graphite: {}
+    } }
+
+    before(:each) do
+      expect(app).to receive(:run!)
+      app.execute(['api'], config, redis, nil)
+      app.settings.set :config, auth: false
+    end
+
     context '/' do
-      before { get '/' }
+      before(:each) do
+        get '/'
+      end
 
       it { expect(last_response.status).to eq(302) }
       it { expect(last_response.location).to eq('http://example.org/dashboard/') }
@@ -21,7 +43,7 @@ describe Vmpooler::API do
       ENV['SITE_NAME'] = 'test pooler'
       ENV['VMPOOLER_CONFIG'] = 'thing'
 
-      before do
+      before(:each) do
         get '/dashboard/'
       end
 
@@ -31,10 +53,12 @@ describe Vmpooler::API do
     end
 
     context 'unknown route' do
-      before { get '/doesnotexist' }
+      before(:each) do
+        get '/doesnotexist'
+      end
 
-      it { expect(last_response.status).to eq(404) }
       it { expect(last_response.header['Content-Type']).to eq('application/json') }
+      it { expect(last_response.status).to eq(404) }
       it { expect(last_response.body).to eq(JSON.pretty_generate({ok: false})) }
     end
 
@@ -47,10 +71,8 @@ describe Vmpooler::API do
           graphite: {}
       } }
 
-      before do
-        $config = config
+      before(:each) do
         app.settings.set :config, config
-        app.settings.set :redis, redis
         app.settings.set :environment, :test
       end
 
@@ -120,10 +142,8 @@ describe Vmpooler::API do
           graphite: {}
       } }
 
-      before do
-        $config = config
+      before(:each) do
         app.settings.set :config, config
-        app.settings.set :redis, redis
         app.settings.set :environment, :test
       end
 
