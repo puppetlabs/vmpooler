@@ -156,6 +156,12 @@ module Vmpooler
     pools
   end
 
+  def self.redis_connection_pool(host, port, password, size = 10)
+    ConnectionPool.new(size: size) {
+      redis_connection(host, port, password)
+    }
+  end
+
   def self.redis_connection(host = 'localhost', port = nil, password = nil)
     Redis.new(host: host, port: port, password: password)
   end

@@ -79,7 +79,8 @@ module Vmpooler
     end
 
     def evaluate_template_aliases(template, count)
-      template_backends = [template]
+      template_backends = []
+      template_backends << template if backend.sismember('vmpooler__pools', template)
       selection = []
       aliases = get_template_aliases(template)
       if aliases
@@ -346,7 +347,7 @@ module Vmpooler
       payload.delete('request_id')
       payload.each do |poolname, count|
         selection = evaluate_template_aliases(poolname, count)
-        selection.map { |alias_name, alias_count| platforms_with_aliases << "#{poolname}:#{alias_name}:#{alias_count}" }
+        selection.map { |selected_pool, selected_pool_count| platforms_with_aliases << "#{poolname}:#{selected_pool}:#{selected_pool_count}" }
       end
 
       platforms_string = platforms_with_aliases.join(',')
@@ -904,9 +905,21 @@ module Vmpooler
         platform_parts = request_hash['requested'].split(',')
         platform_parts.each do |platform|
           pool_alias, pool, _count = platform.split(':')
-          result[pool_alias] = { 'hostname': request_hash[pool].split(':') }
+          instances = backend.smembers("vmpooler__#{request_id}__#{pool_alias}__#{pool}")
+          result[pool_alias] = { 'hostname': instances }
+          #backend.del("vmpooler__#{request_id}__#{pool_alias}__#{pool}")
         end
         status 200
+      else
+        platform_parts = request_hash['requested'].split(',')
+        platform_parts.each do |platform|
+          pool_alias, pool, count = platform.split(':')
+          instance_count = backend.scard("vmpooler__#{request_id}__#{pool_alias}__#{pool}")
+          result[pool_alias] = {
+            'ready': instance_count.to_s,
+            'pending': (count.to_i - instance_count.to_i).to_s
+          }
+        end
       end
 
       result

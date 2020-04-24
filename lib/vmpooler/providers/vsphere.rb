@@ -9,7 +9,7 @@ module Vmpooler
         # The connection_pool method is normally used only for testing
         attr_reader :connection_pool
 
-        def initialize(config, logger, metrics, name, options)
+        def initialize(config, logger, metrics, redis_connection_pool, name, options)
           super(config, logger, metrics, redis_connection_pool, name, options)
 
           task_limit = global_config[:config].nil? || global_config[:config]['task_limit'].nil? ? 10 : global_config[:config]['task_limit'].to_i
@@ -39,7 +39,7 @@ module Vmpooler
           end
           @provider_hosts = {}
           @provider_hosts_lock = Mutex.new
-          @redis = redis
+          @redis = redis_connection_pool
         end
 
         # name of the provider class
