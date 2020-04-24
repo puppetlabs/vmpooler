@@ -83,8 +83,13 @@ module Vmpooler
           vms.reverse.each do |vm|
             ready = vm_ready?(vm, config['domain'])
             if ready
-              backend.smove("vmpooler__ready__#{template_backend}", "vmpooler__running__#{template_backend}", vm)
-              return [vm, template_backend, template]
+              smoved = backend.smove("vmpooler__ready__#{template_backend}", "vmpooler__running__#{template_backend}", vm)
+              if smoved
+                return [vm, template_backend, template]
+              else
+                metrics.increment("checkout.smove.failed.#{template_backend}")
+                return [nil, nil, nil]
+              end
             else
               backend.smove("vmpooler__ready__#{template_backend}", "vmpooler__completed__#{template_backend}", vm)
               metrics.increment("checkout.nonresponsive.#{template_backend}")
@@ -874,6 +879,8 @@ module Vmpooler
 
           status 200
           result['ok'] = true
+        else
+          metrics.increment('delete.srem.failed')
         end
       end
 
