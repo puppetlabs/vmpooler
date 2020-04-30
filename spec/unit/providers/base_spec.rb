@@ -22,7 +22,9 @@ describe 'Vmpooler::PoolManager::Provider::Base' do
     fake_vm
   }
 
-  subject { Vmpooler::PoolManager::Provider::Base.new(config, logger, metrics, provider_name, provider_options) }
+  let(:redis_connection_pool) { ConnectionPool.new(size: 1) { MockRedis.new } }
+
+  subject { Vmpooler::PoolManager::Provider::Base.new(config, logger, metrics, redis_connection_pool, provider_name, provider_options) }
 
   # Helper attr_reader methods
   describe '#logger' do

@@ -91,7 +91,9 @@ EOT
     )
   }
 
-  subject { Vmpooler::PoolManager::Provider::Dummy.new(config, logger, metrics, 'dummy', provider_options) }
+  let(:redis_connection_pool) { ConnectionPool.new(size: 1) { MockRedis.new } }
+
+  subject { Vmpooler::PoolManager::Provider::Dummy.new(config, logger, metrics, redis_connection_pool, 'dummy', provider_options) }
 
   describe '#name' do
     it 'should be dummy' do

@@ -36,6 +36,8 @@
   - name: 'pool01'
     size: 5
     provider: dummy
+    ready_ttl: 5
   - name: 'pool02'
     size: 5
     provider: dummy
+    ready_ttl: 5

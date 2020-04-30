@@ -1,12 +1,5 @@
 require 'mock_redis'
 
-def redis
-  unless @redis
-    @redis = MockRedis.new
-  end
-  @redis
-end
-
 # Mock an object which represents a Logger.  This stops the proliferation
 # of allow(logger).to .... expectations in tests.
 class MockLogger
@@ -40,59 +33,54 @@ def token_exists?(token)
   result && !result.empty?
 end
 
-def create_ready_vm(template, name, token = nil)
-  create_vm(name, token)
+def create_ready_vm(template, name, redis, token = nil)
+  create_vm(name, redis, token)
   redis.sadd("vmpooler__ready__#{template}", name)
   redis.hset("vmpooler__vm__#{name}", "template", template)
 end
 
-def create_running_vm(template, name, token = nil, user = nil)
-  create_vm(name, token, nil, user)
+def create_running_vm(template, name, redis, token = nil, user = nil)
+  create_vm(name, redis, token, user)
   redis.sadd("vmpooler__running__#{template}", name)
   redis.hset("vmpooler__vm__#{name}", 'template', template)
   redis.hset("vmpooler__vm__#{name}", 'checkout', Time.now)
   redis.hset("vmpooler__vm__#{name}", 'host', 'host1')
 end
 
-def create_pending_vm(template, name, token = nil)
-  create_vm(name, token)
+def create_pending_vm(template, name, redis, token = nil)
+  create_vm(name, redis, token)
   redis.sadd("vmpooler__pending__#{template}", name)
   redis.hset("vmpooler__vm__#{name}", "template", template)
 end
 
-def create_vm(name, token = nil, redis_handle = nil, user = nil)
-  redis_db = redis_handle ? redis_handle : redis
-  redis_db.hset("vmpooler__vm__#{name}", 'checkout', Time.now)
-  redis_db.hset("vmpooler__vm__#{name}", 'token:token', token) if token
-  redis_db.hset("vmpooler__vm__#{name}", 'token:user', user) if user
+def create_vm(name, redis, token = nil, user = nil)
+  redis.hset("vmpooler__vm__#{name}", 'checkout', Time.now)
+  redis.hset("vmpooler__vm__#{name}", 'clone', Time.now)
+  redis.hset("vmpooler__vm__#{name}", 'token:token', token) if token
+  redis.hset("vmpooler__vm__#{name}", 'token:user', user) if user
 end
 
-def create_completed_vm(name, pool, active = false, redis_handle = nil)
-  redis_db = redis_handle ? redis_handle : redis
-  redis_db.sadd("vmpooler__completed__#{pool}", name)
-  redis_db.hset("vmpooler__vm__#{name}", 'checkout', Time.now)
-  redis_db.hset("vmpooler__active__#{pool}", name, Time.now) if active
+def create_completed_vm(name, pool, redis, active = false)
+  redis.sadd("vmpooler__completed__#{pool}", name)
+  redis.hset("vmpooler__vm__#{name}", 'checkout', Time.now)
+  redis.hset("vmpooler__active__#{pool}", name, Time.now) if active
 end
 
-def create_discovered_vm(name, pool, redis_handle = nil)
-  redis_db = redis_handle ? redis_handle : redis
-  redis_db.sadd("vmpooler__discovered__#{pool}", name)
+def create_discovered_vm(name, pool, redis)
+  redis.sadd("vmpooler__discovered__#{pool}", name)
 end
 
-def create_migrating_vm(name, pool, redis_handle = nil)
-  redis_db = redis_handle ? redis_handle : redis
-  redis_db.hset("vmpooler__vm__#{name}", 'checkout', Time.now)
-  redis_db.sadd("vmpooler__migrating__#{pool}", name)
+def create_migrating_vm(name, pool, redis)
+  redis.hset("vmpooler__vm__#{name}", 'checkout', Time.now)
+  redis.sadd("vmpooler__migrating__#{pool}", name)
 end
 
-def create_tag(vm, tag_name, tag_value, redis_handle = nil)
-  redis_db = redis_handle ? redis-handle : redis
-  redis_db.hset("vmpooler__vm__#{vm}", "tag:#{tag_name}", tag_value)
+def create_tag(vm, tag_name, tag_value, redis)
+  redis.hset("vmpooler__vm__#{vm}", "tag:#{tag_name}", tag_value)
 end
 
-def add_vm_to_migration_set(name, redis_handle = nil)
-  redis_db = redis_handle ? redis_handle : redis
-  redis_db.sadd('vmpooler__migration', name)
+def add_vm_to_migration_set(name, redis)
+  redis.sadd('vmpooler__migration', name)
 end
 
 def fetch_vm(vm)

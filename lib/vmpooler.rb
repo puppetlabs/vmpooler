@@ -160,9 +160,16 @@ module Vmpooler
     pools
   end
 
-  def self.redis_connection_pool(host, port, password, size, timeout)
-    ConnectionPool.new(size: size, timeout: timeout) {
-      redis_connection(host, port, password)
+  def self.redis_connection_pool(host, port, password, size, timeout, metrics)
+    Vmpooler::PoolManager::GenericConnectionPool.new(
+      metrics: metrics,
+      metric_prefix: 'redis_connection_pool',
+      size: size,
+      timeout: timeout
+    ) {
+      connection = Concurrent::Hash.new
+      redis = redis_connection(host, port, password)
+      connection['connection'] = redis
     }
   end
 

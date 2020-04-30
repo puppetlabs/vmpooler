@@ -11,7 +11,6 @@ end
 
 describe 'Pool Manager' do
   let(:logger) { MockLogger.new }
-  let(:redis) { MockRedis.new }
   let(:metrics) { Vmpooler::DummyStatsd.new }
   let(:pool) { 'pool1' }
   let(:vm) { 'vm1' }
@@ -20,7 +19,15 @@ describe 'Pool Manager' do
   let(:token) { 'token1234'}
 
   let(:provider_options) { {} }
-  let(:provider) { Vmpooler::PoolManager::Provider::Base.new(config, logger, metrics, 'mock_provider', provider_options) }
+  let(:redis_connection_pool) { Vmpooler::PoolManager::GenericConnectionPool.new(
+    metrics: metrics,
+    metric_prefix: 'redis_connection_pool',
+    size: 1,
+    timeout: 5
+  ) { MockRedis.new }
+  }
+
+  let(:provider) { Vmpooler::PoolManager::Provider::Base.new(config, logger, metrics, redis_connection_pool, 'mock_provider', provider_options) }
 
   let(:config) { YAML.load(<<-EOT
 ---
@@ -34,7 +41,7 @@ EOT
     )
   }
 
-  subject { Vmpooler::PoolManager.new(config, logger, redis, metrics) }
+  subject { Vmpooler::PoolManager.new(config, logger, redis_connection_pool, metrics) }
 
   describe '#config' do
     before do
@@ -92,14 +99,18 @@ EOT
 
       it 'calls move_pending_vm_to_ready if host is ready' do
         expect(provider).to receive(:vm_ready?).with(pool,vm).and_return(true)
-        expect(subject).to receive(:move_pending_vm_to_ready).with(vm, pool)
+        redis_connection_pool.with do |redis|
+          expect(subject).to receive(:move_pending_vm_to_ready).with(vm, pool, redis, nil)
+        end
 
         subject._check_pending_vm(vm, pool, timeout, provider)
       end
 
       it 'calls fail_pending_vm if host is not ready' do
         expect(provider).to receive(:vm_ready?).with(pool,vm).and_return(false)
-        expect(subject).to receive(:fail_pending_vm).with(vm, pool, timeout)
+        redis_connection_pool.with do |redis|
+          expect(subject).to receive(:fail_pending_vm).with(vm, pool, timeout, redis, nil)
+        end
 
         subject._check_pending_vm(vm, pool, timeout, provider)
       end
@@ -125,17 +136,20 @@ EOT
     end
 
     it 'removes VM from pending in redis' do
-      create_pending_vm(pool,vm)
+      redis_connection_pool.with do |redis|
+        create_pending_vm(pool,vm,redis)
 
-      expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(true)
-      subject.remove_nonexistent_vm(vm, pool)
-      expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(false)
+        subject.remove_nonexistent_vm(vm, pool, redis)
+        expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(false)
+      end
     end
 
     it 'logs msg' do
       expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' no longer exists. Removing from pending.")
 
-      subject.remove_nonexistent_vm(vm, pool)
+      redis_connection_pool.with do |redis|
+        subject.remove_nonexistent_vm(vm, pool, redis)
+      end
     end
   end
 
@@ -145,49 +159,64 @@ EOT
     end
 
     before(:each) do
-      create_pending_vm(pool,vm)
+      redis_connection_pool.with do |redis|
+        create_pending_vm(pool,vm,redis)
+      end
     end
 
     it 'takes no action if VM is not cloning' do
-      expect(subject.fail_pending_vm(vm, pool, timeout)).to eq(true)
-      expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(true)
+      redis_connection_pool.with do |redis|
+        expect(subject.fail_pending_vm(vm, pool, timeout, redis)).to eq(true)
+      end
     end
 
     it 'takes no action if VM is within timeout' do
-      redis.hset("vmpooler__vm__#{vm}", 'clone',Time.now.to_s)
-      expect(subject.fail_pending_vm(vm, pool, timeout)).to eq(true)
-      expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(true)
+      redis_connection_pool.with do |redis|
+        redis.hset("vmpooler__vm__#{vm}", 'clone',Time.now.to_s)
+        expect(subject.fail_pending_vm(vm, pool, timeout, redis)).to eq(true)
+        expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(true)
+      end
     end
 
     it 'moves VM to completed queue if VM has exceeded timeout and exists' do
-      redis.hset("vmpooler__vm__#{vm}", 'clone',Date.new(2001,1,1).to_s)
-      expect(subject.fail_pending_vm(vm, pool, timeout,true)).to eq(true)
-      expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(false)
-      expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
+      redis_connection_pool.with do |redis|
+        redis.hset("vmpooler__vm__#{vm}", 'clone',Date.new(2001,1,1).to_s)
+        expect(subject.fail_pending_vm(vm, pool, timeout, redis, true)).to eq(true)
+        expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(false)
+        expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
+      end
     end
 
     it 'logs message if VM has exceeded timeout and exists' do
-      redis.hset("vmpooler__vm__#{vm}", 'clone',Date.new(2001,1,1).to_s)
-      expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes")
-      expect(subject.fail_pending_vm(vm, pool, timeout,true)).to eq(true)
+      redis_connection_pool.with do |redis|
+        redis.hset("vmpooler__vm__#{vm}", 'clone',Date.new(2001,1,1).to_s)
+        expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes")
+        expect(subject.fail_pending_vm(vm, pool, timeout, redis, true)).to eq(true)
+      end
     end
 
     it 'calls remove_nonexistent_vm if VM has exceeded timeout and does not exist' do
-      redis.hset("vmpooler__vm__#{vm}", 'clone',Date.new(2001,1,1).to_s)
-      expect(subject).to receive(:remove_nonexistent_vm).with(vm, pool)
-      expect(subject.fail_pending_vm(vm, pool, timeout,false)).to eq(true)
+      redis_connection_pool.with do |redis|
+        redis.hset("vmpooler__vm__#{vm}", 'clone',Date.new(2001,1,1).to_s)
+        expect(subject).to receive(:remove_nonexistent_vm).with(vm, pool, redis)
+        expect(subject.fail_pending_vm(vm, pool, timeout, redis, false)).to eq(true)
+      end
     end
 
     it 'swallows error if an error is raised' do
-      redis.hset("vmpooler__vm__#{vm}", 'clone','iamnotparsable_asdate')
-      expect(subject.fail_pending_vm(vm, pool, timeout,true)).to eq(false)
+      redis_connection_pool.with do |redis|
+        redis.hset("vmpooler__vm__#{vm}", 'clone','iamnotparsable_asdate')
+        expect(subject.fail_pending_vm(vm, pool, timeout, redis, true)).to eq(false)
+      end
     end
 
     it 'logs message if an error is raised' do
-      redis.hset("vmpooler__vm__#{vm}", 'clone','iamnotparsable_asdate')
-      expect(logger).to receive(:log).with('d', String)
+      redis_connection_pool.with do |redis|
+        redis.hset("vmpooler__vm__#{vm}", 'clone','iamnotparsable_asdate')
+        expect(logger).to receive(:log).with('d', String)
 
-      subject.fail_pending_vm(vm, pool, timeout,true)
+        subject.fail_pending_vm(vm, pool, timeout, redis, true)
+      end
     end
   end
 
@@ -199,55 +228,71 @@ EOT
     end
 
     before(:each) do
-      create_pending_vm(pool,vm)
+      redis_connection_pool.with do |redis|
+        create_pending_vm(pool,vm,redis)
+      end
     end
 
     context 'when hostname matches VM name' do
       it 'should move the VM from pending to ready pool' do
-        expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(true)
-        expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(false)
-        subject.move_pending_vm_to_ready(vm, pool)
-        expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(false)
-        expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(true)
+        redis_connection_pool.with do |redis|
+          expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(true)
+          expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(false)
+          subject.move_pending_vm_to_ready(vm, pool, redis)
+          expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(false)
+          expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(true)
+        end
       end
 
       it 'should log a message' do
         expect(logger).to receive(:log).with('s', "[>] [#{pool}] '#{vm}' moved from 'pending' to 'ready' queue")
 
-        subject.move_pending_vm_to_ready(vm, pool)
+        redis_connection_pool.with do |redis|
+          subject.move_pending_vm_to_ready(vm, pool, redis)
+        end
       end
 
       it 'should receive time_to_ready_state metric' do
-        redis.hset("vmpooler__vm__#{vm}", 'clone',Time.now.to_s)
-        expect(metrics).to receive(:timing).with(/time_to_ready_state\./,/0/)
+        redis_connection_pool.with do |redis|
+          redis.hset("vmpooler__vm__#{vm}", 'clone',Time.now.to_s)
+          expect(metrics).to receive(:timing).with(/time_to_ready_state\./,/0/)
 
-        subject.move_pending_vm_to_ready(vm, pool)
+          subject.move_pending_vm_to_ready(vm, pool, redis)
+        end
       end
 
 
       it 'should set the boot time in redis' do
-        redis.hset("vmpooler__vm__#{vm}", 'clone',Time.now.to_s)
-        expect(redis.hget('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm)).to be_nil
-        subject.move_pending_vm_to_ready(vm, pool)
-        expect(redis.hget('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm)).to_not be_nil
-        # TODO Should we inspect the value to see if it's valid?
+        redis_connection_pool.with do |redis|
+          redis.hset("vmpooler__vm__#{vm}", 'clone',Time.now.to_s)
+          expect(redis.hget('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm)).to be_nil
+          subject.move_pending_vm_to_ready(vm, pool, redis)
+          expect(redis.hget('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm)).to_not be_nil
+          # TODO Should we inspect the value to see if it's valid?
+        end
       end
 
       it 'should not determine boot timespan if clone start time not set' do
-        expect(redis.hget('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm)).to be_nil
-        subject.move_pending_vm_to_ready(vm, pool)
-        expect(redis.hget('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm)).to eq("") # Possible implementation bug here. Should still be nil here
+        redis_connection_pool.with do |redis|
+          expect(redis.hget('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm)).to be_nil
+          subject.move_pending_vm_to_ready(vm, pool, redis)
+          expect(redis.hget('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm)).to eq("") # Possible implementation bug here. Should still be nil here
+        end
       end
 
       it 'should raise error if clone start time is not parsable' do
-        redis.hset("vmpooler__vm__#{vm}", 'clone','iamnotparsable_asdate')
-        expect{subject.move_pending_vm_to_ready(vm, pool)}.to raise_error(/iamnotparsable_asdate/)
+        redis_connection_pool.with do |redis|
+          redis.hset("vmpooler__vm__#{vm}", 'clone','iamnotparsable_asdate')
+          expect{subject.move_pending_vm_to_ready(vm, pool, redis)}.to raise_error(/iamnotparsable_asdate/)
+        end
       end
 
       it 'should save the last boot time' do
-        expect(redis.hget('vmpooler__lastboot', pool)).to be(nil)
-        subject.move_pending_vm_to_ready(vm, pool)
-        expect(redis.hget('vmpooler__lastboot', pool)).to_not be(nil)
+        redis_connection_pool.with do |redis|
+          expect(redis.hget('vmpooler__lastboot', pool)).to be(nil)
+          subject.move_pending_vm_to_ready(vm, pool, redis)
+          expect(redis.hget('vmpooler__lastboot', pool)).to_not be(nil)
+        end
       end
     end
   end
@@ -286,7 +331,9 @@ EOT
     }
 
     before(:each) do
-      create_ready_vm(pool,vm)
+      redis_connection_pool.with do |redis|
+        create_ready_vm(pool,vm,redis)
+      end
       config[:config]['vm_checktime'] = 15
 
       # Create a VM which is powered on
@@ -297,34 +344,42 @@ EOT
 
     context 'a VM that does not need to be checked' do
       it 'should do nothing' do
-        check_stamp = (Time.now - 60).to_s
-        redis.hset("vmpooler__vm__#{vm}", 'check', check_stamp)
-        expect(provider).to receive(:get_vm).exactly(0).times
-        subject._check_ready_vm(vm, pool, ttl, provider)
-        expect(redis.hget("vmpooler__vm__#{vm}", 'check')).to eq(check_stamp)
+        redis_connection_pool.with do |redis|
+          check_stamp = (Time.now - 60).to_s
+          redis.hset("vmpooler__vm__#{vm}", 'check', check_stamp)
+          expect(provider).to receive(:get_vm).exactly(0).times
+          subject._check_ready_vm(vm, pool, ttl, provider)
+          expect(redis.hget("vmpooler__vm__#{vm}", 'check')).to eq(check_stamp)
+        end
       end
     end
 
     context 'a VM that has never been checked' do
-      let(:last_check_date) { Date.new(2001,1,1).to_s }
+      let(:last_check_date) { Time.now - 901 }
 
       it 'should set the current check timestamp' do
-        expect(redis.hget("vmpooler__vm__#{vm}", 'check')).to be_nil
-        subject._check_ready_vm(vm, pool, ttl, provider)
-        expect(redis.hget("vmpooler__vm__#{vm}", 'check')).to_not be_nil
+        redis_connection_pool.with do |redis|
+          expect(redis.hget("vmpooler__vm__#{vm}", 'check')).to be_nil
+          subject._check_ready_vm(vm, pool, ttl, provider)
+          expect(redis.hget("vmpooler__vm__#{vm}", 'check')).to_not be_nil
+        end
       end
     end
 
     context 'a VM that needs to be checked' do
-      let(:last_check_date) { Date.new(2001,1,1).to_s }
+      let(:last_check_date) { Time.now - 901 }
       before(:each) do
-        redis.hset("vmpooler__vm__#{vm}", 'check',last_check_date)
+        redis_connection_pool.with do |redis|
+          redis.hset("vmpooler__vm__#{vm}", 'check',last_check_date)
+        end
       end
 
       it 'should set the current check timestamp' do
-        expect(redis.hget("vmpooler__vm__#{vm}", 'check')).to eq(last_check_date)
-        subject._check_ready_vm(vm, pool, ttl, provider)
-        expect(redis.hget("vmpooler__vm__#{vm}", 'check')).to_not eq(last_check_date)
+        redis_connection_pool.with do |redis|
+          expect(redis.hget("vmpooler__vm__#{vm}", 'check')).to eq(last_check_date.to_s)
+          subject._check_ready_vm(vm, pool, ttl, provider)
+          expect(redis.hget("vmpooler__vm__#{vm}", 'check')).to_not eq(last_check_date.to_s)
+        end
       end
 
       context 'and is ready' do
@@ -340,20 +395,25 @@ EOT
       context 'has correct name and is not ready' do
         before(:each) do
           expect(provider).to receive(:vm_ready?).with(pool, vm).and_return(false)
+          redis_connection_pool.with do |redis|
+            redis.hset("vmpooler__vm__#{vm}", 'ready', Time.now - 901)
+            redis.sadd("vmpooler__ready__#{pool}", vm)
+          end
         end
 
         it 'should move the VM to the completed queue' do
-          expect(redis).to receive(:smove).with("vmpooler__ready__#{pool}", "vmpooler__completed__#{pool}", vm)
+          redis_connection_pool.with do |redis|
+            expect(redis).to receive(:smove).with("vmpooler__ready__#{pool}", "vmpooler__completed__#{pool}", vm)
 
-          subject._check_ready_vm(vm, pool, ttl, provider)
+            subject._check_ready_vm(vm, pool, ttl, provider)
+          end
         end
 
         it 'should move the VM to the completed queue in Redis' do
-          expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(true)
-          expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(false)
-          subject._check_ready_vm(vm, pool, ttl, provider)
-          expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(false)
-          expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
+          redis_connection_pool.with do |redis|
+            subject._check_ready_vm(vm, pool, ttl, provider)
+            expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
+          end
         end
 
         it 'should log messages about being unreachable' do
@@ -367,7 +427,9 @@ EOT
 
         context 'when less than 60 seconds since a VM moved to ready' do
           before(:each) do
-            redis.hset("vmpooler__vm__#{vm}", 'ready', Time.now)
+            redis_connection_pool.with do |redis|
+              redis.hset("vmpooler__vm__#{vm}", 'ready', Time.now)
+            end
           end
 
           it 'should return nil' do
@@ -380,20 +442,27 @@ EOT
           before(:each) do
             expect(provider).to receive(:get_vm).with(pool,vm).and_return(host)
             host['hostname'] = different_hostname
+            redis_connection_pool.with do |redis|
+              redis.sadd("vmpooler__ready__#{pool}", vm)
+            end
           end
 
           it 'should move the VM to the completed queue' do
-            expect(redis).to receive(:smove).with("vmpooler__ready__#{pool}", "vmpooler__completed__#{pool}", vm)
+            redis_connection_pool.with do |redis|
+              expect(redis).to receive(:smove).with("vmpooler__ready__#{pool}", "vmpooler__completed__#{pool}", vm)
+            end
 
             subject._check_ready_vm(vm, pool, ttl, provider)
           end
 
           it 'should move the VM to the completed queue in Redis' do
-            expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(true)
-            expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(false)
-            subject._check_ready_vm(vm, pool, ttl, provider)
-            expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(false)
-            expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
+            redis_connection_pool.with do |redis|
+              expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(true)
+              expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(false)
+              subject._check_ready_vm(vm, pool, ttl, provider)
+              expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(false)
+              expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
+            end
           end
 
           it 'should log messages about being misnamed' do
@@ -467,7 +536,9 @@ EOT
     end
 
     before(:each) do
-      create_running_vm(pool,vm)
+      redis_connection_pool.with do |redis|
+        create_running_vm(pool,vm, redis)
+      end
 
       # Create a VM which is powered on
       host['hostname'] = vm
@@ -476,36 +547,44 @@ EOT
     end
 
     it 'moves a missing VM to the completed queue' do
-      expect(provider).to receive(:vm_ready?).and_return(false)
-      expect(provider).to receive(:get_vm).with(pool,vm).and_return(nil)
-      expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
-      subject._check_running_vm(vm, pool, timeout, provider)
-      expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(false)
+      redis_connection_pool.with do |redis|
+        expect(provider).to receive(:vm_ready?).and_return(false)
+        expect(provider).to receive(:get_vm).with(pool,vm).and_return(nil)
+        expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
+        subject._check_running_vm(vm, pool, timeout, provider)
+        expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(false)
+      end
     end
 
     context 'valid host' do
       it 'should not move VM if it has no checkout time' do
-        expect(provider).to receive(:vm_ready?).and_return(true)
-        expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
-        subject._check_running_vm(vm, pool, 0, provider)
-        expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
+        redis_connection_pool.with do |redis|
+          expect(provider).to receive(:vm_ready?).and_return(true)
+          expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
+          subject._check_running_vm(vm, pool, 0, provider)
+          expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
+        end
       end
 
       it 'should not move VM if TTL is zero' do
-        expect(provider).to receive(:vm_ready?).and_return(true)
-        redis.hset("vmpooler__active__#{pool}", vm,(Time.now - timeout*60*60).to_s)
-        expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
-        subject._check_running_vm(vm, pool, 0, provider)
-        expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
+        redis_connection_pool.with do |redis|
+          expect(provider).to receive(:vm_ready?).and_return(true)
+          redis.hset("vmpooler__active__#{pool}", vm,(Time.now - timeout*60*60).to_s)
+          expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
+          subject._check_running_vm(vm, pool, 0, provider)
+          expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
+        end
       end
 
       it 'should move VM when past TTL' do
-        redis.hset("vmpooler__active__#{pool}", vm,(Time.now - timeout*60*60).to_s)
-        expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
-        expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(false)
-        subject._check_running_vm(vm, pool, timeout, provider)
-        expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(false)
-        expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
+        redis_connection_pool.with do |redis|
+          redis.hset("vmpooler__active__#{pool}", vm,(Time.now - timeout*60*60).to_s)
+          expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
+          expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(false)
+          subject._check_running_vm(vm, pool, timeout, provider)
+          expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(false)
+          expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
+        end
       end
     end
 
@@ -533,31 +612,43 @@ EOT
     end
 
     before(:each) do
-      create_pending_vm(pool, vm, token)
+      redis_connection_pool.with do |redis|
+        create_pending_vm(pool, vm, redis, token)
+      end
     end
 
     it 'VM should be in the "from queue" before the move' do
-      expect(redis.sismember("vmpooler__#{queue_from}__#{pool}",vm))
+      redis_connection_pool.with do |redis|
+        expect(redis.sismember("vmpooler__#{queue_from}__#{pool}",vm))
+      end
     end
 
     it 'VM should not be in the "from queue" after the move' do
-      subject.move_vm_queue(pool, vm, queue_from, queue_to, message)
-      expect(!redis.sismember("vmpooler__#{queue_from}__#{pool}",vm))
+      redis_connection_pool.with do |redis|
+        subject.move_vm_queue(pool, vm, queue_from, queue_to, redis, message)
+        expect(!redis.sismember("vmpooler__#{queue_from}__#{pool}",vm))
+      end
     end
 
     it 'VM should not be in the "to queue" before the move' do
-      expect(!redis.sismember("vmpooler__#{queue_to}__#{pool}",vm))
+      redis_connection_pool.with do |redis|
+        expect(!redis.sismember("vmpooler__#{queue_to}__#{pool}",vm))
+      end
     end
 
     it 'VM should be in the "to queue" after the move' do
-      subject.move_vm_queue(pool, vm, queue_from, queue_to, message)
-      expect(redis.sismember("vmpooler__#{queue_to}__#{pool}",vm))
+      redis_connection_pool.with do |redis|
+        subject.move_vm_queue(pool, vm, queue_from, queue_to, redis, message)
+        expect(redis.sismember("vmpooler__#{queue_to}__#{pool}",vm))
+      end
     end
 
     it 'should log a message' do
       allow(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' #{message}")
 
-      subject.move_vm_queue(pool, vm, queue_from, queue_to, message)
+      redis_connection_pool.with do |redis|
+        subject.move_vm_queue(pool, vm, queue_from, queue_to, redis, message)
+      end
     end
   end
 
@@ -612,25 +703,29 @@ EOT
       end
 
       it 'should create a cloning VM' do
-        expect(redis.scard("vmpooler__pending__#{pool}")).to eq(0)
+        redis_connection_pool.with do |redis|
+          expect(redis.scard("vmpooler__pending__#{pool}")).to eq(0)
 
-        subject._clone_vm(pool,provider)
+          subject._clone_vm(pool,provider)
 
-        expect(redis.scard("vmpooler__pending__#{pool}")).to eq(1)
-        # Get the new VM Name from the pending pool queue as it should be the only entry
-        vm_name = redis.smembers("vmpooler__pending__#{pool}")[0]
-        expect(redis.hget("vmpooler__vm__#{vm_name}", 'clone')).to_not be_nil
-        expect(redis.hget("vmpooler__vm__#{vm_name}", 'template')).to eq(pool)
-        expect(redis.hget("vmpooler__clone__#{Date.today.to_s}", "#{pool}:#{vm_name}")).to_not be_nil
-        expect(redis.hget("vmpooler__vm__#{vm_name}", 'clone_time')).to_not be_nil
+          expect(redis.scard("vmpooler__pending__#{pool}")).to eq(1)
+          # Get the new VM Name from the pending pool queue as it should be the only entry
+          vm_name = redis.smembers("vmpooler__pending__#{pool}")[0]
+          expect(redis.hget("vmpooler__vm__#{vm_name}", 'clone')).to_not be_nil
+          expect(redis.hget("vmpooler__vm__#{vm_name}", 'template')).to eq(pool)
+          expect(redis.hget("vmpooler__clone__#{Date.today.to_s}", "#{pool}:#{vm_name}")).to_not be_nil
+          expect(redis.hget("vmpooler__vm__#{vm_name}", 'clone_time')).to_not be_nil
+        end
       end
 
       it 'should decrement the clone tasks counter' do
-        redis.incr('vmpooler__tasks__clone')
-        redis.incr('vmpooler__tasks__clone')
-        expect(redis.get('vmpooler__tasks__clone')).to eq('2')
-        subject._clone_vm(pool,provider)
-        expect(redis.get('vmpooler__tasks__clone')).to eq('1')
+        redis_connection_pool.with do |redis|
+          redis.incr('vmpooler__tasks__clone')
+          redis.incr('vmpooler__tasks__clone')
+          expect(redis.get('vmpooler__tasks__clone')).to eq('2')
+          subject._clone_vm(pool,provider)
+          expect(redis.get('vmpooler__tasks__clone')).to eq('1')
+        end
       end
 
       it 'should log a message that is being cloned from a template' do
@@ -654,27 +749,33 @@ EOT
       end
 
       it 'should not create a cloning VM' do
-        expect(redis.scard("vmpooler__pending__#{pool}")).to eq(0)
+        redis_connection_pool.with do |redis|
+          expect(redis.scard("vmpooler__pending__#{pool}")).to eq(0)
 
-        expect{subject._clone_vm(pool,provider)}.to raise_error(/MockError/)
+          expect{subject._clone_vm(pool,provider)}.to raise_error(/MockError/)
 
-        expect(redis.scard("vmpooler__pending__#{pool}")).to eq(0)
-        # Get the new VM Name from the pending pool queue as it should be the only entry
-        vm_name = redis.smembers("vmpooler__pending__#{pool}")[0]
-        expect(vm_name).to be_nil
+          expect(redis.scard("vmpooler__pending__#{pool}")).to eq(0)
+          # Get the new VM Name from the pending pool queue as it should be the only entry
+          vm_name = redis.smembers("vmpooler__pending__#{pool}")[0]
+          expect(vm_name).to be_nil
+        end
       end
 
       it 'should decrement the clone tasks counter' do
-        redis.incr('vmpooler__tasks__clone')
-        redis.incr('vmpooler__tasks__clone')
-        expect(redis.get('vmpooler__tasks__clone')).to eq('2')
-        expect{subject._clone_vm(pool,provider)}.to raise_error(/MockError/)
-        expect(redis.get('vmpooler__tasks__clone')).to eq('1')
+        redis_connection_pool.with do |redis|
+          redis.incr('vmpooler__tasks__clone')
+          redis.incr('vmpooler__tasks__clone')
+          expect(redis.get('vmpooler__tasks__clone')).to eq('2')
+          expect{subject._clone_vm(pool,provider)}.to raise_error(/MockError/)
+          expect(redis.get('vmpooler__tasks__clone')).to eq('1')
+        end
       end
 
       it 'should expire the vm metadata' do
-        expect(redis).to receive(:expire)
-        expect{subject._clone_vm(pool,provider)}.to raise_error(/MockError/)
+        redis_connection_pool.with do |redis|
+          expect(redis).to receive(:expire)
+          expect{subject._clone_vm(pool,provider)}.to raise_error(/MockError/)
+        end
       end
 
       it 'should raise the error' do
@@ -708,7 +809,9 @@ EOT
     before(:each) do
       expect(subject).not_to be_nil
 
-      create_completed_vm(vm,pool,true)
+      redis_connection_pool.with do |redis|
+        create_completed_vm(vm,pool,redis,true)
+      end
 
       allow(provider).to receive(:destroy_vm).with(pool,vm).and_return(true)
 
@@ -723,9 +826,11 @@ EOT
       end
 
       it 'should call redis expire with 0' do
-        expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to_not be_nil
-        subject._destroy_vm(vm,pool,provider)
-        expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to be_nil
+        redis_connection_pool.with do |redis|
+          expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to_not be_nil
+          subject._destroy_vm(vm,pool,provider)
+          expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to be_nil
+        end
       end
     end
 
@@ -832,7 +937,9 @@ EOT
 
       context 'when a VM has not been checked out' do
         before(:each) do
-          create_ready_vm(template, vm)
+          redis_connection_pool.with do |redis|
+            create_ready_vm(template, vm, redis)
+          end
         end
 
         it 'should return' do
@@ -847,7 +954,9 @@ EOT
         context 'without auth' do
 
           before(:each) do
-            create_running_vm(template, vm)
+            redis_connection_pool.with do |redis|
+              create_running_vm(template, vm, redis)
+            end
           end
 
           it 'should emit a metric' do
@@ -860,7 +969,9 @@ EOT
         context 'with auth' do
 
           before(:each) do
-            create_running_vm(template, vm, token, user)
+            redis_connection_pool.with do |redis|
+              create_running_vm(template, vm, redis, token, user)
+            end
           end
 
           it 'should emit a metric' do
@@ -875,7 +986,9 @@ EOT
             let(:metric_nodes) { metric_string.split('.') }
 
             before(:each) do
-              create_running_vm(template, vm)
+              redis_connection_pool.with do |redis|
+                create_running_vm(template, vm, redis)
+              end
             end
 
             it 'should emit a metric with the character replaced' do
@@ -1173,7 +1286,9 @@ EOT
       expect(subject).not_to be_nil
       allow(logger).to receive(:log)
 
-      create_running_vm(pool,vm,token)
+      redis_connection_pool.with do |redis|
+        create_running_vm(pool,vm,token)
+      end
     end
 
     context 'Given a VM that does not exist' do
@@ -1183,8 +1298,10 @@ EOT
       end
 
       it 'should not update redis if the VM does not exist' do
-        expect(redis).to receive(:hset).exactly(0).times
-        expect{ subject._create_vm_disk(pool, vm, disk_size, provider) }.to raise_error(RuntimeError)
+        redis_connection_pool.with do |redis|
+          expect(redis).to receive(:hset).exactly(0).times
+          expect{ subject._create_vm_disk(pool, vm, disk_size, provider) }.to raise_error(RuntimeError)
+        end
       end
     end
 
@@ -1201,8 +1318,10 @@ EOT
       end
 
       it 'should raise an error if the disk size is a Fixnum' do
-        expect(redis).to receive(:hset).exactly(0).times
-        expect{ subject._create_vm_disk(pool, vm, 10, provider) }.to raise_error(NoMethodError,/empty?/)
+        redis_connection_pool.with do |redis|
+          expect(redis).to receive(:hset).exactly(0).times
+          expect{ subject._create_vm_disk(pool, vm, 10, provider) }.to raise_error(NoMethodError,/empty?/)
+        end
       end
     end
 
@@ -1219,16 +1338,20 @@ EOT
       end
 
       it 'should update redis information when attaching the first disk' do
-        subject._create_vm_disk(pool, vm, disk_size, provider)
-        expect(redis.hget("vmpooler__vm__#{vm}", 'disk')).to eq("+#{disk_size}gb")
+        redis_connection_pool.with do |redis|
+          subject._create_vm_disk(pool, vm, disk_size, provider)
+          expect(redis.hget("vmpooler__vm__#{vm}", 'disk')).to eq("+#{disk_size}gb")
+        end
       end
 
       it 'should update redis information when attaching the additional disks' do
-        initial_disks = '+10gb:+20gb'
-        redis.hset("vmpooler__vm__#{vm}", 'disk', initial_disks)
+        redis_connection_pool.with do |redis|
+          initial_disks = '+10gb:+20gb'
+          redis.hset("vmpooler__vm__#{vm}", 'disk', initial_disks)
 
-        subject._create_vm_disk(pool, vm, disk_size, provider)
-        expect(redis.hget("vmpooler__vm__#{vm}", 'disk')).to eq("#{initial_disks}:+#{disk_size}gb")
+          subject._create_vm_disk(pool, vm, disk_size, provider)
+          expect(redis.hget("vmpooler__vm__#{vm}", 'disk')).to eq("#{initial_disks}:+#{disk_size}gb")
+        end
       end
     end
 
@@ -1238,10 +1361,12 @@ EOT
       end
 
       it 'should not update redis information' do
-        expect(redis).to receive(:hset).exactly(0).times
+        redis_connection_pool.with do |redis|
+          expect(redis).to receive(:hset).exactly(0).times
 
-        subject._create_vm_disk(pool, vm, disk_size, provider)
-        expect(redis.hget("vmpooler__vm__#{vm}", 'disk')).to be_nil
+          subject._create_vm_disk(pool, vm, disk_size, provider)
+          expect(redis.hget("vmpooler__vm__#{vm}", 'disk')).to be_nil
+        end
       end
 
       it 'should log a message' do
@@ -1275,7 +1400,9 @@ EOT
     end
 
     before(:each) do
-      create_running_vm(pool,vm,token)
+      redis_connection_pool.with do |redis|
+        create_running_vm(pool,vm,redis,token)
+      end
     end
 
     context 'Given a Pool that does not exist' do
@@ -1286,9 +1413,11 @@ EOT
       end
 
       it 'should not update redis' do
-        expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to be_nil
-        expect{ subject._create_vm_snapshot(missing_pool, vm, snapshot_name, provider) }.to raise_error("Pool #{missing_pool} not found")
-        expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to be_nil
+        redis_connection_pool.with do |redis|
+          expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to be_nil
+          expect{ subject._create_vm_snapshot(missing_pool, vm, snapshot_name, provider) }.to raise_error("Pool #{missing_pool} not found")
+          expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to be_nil
+        end
       end
     end
 
@@ -1299,9 +1428,11 @@ EOT
       end
 
       it 'should not update redis' do
-        expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to be_nil
-        expect{ subject._create_vm_snapshot(pool, missing_vm, snapshot_name, provider) }.to raise_error("VM #{missing_vm} not found")
-        expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to be_nil
+        redis_connection_pool.with do |redis|
+          expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to be_nil
+          expect{ subject._create_vm_snapshot(pool, missing_vm, snapshot_name, provider) }.to raise_error("VM #{missing_vm} not found")
+          expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to be_nil
+        end
       end
     end
 
@@ -1318,9 +1449,11 @@ EOT
       end
 
       it 'should add snapshot redis information' do
-        expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to be_nil
-        subject._create_vm_snapshot(pool, vm, snapshot_name, provider)
-        expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to_not be_nil
+        redis_connection_pool.with do |redis|
+          expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to be_nil
+          subject._create_vm_snapshot(pool, vm, snapshot_name, provider)
+          expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to_not be_nil
+        end
       end
     end
 
@@ -1337,9 +1470,11 @@ EOT
       end
 
       it 'should not update redis' do
-        expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to be_nil
-        subject._create_vm_snapshot(pool, vm, snapshot_name, provider)
-        expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to be_nil
+        redis_connection_pool.with do |redis|
+          expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to be_nil
+          subject._create_vm_snapshot(pool, vm, snapshot_name, provider)
+          expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to be_nil
+        end
       end
     end
   end
@@ -1433,7 +1568,9 @@ EOT
   describe '#get_pool_name_for_vm' do
     context 'Given a valid VM' do
       before(:each) do
-        create_running_vm(pool, vm, token)
+        redis_connection_pool.with do |redis|
+          create_running_vm(pool, vm, redis, token)
+        end
       end
 
       it 'should return the pool name' do
@@ -1630,9 +1767,11 @@ EOT
 
     context 'when specified provider does not exist' do
       before(:each) do
-        disk_task_vm(vm,"snapshot_#{vm}")
-        create_running_vm(pool, vm, token)
-        expect(subject).to receive(:get_provider_for_pool).and_return(nil)
+        redis_connection_pool.with do |redis|
+          disk_task_vm(vm,"snapshot_#{vm}")
+          create_running_vm(pool, vm, token)
+          expect(subject).to receive(:get_provider_for_pool).and_return(nil)
+        end
       end
 
       it 'should log an error' do
@@ -1651,8 +1790,10 @@ EOT
     context 'when multiple VMs in the queue' do
       before(:each) do
         ['vm1', 'vm2', 'vm3'].each do |vm_name|
-          disk_task_vm(vm_name,"snapshot_#{vm_name}")
-          create_running_vm(pool, vm_name, token)
+          redis_connection_pool.with do |redis|
+            disk_task_vm(vm_name,"snapshot_#{vm_name}")
+            create_running_vm(pool, vm_name, redis, token)
+          end
         end
 
         allow(subject).to receive(:get_provider_for_pool).with(pool).and_return(provider)
@@ -1772,9 +1913,11 @@ EOT
 
       context 'when specified provider does not exist' do
         before(:each) do
-          snapshot_vm(vm,"snapshot_#{vm}")
-          create_running_vm(pool, vm, token)
-          expect(subject).to receive(:get_provider_for_pool).and_return(nil)
+          redis_connection_pool.with do |redis|
+            snapshot_vm(vm,"snapshot_#{vm}")
+            create_running_vm(pool, vm, redis, token)
+            expect(subject).to receive(:get_provider_for_pool).and_return(nil)
+          end
         end
 
         it 'should log an error' do
@@ -1793,8 +1936,10 @@ EOT
       context 'when multiple VMs in the queue' do
         before(:each) do
           ['vm1', 'vm2', 'vm3'].each do |vm_name|
-            snapshot_vm(vm_name,"snapshot_#{vm_name}")
-            create_running_vm(pool, vm_name, token)
+            redis_connection_pool.with do |redis|
+              snapshot_vm(vm_name,"snapshot_#{vm_name}")
+              create_running_vm(pool, vm_name, redis, token)
+            end
           end
 
           allow(subject).to receive(:get_provider_for_pool).with(pool).and_return(provider)
@@ -1846,9 +1991,11 @@ EOT
 
       context 'when specified provider does not exist' do
         before(:each) do
-          snapshot_revert_vm(vm,"snapshot_#{vm}")
-          create_running_vm(pool, vm, token)
-          expect(subject).to receive(:get_provider_for_pool).and_return(nil)
+          redis_connection_pool.with do |redis|
+            snapshot_revert_vm(vm,"snapshot_#{vm}")
+            create_running_vm(pool, vm, redis, token)
+            expect(subject).to receive(:get_provider_for_pool).and_return(nil)
+          end
         end
 
         it 'should log an error' do
@@ -1867,8 +2014,10 @@ EOT
       context 'when multiple VMs in the queue' do
         before(:each) do
           ['vm1', 'vm2', 'vm3'].each do |vm_name|
-            snapshot_revert_vm(vm_name,"snapshot_#{vm_name}")
-            create_running_vm(pool, vm_name, token)
+            redis_connection_pool.with do |redis|
+              snapshot_revert_vm(vm_name,"snapshot_#{vm_name}")
+              create_running_vm(pool, vm_name, redis, token)
+            end
           end
 
           allow(subject).to receive(:get_provider_for_pool).with(pool).and_return(provider)
@@ -1982,15 +2131,18 @@ EOT
     end
 
     it 'returns when a template is set and matches the configured template' do
-      redis.hset('vmpooler__config__template', pool, old_template)
-
+      redis_connection_pool.with do |redis|
+        redis.hset('vmpooler__config__template', pool, old_template)
+      end
       subject.sync_pool_template(config[:pools][0])
 
       expect(config[:pools][0]['template']).to eq(old_template)
     end
 
     it 'updates a pool template when the redis provided value is different' do
-      redis.hset('vmpooler__config__template', pool, new_template)
+      redis_connection_pool.with do |redis|
+        redis.hset('vmpooler__config__template', pool, new_template)
+      end
 
       subject.sync_pool_template(config[:pools][0])
 
@@ -2030,7 +2182,9 @@ EOT
     end
 
     it 'should set the pool template to match the configured template' do
-      subject.update_pool_template(poolconfig, provider, new_template, current_template)
+      redis_connection_pool.with do |redis|
+        subject.update_pool_template(poolconfig, provider, new_template, current_template, redis)
+      end
 
       expect(poolconfig['template']).to eq(new_template)
     end
@@ -2038,31 +2192,41 @@ EOT
     it 'should log that the template is updated' do
       expect(logger).to receive(:log).with('s', "[*] [#{pool}] template updated from #{current_template} to #{new_template}")
 
-      subject.update_pool_template(poolconfig, provider, new_template, current_template)
+      redis_connection_pool.with do |redis|
+        subject.update_pool_template(poolconfig, provider, new_template, current_template, redis)
+      end
     end
 
     it 'should run drain_pool' do
-      expect(subject).to receive(:drain_pool).with(pool)
+      redis_connection_pool.with do |redis|
+        expect(subject).to receive(:drain_pool).with(pool, redis)
 
-      subject.update_pool_template(poolconfig, provider, new_template, current_template)
+        subject.update_pool_template(poolconfig, provider, new_template, current_template, redis)
+      end
     end
 
     it 'should log that a template is being prepared' do
       expect(logger).to receive(:log).with('s', "[*] [#{pool}] preparing pool template for deployment")
 
-      subject.update_pool_template(poolconfig, provider, new_template, current_template)
+      redis_connection_pool.with do |redis|
+        subject.update_pool_template(poolconfig, provider, new_template, current_template, redis)
+      end
     end
 
     it 'should run prepare_template' do
       expect(subject).to receive(:prepare_template).with(poolconfig, provider)
 
-      subject.update_pool_template(poolconfig, provider, new_template, current_template)
+      redis_connection_pool.with do |redis|
+        subject.update_pool_template(poolconfig, provider, new_template, current_template, redis)
+      end
     end
 
     it 'should log that the pool is ready for use' do
       expect(logger).to receive(:log).with('s', "[*] [#{pool}] is ready for use")
 
-      subject.update_pool_template(poolconfig, provider, new_template, current_template)
+      redis_connection_pool.with do |redis|
+        subject.update_pool_template(poolconfig, provider, new_template, current_template, redis)
+      end
     end
   end
 
@@ -2092,8 +2256,10 @@ EOT
     context 'when the mutex is locked' do
       let(:mutex) { Mutex.new }
       before(:each) do
-        expect(redis).to receive(:scard).with("vmpooler__pending__#{pool}").and_return(1)
-        expect(redis).to receive(:scard).with("vmpooler__ready__#{pool}").and_return(2)
+        redis_connection_pool.with do |redis|
+          expect(redis).to receive(:scard).with("vmpooler__pending__#{pool}").and_return(1)
+          expect(redis).to receive(:scard).with("vmpooler__ready__#{pool}").and_return(2)
+        end
         mutex.lock
         expect(subject).to receive(:pool_mutex).with(pool).and_return(mutex)
       end
@@ -2105,27 +2271,33 @@ EOT
 
     context 'with a total size less than the pool size' do
       it 'should return nil' do
-        expect(redis).to receive(:scard).with("vmpooler__pending__#{pool}").and_return(1)
-        expect(redis).to receive(:scard).with("vmpooler__ready__#{pool}").and_return(1)
+        redis_connection_pool.with do |redis|
+          expect(redis).to receive(:scard).with("vmpooler__pending__#{pool}").and_return(1)
+          expect(redis).to receive(:scard).with("vmpooler__ready__#{pool}").and_return(1)
+        end
         expect(subject.remove_excess_vms(config[:pools][0])).to be_nil
       end
     end
 
     context 'with a total size greater than the pool size' do
       it 'should remove excess ready vms' do
-        expect(redis).to receive(:scard).with("vmpooler__ready__#{pool}").and_return(4)
-        expect(redis).to receive(:scard).with("vmpooler__pending__#{pool}").and_return(0)
+        redis_connection_pool.with do |redis|
+          expect(redis).to receive(:scard).with("vmpooler__ready__#{pool}").and_return(4)
+          expect(redis).to receive(:scard).with("vmpooler__pending__#{pool}").and_return(0)
+        end
         expect(subject).to receive(:move_vm_queue).exactly(2).times
 
         subject.remove_excess_vms(config[:pools][0])
       end
 
       it 'should remove excess pending vms' do
-        create_pending_vm(pool,'vm1')
-        create_pending_vm(pool,'vm2')
-        create_ready_vm(pool, 'vm3')
-        create_ready_vm(pool, 'vm4')
-        create_ready_vm(pool, 'vm5')
+        redis_connection_pool.with do |redis|
+          create_pending_vm(pool,'vm1',redis)
+          create_pending_vm(pool,'vm2',redis)
+          create_ready_vm(pool, 'vm3',redis)
+          create_ready_vm(pool, 'vm4',redis)
+          create_ready_vm(pool, 'vm5',redis)
+        end
         expect(subject).to receive(:move_vm_queue).exactly(3).times
 
         subject.remove_excess_vms(config[:pools][0])
@@ -2150,20 +2322,26 @@ EOT
 
     context 'when creating the template delta disks' do
       before(:each) do
-        allow(redis).to receive(:hset)
+        redis_connection_pool.with do |redis|
+          allow(redis).to receive(:hset)
+        end
         allow(provider).to receive(:create_template_delta_disks)
       end
 
       it 'should run create template delta disks' do
-        expect(provider).to receive(:create_template_delta_disks).with(config[:pools][0])
+        redis_connection_pool.with do |redis|
+          expect(provider).to receive(:create_template_delta_disks).with(config[:pools][0])
 
-        subject.prepare_template(config[:pools][0], provider)
+          subject.prepare_template(config[:pools][0], provider, redis)
+        end
       end
 
       it 'should mark the template as prepared' do
-        expect(redis).to receive(:hset).with('vmpooler__template__prepared', pool, config[:pools][0]['template'])
+        redis_connection_pool.with do |redis|
+          expect(redis).to receive(:hset).with('vmpooler__template__prepared', pool, config[:pools][0]['template'])
 
-        subject.prepare_template(config[:pools][0], provider)
+          subject.prepare_template(config[:pools][0], provider, redis)
+        end
       end
     end
 
@@ -2174,9 +2352,11 @@ EOT
       end
 
       it 'should log a message when delta disk creation returns an error' do
-        expect(logger).to receive(:log).with('s', "[!] [#{pool}] failed while preparing a template with an error. As a result vmpooler could not create the template delta disks. Either a template delta disk already exists, or the template delta disk creation failed. The error is: MockError")
+        redis_connection_pool.with do |redis|
+          expect(logger).to receive(:log).with('s', "[!] [#{pool}] failed while preparing a template with an error. As a result vmpooler could not create the template delta disks. Either a template delta disk already exists, or the template delta disk creation failed. The error is: MockError")
 
-        subject.prepare_template(config[:pools][0], provider)
+          subject.prepare_template(config[:pools][0], provider, redis)
+        end
       end
     end
   end
@@ -2200,18 +2380,24 @@ EOT
     }
 
     before(:each) do
-      allow(redis).to receive(:hget)
+      redis_connection_pool.with do |redis|
+        allow(redis).to receive(:hget)
+      end
       expect(subject).to receive(:pool_mutex).with(pool).and_return(mutex)
     end
 
     it 'should retreive the prepared template' do
-      expect(redis).to receive(:hget).with('vmpooler__template__prepared', pool).and_return(current_template)
+      redis_connection_pool.with do |redis|
+        expect(redis).to receive(:hget).with('vmpooler__template__prepared', pool).and_return(current_template)
+      end
 
       subject.evaluate_template(config[:pools][0], provider)
     end
 
     it 'should retrieve the redis configured template' do
-      expect(redis).to receive(:hget).with('vmpooler__config__template', pool).and_return(new_template)
+      redis_connection_pool.with do |redis|
+        expect(redis).to receive(:hget).with('vmpooler__config__template', pool).and_return(new_template)
+      end
 
       subject.evaluate_template(config[:pools][0], provider)
     end
@@ -2229,14 +2415,18 @@ EOT
     context 'when prepared template is nil' do
 
       it 'should prepare the template' do
-        expect(redis).to receive(:hget).with('vmpooler__template__prepared', pool).and_return(nil)
-        expect(subject).to receive(:prepare_template).with(config[:pools][0], provider)
+        redis_connection_pool.with do |redis|
+          expect(redis).to receive(:hget).with('vmpooler__template__prepared', pool).and_return(nil)
+          expect(subject).to receive(:prepare_template).with(config[:pools][0], provider, redis)
+        end
 
         subject.evaluate_template(config[:pools][0], provider)
       end
 
       it 'should not prepare the template again' do
-        expect(redis).to receive(:hget).with('vmpooler__template__prepared', pool).and_return(current_template)
+        redis_connection_pool.with do |redis|
+          expect(redis).to receive(:hget).with('vmpooler__template__prepared', pool).and_return(current_template)
+        end
         expect(subject).to_not receive(:prepare_template).with(config[:pools][0], provider)
 
         subject.evaluate_template(config[:pools][0], provider)
@@ -2245,19 +2435,25 @@ EOT
 
     context 'when the configured pool template does not match the prepared template' do
       before(:each) do
-        config[:pools][0]['template'] = new_template
-        expect(redis).to receive(:hget).with('vmpooler__template__prepared', pool).and_return(current_template)
+        redis_connection_pool.with do |redis|
+          config[:pools][0]['template'] = new_template
+          expect(redis).to receive(:hget).with('vmpooler__template__prepared', pool).and_return(current_template)
+        end
       end
 
       it 'should prepare the template' do
-        expect(subject).to receive(:prepare_template).with(config[:pools][0], provider)
+        redis_connection_pool.with do |redis|
+          expect(subject).to receive(:prepare_template).with(config[:pools][0], provider, redis)
+        end
 
         subject.evaluate_template(config[:pools][0], provider)
       end
 
       context 'if configured_template is provided' do
         it 'should not run prepare_template' do
-          expect(redis).to receive(:hget).with('vmpooler__config__template', pool).and_return(current_template)
+          redis_connection_pool.with do |redis|
+            expect(redis).to receive(:hget).with('vmpooler__config__template', pool).and_return(current_template)
+          end
           expect(subject).to_not receive(:prepare_template)
 
           subject.evaluate_template(config[:pools][0], provider)
@@ -2267,12 +2463,16 @@ EOT
 
     context 'when a new template is requested' do
       before(:each) do
-        expect(redis).to receive(:hget).with('vmpooler__template__prepared', pool).and_return(current_template)
-        expect(redis).to receive(:hget).with('vmpooler__config__template', pool).and_return(new_template)
+        redis_connection_pool.with do |redis|
+          expect(redis).to receive(:hget).with('vmpooler__template__prepared', pool).and_return(current_template)
+          expect(redis).to receive(:hget).with('vmpooler__config__template', pool).and_return(new_template)
+        end
       end
 
       it 'should update the template' do
-        expect(subject).to receive(:update_pool_template).with(config[:pools][0], provider, new_template, current_template)
+        redis_connection_pool.with do |redis|
+          expect(subject).to receive(:update_pool_template).with(config[:pools][0], provider, new_template, current_template, redis)
+        end
 
         subject.evaluate_template(config[:pools][0], provider)
       end
@@ -2286,57 +2486,75 @@ EOT
 
     context 'with no vms' do
       it 'should return nil' do
-        expect(subject.drain_pool(pool)).to be_nil
+        redis_connection_pool.with do |redis|
+          expect(subject.drain_pool(pool, redis)).to be_nil
+        end
       end
 
       it 'should not log any messages' do
         expect(logger).to_not receive(:log)
 
-        subject.drain_pool(pool)
+        redis_connection_pool.with do |redis|
+          subject.drain_pool(pool, redis)
+        end
       end
 
       it 'should not try to move any vms' do
         expect(subject).to_not receive(:move_vm_queue)
 
-        subject.drain_pool(pool)
+        redis_connection_pool.with do |redis|
+          subject.drain_pool(pool, redis)
+        end
       end
     end
 
     context 'with ready vms' do
       before(:each) do
-        create_ready_vm(pool, 'vm1')
-        create_ready_vm(pool, 'vm2')
+        redis_connection_pool.with do |redis|
+          create_ready_vm(pool, 'vm1', redis)
+          create_ready_vm(pool, 'vm2', redis)
+        end
       end
 
       it 'removes the ready instances' do
         expect(subject).to receive(:move_vm_queue).twice
 
-        subject.drain_pool(pool)
+        redis_connection_pool.with do |redis|
+          subject.drain_pool(pool, redis)
+        end
       end
 
       it 'logs that ready instances are being removed' do
         expect(logger).to receive(:log).with('s', "[*] [#{pool}] removing ready instances")
 
-        subject.drain_pool(pool)
+        redis_connection_pool.with do |redis|
+          subject.drain_pool(pool, redis)
+        end
       end
     end
 
     context 'with pending instances' do
       before(:each) do
-        create_pending_vm(pool, 'vm1')
-        create_pending_vm(pool, 'vm2')
+        redis_connection_pool.with do |redis|
+          create_pending_vm(pool, 'vm1', redis)
+          create_pending_vm(pool, 'vm2', redis)
+        end
       end
 
       it 'removes the pending instances' do
         expect(subject).to receive(:move_vm_queue).twice
 
-        subject.drain_pool(pool)
+        redis_connection_pool.with do |redis|
+          subject.drain_pool(pool, redis)
+        end
       end
 
       it 'logs that pending instances are being removed' do
         expect(logger).to receive(:log).with('s', "[*] [#{pool}] removing pending instances")
 
-        subject.drain_pool(pool)
+        redis_connection_pool.with do |redis|
+          subject.drain_pool(pool, redis)
+        end
       end
     end
   end
@@ -2368,25 +2586,33 @@ EOT
     end
 
     it 'should get the pool size configuration from redis' do
-      expect(redis).to receive(:hget).with('vmpooler__config__poolsize', pool)
+      redis_connection_pool.with do |redis|
+        expect(redis).to receive(:hget).with('vmpooler__config__poolsize', pool)
+      end
 
       subject.update_pool_size(poolconfig)
     end
 
     it 'should return when poolsize is not set in redis' do
-      expect(redis).to receive(:hget).with('vmpooler__config__poolsize', pool).and_return(nil)
+      redis_connection_pool.with do |redis|
+        expect(redis).to receive(:hget).with('vmpooler__config__poolsize', pool).and_return(nil)
+      end
 
       expect(subject.update_pool_size(poolconfig)).to be_nil
     end
 
     it 'should return when no change in configuration is required' do
-      expect(redis).to receive(:hget).with('vmpooler__config__poolsize', pool).and_return('2')
+      redis_connection_pool.with do |redis|
+        expect(redis).to receive(:hget).with('vmpooler__config__poolsize', pool).and_return('2')
+      end
 
       expect(subject.update_pool_size(poolconfig)).to be_nil
     end
 
     it 'should update the pool size' do
-      expect(redis).to receive(:hget).with('vmpooler__config__poolsize', pool).and_return(newsize)
+      redis_connection_pool.with do |redis|
+        expect(redis).to receive(:hget).with('vmpooler__config__poolsize', pool).and_return(newsize)
+      end
 
       subject.update_pool_size(poolconfig)
 
@@ -2421,25 +2647,33 @@ EOT
     end
 
     it 'should get the pool clone target configuration from redis' do
-      expect(redis).to receive(:hget).with('vmpooler__config__clone_target', pool)
+      redis_connection_pool.with do |redis|
+        expect(redis).to receive(:hget).with('vmpooler__config__clone_target', pool)
+      end
 
       subject.update_clone_target(poolconfig)
     end
 
     it 'should return when clone_target is not set in redis' do
-      expect(redis).to receive(:hget).with('vmpooler__config__clone_target', pool).and_return(nil)
+      redis_connection_pool.with do |redis|
+        expect(redis).to receive(:hget).with('vmpooler__config__clone_target', pool).and_return(nil)
+      end
 
       expect(subject.update_clone_target(poolconfig)).to be_nil
     end
 
     it 'should return when no change in configuration is required' do
-      expect(redis).to receive(:hget).with('vmpooler__config__clone_target', pool).and_return('cluster1')
+      redis_connection_pool.with do |redis|
+        expect(redis).to receive(:hget).with('vmpooler__config__clone_target', pool).and_return('cluster1')
+      end
 
       expect(subject.update_clone_target(poolconfig)).to be_nil
     end
 
     it 'should update the clone target' do
-      expect(redis).to receive(:hget).with('vmpooler__config__clone_target', pool).and_return(newtarget)
+      redis_connection_pool.with do |redis|
+        expect(redis).to receive(:hget).with('vmpooler__config__clone_target', pool).and_return(newtarget)
+      end
 
       subject.update_clone_target(poolconfig)
 
@@ -2463,6 +2697,7 @@ EOT
       allow(subject).to receive(:check_disk_queue)
       allow(subject).to receive(:check_snapshot_queue)
       allow(subject).to receive(:check_pool)
+      allow(subject).to receive(:check_ondemand_requests)
 
       allow(logger).to receive(:log)
     end
@@ -2480,15 +2715,19 @@ EOT
       end
 
       it 'should set clone tasks to zero' do
-        redis.set('vmpooler__tasks__clone', 1)
-        subject.execute!(1,0)
-        expect(redis.get('vmpooler__tasks__clone')).to eq('0')
+        redis_connection_pool.with do |redis|
+          redis.set('vmpooler__tasks__clone', 1)
+          subject.execute!(1,0)
+          expect(redis.get('vmpooler__tasks__clone')).to eq('0')
+        end
       end
 
       it 'should clear migration tasks' do
-        redis.set('vmpooler__migration', 1)
-        subject.execute!(1,0)
-        expect(redis.get('vmpooler__migration')).to be_nil
+        redis_connection_pool.with do |redis|
+          redis.set('vmpooler__migration', 1)
+          subject.execute!(1,0)
+          expect(redis.get('vmpooler__migration')).to be_nil
+        end
       end
 
       it 'should run the check_disk_queue method' do
@@ -2526,7 +2765,7 @@ EOT
         it 'should call create_provider_object idempotently' do
           # Even though there are two pools using the vsphere provider (the default), it should only
           # create the provider object once.
-          expect(subject).to receive(:create_provider_object).with(Object, Object, Object, 'vsphere', 'vsphere', Object).and_return(vsphere_provider)
+          expect(subject).to receive(:create_provider_object).with(Object, Object, Object, redis_connection_pool, 'vsphere', 'vsphere', Object).and_return(vsphere_provider)
 
           subject.execute!(1,0)
         end
@@ -2549,8 +2788,8 @@ EOT
     context 'creating multiple vsphere Providers' do
       let(:vsphere_provider) { double('vsphere_provider') }
       let(:vsphere_provider2) { double('vsphere_provider') }
-      let(:provider1) { Vmpooler::PoolManager::Provider::Base.new(config, logger, metrics, 'vsphere', provider_options) }
-      let(:provider2) { Vmpooler::PoolManager::Provider::Base.new(config, logger, metrics, 'secondvsphere', provider_options) }
+      let(:provider1) { Vmpooler::PoolManager::Provider::Base.new(config, logger, metrics, redis_connection_pool, 'vsphere', provider_options) }
+      let(:provider2) { Vmpooler::PoolManager::Provider::Base.new(config, logger, metrics, redis_connection_pool, 'secondvsphere', provider_options) }
       let(:config) {
         YAML.load(<<-EOT
 ---
@@ -2571,8 +2810,8 @@ EOT
 
       it 'should call create_provider_object twice' do
         # The two pools use a different provider name, but each provider_class is vsphere
-        expect(subject).to receive(:create_provider_object).with(Object, Object, Object, "vsphere", "vsphere", Object).and_return(vsphere_provider)
-        expect(subject).to receive(:create_provider_object).with(Object, Object, Object, "vsphere", "secondvsphere", Object).and_return(vsphere_provider2)
+        expect(subject).to receive(:create_provider_object).with(Object, Object, Object, redis_connection_pool, "vsphere", "vsphere", Object).and_return(vsphere_provider)
+        expect(subject).to receive(:create_provider_object).with(Object, Object, Object, redis_connection_pool, "vsphere", "secondvsphere", Object).and_return(vsphere_provider2)
         subject.execute!(1,0)
       end
 
@@ -2747,7 +2986,7 @@ EOT
       let(:loop_delay) { 1 }
       # Note a maxloop of zero can not be tested as it never terminates
       before(:each) do
-  
+
         allow(subject).to receive(:check_disk_queue)
         allow(subject).to receive(:check_snapshot_queue)
         allow(subject).to receive(:check_pool)
@@ -2768,8 +3007,10 @@ EOT
         end
 
       it 'should run startup tasks only once' do
-        expect(redis).to receive(:set).with('vmpooler__tasks__clone', 0).once
-        expect(redis).to receive(:del).with('vmpooler__migration').once
+        redis_connection_pool.with do |redis|
+          expect(redis).to receive(:set).with('vmpooler__tasks__clone', 0).once
+          expect(redis).to receive(:del).with('vmpooler__migration').once
+        end
 
         subject.execute!(maxloop,0)
       end
@@ -2798,7 +3039,9 @@ EOT
     context 'when redis server connection is not available' do
       let(:maxloop) { 2 }
       it 'should log a failure and raise the error' do
-        expect(redis).to receive(:set).with('vmpooler__tasks__clone', 0).and_raise(Redis::CannotConnectError)
+        redis_connection_pool.with do |redis|
+          expect(redis).to receive(:set).with('vmpooler__tasks__clone', 0).and_raise(Redis::CannotConnectError)
+        end
         expect(logger).to receive(:log).with('s', 'Cannot connect to the redis server: Redis::CannotConnectError')
 
         expect{subject.execute!(maxloop,0)}.to raise_error Redis::CannotConnectError
@@ -2838,22 +3081,28 @@ EOT
       let(:wakeup_period) { -1 } # A negative number forces the wakeup evaluation to always occur
 
       it 'should check the number of VMs ready in Redis' do
-        expect(subject).to receive(:time_passed?).with(:exit_by, Time).and_return(false, true)
-        expect(redis).to receive(:scard).with("vmpooler__ready__#{pool}").once
+        redis_connection_pool.with do |redis|
+          expect(subject).to receive(:time_passed?).with(:exit_by, Time).and_return(false, true)
+          expect(redis).to receive(:scard).with("vmpooler__ready__#{pool}").once
+        end
 
         subject.sleep_with_wakeup_events(loop_delay, wakeup_period, wakeup_option)
       end
 
       it 'should sleep until the number of VMs ready in Redis increases' do
-        expect(subject).to receive(:sleep).exactly(3).times
-        expect(redis).to receive(:scard).with("vmpooler__ready__#{pool}").and_return(1,1,1,2)
+        redis_connection_pool.with do |redis|
+          expect(subject).to receive(:sleep).exactly(3).times
+          expect(redis).to receive(:scard).with("vmpooler__ready__#{pool}").and_return(1,1,1,2)
+        end
 
         subject.sleep_with_wakeup_events(loop_delay, wakeup_period, wakeup_option)
       end
 
       it 'should sleep until the number of VMs ready in Redis decreases' do
-        expect(subject).to receive(:sleep).exactly(3).times
-        expect(redis).to receive(:scard).with("vmpooler__ready__#{pool}").and_return(2,2,2,1)
+        redis_connection_pool.with do |redis|
+          expect(subject).to receive(:sleep).exactly(3).times
+          expect(redis).to receive(:scard).with("vmpooler__ready__#{pool}").and_return(2,2,2,1)
+        end
 
         subject.sleep_with_wakeup_events(loop_delay, wakeup_period, wakeup_option)
       end
@@ -2869,20 +3118,26 @@ EOT
 
       context 'with a template configured' do
         before(:each) do
-          redis.hset('vmpooler__config__template', pool, new_template)
-          allow(redis).to receive(:hget)
+          redis_connection_pool.with do |redis|
+            redis.hset('vmpooler__config__template', pool, new_template)
+            allow(redis).to receive(:hget)
+          end
         end
 
         it 'should check if a template is configured in redis' do
-          expect(subject).to receive(:time_passed?).with(:exit_by, Time).and_return(false, true)
-          expect(redis).to receive(:hget).with('vmpooler__template__prepared', pool).once
+          redis_connection_pool.with do |redis|
+            expect(subject).to receive(:time_passed?).with(:exit_by, Time).and_return(false, true)
+            expect(redis).to receive(:hget).with('vmpooler__template__prepared', pool).once
+          end
 
           subject.sleep_with_wakeup_events(loop_delay, wakeup_period, wakeup_option)
         end
 
         it 'should sleep until a template change is detected' do
-          expect(subject).to receive(:sleep).exactly(3).times
-          expect(redis).to receive(:hget).with('vmpooler__config__template', pool).and_return(nil,nil,new_template)
+          redis_connection_pool.with do |redis|
+            expect(subject).to receive(:sleep).exactly(3).times
+            expect(redis).to receive(:hget).with('vmpooler__config__template', pool).and_return(nil,nil,new_template)
+          end
 
           subject.sleep_with_wakeup_events(loop_delay, wakeup_period, wakeup_option)
         end
@@ -2899,12 +3154,16 @@ EOT
 
       context 'when a pool reset is requested' do
         before(:each) do
-          redis.sadd('vmpooler__poolreset', pool)
+          redis_connection_pool.with do |redis|
+            redis.sadd('vmpooler__poolreset', pool)
+          end
         end
 
         it 'should sleep until the reset request is detected' do
-          expect(subject).to receive(:sleep).exactly(3).times
-          expect(redis).to receive(:sismember).with('vmpooler__poolreset', pool).and_return(false,false,true)
+          redis_connection_pool.with do |redis|
+            expect(subject).to receive(:sleep).exactly(3).times
+            expect(redis).to receive(:sismember).with('vmpooler__poolreset', pool).and_return(false,false,true)
+          end
 
           subject.sleep_with_wakeup_events(loop_delay, wakeup_period, wakeup_option)
         end
@@ -3197,7 +3456,9 @@ EOT
         {}
       }
       before(:each) do
-        create_running_vm(pool,vm,token)
+        redis_connection_pool.with do |redis|
+          create_running_vm(pool,vm,redis,token)
+        end
       end
 
       it 'should not call check_running_vm' do
@@ -3207,7 +3468,9 @@ EOT
       end
 
       it 'should move the VM to completed queue' do
-        expect(subject).to receive(:move_vm_queue).with(pool,vm,'running','completed',String).and_call_original
+        redis_connection_pool.with do |redis|
+          expect(subject).to receive(:move_vm_queue).with(pool,vm,'running','completed',redis,String).and_call_original
+        end
 
         subject.check_running_pool_vms(pool,provider, pool_check_response, inventory)
       end
@@ -3220,8 +3483,10 @@ EOT
         { vm => 1 }
       }
       before(:each) do
-        allow(subject).to receive(:check_running_vm)
-        create_running_vm(pool,vm,token)
+        redis_connection_pool.with do |redis|
+          allow(subject).to receive(:check_running_vm)
+          create_running_vm(pool,vm,redis,token)
+        end
       end
 
       it 'should log an error if one occurs' do
@@ -3239,8 +3504,9 @@ EOT
 
       it 'should use the VM lifetime in preference to defaults' do
         big_lifetime = 2000
-
-        redis.hset("vmpooler__vm__#{vm}", 'lifetime',big_lifetime)
+        redis_connection_pool.with do |redis|
+          redis.hset("vmpooler__vm__#{vm}", 'lifetime',big_lifetime)
+        end
         # The lifetime comes in as string
         expect(subject).to receive(:check_running_vm).with(vm,pool,"#{big_lifetime}",provider)
 
@@ -3274,7 +3540,9 @@ EOT
         {}
       }
       before(:each) do
-        create_ready_vm(pool,vm,token)
+        redis_connection_pool.with do |redis|
+          create_ready_vm(pool,vm,redis,token)
+        end
       end
 
       it 'should not call check_ready_vm' do
@@ -3284,7 +3552,9 @@ EOT
       end
 
       it 'should move the VM to completed queue' do
-        expect(subject).to receive(:move_vm_queue).with(pool,vm,'ready','completed',String).and_call_original
+        redis_connection_pool.with do |redis|
+          expect(subject).to receive(:move_vm_queue).with(pool,vm,'ready','completed',redis,String).and_call_original
+        end
 
         subject.check_ready_pool_vms(pool, provider, pool_check_response, inventory)
       end
@@ -3297,8 +3567,10 @@ EOT
       }
       let(:big_lifetime) { 2000 }
       before(:each) do
-        allow(subject).to receive(:check_ready_vm)
-        create_ready_vm(pool,vm,token)
+        redis_connection_pool.with do |redis|
+          allow(subject).to receive(:check_ready_vm)
+          create_ready_vm(pool,vm,redis,token)
+        end
       end
 
       it 'should return the number of checked ready VMs' do
@@ -3341,11 +3613,15 @@ EOT
       }
 
       before(:each) do
-        create_pending_vm(pool,vm,token)
+        redis_connection_pool.with do |redis|
+          create_pending_vm(pool,vm,redis,token)
+        end
       end
 
       it 'should call fail_pending_vm' do
-        expect(subject).to receive(:fail_pending_vm).with(vm,pool,Integer,false)
+        redis_connection_pool.with do |redis|
+          expect(subject).to receive(:fail_pending_vm).with(vm,pool,Integer,redis,false)
+        end
 
         subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory)
       end
@@ -3358,7 +3634,9 @@ EOT
       }
 
       before(:each) do
-        create_pending_vm(pool,vm,token)
+        redis_connection_pool.with do |redis|
+          create_pending_vm(pool,vm,redis,token)
+        end
       end
 
       it 'should return the number of checked pending VMs' do
@@ -3415,7 +3693,9 @@ EOT
       }
 
       before(:each) do
-        create_completed_vm(vm,pool,true)
+        redis_connection_pool.with do |redis|
+          create_completed_vm(vm,pool,redis,true)
+        end
       end
 
       it 'should log a message' do
@@ -3429,15 +3709,17 @@ EOT
       end
 
       it 'should remove redis information' do
-        expect(redis.sismember("vmpooler__completed__#{pool}",vm)).to be(true)
-        expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to_not be(nil)
-        expect(redis.hget("vmpooler__active__#{pool}",vm)).to_not be(nil)
+        redis_connection_pool.with do |redis|
+          expect(redis.sismember("vmpooler__completed__#{pool}",vm)).to be(true)
+          expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to_not be(nil)
+          expect(redis.hget("vmpooler__active__#{pool}",vm)).to_not be(nil)
 
-        subject.check_completed_pool_vms(pool, provider, pool_check_response, inventory)
+          subject.check_completed_pool_vms(pool, provider, pool_check_response, inventory)
 
-        expect(redis.sismember("vmpooler__completed__#{pool}",vm)).to be(false)
-        expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to be(nil)
-        expect(redis.hget("vmpooler__active__#{pool}",vm)).to be(nil)
+          expect(redis.sismember("vmpooler__completed__#{pool}",vm)).to be(false)
+          expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to be(nil)
+          expect(redis.hget("vmpooler__active__#{pool}",vm)).to be(nil)
+        end
       end
     end
 
@@ -3448,7 +3730,9 @@ EOT
       }
 
       before(:each) do
-        create_completed_vm(vm,pool,true)
+        redis_connection_pool.with do |redis|
+          create_completed_vm(vm,pool,redis,true)
+        end
       end
 
       it 'should call destroy_vm' do
@@ -3474,15 +3758,17 @@ EOT
         end
 
         it 'should remove redis information' do
-          expect(redis.sismember("vmpooler__completed__#{pool}",vm)).to be(true)
-          expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to_not be(nil)
-          expect(redis.hget("vmpooler__active__#{pool}",vm)).to_not be(nil)
+          redis_connection_pool.with do |redis|
+            expect(redis.sismember("vmpooler__completed__#{pool}",vm)).to be(true)
+            expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to_not be(nil)
+            expect(redis.hget("vmpooler__active__#{pool}",vm)).to_not be(nil)
 
-          subject.check_completed_pool_vms(pool, provider, pool_check_response, inventory)
+            subject.check_completed_pool_vms(pool, provider, pool_check_response, inventory)
 
-          expect(redis.sismember("vmpooler__completed__#{pool}",vm)).to be(false)
-          expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to be(nil)
-          expect(redis.hget("vmpooler__active__#{pool}",vm)).to be(nil)
+            expect(redis.sismember("vmpooler__completed__#{pool}",vm)).to be(false)
+            expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to be(nil)
+            expect(redis.hget("vmpooler__active__#{pool}",vm)).to be(nil)
+          end
         end
       end
     end
@@ -3491,17 +3777,23 @@ EOT
   describe "#check_discovered_pool_vms" do
     context 'Discovered VM' do
       before(:each) do
-        create_discovered_vm(vm,pool)
+        redis_connection_pool.with do |redis|
+          create_discovered_vm(vm,pool,redis)
+        end
       end
 
       it 'should be moved to the completed queue' do
         subject.check_discovered_pool_vms(pool)
 
-        expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
+        redis_connection_pool.with do |redis|
+          expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
+        end
       end
 
       it 'should log a message if an error occurs' do
-        expect(redis).to receive(:smove).with("vmpooler__discovered__#{pool}", "vmpooler__completed__#{pool}", vm).and_raise(RuntimeError,'MockError')
+        redis_connection_pool.with do |redis|
+          expect(redis).to receive(:smove).with("vmpooler__discovered__#{pool}", "vmpooler__completed__#{pool}", vm).and_raise(RuntimeError,'MockError')
+        end
         expect(logger).to receive(:log).with("d", "[!] [#{pool}] _check_pool failed with an error while evaluating discovered VMs: MockError")
 
         subject.check_discovered_pool_vms(pool)
@@ -3519,25 +3811,31 @@ EOT
           end
 
           it "should remain in the #{queue_name} queue" do
-            redis.sadd("vmpooler__#{queue_name}__#{pool}", vm)
-            allow(logger).to receive(:log)
+            redis_connection_pool.with do |redis|
+              redis.sadd("vmpooler__#{queue_name}__#{pool}", vm)
+              allow(logger).to receive(:log)
 
-            subject.check_discovered_pool_vms(pool)
+              subject.check_discovered_pool_vms(pool)
 
-            expect(redis.sismember("vmpooler__#{queue_name}__#{pool}", vm)).to be(true)
+              expect(redis.sismember("vmpooler__#{queue_name}__#{pool}", vm)).to be(true)
+            end
           end
 
           it "should be removed from the discovered queue" do
-            redis.sadd("vmpooler__#{queue_name}__#{pool}", vm)
-            allow(logger).to receive(:log)
+            redis_connection_pool.with do |redis|
+              redis.sadd("vmpooler__#{queue_name}__#{pool}", vm)
+              allow(logger).to receive(:log)
 
-            expect(redis.sismember("vmpooler__discovered__#{pool}", vm)).to be(true)
-            subject.check_discovered_pool_vms(pool)
-            expect(redis.sismember("vmpooler__discovered__#{pool}", vm)).to be(false)
+              expect(redis.sismember("vmpooler__discovered__#{pool}", vm)).to be(true)
+              subject.check_discovered_pool_vms(pool)
+              expect(redis.sismember("vmpooler__discovered__#{pool}", vm)).to be(false)
+            end
           end
 
           it "should log a message" do
-            redis.sadd("vmpooler__#{queue_name}__#{pool}", vm)
+            redis_connection_pool.with do |redis|
+              redis.sadd("vmpooler__#{queue_name}__#{pool}", vm)
+            end
             expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' found in '#{queue_name}', removed from 'discovered' queue")
 
             subject.check_discovered_pool_vms(pool)
@@ -3561,7 +3859,9 @@ EOT
       }
 
       before(:each) do
-        create_migrating_vm(vm,pool)
+        redis_connection_pool.with do |redis|
+          create_migrating_vm(vm,pool,redis)
+        end
       end
 
       it 'should not do anything' do
@@ -3578,7 +3878,9 @@ EOT
       }
 
       before(:each) do
-        create_migrating_vm(vm,pool)
+        redis_connection_pool.with do |redis|
+          create_migrating_vm(vm,pool,redis)
+        end
       end
 
       it 'should return the number of migrated VMs' do
@@ -3627,7 +3929,9 @@ EOT
     end
 
     it 'should not call clone_vm when number of VMs is greater than the pool size' do
-      create_ready_vm(pool,vm,token)
+      redis_connection_pool.with do |redis|
+        create_ready_vm(pool,vm,redis,token)
+      end
       expect(subject).to receive(:clone_vm).exactly(0).times
 
       subject.repopulate_pool_vms(pool, provider, pool_check_response, pool_size)
@@ -3637,9 +3941,11 @@ EOT
       it "should use VMs in #{queue_name} queue to calculate pool size" do
         expect(subject).to receive(:clone_vm).exactly(0).times
         # Modify the pool size to 1 and add a VM in the queue
-        redis.sadd("vmpooler__#{queue_name}__#{pool}",vm)
+        redis_connection_pool.with do |redis|
+          redis.sadd("vmpooler__#{queue_name}__#{pool}",vm)
+        end
         pool_size = 1
-  
+
         subject.repopulate_pool_vms(pool, provider, pool_check_response, pool_size)
       end
     end
@@ -3648,7 +3954,9 @@ EOT
       it "should not use VMs in #{queue_name} queue to calculate pool size" do
         expect(subject).to receive(:clone_vm)
         # Modify the pool size to 1 and add a VM in the queue
-        redis.sadd("vmpooler__#{queue_name}__#{pool}",vm)
+        redis_connection_pool.with do |redis|
+          redis.sadd("vmpooler__#{queue_name}__#{pool}",vm)
+        end
         pool_size = 1
 
         subject.repopulate_pool_vms(pool, provider, pool_check_response, pool_size)
@@ -3664,7 +3972,9 @@ EOT
     context 'when pool is marked as empty' do
 
       before(:each) do
-        redis.set("vmpooler__empty__#{pool}", 'true')
+        redis_connection_pool.with do |redis|
+          redis.set("vmpooler__empty__#{pool}", 'true')
+        end
       end
 
       it 'should not log a message when the pool remains empty' do
@@ -3674,11 +3984,13 @@ EOT
       end
 
       it 'should remove the empty pool mark if it is no longer empty' do
-        create_ready_vm(pool,vm,token)
+        redis_connection_pool.with do |redis|
+          create_ready_vm(pool,vm,redis,token)
 
-        expect(redis.get("vmpooler__empty__#{pool}")).to be_truthy
-        subject.repopulate_pool_vms(pool, provider, pool_check_response, pool_size)
-        expect(redis.get("vmpooler__empty__#{pool}")).to be_falsey
+          expect(redis.get("vmpooler__empty__#{pool}")).to be_truthy
+          subject.repopulate_pool_vms(pool, provider, pool_check_response, pool_size)
+          expect(redis.get("vmpooler__empty__#{pool}")).to be_falsey
+        end
       end
     end
 
@@ -3711,11 +4023,13 @@ EOT
       end
 
       it 'log a message if a cloning error occurs' do
+        redis_connection_pool.with do |redis|
+          create_ready_vm(pool,'vm',redis)
+        end
         pool_size = 2
 
         expect(subject).to receive(:clone_vm).and_raise(RuntimeError,"MockError")
         expect(logger).to receive(:log).with("s", "[!] [#{pool}] clone failed during check_pool with an error: MockError")
-        create_ready_vm(pool,'vm')
         expect{ subject.repopulate_pool_vms(pool, provider, pool_check_response, pool_size) }.to raise_error(RuntimeError,'MockError')
 
       end
@@ -3738,9 +4052,11 @@ EOT
 
     context 'export metrics' do
       it 'increments metrics for ready queue' do
-        create_ready_vm(pool,'vm1')
-        create_ready_vm(pool,'vm2')
-        create_ready_vm(pool,'vm3')
+        redis_connection_pool.with do |redis|
+          create_ready_vm(pool,'vm1',redis)
+          create_ready_vm(pool,'vm2',redis)
+          create_ready_vm(pool,'vm3',redis)
+        end
 
         expect(metrics).to receive(:gauge).with("ready.#{pool}", 3)
         allow(metrics).to receive(:gauge)
@@ -3749,9 +4065,11 @@ EOT
       end
 
       it 'increments metrics for running queue' do
-        create_running_vm(pool,'vm1',token)
-        create_running_vm(pool,'vm2',token)
-        create_running_vm(pool,'vm3',token)
+        redis_connection_pool.with do |redis|
+          create_running_vm(pool,'vm1',redis,token)
+          create_running_vm(pool,'vm2',redis,token)
+          create_running_vm(pool,'vm3',redis,token)
+        end
 
         expect(metrics).to receive(:gauge).with("running.#{pool}", 3)
         allow(metrics).to receive(:gauge)
@@ -3761,6 +4079,7 @@ EOT
 
       it 'increments metrics with 0 when pool empty' do
 
+        allow(metrics).to receive(:gauge)
         expect(metrics).to receive(:gauge).with("ready.#{pool}", 0)
         expect(metrics).to receive(:gauge).with("running.#{pool}", 0)
 
@@ -3870,30 +4189,34 @@ EOT
       end
 
       it 'should add undiscovered VMs to the completed queue' do
-        allow(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue")
+        redis_connection_pool.with do |redis|
+          allow(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue")
 
-        expect(redis.sismember("vmpooler__discovered__#{pool}", new_vm)).to be(false)
-        expect(redis.sismember("vmpooler__completed__#{pool}", new_vm)).to be(false)
+          expect(redis.sismember("vmpooler__discovered__#{pool}", new_vm)).to be(false)
+          expect(redis.sismember("vmpooler__completed__#{pool}", new_vm)).to be(false)
 
-        subject._check_pool(pool_object,provider)
+          subject._check_pool(pool_object,provider)
 
-        expect(redis.sismember("vmpooler__discovered__#{pool}", new_vm)).to be(false)
-        expect(redis.sismember("vmpooler__completed__#{pool}", new_vm)).to be(true)
+          expect(redis.sismember("vmpooler__discovered__#{pool}", new_vm)).to be(false)
+          expect(redis.sismember("vmpooler__completed__#{pool}", new_vm)).to be(true)
+        end
       end
 
       ['running','ready','pending','completed','discovered','migrating'].each do |queue_name|
         it "should not discover VMs in the #{queue_name} queue" do
-          expect(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue").exactly(0).times
-          expect(redis.sismember("vmpooler__discovered__#{pool}", new_vm)).to be(false)
-          redis.sadd("vmpooler__#{queue_name}__#{pool}", new_vm)
+          redis_connection_pool.with do |redis|
+            expect(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue").exactly(0).times
+            expect(redis.sismember("vmpooler__discovered__#{pool}", new_vm)).to be(false)
+            redis.sadd("vmpooler__#{queue_name}__#{pool}", new_vm)
 
-          subject._check_pool(pool_object,provider)
+            subject._check_pool(pool_object,provider)
 
-          if queue_name == 'discovered'
-            # Discovered VMs end up in the completed queue
-            expect(redis.sismember("vmpooler__completed__#{pool}", new_vm)).to be(true)
-          else
-            expect(redis.sismember("vmpooler__#{queue_name}__#{pool}", new_vm)).to be(true)
+            if queue_name == 'discovered'
+              # Discovered VMs end up in the completed queue
+              expect(redis.sismember("vmpooler__completed__#{pool}", new_vm)).to be(true)
+            else
+              expect(redis.sismember("vmpooler__#{queue_name}__#{pool}", new_vm)).to be(true)
+            end
           end
         end
       end
@@ -4059,7 +4382,9 @@ EOT
       let(:newpoolsize) { 3 }
       before(:each) do
         config[:pools][0]['size'] = poolsize
-        redis.hset('vmpooler__config__poolsize', pool, newpoolsize)
+        redis_connection_pool.with do |redis|
+          redis.hset('vmpooler__config__poolsize', pool, newpoolsize)
+        end
       end
 
       it 'should change the pool size configuration' do
@@ -4096,9 +4421,11 @@ EOT
     context 'when an excess number of ready vms exist' do
 
       before(:each) do
-        allow(redis).to receive(:scard)
-        expect(redis).to receive(:scard).with("vmpooler__ready__#{pool}").and_return(1)
-        expect(redis).to receive(:scard).with("vmpooler__pending__#{pool}").and_return(1)
+        redis_connection_pool.with do |redis|
+          allow(redis).to receive(:scard)
+          expect(redis).to receive(:scard).with("vmpooler__ready__#{pool}").and_return(1)
+          expect(redis).to receive(:scard).with("vmpooler__pending__#{pool}").and_return(1)
+        end
       end
 
       it 'should call remove_excess_vms' do

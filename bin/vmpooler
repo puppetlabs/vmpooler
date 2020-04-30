@@ -38,7 +38,7 @@ if torun.include? 'manager'
     Vmpooler::PoolManager.new(
       config,
       Vmpooler.new_logger(logger_file),
-      Vmpooler.redis_connection_pool(redis_host, redis_port, redis_password, redis_connection_pool_size, redis_connection_pool_timeout),
+      Vmpooler.redis_connection_pool(redis_host, redis_port, redis_password, redis_connection_pool_size, redis_connection_pool_timeout, metrics),
       metrics
     ).execute!
   end
