@@ -103,13 +103,26 @@ module Vmpooler
 
       count_selection(selection)
     end
-
     def fetch_single_vm(template)
       template_backends = [template]
-      aliases = get_template_aliases(template)
+      aliases = Vmpooler::API.settings.config[:alias]
       if aliases
-        template_backends += aliases
-        weighted_pools = get_pool_weights(template_backends)
+        template_backends += aliases[template] if aliases[template].is_a?(Array)
+        template_backends << aliases[template] if aliases[template].is_a?(String)
+        pool_index = pool_index(pools)
+        weighted_pools = {}
+        template_backends.each do |t|
+          next unless pool_index.key? t
+
+          index = pool_index[t]
+          clone_target = pools[index]['clone_target'] || config['clone_target']
+          next unless config.key?('backend_weight')
+
+          weight = config['backend_weight'][clone_target]
+          if weight
+            weighted_pools[t] = weight
+          end
+        end
 
         if weighted_pools.count == template_backends.count
           pickup = Pickup.new(weighted_pools)

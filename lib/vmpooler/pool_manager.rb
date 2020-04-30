@@ -2,7 +2,6 @@
 
 require 'vmpooler/providers'
 require 'spicy-proton'
-require 'redis'
 
 module Vmpooler
   class PoolManager
@@ -453,10 +452,11 @@ module Vmpooler
       redis.multi
       redis.hget("vmpooler__vm__#{vm}", 'checkout')
       redis.hget("vmpooler__vm__#{vm}", 'tag:jenkins_build_url')
-      redis.hget("vmpooler__vm__#{vm}", 'token:user') || 'unauthenticated'
+      redis.hget("vmpooler__vm__#{vm}", 'token:user')
       redis.hget("vmpooler__vm__#{vm}", 'template')
       checkout, jenkins_build_url, user, poolname = redis.exec
       return if checkout.nil?
+      user ||= 'unauthenticated'
 
       unless jenkins_build_url
         user = user.gsub('.', '_')
@@ -491,7 +491,8 @@ module Vmpooler
 
       $metrics.increment(metric_parts.join('.'))
     rescue StandardError => e
-      logger.log('d', "[!] [#{poolname}] failed while evaluating usage labels on '#{vm}' with an error: #{e}")
+      $logger.log('d', "[!] [#{poolname}] failed while evaluating usage labels on '#{vm}' with an error: #{e}")
+      raise
     end
 
     def component_to_test(match, labels_string)
@@ -1040,7 +1041,7 @@ module Vmpooler
         redis.scard("vmpooler__ready__#{pool['name']}")
         redis.scard("vmpooler__pending__#{pool['name']}")
         ready, pending = redis.exec
-        total = pending.to_i + total.to_i
+        total = pending.to_i + ready.to_i
         return if total.nil?
         return if total == 0
 

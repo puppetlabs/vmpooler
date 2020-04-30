@@ -8,7 +8,6 @@ require 'mock_redis'
 RSpec::Matchers.define :a_pool_with_name_of do |value|
   match { |actual| actual['name'] == value }
 end
-
 describe 'Pool Manager' do
   let(:logger) { MockLogger.new }
   let(:metrics) { Vmpooler::DummyStatsd.new }
@@ -276,7 +275,7 @@ EOT
         redis_connection_pool.with do |redis|
           expect(redis.hget('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm)).to be_nil
           subject.move_pending_vm_to_ready(vm, pool, redis)
-          expect(redis.hget('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm)).to eq("") # Possible implementation bug here. Should still be nil here
+          expect(redis.hget('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm)).to match(/\d\.\d{2}/)
         end
       end
 
@@ -661,7 +660,7 @@ EOT
     end
 
     it 'calls _clone_vm' do
-      expect(subject).to receive(:_clone_vm).with(pool_object,provider)
+      expect(subject).to receive(:_clone_vm).with(pool_object,provider,nil,nil)
 
       subject.clone_vm(pool_object,provider)
     end
@@ -669,7 +668,7 @@ EOT
     it 'logs a message if an error is raised' do
       allow(logger).to receive(:log)
       expect(logger).to receive(:log).with('s',"[!] [#{pool}] failed while cloning VM with an error: MockError")
-      expect(subject).to receive(:_clone_vm).with(pool,provider).and_raise('MockError')
+      expect(subject).to receive(:_clone_vm).with(pool,provider,nil,nil).and_raise('MockError')
 
       expect{subject.clone_vm(pool,provider)}.to raise_error(/MockError/)
     end
@@ -696,10 +695,13 @@ EOT
 
     context 'with no errors during cloning' do
       before(:each) do
+        allow(metrics).to receive(:timing)
         expect(metrics).to receive(:timing).with(/clone\./,/0/)
         expect(provider).to receive(:create_vm).with(pool, String)
         allow(logger).to receive(:log)
-        expect(subject).to receive(:find_unique_hostname).with(pool).and_return(vm)
+        redis_connection_pool.with do |redis|
+          expect(subject).to receive(:find_unique_hostname).with(pool, redis).and_return(vm)
+        end
       end
 
       it 'should create a cloning VM' do
@@ -745,7 +747,9 @@ EOT
       before(:each) do
         expect(provider).to receive(:create_vm).with(pool, String).and_raise('MockError')
         allow(logger).to receive(:log)
-        expect(subject).to receive(:find_unique_hostname).with(pool).and_return(vm)
+        redis_connection_pool.with do |redis|
+          expect(subject).to receive(:find_unique_hostname).with(pool, redis).and_return(vm)
+        end
       end
 
       it 'should not create a cloning VM' do
@@ -865,13 +869,16 @@ EOT
 
       it 'should emit a timing metric' do
         allow(subject).to receive(:get_vm_usage_labels)
+        allow(metrics).to receive(:timing)
         expect(metrics).to receive(:timing).with("destroy.#{pool}", String)
 
         subject._destroy_vm(vm,pool,provider)
       end
 
       it 'should check usage labels' do
-        expect(subject).to receive(:get_vm_usage_labels).with(vm)
+        redis_connection_pool.with do |redis|
+          expect(subject).to receive(:get_vm_usage_labels).with(vm, redis)
+        end
 
         subject._destroy_vm(vm,pool,provider)
       end
@@ -925,7 +932,9 @@ EOT
 
     context 'when label evaluation is disabled' do
       it 'should do nothing' do
-        subject.get_vm_usage_labels(vm)
+        redis_connection_pool.with do |redis|
+          subject.get_vm_usage_labels(vm, redis)
+        end
       end
     end
 
@@ -945,7 +954,9 @@ EOT
         it 'should return' do
           expect(subject).to receive(:get_vm_usage_labels).and_return(nil)
 
-          subject.get_vm_usage_labels(vm)
+          redis_connection_pool.with do |redis|
+            subject.get_vm_usage_labels(vm, redis)
+          end
         end
       end
 
@@ -960,9 +971,11 @@ EOT
           end
 
           it 'should emit a metric' do
-            expect(metrics).to receive(:increment).with("usage.unauthenticated.#{template}")
+            redis_connection_pool.with do |redis|
+              expect(metrics).to receive(:increment).with("usage.unauthenticated.#{template}")
 
-            subject.get_vm_usage_labels(vm)
+              subject.get_vm_usage_labels(vm, redis)
+            end
           end
         end
 
@@ -977,7 +990,9 @@ EOT
           it 'should emit a metric' do
             expect(metrics).to receive(:increment).with("usage.#{user}.#{template}")
 
-            subject.get_vm_usage_labels(vm)
+            redis_connection_pool.with do |redis|
+              subject.get_vm_usage_labels(vm, redis)
+            end
           end
 
           context 'with a user with period in name' do
@@ -994,7 +1009,9 @@ EOT
             it 'should emit a metric with the character replaced' do
               expect(metrics).to receive(:increment).with(metric_string)
 
-              subject.get_vm_usage_labels(vm)
+              redis_connection_pool.with do |redis|
+                subject.get_vm_usage_labels(vm, redis)
+              end
             end
 
             it 'should include three nodes' do
@@ -1024,13 +1041,17 @@ EOT
             let(:metric_string) { metric_string_sub.join('.') }
 
             before(:each) do
-              create_tag(vm, 'jenkins_build_url', jenkins_build_url)
+              redis_connection_pool.with do |redis|
+                create_tag(vm, 'jenkins_build_url', jenkins_build_url, redis)
+              end
             end
 
             it 'should emit a metric with information from the URL' do
               expect(metrics).to receive(:increment).with(metric_string)
 
-              subject.get_vm_usage_labels(vm)
+              redis_connection_pool.with do |redis|
+                subject.get_vm_usage_labels(vm, redis)
+              end
             end
           end
 
@@ -1049,13 +1070,17 @@ EOT
             let(:metric_nodes) { expected_string.split('.') }
 
             before(:each) do
-              create_tag(vm, 'jenkins_build_url', jenkins_build_url)
+              redis_connection_pool.with do |redis|
+                create_tag(vm, 'jenkins_build_url', jenkins_build_url, redis)
+              end
             end
 
             it 'should emit a metric with information from the URL' do
               expect(metrics).to receive(:increment).with(expected_string)
 
-              subject.get_vm_usage_labels(vm)
+              redis_connection_pool.with do |redis|
+                subject.get_vm_usage_labels(vm, redis)
+              end
             end
 
             it 'should contain exactly nine nodes' do
@@ -1074,13 +1099,17 @@ EOT
               let(:job_name) { value_stream_parts.join('_') }
 
               before(:each) do
-                create_tag(vm, 'jenkins_build_url', jenkins_build_url)
+                redis_connection_pool.with do |redis|
+                  create_tag(vm, 'jenkins_build_url', jenkins_build_url, redis)
+                end
               end
 
               it 'should emit a metric with information from the URL without a build_component' do
                 expect(metrics).to receive(:increment).with("usage.#{user}.#{instance}.#{value_stream}.#{branch}.#{project}.#{job_name}.#{template}")
 
-                subject.get_vm_usage_labels(vm)
+                redis_connection_pool.with do |redis|
+                  subject.get_vm_usage_labels(vm, redis)
+                end
               end
             end
           end
@@ -1287,7 +1316,7 @@ EOT
       allow(logger).to receive(:log)
 
       redis_connection_pool.with do |redis|
-        create_running_vm(pool,vm,token)
+        create_running_vm(pool,vm,redis,token)
       end
     end
 
@@ -1574,13 +1603,17 @@ EOT
       end
 
       it 'should return the pool name' do
-        expect(subject.get_pool_name_for_vm(vm)).to eq(pool)
+        redis_connection_pool.with do |redis|
+          expect(subject.get_pool_name_for_vm(vm,redis)).to eq(pool)
+        end
       end
     end
 
     context 'Given an invalid VM' do
       it 'should return nil' do
-        expect(subject.get_pool_name_for_vm('does_not_exist')).to be_nil
+        redis_connection_pool.with do |redis|
+          expect(subject.get_pool_name_for_vm('does_not_exist',redis)).to be_nil
+        end
       end
     end
   end
@@ -1749,7 +1782,9 @@ EOT
 
     context 'when VM in the queue does not exist' do
       before(:each) do
-        disk_task_vm(vm,"snapshot_#{vm}")
+        redis_connection_pool.with do |redis|
+          disk_task_vm(vm,"snapshot_#{vm}",redis)
+        end
       end
 
       it 'should log an error' do
@@ -1768,8 +1803,8 @@ EOT
     context 'when specified provider does not exist' do
       before(:each) do
         redis_connection_pool.with do |redis|
-          disk_task_vm(vm,"snapshot_#{vm}")
-          create_running_vm(pool, vm, token)
+          disk_task_vm(vm,"snapshot_#{vm}",redis)
+          create_running_vm(pool, vm, redis, token)
           expect(subject).to receive(:get_provider_for_pool).and_return(nil)
         end
       end
@@ -1791,7 +1826,7 @@ EOT
       before(:each) do
         ['vm1', 'vm2', 'vm3'].each do |vm_name|
           redis_connection_pool.with do |redis|
-            disk_task_vm(vm_name,"snapshot_#{vm_name}")
+            disk_task_vm(vm_name,"snapshot_#{vm_name}",redis)
             create_running_vm(pool, vm_name, redis, token)
           end
         end
@@ -1895,7 +1930,9 @@ EOT
 
       context 'when VM in the queue does not exist' do
         before(:each) do
-          snapshot_vm(vm,"snapshot_#{vm}")
+          redis_connection_pool.with do |redis|
+            snapshot_vm(vm,"snapshot_#{vm}",redis)
+          end
         end
 
         it 'should log an error' do
@@ -1914,7 +1951,7 @@ EOT
       context 'when specified provider does not exist' do
         before(:each) do
           redis_connection_pool.with do |redis|
-            snapshot_vm(vm,"snapshot_#{vm}")
+            snapshot_vm(vm,"snapshot_#{vm}",redis)
             create_running_vm(pool, vm, redis, token)
             expect(subject).to receive(:get_provider_for_pool).and_return(nil)
           end
@@ -1937,7 +1974,7 @@ EOT
         before(:each) do
           ['vm1', 'vm2', 'vm3'].each do |vm_name|
             redis_connection_pool.with do |redis|
-              snapshot_vm(vm_name,"snapshot_#{vm_name}")
+              snapshot_vm(vm_name,"snapshot_#{vm_name}",redis)
               create_running_vm(pool, vm_name, redis, token)
             end
           end
@@ -1973,7 +2010,9 @@ EOT
 
       context 'when VM in the queue does not exist' do
         before(:each) do
-          snapshot_revert_vm(vm,"snapshot_#{vm}")
+          redis_connection_pool.with do |redis|
+            snapshot_revert_vm(vm,"snapshot_#{vm}",redis)
+          end
         end
 
         it 'should log an error' do
@@ -1992,7 +2031,7 @@ EOT
       context 'when specified provider does not exist' do
         before(:each) do
           redis_connection_pool.with do |redis|
-            snapshot_revert_vm(vm,"snapshot_#{vm}")
+            snapshot_revert_vm(vm,"snapshot_#{vm}",redis)
             create_running_vm(pool, vm, redis, token)
             expect(subject).to receive(:get_provider_for_pool).and_return(nil)
           end
@@ -2015,7 +2054,7 @@ EOT
         before(:each) do
           ['vm1', 'vm2', 'vm3'].each do |vm_name|
             redis_connection_pool.with do |redis|
-              snapshot_revert_vm(vm_name,"snapshot_#{vm_name}")
+              snapshot_revert_vm(vm_name,"snapshot_#{vm_name}",redis)
               create_running_vm(pool, vm_name, redis, token)
             end
           end
@@ -2214,9 +2253,9 @@ EOT
     end
 
     it 'should run prepare_template' do
-      expect(subject).to receive(:prepare_template).with(poolconfig, provider)
-
       redis_connection_pool.with do |redis|
+        expect(subject).to receive(:prepare_template).with(poolconfig, provider, redis)
+
         subject.update_pool_template(poolconfig, provider, new_template, current_template, redis)
       end
     end
@@ -2257,8 +2296,9 @@ EOT
       let(:mutex) { Mutex.new }
       before(:each) do
         redis_connection_pool.with do |redis|
-          expect(redis).to receive(:scard).with("vmpooler__pending__#{pool}").and_return(1)
-          expect(redis).to receive(:scard).with("vmpooler__ready__#{pool}").and_return(2)
+          create_ready_vm(pool,'vm1',redis)
+          create_ready_vm(pool,'vm2',redis)
+          create_pending_vm(pool,'vm3',redis)
         end
         mutex.lock
         expect(subject).to receive(:pool_mutex).with(pool).and_return(mutex)
@@ -2282,8 +2322,9 @@ EOT
     context 'with a total size greater than the pool size' do
       it 'should remove excess ready vms' do
         redis_connection_pool.with do |redis|
-          expect(redis).to receive(:scard).with("vmpooler__ready__#{pool}").and_return(4)
-          expect(redis).to receive(:scard).with("vmpooler__pending__#{pool}").and_return(0)
+          ['vm1','vm2','vm3','vm4'].each do |v|
+            create_ready_vm(pool,v,redis)
+          end
         end
         expect(subject).to receive(:move_vm_queue).exactly(2).times
 
@@ -2294,11 +2335,11 @@ EOT
         redis_connection_pool.with do |redis|
           create_pending_vm(pool,'vm1',redis)
           create_pending_vm(pool,'vm2',redis)
-          create_ready_vm(pool, 'vm3',redis)
-          create_ready_vm(pool, 'vm4',redis)
-          create_ready_vm(pool, 'vm5',redis)
+          create_ready_vm(pool,'vm3',redis)
+          create_ready_vm(pool,'vm4',redis)
+          create_ready_vm(pool,'vm5',redis)
+          expect(subject).to receive(:move_vm_queue).exactly(3).times
         end
-        expect(subject).to receive(:move_vm_queue).exactly(3).times
 
         subject.remove_excess_vms(config[:pools][0])
       end
@@ -2347,7 +2388,9 @@ EOT
 
     context 'when template delta disk creation fails' do
       before(:each) do
-        allow(redis).to receive(:hset)
+        redis_connection_pool.with do |redis|
+          allow(redis).to receive(:hset)
+        end
         expect(provider).to receive(:create_template_delta_disks).and_raise("MockError")
       end
 

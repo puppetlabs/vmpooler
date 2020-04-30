@@ -158,6 +158,9 @@ EOT
       end
 
       it 'should log a message that the vm is destroyed' do
+        # Ensure Time returns a consistent value so finish is predictable
+        # Otherwise finish occasionally increases to 0.01 and causes a failure
+        allow(Time).to receive(:now).and_return(Time.now)
         expect(logger).to receive(:log).with('s', "[-] [#{pool}] '#{vmname}' destroyed in #{finish} seconds")
 
         subject.destroy_vm_and_log(vmname, vm_object, pool, data_ttl)

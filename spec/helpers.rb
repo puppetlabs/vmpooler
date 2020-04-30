@@ -1,5 +1,12 @@
 require 'mock_redis'
 
+def redis
+  unless @redis
+    @redis = MockRedis.new
+  end
+  @redis
+end
+
 # Mock an object which represents a Logger.  This stops the proliferation
 # of allow(logger).to .... expectations in tests.
 class MockLogger
@@ -87,38 +94,38 @@ def fetch_vm(vm)
   redis.hgetall("vmpooler__vm__#{vm}")
 end
 
-def set_vm_data(vm, key, value)
+def set_vm_data(vm, key, value, redis)
   redis.hset("vmpooler__vm__#{vm}", key, value)
 end
 
-def snapshot_revert_vm(vm, snapshot = '12345678901234567890123456789012')
+def snapshot_revert_vm(vm, snapshot = '12345678901234567890123456789012', redis)
   redis.sadd('vmpooler__tasks__snapshot-revert', "#{vm}:#{snapshot}")
   redis.hset("vmpooler__vm__#{vm}", "snapshot:#{snapshot}", "1")
 end
 
-def snapshot_vm(vm, snapshot = '12345678901234567890123456789012')
+def snapshot_vm(vm, snapshot = '12345678901234567890123456789012', redis)
   redis.sadd('vmpooler__tasks__snapshot', "#{vm}:#{snapshot}")
   redis.hset("vmpooler__vm__#{vm}", "snapshot:#{snapshot}", "1")
 end
 
-def disk_task_vm(vm, disk_size = '10')
+def disk_task_vm(vm, disk_size = '10', redis)
   redis.sadd('vmpooler__tasks__disk', "#{vm}:#{disk_size}")
 end
 
-def has_vm_snapshot?(vm)
+def has_vm_snapshot?(vm, redis)
   redis.smembers('vmpooler__tasks__snapshot').any? do |snapshot|
-    instance, sha = snapshot.split(':')
+    instance, _sha = snapshot.split(':')
     vm == instance
   end
 end
 
-def vm_reverted_to_snapshot?(vm, snapshot = nil)
+def vm_reverted_to_snapshot?(vm, redis, snapshot = nil)
   redis.smembers('vmpooler__tasks__snapshot-revert').any? do |action|
     instance, sha = action.split(':')
     instance == vm and (snapshot ? (sha == snapshot) : true)
   end
 end
 
-def pool_has_ready_vm?(pool, vm)
+def pool_has_ready_vm?(pool, vm, redis)
   !!redis.sismember('vmpooler__ready__' + pool, vm)
 end

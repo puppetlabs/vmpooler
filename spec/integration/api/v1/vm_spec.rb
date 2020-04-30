@@ -42,7 +42,7 @@ describe Vmpooler::API::V1 do
 
     describe 'GET /vm/:hostname' do
       it 'returns correct information on a running vm' do
-        create_running_vm 'pool1', vmname
+        create_running_vm 'pool1', vmname, redis
         get "#{prefix}/vm/#{vmname}"
         expect_json(ok = true, http = 200)
         response_body = (JSON.parse(last_response.body)[vmname])
@@ -63,7 +63,7 @@ describe Vmpooler::API::V1 do
 
       let(:socket) { double('socket') }
       it 'returns a single VM' do
-        create_ready_vm 'pool1', vmname
+        create_ready_vm 'pool1', vmname, redis
         allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
 
         post "#{prefix}/vm", '{"pool1":"1"}'
@@ -80,7 +80,7 @@ describe Vmpooler::API::V1 do
       end
 
       it 'returns a single VM for an alias' do
-        create_ready_vm 'pool1', vmname
+        create_ready_vm 'pool1', vmname, redis
 
         allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
 
@@ -106,7 +106,7 @@ describe Vmpooler::API::V1 do
         Vmpooler::API.settings.config.delete(:alias)
         Vmpooler::API.settings.config[:pool_names] = ['pool1', 'pool2']
 
-        create_ready_vm 'pool1', vmname
+        create_ready_vm 'pool1', vmname, redis
         post "#{prefix}/vm/pool1"
         post "#{prefix}/vm/pool1"
 
@@ -117,7 +117,7 @@ describe Vmpooler::API::V1 do
       end
 
       it 'returns 503 for empty pool referenced by alias' do
-        create_ready_vm 'pool1', vmname
+        create_ready_vm 'pool1', vmname, redis
         post "#{prefix}/vm/poolone"
         post "#{prefix}/vm/poolone"
 
@@ -128,8 +128,8 @@ describe Vmpooler::API::V1 do
       end
 
       it 'returns multiple VMs' do
-        create_ready_vm 'pool1', vmname
-        create_ready_vm 'pool2', 'qrstuvwxyz012345'
+        create_ready_vm 'pool1', vmname, redis
+        create_ready_vm 'pool2', 'qrstuvwxyz012345', redis
 
         allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
 
@@ -150,9 +150,9 @@ describe Vmpooler::API::V1 do
       end
 
       it 'returns multiple VMs even when multiple instances from the same pool are requested' do
-        create_ready_vm 'pool1', '1abcdefghijklmnop'
-        create_ready_vm 'pool1', '2abcdefghijklmnop'
-        create_ready_vm 'pool2', 'qrstuvwxyz012345'
+        create_ready_vm 'pool1', '1abcdefghijklmnop', redis
+        create_ready_vm 'pool1', '2abcdefghijklmnop', redis
+        create_ready_vm 'pool2', 'qrstuvwxyz012345', redis
 
         allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
 
@@ -177,11 +177,11 @@ describe Vmpooler::API::V1 do
       end
 
       it 'returns multiple VMs even when multiple instances from multiple pools are requested' do
-        create_ready_vm 'pool1', '1abcdefghijklmnop'
-        create_ready_vm 'pool1', '2abcdefghijklmnop'
-        create_ready_vm 'pool2', '1qrstuvwxyz012345'
-        create_ready_vm 'pool2', '2qrstuvwxyz012345'
-        create_ready_vm 'pool2', '3qrstuvwxyz012345'
+        create_ready_vm 'pool1', '1abcdefghijklmnop', redis
+        create_ready_vm 'pool1', '2abcdefghijklmnop', redis
+        create_ready_vm 'pool2', '1qrstuvwxyz012345', redis
+        create_ready_vm 'pool2', '2qrstuvwxyz012345', redis
+        create_ready_vm 'pool2', '3qrstuvwxyz012345', redis
 
         allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
 
@@ -208,9 +208,9 @@ describe Vmpooler::API::V1 do
       it 'returns VMs from multiple backend pools requested by an alias' do
         Vmpooler::API.settings.config[:alias]['genericpool'] = ['pool1', 'pool2', 'pool3']
 
-        create_ready_vm 'pool1', '1abcdefghijklmnop'
-        create_ready_vm 'pool2', '2abcdefghijklmnop'
-        create_ready_vm 'pool3', '1qrstuvwxyz012345'
+        create_ready_vm 'pool1', '1abcdefghijklmnop', redis
+        create_ready_vm 'pool2', '2abcdefghijklmnop', redis
+        create_ready_vm 'pool3', '1qrstuvwxyz012345', redis
 
         allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
 
@@ -231,9 +231,9 @@ describe Vmpooler::API::V1 do
       end
 
       it 'returns the first VM that was moved to the ready state when checking out a VM' do
-        create_ready_vm 'pool1', '1abcdefghijklmnop'
-        create_ready_vm 'pool1', '2abcdefghijklmnop'
-        create_ready_vm 'pool1', '3abcdefghijklmnop'
+        create_ready_vm 'pool1', '1abcdefghijklmnop', redis
+        create_ready_vm 'pool1', '2abcdefghijklmnop', redis
+        create_ready_vm 'pool1', '3abcdefghijklmnop', redis
 
         allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
 
@@ -251,7 +251,7 @@ describe Vmpooler::API::V1 do
       end
 
       it 'fails when not all requested vms can be allocated' do
-        create_ready_vm 'pool1', '1abcdefghijklmnop'
+        create_ready_vm 'pool1', '1abcdefghijklmnop', redis
 
         post "#{prefix}/vm", '{"pool1":"1","pool2":"1"}'
 
@@ -262,7 +262,7 @@ describe Vmpooler::API::V1 do
       end
 
       it 'returns any checked out vms to their pools when not all requested vms can be allocated' do
-        create_ready_vm 'pool1', '1abcdefghijklmnop'
+        create_ready_vm 'pool1', '1abcdefghijklmnop', redis
 
         allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
 
@@ -273,11 +273,11 @@ describe Vmpooler::API::V1 do
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
         expect_json(ok = false, http = 503)
 
-        expect(pool_has_ready_vm?('pool1', '1abcdefghijklmnop')).to eq(true)
+        expect(pool_has_ready_vm?('pool1', '1abcdefghijklmnop', redis)).to eq(true)
       end
 
       it 'fails when not all requested vms can be allocated, when requesting multiple instances from a pool' do
-        create_ready_vm 'pool1', '1abcdefghijklmnop'
+        create_ready_vm 'pool1', '1abcdefghijklmnop', redis
 
         post "#{prefix}/vm", '{"pool1":"2","pool2":"1"}'
 
@@ -288,7 +288,7 @@ describe Vmpooler::API::V1 do
       end
 
       it 'returns any checked out vms to their pools when not all requested vms can be allocated, when requesting multiple instances from a pool' do
-        create_ready_vm 'pool1', '1abcdefghijklmnop'
+        create_ready_vm 'pool1', '1abcdefghijklmnop', redis
 
         allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
 
@@ -299,11 +299,11 @@ describe Vmpooler::API::V1 do
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
         expect_json(ok = false, http = 503)
 
-        expect(pool_has_ready_vm?('pool1', '1abcdefghijklmnop')).to eq(true)
+        expect(pool_has_ready_vm?('pool1', '1abcdefghijklmnop', redis)).to eq(true)
       end
 
       it 'fails when not all requested vms can be allocated, when requesting multiple instances from multiple pools' do
-        create_ready_vm 'pool1', '1abcdefghijklmnop'
+        create_ready_vm 'pool1', '1abcdefghijklmnop', redis
 
         post "#{prefix}/vm", '{"pool1":"2","pool2":"3"}'
 
@@ -314,8 +314,8 @@ describe Vmpooler::API::V1 do
       end
 
       it 'returns any checked out vms to their pools when not all requested vms can be allocated, when requesting multiple instances from multiple pools' do
-        create_ready_vm 'pool1', '1abcdefghijklmnop'
-        create_ready_vm 'pool1', '2abcdefghijklmnop'
+        create_ready_vm 'pool1', '1abcdefghijklmnop', redis
+        create_ready_vm 'pool1', '2abcdefghijklmnop', redis
 
         allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
 
@@ -326,13 +326,13 @@ describe Vmpooler::API::V1 do
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
         expect_json(ok = false, http = 503)
 
-        expect(pool_has_ready_vm?('pool1', '1abcdefghijklmnop')).to eq(true)
-        expect(pool_has_ready_vm?('pool1', '2abcdefghijklmnop')).to eq(true)
+        expect(pool_has_ready_vm?('pool1', '1abcdefghijklmnop', redis)).to eq(true)
+        expect(pool_has_ready_vm?('pool1', '2abcdefghijklmnop', redis)).to eq(true)
       end
 
       it 'returns the second VM when the first fails to respond' do
-        create_ready_vm 'pool1', vmname
-        create_ready_vm 'pool1', "2#{vmname}"
+        create_ready_vm 'pool1', vmname, redis
+        create_ready_vm 'pool1', "2#{vmname}", redis
 
         allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).with(vmname, nil).and_raise('mockerror')
         allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).with("2#{vmname}", nil).and_return(socket)
@@ -349,14 +349,14 @@ describe Vmpooler::API::V1 do
 
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
 
-        expect(pool_has_ready_vm?('pool1', vmname)).to be false
+        expect(pool_has_ready_vm?('pool1', vmname, redis)).to be false
       end
 
       context '(auth not configured)' do
         it 'does not extend VM lifetime if auth token is provided' do
           app.settings.set :config, auth: false
 
-          create_ready_vm 'pool1', 'abcdefghijklmnop'
+          create_ready_vm 'pool1', 'abcdefghijklmnop', redis
 
           allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
 
@@ -382,7 +382,7 @@ describe Vmpooler::API::V1 do
         it 'extends VM lifetime if auth token is provided' do
           app.settings.set :config, auth: true
 
-          create_ready_vm 'pool1', 'abcdefghijklmnop'
+          create_ready_vm 'pool1', 'abcdefghijklmnop', redis
 
           allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
 
@@ -405,7 +405,7 @@ describe Vmpooler::API::V1 do
 
         it 'does not extend VM lifetime if auth token is not provided' do
           app.settings.set :config, auth: true
-          create_ready_vm 'pool1', 'abcdefghijklmnop'
+          create_ready_vm 'pool1', 'abcdefghijklmnop', redis
 
           allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).and_return(socket)
 

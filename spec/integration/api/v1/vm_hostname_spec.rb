@@ -41,7 +41,7 @@ describe Vmpooler::API::V1 do
 
     describe 'PUT /vm/:hostname' do
       it 'allows tags to be set' do
-        create_vm('testhost')
+        create_vm('testhost', redis)
         put "#{prefix}/vm/testhost", '{"tags":{"tested_by":"rspec"}}'
         expect_json(ok = true, http = 200)
 
@@ -49,7 +49,7 @@ describe Vmpooler::API::V1 do
       end
 
       it 'skips empty tags' do
-        create_vm('testhost')
+        create_vm('testhost', redis)
         put "#{prefix}/vm/testhost", '{"tags":{"tested_by":""}}'
         expect_json(ok = true, http = 200)
 
@@ -57,7 +57,7 @@ describe Vmpooler::API::V1 do
       end
 
       it 'does not set tags if request body format is invalid' do
-        create_vm('testhost')
+        create_vm('testhost', redis)
         put "#{prefix}/vm/testhost", '{"tags":{"tested"}}'
         expect_json(ok = false, http = 400)
 
@@ -69,7 +69,7 @@ describe Vmpooler::API::V1 do
           app.settings.set :config,
              { :config => { 'allowed_tags' => ['created_by', 'project', 'url'] } }
 
-          create_vm('testhost')
+          create_vm('testhost', redis)
 
           put "#{prefix}/vm/testhost", '{"tags":{"created_by":"rspec","tested_by":"rspec"}}'
           expect_json(ok = false, http = 400)
@@ -84,7 +84,7 @@ describe Vmpooler::API::V1 do
         } }
 
         it 'correctly filters tags' do
-          create_vm('testhost')
+          create_vm('testhost', redis)
 
           put "#{prefix}/vm/testhost", '{"tags":{"url":"foo.com/something.html"}}'
           expect_json(ok = true, http = 200)
@@ -93,7 +93,7 @@ describe Vmpooler::API::V1 do
         end
 
         it "doesn't eat tags not matching filter" do
-          create_vm('testhost')
+          create_vm('testhost', redis)
           put "#{prefix}/vm/testhost", '{"tags":{"url":"foo.com"}}'
           expect_json(ok = true, http = 200)
 
@@ -105,7 +105,7 @@ describe Vmpooler::API::V1 do
         let(:config) { { auth: false } }
 
         it 'allows VM lifetime to be modified without a token' do
-          create_vm('testhost')
+          create_vm('testhost', redis)
 
           put "#{prefix}/vm/testhost", '{"lifetime":"1"}'
           expect_json(ok = true, http = 200)
@@ -115,7 +115,7 @@ describe Vmpooler::API::V1 do
         end
 
         it 'does not allow a lifetime to be 0' do
-          create_vm('testhost')
+          create_vm('testhost', redis)
 
           put "#{prefix}/vm/testhost", '{"lifetime":"0"}'
           expect_json(ok = false, http = 400)
@@ -125,7 +125,7 @@ describe Vmpooler::API::V1 do
         end
 
         it 'does not enforce a lifetime' do
-          create_vm('testhost')
+          create_vm('testhost', redis)
 
           put "#{prefix}/vm/testhost", '{"lifetime":"20000"}'
           expect_json(ok = true, http = 200)
@@ -137,7 +137,7 @@ describe Vmpooler::API::V1 do
         it 'does not allow a lifetime to be initially past config max_lifetime_upper_limit' do
           app.settings.set :config,
                            { :config => { 'max_lifetime_upper_limit' => 168 } }
-          create_vm('testhost')
+          create_vm('testhost', redis)
 
           put "#{prefix}/vm/testhost", '{"lifetime":"200"}'
           expect_json(ok = false, http = 400)
@@ -146,6 +146,18 @@ describe Vmpooler::API::V1 do
           expect(vm['lifetime']).to be_nil
         end
 
+        it 'does not allow a lifetime to be extended past config 168' do
+          app.settings.set :config,
+                           { :config => { 'max_lifetime_upper_limit' => 168 } }
+          create_vm('testhost', redis)
+
+          set_vm_data('testhost', "checkout", (Time.now - (69*60*60)), redis)
+          put "#{prefix}/vm/testhost", '{"lifetime":"100"}'
+          expect_json(ok = false, http = 400)
+
+          vm = fetch_vm('testhost')
+          expect(vm['lifetime']).to be_nil
+        end
       end
 
       context '(auth configured)' do
@@ -154,7 +166,7 @@ describe Vmpooler::API::V1 do
         end
 
         it 'allows VM lifetime to be modified with a token' do
-          create_vm('testhost')
+          create_vm('testhost', redis)
 
           put "#{prefix}/vm/testhost", '{"lifetime":"1"}', {
             'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
@@ -166,7 +178,7 @@ describe Vmpooler::API::V1 do
         end
 
         it 'does not allows VM lifetime to be modified without a token' do
-          create_vm('testhost')
+          create_vm('testhost', redis)
 
           put "#{prefix}/vm/testhost", '{"lifetime":"1"}'
           expect_json(ok = false, http = 401)
@@ -182,7 +194,7 @@ describe Vmpooler::API::V1 do
         end
 
         it 'deletes an existing VM' do
-          create_running_vm('pool1', 'testhost')
+          create_running_vm('pool1', 'testhost', redis)
           expect fetch_vm('testhost')
 
           delete "#{prefix}/vm/testhost"
@@ -198,7 +210,7 @@ describe Vmpooler::API::V1 do
 
         context '(checked-out without token)' do
           it 'deletes a VM without supplying a token' do
-            create_running_vm('pool1', 'testhost')
+            create_running_vm('pool1', 'testhost', redis)
             expect fetch_vm('testhost')
 
             delete "#{prefix}/vm/testhost"
@@ -209,7 +221,7 @@ describe Vmpooler::API::V1 do
 
         context '(checked-out with token)' do
           it 'fails to delete a VM without supplying a token' do
-            create_running_vm('pool1', 'testhost', 'abcdefghijklmnopqrstuvwxyz012345')
+            create_running_vm('pool1', 'testhost', redis, 'abcdefghijklmnopqrstuvwxyz012345')
             expect fetch_vm('testhost')
 
             delete "#{prefix}/vm/testhost"
@@ -218,7 +230,7 @@ describe Vmpooler::API::V1 do
           end
 
           it 'deletes a VM when token is supplied' do
-            create_running_vm('pool1', 'testhost', 'abcdefghijklmnopqrstuvwxyz012345')
+            create_running_vm('pool1', 'testhost', redis, 'abcdefghijklmnopqrstuvwxyz012345')
             expect fetch_vm('testhost')
 
             delete "#{prefix}/vm/testhost", "", {
@@ -235,7 +247,7 @@ describe Vmpooler::API::V1 do
     describe 'POST /vm/:hostname/snapshot' do
       context '(auth not configured)' do
         it 'creates a snapshot' do
-          create_vm('testhost')
+          create_vm('testhost', redis)
           post "#{prefix}/vm/testhost/snapshot"
           expect_json(ok = true, http = 202)
           expect(JSON.parse(last_response.body)['testhost']['snapshot'].length).to be(32)
@@ -250,19 +262,19 @@ describe Vmpooler::API::V1 do
         it 'returns a 401 if not authed' do
           post "#{prefix}/vm/testhost/snapshot"
           expect_json(ok = false, http = 401)
-          expect !has_vm_snapshot?('testhost')
+          expect !has_vm_snapshot?('testhost', redis)
         end
 
         it 'creates a snapshot if authed' do
-          create_vm('testhost')
-          snapshot_vm('testhost', 'testsnapshot')
+          create_vm('testhost', redis)
+          snapshot_vm('testhost', 'testsnapshot', redis)
 
           post "#{prefix}/vm/testhost/snapshot", "", {
             'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
           }
           expect_json(ok = true, http = 202)
           expect(JSON.parse(last_response.body)['testhost']['snapshot'].length).to be(32)
-          expect has_vm_snapshot?('testhost')
+          expect has_vm_snapshot?('testhost', redis)
         end
       end
     end
@@ -270,22 +282,22 @@ describe Vmpooler::API::V1 do
     describe 'POST /vm/:hostname/snapshot/:snapshot' do
       context '(auth not configured)' do
         it 'reverts to a snapshot' do
-          create_vm('testhost')
-          snapshot_vm('testhost', 'testsnapshot')
+          create_vm('testhost', redis)
+          snapshot_vm('testhost', 'testsnapshot', redis)
 
           post "#{prefix}/vm/testhost/snapshot/testsnapshot"
           expect_json(ok = true, http = 202)
-          expect vm_reverted_to_snapshot?('testhost', 'testsnapshot')
+          expect vm_reverted_to_snapshot?('testhost', redis, 'testsnapshot')
         end
 
         it 'fails if the specified snapshot does not exist' do
-          create_vm('testhost')
+          create_vm('testhost', redis)
 
           post "#{prefix}/vm/testhost/snapshot/testsnapshot", "", {
             'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
           }
           expect_json(ok = false, http = 404)
-          expect !vm_reverted_to_snapshot?('testhost', 'testsnapshot')
+          expect !vm_reverted_to_snapshot?('testhost', redis, 'testsnapshot')
         end
       end
 
@@ -295,33 +307,33 @@ describe Vmpooler::API::V1 do
         end
 
         it 'returns a 401 if not authed' do
-          create_vm('testhost')
-          snapshot_vm('testhost', 'testsnapshot')
+          create_vm('testhost', redis)
+          snapshot_vm('testhost', 'testsnapshot', redis)
 
           post "#{prefix}/vm/testhost/snapshot/testsnapshot"
           expect_json(ok = false, http = 401)
-          expect !vm_reverted_to_snapshot?('testhost', 'testsnapshot')
+          expect !vm_reverted_to_snapshot?('testhost', redis, 'testsnapshot')
         end
 
         it 'fails if authed and the specified snapshot does not exist' do
-          create_vm('testhost')
+          create_vm('testhost', redis)
 
           post "#{prefix}/vm/testhost/snapshot/testsnapshot", "", {
             'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
           }
           expect_json(ok = false, http = 404)
-          expect !vm_reverted_to_snapshot?('testhost', 'testsnapshot')
+          expect !vm_reverted_to_snapshot?('testhost', redis, 'testsnapshot')
         end
 
         it 'reverts to a snapshot if authed' do
-          create_vm('testhost')
-          snapshot_vm('testhost', 'testsnapshot')
+          create_vm('testhost', redis)
+          snapshot_vm('testhost', 'testsnapshot', redis)
 
           post "#{prefix}/vm/testhost/snapshot/testsnapshot", "", {
             'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
           }
           expect_json(ok = true, http = 202)
-          expect vm_reverted_to_snapshot?('testhost', 'testsnapshot')
+          expect vm_reverted_to_snapshot?('testhost', redis, 'testsnapshot')
         end
       end
     end
