@@ -1462,8 +1462,6 @@ module Vmpooler
       in_progress_requests = redis.zrange('vmpooler__provisioning__processing', 0, -1)
       in_progress_requests&.each do |request_id|
         next unless vms_ready?(request_id, redis)
-        $logger.log('s', 'vms are ready')
-
         redis.multi
         redis.hset("vmpooler__odrequest__#{request_id}", 'status', 'ready')
         redis.zrem('vmpooler__provisioning__processing', request_id)

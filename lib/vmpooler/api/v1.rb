@@ -341,8 +341,8 @@ module Vmpooler
     def generate_ondemand_request(payload)
       result = { 'ok': false }
 
-      request_id = payload[:request_id]
-      request_id = generate_request_id if request_id.nil?
+      request_id = payload['request_id']
+      request_id = generate_request_id unless request_id
       score = Time.now.to_i
 
       result['request_id'] = request_id
@@ -798,10 +798,11 @@ module Vmpooler
       payload = JSON.parse(request.body.read)
 
       if payload
-        invalid = invalid_templates(payload)
+        invalid = invalid_templates(payload.reject { |k,v| k == 'request_id' })
         if invalid.empty?
           result = generate_ondemand_request(payload)
         else
+          result['bad_template'] = invalid
           invalid.each do |bad_template|
             metrics.increment('ondemandrequest.invalid.' + bad_template)
           end
@@ -1097,6 +1098,14 @@ module Vmpooler
               unless arg.to_i > 0
                 failure.push("You provided a lifetime (#{arg}) but you must provide a positive number.")
               end
+
+             #checkout = backend.hget("vmpooler__vm__#{params[:hostname]}", 'checkout')
+             #if checkout
+             #  existing_lifetime = (Time.now - Time.parse(checkout)) / 60 / 60
+             #  if (arg.to_i + existing_lifetime) >= max_lifetime_upper_limit
+             #    failure.push("You provided a lifetime (#{arg}) that exceeds the configured maximum of #{max_lifetime_upper_limit} when added to the time since checkout.")
+             #  end
+             #end
             when 'tags'
               unless arg.is_a?(Hash)
                 failure.push("You provided tags (#{arg}) as something other than a hash.")
