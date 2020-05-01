@@ -103,6 +103,7 @@ module Vmpooler
 
       count_selection(selection)
     end
+
     def fetch_single_vm(template)
       template_backends = [template]
       aliases = Vmpooler::API.settings.config[:alias]
@@ -349,6 +350,7 @@ module Vmpooler
 
       if backend.exists("vmpooler__odrequest__#{request_id}")
         result['message'] = "request_id '#{request_id}' has already been created"
+        status 409
         return result
       end
 
@@ -793,6 +795,9 @@ module Vmpooler
 
     post "#{api_prefix}/ondemandvm/?" do
       content_type :json
+
+      need_token! if Vmpooler::API.settings.config[:auth]
+
       result = { 'ok' => false }
 
       payload = JSON.parse(request.body.read)
@@ -802,7 +807,7 @@ module Vmpooler
         if invalid.empty?
           result = generate_ondemand_request(payload)
         else
-          result['bad_template'] = invalid
+          result[:bad_templates] = invalid
           invalid.each do |bad_template|
             metrics.increment('ondemandrequest.invalid.' + bad_template)
           end
@@ -1230,7 +1235,7 @@ module Vmpooler
             invalid.each do |bad_template|
               metrics.increment("config.invalid.#{bad_template}")
             end
-            result[:bad_templates] = invalid
+            result[:not_configured] = invalid
             status 400
           end
         else
