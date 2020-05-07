@@ -142,3 +142,11 @@ end
 def create_ondemand_vm(vmname, request_id, pool, pool_alias, redis)
   redis.sadd("vmpooler__#{request_id}__#{pool_alias}__#{pool}", vmname)
 end
+
+def create_ondemand_creationtask(request_string, score, redis)
+  redis.zadd('vmpooler__odcreate__task', score, request_string)
+end
+
+def create_ondemand_processing(request_id, score, redis)
+  redis.zadd('vmpooler__provisioning__processing', score, request_id)
+end

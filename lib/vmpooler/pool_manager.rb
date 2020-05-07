@@ -1354,7 +1354,20 @@ module Vmpooler
                                 loop_delay_max = CHECK_LOOP_DELAY_MAX_DEFAULT,
                                 loop_delay_decay = CHECK_LOOP_DELAY_DECAY_DEFAULT)
 
-      # Use the pool setings if they exist
+      $logger.log('d', '[*] [ondemand_provisioner] starting worker thread')
+
+      $threads['ondemand_provisioner'] = Thread.new do
+        puts "running #{maxloop} #{loop_delay_min}"
+        _check_ondemand_requests(maxloop, loop_delay_min, loop_delay_max, loop_delay_decay)
+      end
+    end
+
+    def _check_ondemand_requests(maxloop = 0,
+                                loop_delay_min = CHECK_LOOP_DELAY_MIN_DEFAULT,
+                                loop_delay_max = CHECK_LOOP_DELAY_MAX_DEFAULT,
+                                loop_delay_decay = CHECK_LOOP_DELAY_DECAY_DEFAULT)
+
+      puts 'jumped over'
       loop_delay_min = $config[:config]['check_loop_delay_min'] unless $config[:config]['check_loop_delay_min'].nil?
       loop_delay_max = $config[:config]['check_loop_delay_max'] unless $config[:config]['check_loop_delay_max'].nil?
       loop_delay_decay = $config[:config]['check_loop_delay_decay'] unless $config[:config]['check_loop_delay_decay'].nil?
@@ -1367,6 +1380,7 @@ module Vmpooler
 
       loop do
         result = process_ondemand_requests
+        puts result
 
         loop_delay = (loop_delay * loop_delay_decay).to_i
         loop_delay = loop_delay_min if result > 0
@@ -1416,31 +1430,28 @@ module Vmpooler
       ondemand_clone_limit = $config[:config]['ondemand_clone_limit']
       @tasks['ondemand_clone_count'] = 0 unless @tasks['ondemand_clone_count']
       queue.each do |request, score|
-        if @tasks['ondemand_clone_count'] < ondemand_clone_limit
-          pool_alias, pool, count, request_id = request.split(':')
-          count = count.to_i
-          provider = get_provider_for_pool(pool)
-          slots = ondemand_clone_limit - @tasks['ondemand_clone_count']
-          return if slots == 0
-          if slots >= count
-            count.times do
-              @tasks['ondemand_clone_count'] += 1
-              clone_vm(pool, provider, request_id, pool_alias)
-            end
-            redis.zrem(queue_key, request)
-          else
-            remaining_count = count - slots
-            slots.times do
-              @tasks['ondemand_clone_count'] += 1
-              clone_vm(pool, provider, request_id, pool_alias)
-            end
-            redis.pipelined do
-              redis.zrem(queue_key, request)
-              redis.zadd(queue_key, score, "#{pool_alias}:#{pool}:#{remaining_count}:#{request_id}")
-            end
+        break unless @tasks['ondemand_clone_count'] < ondemand_clone_limit
+        pool_alias, pool, count, request_id = request.split(':')
+        count = count.to_i
+        provider = get_provider_for_pool(pool)
+        slots = ondemand_clone_limit - @tasks['ondemand_clone_count']
+        return if slots == 0
+        if slots >= count
+          count.times do
+            @tasks['ondemand_clone_count'] += 1
+            clone_vm(pool, provider, request_id, pool_alias)
           end
+          redis.zrem(queue_key, request)
         else
-          break
+          remaining_count = count - slots
+          slots.times do
+            @tasks['ondemand_clone_count'] += 1
+            clone_vm(pool, provider, request_id, pool_alias)
+          end
+          redis.pipelined do
+            redis.zrem(queue_key, request)
+            redis.zadd(queue_key, score, "#{pool_alias}:#{pool}:#{remaining_count}:#{request_id}")
+          end
         end
       end
       queue.length
@@ -1464,7 +1475,6 @@ module Vmpooler
       in_progress_requests = redis.zrange('vmpooler__provisioning__processing', 0, -1)
       in_progress_requests&.each do |request_id|
         next unless vms_ready?(request_id, redis)
-        $logger.log('s', 'vms are ready')
 
         redis.multi
         redis.hset("vmpooler__odrequest__#{request_id}", 'status', 'ready')
