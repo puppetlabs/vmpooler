@@ -359,8 +359,7 @@ module Vmpooler
       status 201
 
       platforms_with_aliases = []
-      payload.delete('request_id')
-      payload.each do |poolname, count|
+      payload.reject { |k,v| k == 'request_id' }.each do |poolname, count|
         selection = evaluate_template_aliases(poolname, count)
         selection.map { |selected_pool, selected_pool_count| platforms_with_aliases << "#{poolname}:#{selected_pool}:#{selected_pool_count}" }
       end
@@ -800,22 +799,30 @@ module Vmpooler
 
       result = { 'ok' => false }
 
-      payload = JSON.parse(request.body.read)
+      begin
+        payload = JSON.parse(request.body.read)
 
-      if payload
-        invalid = invalid_templates(payload.reject { |k,v| k == 'request_id' })
-        if invalid.empty?
-          result = generate_ondemand_request(payload)
-        else
-          result[:bad_templates] = invalid
-          invalid.each do |bad_template|
-            metrics.increment('ondemandrequest.invalid.' + bad_template)
+        if payload
+          invalid = invalid_templates(payload.reject { |k,v| k == 'request_id' })
+          if invalid.empty?
+            result = generate_ondemand_request(payload)
+          else
+            result[:bad_templates] = invalid
+            invalid.each do |bad_template|
+              metrics.increment('ondemandrequest.invalid.' + bad_template)
+            end
+            status 404
           end
+        else
+          metrics.increment('ondemandrequest.invalid.unknown')
           status 404
         end
-      else
-        metrics.increment('ondemandrequest.invalid.unknown')
-        status 404
+      rescue JSON::ParserError
+        status 400
+        result = {
+          'ok' => false,
+          'message' => 'JSON payload could not be parsed'
+        }
       end
 
       JSON.pretty_generate(result)
@@ -908,16 +915,16 @@ module Vmpooler
 
     def check_ondemand_request(request_id)
       result = { 'ok' => false }
-      result['request_id'] = request_id
-      result['ready'] = false
       request_hash = backend.hgetall("vmpooler__odrequest__#{request_id}")
       if request_hash.empty?
         result['message'] = "no request found for request_id '#{request_id}'"
         return result
       end
 
-      status 202
+      result['request_id'] = request_id
+      result['ready'] = false
       result['ok'] = true
+      status 202
 
       if request_hash['status'] == 'ready'
         result['ready'] = true

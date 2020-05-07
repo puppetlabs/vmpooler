@@ -36,6 +36,7 @@ module Vmpooler
       @name_generator = Spicy::Proton.new
 
       @tasks = Concurrent::Hash.new
+      @tasks['ondemand_clone_count'] = 0
 
       # load specified providers from config file
       load_used_providers
@@ -113,17 +114,13 @@ module Vmpooler
       clone_stamp = redis.hget("vmpooler__vm__#{vm}", 'clone')
       return true unless clone_stamp
 
-    # if clone_stamp == 'QUEUED'
-    #   $logger.log('s', "Waiting for clone_stamp. Got 'QUEUED'.")
-    #   return true
-    # end
       time_since_clone = (Time.now - Time.parse(clone_stamp)) / 60
       if time_since_clone > timeout
         if exists
-          pool_alias = redis.hget("vmpooler__vm__#{vm}", 'pool_alias') if $request_id
+          pool_alias = redis.hget("vmpooler__vm__#{vm}", 'pool_alias') if request_id
           redis.multi
           redis.smove('vmpooler__pending__' + pool, 'vmpooler__completed__' + pool, vm)
-          redis.zadd('vmpooler__odcreate__task', 1, "#{pool_alias}:#{pool_name}:1:#{request_id}") if request_id
+          result = redis.zadd('vmpooler__odcreate__task', 1, "#{pool_alias}:#{pool}:1:#{request_id}") if request_id
           redis.exec
           $metrics.increment("errors.markedasfailed.#{pool}")
           $logger.log('d', "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes")
@@ -271,12 +268,7 @@ module Vmpooler
         @redis.with_metrics do |redis|
           # Check that VM is within defined lifetime
           checkouttime = redis.hget('vmpooler__active__' + pool, vm)
-      #   return if checkouttime == 'QUEUED'
           if checkouttime
-      #     if checkouttime == 'QUEUED'
-      #       $logger.log('s', "checkouttime is #{checkouttime}")
-      #       return
-      #     end
             time_since_checkout = Time.now - Time.parse(checkouttime)
             running = time_since_checkout / 60 / 60
 
@@ -376,6 +368,8 @@ module Vmpooler
           redis.hset('vmpooler__vm__' + new_vmname, 'pool_alias', pool_alias) if pool_alias
           redis.exec
 
+          vm_hash = redis.hgetall("vmpooler__vm__#{new_vmname}")
+
           begin
             $logger.log('d', "[ ] [#{pool_name}] Starting to clone '#{new_vmname}'")
             start = Time.now
@@ -425,11 +419,13 @@ module Vmpooler
 
       mutex.synchronize do
         @redis.with_metrics do |redis|
-          redis.hdel('vmpooler__active__' + pool, vm)
-          redis.hset('vmpooler__vm__' + vm, 'destroy', Time.now)
+          redis.pipelined do
+            redis.hdel('vmpooler__active__' + pool, vm)
+            redis.hset('vmpooler__vm__' + vm, 'destroy', Time.now)
 
-          # Auto-expire metadata key
-          redis.expire('vmpooler__vm__' + vm, ($config[:redis]['data_ttl'].to_i * 60 * 60))
+            # Auto-expire metadata key
+            redis.expire('vmpooler__vm__' + vm, ($config[:redis]['data_ttl'].to_i * 60 * 60))
+          end
 
           start = Time.now
 
@@ -516,7 +512,7 @@ module Vmpooler
         if provider_purge
           Thread.new do
             begin
-              purge_vms_and_folders(provider.to_s)
+              purge_vms_and_folders($providers[provider.to_s])
             rescue StandardError => e
               $logger.log('s', "[!] failed while purging provider #{provider} VMs and folders with an error: #{e}")
             end
@@ -527,13 +523,14 @@ module Vmpooler
     end
 
     # Return a list of pool folders
-    def pool_folders(provider_name)
+    def pool_folders(provider)
+      provider_name = provider.name
       folders = {}
       $config[:pools].each do |pool|
         next unless pool['provider'] == provider_name
 
         folder_parts = pool['folder'].split('/')
-        datacenter = $providers[provider_name].get_target_datacenter_from_config(pool['name'])
+        datacenter = provider.get_target_datacenter_from_config(pool['name'])
         folders[folder_parts.pop] = "#{datacenter}/vm/#{folder_parts.join('/')}"
       end
       folders
@@ -550,8 +547,8 @@ module Vmpooler
     def purge_vms_and_folders(provider)
       configured_folders = pool_folders(provider)
       base_folders = get_base_folders(configured_folders)
-      whitelist = $providers[provider].provider_config['folder_whitelist']
-      $providers[provider].purge_unconfigured_folders(base_folders, configured_folders, whitelist)
+      whitelist = provider.provider_config['folder_whitelist']
+      provider.purge_unconfigured_folders(base_folders, configured_folders, whitelist)
     end
 
     def create_vm_disk(pool_name, vm, disk_size, provider)
@@ -855,20 +852,25 @@ module Vmpooler
             end
 
             if options[:pool_reset]
-              break if redis.sismember('vmpooler__poolreset', options[:poolname])
-            end
-
-            if options[:pending_vm]
-              pending = redis.scard("vmpooler__pending__#{options[:poolname]}")
+              pending = redis.sismember('vmpooler__poolreset', options[:poolname])
               break if pending
             end
 
-            if options[:ondemand_request]
-              break if redis.zcard('vmpooler__provisioning__request')
-              break if redis.zcard('vmpooler__provisioning__processing')
-              break if redis.zcard('vmpooler__odcreate__task')
+            if options[:pending_vm]
+              pending_vm_count = redis.scard("vmpooler__pending__#{options[:poolname]}")
+              break unless pending_vm_count == 0
             end
 
+            if options[:ondemand_request]
+              redis.multi
+              redis.zcard('vmpooler__provisioning__request')
+              redis.zcard('vmpooler__provisioning__processing')
+              redis.zcard('vmpooler__odcreate__task')
+              od_request, od_processing, od_createtask = redis.exec
+              break unless od_request == 0
+              break unless od_processing == 0
+              break unless od_createtask == 0
+            end
           end
 
           break if time_passed?(:exit_by, exit_by)
@@ -1462,6 +1464,8 @@ module Vmpooler
       in_progress_requests = redis.zrange('vmpooler__provisioning__processing', 0, -1)
       in_progress_requests&.each do |request_id|
         next unless vms_ready?(request_id, redis)
+        $logger.log('s', 'vms are ready')
+
         redis.multi
         redis.hset("vmpooler__odrequest__#{request_id}", 'status', 'ready')
         redis.zrem('vmpooler__provisioning__processing', request_id)

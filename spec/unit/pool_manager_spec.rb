@@ -15,7 +15,9 @@ describe 'Pool Manager' do
   let(:vm) { 'vm1' }
   let(:timeout) { 5 }
   let(:host) { double('host') }
-  let(:token) { 'token1234'}
+  let(:token) { 'token1234' }
+  let(:request_id) { '1234' }
+  let(:current_time) { Time.now }
 
   let(:provider_options) { {} }
   let(:redis_connection_pool) { Vmpooler::PoolManager::GenericConnectionPool.new(
@@ -25,6 +27,7 @@ describe 'Pool Manager' do
     timeout: 5
   ) { MockRedis.new }
   }
+  let(:redis) { MockRedis.new }
 
   let(:provider) { Vmpooler::PoolManager::Provider::Base.new(config, logger, metrics, redis_connection_pool, 'mock_provider', provider_options) }
 
@@ -217,6 +220,18 @@ EOT
         subject.fail_pending_vm(vm, pool, timeout, redis, true)
       end
     end
+
+    context 'with request_id' do
+
+      it 'creates a new odcreate task' do
+        redis_connection_pool.with do |redis|
+          redis.hset("vmpooler__vm__#{vm}", 'clone',(Time.now - 900).to_s)
+          redis.hset("vmpooler__vm__#{vm}", 'pool_alias', pool)
+          subject.fail_pending_vm(vm, pool, timeout, redis, true, request_id)
+          expect(redis.zrange('vmpooler__odcreate__task', 0, -1)).to eq(["#{pool}:#{pool}:1:#{request_id}"])
+        end
+      end
+    end
   end
 
   describe '#move_pending_vm_to_ready' do
@@ -291,6 +306,28 @@ EOT
           expect(redis.hget('vmpooler__lastboot', pool)).to be(nil)
           subject.move_pending_vm_to_ready(vm, pool, redis)
           expect(redis.hget('vmpooler__lastboot', pool)).to_not be(nil)
+        end
+      end
+    end
+
+    context 'with request_id' do
+      it 'sets the vm as active' do
+        redis_connection_pool.with do |redis|
+          expect(Time).to receive(:now).and_return(current_time).at_least(:once)
+          redis.hset("vmpooler__vm__#{vm}", 'pool_alias', pool)
+          subject.move_pending_vm_to_ready(vm, pool, redis, request_id)
+          expect(redis.hget("vmpooler__active__#{pool}", vm)).to eq(current_time.to_s)
+          expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to eq(current_time.to_s)
+          expect(redis.sismember("vmpooler__#{request_id}__#{pool}__#{pool}", vm)).to be true
+        end
+      end
+
+      it 'logs that the vm is ready for the request' do
+        redis_connection_pool.with do |redis|
+          redis.hset("vmpooler__vm__#{vm}", 'pool_alias', pool)
+          expect(logger).to receive(:log).with('s', "[>] [#{pool}] '#{vm}' is 'ready' for request '#{request_id}'")
+
+          subject.move_pending_vm_to_ready(vm, pool, redis, request_id)
         end
       end
     end
@@ -711,12 +748,10 @@ EOT
           subject._clone_vm(pool,provider)
 
           expect(redis.scard("vmpooler__pending__#{pool}")).to eq(1)
-          # Get the new VM Name from the pending pool queue as it should be the only entry
-          vm_name = redis.smembers("vmpooler__pending__#{pool}")[0]
-          expect(redis.hget("vmpooler__vm__#{vm_name}", 'clone')).to_not be_nil
-          expect(redis.hget("vmpooler__vm__#{vm_name}", 'template')).to eq(pool)
-          expect(redis.hget("vmpooler__clone__#{Date.today.to_s}", "#{pool}:#{vm_name}")).to_not be_nil
-          expect(redis.hget("vmpooler__vm__#{vm_name}", 'clone_time')).to_not be_nil
+          expect(redis.hget("vmpooler__vm__#{vm}", 'clone')).to_not be_nil
+          expect(redis.hget("vmpooler__vm__#{vm}", 'template')).to eq(pool)
+          expect(redis.hget("vmpooler__clone__#{Date.today.to_s}", "#{pool}:#{vm}")).to_not be_nil
+          expect(redis.hget("vmpooler__vm__#{vm}", 'clone_time')).to_not be_nil
         end
       end
 
@@ -785,6 +820,37 @@ EOT
       it 'should raise the error' do
         expect{subject._clone_vm(pool,provider)}.to raise_error(/MockError/)
       end
+
+    end
+
+    context 'with request_id' do
+      before(:each) do
+        allow(metrics).to receive(:timing)
+        expect(metrics).to receive(:timing).with(/clone\./,/0/)
+        expect(provider).to receive(:create_vm).with(pool, String)
+        allow(logger).to receive(:log)
+        redis_connection_pool.with do |redis|
+          expect(subject).to receive(:find_unique_hostname).with(pool, redis).and_return(vm)
+        end
+      end
+
+      it 'should set request_id and pool_alias on the vm data' do
+        redis_connection_pool.with do |redis|
+          subject._clone_vm(pool,provider,request_id,pool)
+          expect(redis.hget("vmpooler__vm__#{vm}", 'pool_alias')).to eq(pool)
+          expect(redis.hget("vmpooler__vm__#{vm}", 'request_id')).to eq(request_id)
+        end
+      end
+
+      it 'should reduce the ondemand clone count' do
+        count = { 'ondemand_clone_count' => 1 }
+        subject.instance_variable_set(:@tasks, count)
+        redis_connection_pool.with do |redis|
+          subject._clone_vm(pool,provider,request_id,pool)
+        end
+        count = subject.instance_variable_get(:@tasks)
+        expect(count['ondemand_clone_count']).to eq(0)
+      end
     end
   end
 
@@ -831,9 +897,8 @@ EOT
 
       it 'should call redis expire with 0' do
         redis_connection_pool.with do |redis|
-          expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to_not be_nil
+          expect(redis).to receive(:expire).with("vmpooler__vm__#{vm}", 0)
           subject._destroy_vm(vm,pool,provider)
-          expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to be_nil
         end
       end
     end
@@ -1238,15 +1303,15 @@ EOT
     }
 
     it 'should return a list of pool folders' do
-      expect($providers[provider_name]).to receive(:get_target_datacenter_from_config).with(pool).and_return(datacenter)
+      expect(provider).to receive(:get_target_datacenter_from_config).with(pool).and_return(datacenter)
 
-      expect(subject.pool_folders(provider_name)).to eq(expected_response)
+      expect(subject.pool_folders(provider)).to eq(expected_response)
     end
 
     it 'should raise an error when the provider fails to get the datacenter' do
-      expect($providers[provider_name]).to receive(:get_target_datacenter_from_config).with(pool).and_raise('mockerror')
+      expect(provider).to receive(:get_target_datacenter_from_config).with(pool).and_raise('mockerror')
 
-      expect{ subject.pool_folders(provider_name) }.to raise_error(RuntimeError, 'mockerror')
+      expect{ subject.pool_folders(provider) }.to raise_error(RuntimeError, 'mockerror')
     end
   end
 
@@ -1277,16 +1342,16 @@ EOT
 
     it 'should run purge_unconfigured_folders' do
       expect(subject).to receive(:pool_folders).and_return(configured_folders)
-      expect($providers[provider_name]).to receive(:purge_unconfigured_folders).with(base_folders, configured_folders, whitelist)
-      expect($providers[provider_name]).to receive(:provider_config).and_return({})
+      expect(provider).to receive(:purge_unconfigured_folders).with(base_folders, configured_folders, whitelist)
+      expect(provider).to receive(:provider_config).and_return({})
 
       subject.purge_vms_and_folders(provider)
     end
 
     it 'should raise any errors' do
       expect(subject).to receive(:pool_folders).and_return(configured_folders)
-      expect($providers[provider_name]).to receive(:purge_unconfigured_folders).with(base_folders, configured_folders, whitelist).and_raise('mockerror')
-      expect($providers[provider_name]).to receive(:provider_config).and_return({})
+      expect(provider).to receive(:purge_unconfigured_folders).with(base_folders, configured_folders, whitelist).and_raise('mockerror')
+      expect(provider).to receive(:provider_config).and_return({})
 
       expect{ subject.purge_vms_and_folders(provider) }.to raise_error(RuntimeError, 'mockerror')
     end
@@ -3196,11 +3261,6 @@ EOT
       let(:wakeup_period) { -1 } # A negative number forces the wakeup evaluation to always occur
 
       context 'when a pool reset is requested' do
-        before(:each) do
-          redis_connection_pool.with do |redis|
-            redis.sadd('vmpooler__poolreset', pool)
-          end
-        end
 
         it 'should sleep until the reset request is detected' do
           redis_connection_pool.with do |redis|
@@ -3210,6 +3270,62 @@ EOT
 
           subject.sleep_with_wakeup_events(loop_delay, wakeup_period, wakeup_option)
         end
+      end
+    end
+
+    describe 'with the pending_vm wakeup option' do
+      let(:wakeup_option) {{
+        :pending_vm => true,
+        :poolname => pool
+      }}
+
+      let(:wakeup_period) { -1 } # A negative number forces the wakeup evaluation to always occur
+
+      context 'when a pending_vm is detected' do
+
+        it 'should sleep until the pending instance' do
+          redis_connection_pool.with do |redis|
+            expect(subject).to receive(:sleep).exactly(3).times
+            expect(redis).to receive(:scard).with("vmpooler__pending__#{pool}").and_return(0,0,1)
+          end
+
+          subject.sleep_with_wakeup_events(loop_delay, wakeup_period, wakeup_option)
+        end
+      end
+    end
+
+    describe 'with the ondemand_request wakeup option' do
+      let(:wakeup_option) {{ :ondemand_request => true }}
+
+      let(:wakeup_period) { -1 } # A negative number forces the wakeup evaluation to always occur
+
+      it 'should sleep until the provisioning request is detected' do
+        redis_connection_pool.with do |redis|
+          expect(subject).to receive(:sleep).exactly(3).times
+          expect(redis).to receive(:multi).and_return('OK').exactly(3).times
+          expect(redis).to receive(:exec).and_return([0,0,0],[0,0,0],[1,0,0])
+        end
+
+        subject.sleep_with_wakeup_events(loop_delay, wakeup_period, wakeup_option)
+      end
+
+      it 'should sleep until provisioning processing is detected' do
+        redis_connection_pool.with do |redis|
+          expect(subject).to receive(:sleep).exactly(3).times
+          expect(redis).to receive(:multi).and_return('OK').exactly(3).times
+          expect(redis).to receive(:exec).and_return([0,0,0],[0,0,0],[0,1,0])
+        end
+        subject.sleep_with_wakeup_events(loop_delay, wakeup_period, wakeup_option)
+      end
+
+      it 'should sleep until ondemand creation task is detected' do
+        redis_connection_pool.with do |redis|
+          expect(subject).to receive(:sleep).exactly(3).times
+          expect(redis).to receive(:multi).and_return('OK').exactly(3).times
+          expect(redis).to receive(:exec).and_return([0,0,0],[0,0,0],[0,0,1])
+        end
+
+        subject.sleep_with_wakeup_events(loop_delay, wakeup_period, wakeup_option)
       end
     end
   end
@@ -4478,9 +4594,96 @@ EOT
         subject._check_pool(config[:pools][0],provider)
       end
     end
+  end
 
-    #
+  describe 'process_ondemand_requests' do
+    context 'with no requests' do
+      it 'returns 0' do
+        result = subject.process_ondemand_requests
+        expect(result).to eq(0)
+      end
 
+      it 'runs process_ondemand_vms' do
+        redis_connection_pool.with do |redis|
+          expect(subject).to receive(:process_ondemand_vms).with(redis).and_return(0)
+          subject.process_ondemand_requests
+        end
+      end
 
+      it 'checks ready requests' do
+        redis_connection_pool.with do |redis|
+          expect(subject).to receive(:check_ondemand_requests_ready).with(redis).and_return(0)
+          subject.process_ondemand_requests
+        end
+      end
+    end
+
+    context 'with provisioning requests' do
+      before(:each) do
+        redis_connection_pool.with do |redis|
+          redis.zadd('vmpooler__provisioning__request', current_time, request_id)
+        end
+      end
+
+      it 'returns the number of requests processed' do
+        result = subject.process_ondemand_requests
+        expect(result).to eq(1)
+      end
+
+      it 'runs create_ondemand_vms for each request' do
+        redis_connection_pool.with do |redis|
+          expect(subject).to receive(:create_ondemand_vms).with(request_id, redis)
+          subject.process_ondemand_requests
+        end
+      end
+    end
+  end
+
+  describe '#create_ondemand_vms' do
+    context 'when requested does not have corresponding data' do
+     #end
+      it 'logs an error' do
+        redis_connection_pool.with do |redis|
+          expect(logger).to receive(:log).with('s', "Failed to find odrequest for request_id '1111'")
+          #expect(redis).to receive(:zrem).with('vmpooler__provisioning__request', '1111')
+          subject.create_ondemand_vms('1111', redis)
+        end
+      end
+    end
+
+    context 'with a request that has data' do
+      let(:request_string) { "#{pool}:#{pool}:1" }
+      before(:each) do
+        expect(Time).to receive(:now).and_return(current_time).at_least(:once)
+        redis_connection_pool.with do |redis|
+          create_ondemand_request_for_test(request_id, current_time.to_i, request_string, redis)
+        end
+      end
+
+      it 'creates tasks for instances to be provisioned' do
+        redis_connection_pool.with do |redis|
+          allow(redis).to receive(:zadd)
+          expect(redis).to receive(:zadd).with('vmpooler__odcreate__task', current_time.to_i, "#{request_string}:#{request_id}")
+          subject.create_ondemand_vms(request_id, redis)
+        end
+      end
+
+      it 'adds a member to provisioning__processing' do
+        redis_connection_pool.with do |redis|
+          allow(redis).to receive(:zadd)
+          expect(redis).to receive(:zadd).with('vmpooler__provisioning__processing', current_time.to_i, request_id)
+          subject.create_ondemand_vms(request_id, redis)
+        end
+      end
+    end
+  end
+
+  describe '#process_ondemand_vms' do
+    it 'returns the length of the queue' do
+      redis_connection_pool.with do |redis|
+        result = subject.process_ondemand_vms(redis)
+        expect(result).to eq(0)
+      end
+    end
   end
 end
