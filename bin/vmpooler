@@ -26,7 +26,7 @@ end
 if torun.include? 'api'
   api = Thread.new do
     thr = Vmpooler::API.new
-    redis = Vmpooler.redis_connection(redis_host, redis_port, redis_password)
+    redis = Vmpooler.new_redis(redis_host, redis_port, redis_password)
     thr.helpers.configure(config, redis, metrics)
     thr.helpers.execute!
   end

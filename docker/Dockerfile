@@ -10,7 +10,7 @@
 
 FROM jruby:9.2-jdk
 
-ARG vmpooler_version=0.11.1
+ARG vmpooler_version=0.11.3
 
 COPY docker/docker-entrypoint.sh /usr/local/bin/
 

@@ -113,7 +113,7 @@ module Vmpooler
     # Create an index of pool aliases
     parsed_config[:pool_names] = Set.new
     unless parsed_config[:pools]
-      redis = redis_connection(parsed_config[:redis]['server'], parsed_config[:redis]['port'], parsed_config[:redis]['password'])
+      redis = new_redis(parsed_config[:redis]['server'], parsed_config[:redis]['port'], parsed_config[:redis]['password'])
       parsed_config[:pools] = load_pools_from_redis(redis)
     end
 
@@ -168,12 +168,12 @@ module Vmpooler
       timeout: timeout
     ) {
       connection = Concurrent::Hash.new
-      redis = redis_connection(host, port, password)
+      redis = new_redis(host, port, password)
       connection['connection'] = redis
     }
   end
 
-  def self.redis_connection(host = 'localhost', port = nil, password = nil)
+  def self.new_redis(host = 'localhost', port = nil, password = nil)
     Redis.new(host: host, port: port, password: password)
   end
 
