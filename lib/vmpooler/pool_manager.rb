@@ -82,7 +82,7 @@ module Vmpooler
           $logger.log('s', "[!] [#{pool}] '#{vm}' #{timeout} #{provider} errored while checking a pending vm : #{e}")
           @redis.with_metrics do |redis|
             request_id = redis.hget("vmpooler__vm__#{vm}", 'request_id')
-            fail_pending_vm(vm, pool, timeout, redis, request_id=request_id)
+            fail_pending_vm(vm, pool, timeout, redis)
           end
           raise
         end
@@ -99,7 +99,7 @@ module Vmpooler
           if provider.vm_ready?(pool, vm)
             move_pending_vm_to_ready(vm, pool, redis, request_id)
           else
-            fail_pending_vm(vm, pool, timeout, redis, request_id = request_id)
+            fail_pending_vm(vm, pool, timeout, redis)
           end
         end
       end
@@ -110,17 +110,18 @@ module Vmpooler
       $logger.log('d', "[!] [#{pool}] '#{vm}' no longer exists. Removing from pending.")
     end
 
-    def fail_pending_vm(vm, pool, timeout, redis, exists = true, request_id = nil)
+    def fail_pending_vm(vm, pool, timeout, redis, exists = true)
       clone_stamp = redis.hget("vmpooler__vm__#{vm}", 'clone')
       return true unless clone_stamp
 
       time_since_clone = (Time.now - Time.parse(clone_stamp)) / 60
       if time_since_clone > timeout
         if exists
+          request_id = redis.hget("vmpooler__vm__#{vm}", 'request_id')
           pool_alias = redis.hget("vmpooler__vm__#{vm}", 'pool_alias') if request_id
           redis.multi
           redis.smove('vmpooler__pending__' + pool, 'vmpooler__completed__' + pool, vm)
-          result = redis.zadd('vmpooler__odcreate__task', 1, "#{pool_alias}:#{pool}:1:#{request_id}") if request_id
+          redis.zadd('vmpooler__odcreate__task', 1, "#{pool_alias}:#{pool}:1:#{request_id}") if request_id
           redis.exec
           $metrics.increment("errors.markedasfailed.#{pool}")
           $logger.log('d', "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes")
@@ -1296,7 +1297,7 @@ module Vmpooler
 
       check_running_pool_vms(pool['name'], provider, pool_check_response, inventory)
 
-      check_ready_pool_vms(pool['name'], provider, pool_check_response, inventory, pool['ready_ttl'])
+      check_ready_pool_vms(pool['name'], provider, pool_check_response, inventory, pool['ready_ttl'] || $config[:config]['ready_ttl'])
 
       check_pending_pool_vms(pool['name'], provider, pool_check_response, inventory, pool['timeout'])
 

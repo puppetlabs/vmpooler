@@ -111,7 +111,7 @@ EOT
       it 'calls fail_pending_vm if host is not ready' do
         expect(provider).to receive(:vm_ready?).with(pool,vm).and_return(false)
         redis_connection_pool.with do |redis|
-          expect(subject).to receive(:fail_pending_vm).with(vm, pool, timeout, redis, nil)
+          expect(subject).to receive(:fail_pending_vm).with(vm, pool, timeout, redis)
         end
 
         subject._check_pending_vm(vm, pool, timeout, provider)
@@ -227,7 +227,8 @@ EOT
         redis_connection_pool.with do |redis|
           redis.hset("vmpooler__vm__#{vm}", 'clone',(Time.now - 900).to_s)
           redis.hset("vmpooler__vm__#{vm}", 'pool_alias', pool)
-          subject.fail_pending_vm(vm, pool, timeout, redis, true, request_id)
+          redis.hset("vmpooler__vm__#{vm}", 'request_id', request_id)
+          subject.fail_pending_vm(vm, pool, timeout, redis, true)
           expect(redis.zrange('vmpooler__odcreate__task', 0, -1)).to eq(["#{pool}:#{pool}:1:#{request_id}"])
         end
       end

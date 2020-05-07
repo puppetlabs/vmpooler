@@ -354,8 +354,6 @@ module Vmpooler
         return result
       end
 
-      return result unless backend.zadd('vmpooler__provisioning__request', score, request_id)
-
       status 201
 
       platforms_with_aliases = []
@@ -363,8 +361,9 @@ module Vmpooler
         selection = evaluate_template_aliases(poolname, count)
         selection.map { |selected_pool, selected_pool_count| platforms_with_aliases << "#{poolname}:#{selected_pool}:#{selected_pool_count}" }
       end
-
       platforms_string = platforms_with_aliases.join(',')
+
+      return result unless backend.zadd('vmpooler__provisioning__request', score, request_id)
       backend.hset("vmpooler__odrequest__#{request_id}", 'requested', platforms_string)
       if Vmpooler::API.settings.config[:auth] and has_token?
         backend.hset("vmpooler__odrequest__#{request_id}", 'token:token', request.env['HTTP_X_AUTH_TOKEN'])
