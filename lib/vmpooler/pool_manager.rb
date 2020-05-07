@@ -1357,7 +1357,6 @@ module Vmpooler
       $logger.log('d', '[*] [ondemand_provisioner] starting worker thread')
 
       $threads['ondemand_provisioner'] = Thread.new do
-        puts "running #{maxloop} #{loop_delay_min}"
         _check_ondemand_requests(maxloop, loop_delay_min, loop_delay_max, loop_delay_decay)
       end
     end
@@ -1367,7 +1366,6 @@ module Vmpooler
                                 loop_delay_max = CHECK_LOOP_DELAY_MAX_DEFAULT,
                                 loop_delay_decay = CHECK_LOOP_DELAY_DECAY_DEFAULT)
 
-      puts 'jumped over'
       loop_delay_min = $config[:config]['check_loop_delay_min'] unless $config[:config]['check_loop_delay_min'].nil?
       loop_delay_max = $config[:config]['check_loop_delay_max'] unless $config[:config]['check_loop_delay_max'].nil?
       loop_delay_decay = $config[:config]['check_loop_delay_decay'] unless $config[:config]['check_loop_delay_decay'].nil?
@@ -1380,7 +1378,6 @@ module Vmpooler
 
       loop do
         result = process_ondemand_requests
-        puts result
 
         loop_delay = (loop_delay * loop_delay_decay).to_i
         loop_delay = loop_delay_min if result > 0
