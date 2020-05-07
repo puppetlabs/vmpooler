@@ -81,7 +81,6 @@ module Vmpooler
         rescue StandardError => e
           $logger.log('s', "[!] [#{pool}] '#{vm}' #{timeout} #{provider} errored while checking a pending vm : #{e}")
           @redis.with_metrics do |redis|
-            request_id = redis.hget("vmpooler__vm__#{vm}", 'request_id')
             fail_pending_vm(vm, pool, timeout, redis)
           end
           raise
@@ -192,7 +191,7 @@ module Vmpooler
       mutex.synchronize do
         @redis.with_metrics do |redis|
           check_stamp = redis.hget('vmpooler__vm__' + vm, 'check')
-          return if check_stamp && (((Time.now - Time.parse(check_stamp)) / 60) <= $config[:config]['vm_checktime'])
+          break if check_stamp && (((Time.now - Time.parse(check_stamp)) / 60) <= $config[:config]['vm_checktime'])
 
           redis.hset('vmpooler__vm__' + vm, 'check', Time.now)
           # Check if the hosts TTL has expired
@@ -208,11 +207,11 @@ module Vmpooler
               redis.smove('vmpooler__ready__' + pool_name, 'vmpooler__completed__' + pool_name, vm)
 
               $logger.log('d', "[!] [#{pool_name}] '#{vm}' reached end of TTL after #{ttl} minutes, removed from 'ready' queue")
-              return
+              return nil
             end
           end
 
-          return if mismatched_hostname?(vm, pool_name, provider, redis)
+          break if mismatched_hostname?(vm, pool_name, provider, redis)
 
           vm_still_ready?(pool_name, vm, provider, redis)
         end
@@ -266,28 +265,30 @@ module Vmpooler
       return if mutex.locked?
 
       mutex.synchronize do
-        @redis.with_metrics do |redis|
-          # Check that VM is within defined lifetime
-          checkouttime = redis.hget('vmpooler__active__' + pool, vm)
-          if checkouttime
-            time_since_checkout = Time.now - Time.parse(checkouttime)
-            running = time_since_checkout / 60 / 60
+        catch :stop_checking do
+          @redis.with_metrics do |redis|
+            # Check that VM is within defined lifetime
+            checkouttime = redis.hget('vmpooler__active__' + pool, vm)
+            if checkouttime
+              time_since_checkout = Time.now - Time.parse(checkouttime)
+              running = time_since_checkout / 60 / 60
 
-            if (ttl.to_i > 0) && (running.to_i >= ttl.to_i)
-              move_vm_queue(pool, vm, 'running', 'completed', redis, "reached end of TTL after #{ttl} hours")
-              return
+              if (ttl.to_i > 0) && (running.to_i >= ttl.to_i)
+                move_vm_queue(pool, vm, 'running', 'completed', redis, "reached end of TTL after #{ttl} hours")
+                throw :stop_checking
+              end
             end
-          end
 
-          if provider.vm_ready?(pool, vm)
-            return
-          else
-            host = provider.get_vm(pool, vm)
-
-            if host
-              return
+            if provider.vm_ready?(pool, vm)
+              throw :stop_checking
             else
-              move_vm_queue(pool, vm, 'running', 'completed', redis, 'is no longer in inventory, removing from running')
+              host = provider.get_vm(pool, vm)
+
+              if host
+                throw :stop_checking
+              else
+                move_vm_queue(pool, vm, 'running', 'completed', redis, 'is no longer in inventory, removing from running')
+              end
             end
           end
         end
@@ -358,7 +359,6 @@ module Vmpooler
         new_vmname = find_unique_hostname(pool_name, redis)
         mutex = vm_mutex(new_vmname)
         mutex.synchronize do
-
           # Add VM to Redis inventory ('pending' pool)
           redis.multi
           redis.sadd('vmpooler__pending__' + pool_name, new_vmname)
@@ -368,8 +368,6 @@ module Vmpooler
           redis.hset('vmpooler__vm__' + new_vmname, 'request_id', request_id) if request_id
           redis.hset('vmpooler__vm__' + new_vmname, 'pool_alias', pool_alias) if pool_alias
           redis.exec
-
-          vm_hash = redis.hgetall("vmpooler__vm__#{new_vmname}")
 
           begin
             $logger.log('d', "[ ] [#{pool_name}] Starting to clone '#{new_vmname}'")
@@ -453,8 +451,8 @@ module Vmpooler
       redis.hget("vmpooler__vm__#{vm}", 'template')
       checkout, jenkins_build_url, user, poolname = redis.exec
       return if checkout.nil?
-      user ||= 'unauthenticated'
 
+      user ||= 'unauthenticated'
       unless jenkins_build_url
         user = user.gsub('.', '_')
         $metrics.increment("usage.#{user}.#{poolname}")
@@ -965,29 +963,32 @@ module Vmpooler
 
     def evaluate_template(pool, provider)
       mutex = pool_mutex(pool['name'])
-      @redis.with_metrics do |redis|
-        prepared_template = redis.hget('vmpooler__template__prepared', pool['name'])
-        configured_template = redis.hget('vmpooler__config__template', pool['name'])
-        return if mutex.locked?
+      return if mutex.locked?
 
-        if prepared_template.nil?
-          mutex.synchronize do
-            prepare_template(pool, provider, redis)
-            prepared_template = redis.hget('vmpooler__template__prepared', pool['name'])
-          end
-        elsif prepared_template != pool['template']
-          if configured_template.nil?
+      catch :update_not_needed do
+        @redis.with_metrics do |redis|
+          prepared_template = redis.hget('vmpooler__template__prepared', pool['name'])
+          configured_template = redis.hget('vmpooler__config__template', pool['name'])
+
+          if prepared_template.nil?
             mutex.synchronize do
               prepare_template(pool, provider, redis)
               prepared_template = redis.hget('vmpooler__template__prepared', pool['name'])
             end
+          elsif prepared_template != pool['template']
+            if configured_template.nil?
+              mutex.synchronize do
+                prepare_template(pool, provider, redis)
+                prepared_template = redis.hget('vmpooler__template__prepared', pool['name'])
+              end
+            end
           end
-        end
-        return if configured_template.nil?
-        return if configured_template == prepared_template
+          throw :update_not_needed if configured_template.nil?
+          throw :update_not_needed if configured_template == prepared_template
 
-        mutex.synchronize do
-          update_pool_template(pool, provider, configured_template, prepared_template, redis)
+          mutex.synchronize do
+            update_pool_template(pool, provider, configured_template, prepared_template, redis)
+          end
         end
       end
     end
@@ -1025,8 +1026,8 @@ module Vmpooler
 
       @redis.with_metrics do |redis|
         clone_target = redis.hget('vmpooler__config__clone_target', pool['name'])
-        return if clone_target.nil?
-        return if clone_target == pool['clone_target']
+        break if clone_target.nil?
+        break if clone_target == pool['clone_target']
 
         $logger.log('s', "[*] [#{pool['name']}] clone updated from #{pool['clone_target']} to #{clone_target}")
         mutex.synchronize do
@@ -1045,12 +1046,12 @@ module Vmpooler
         redis.scard("vmpooler__pending__#{pool['name']}")
         ready, pending = redis.exec
         total = pending.to_i + ready.to_i
-        return if total.nil?
-        return if total == 0
+        break if total.nil?
+        break if total == 0
 
         mutex = pool_mutex(pool['name'])
-        return if mutex.locked?
-        return unless ready.to_i > pool['size']
+        break if mutex.locked?
+        break unless ready.to_i > pool['size']
 
         mutex.synchronize do
           difference = ready.to_i - pool['size']
@@ -1073,10 +1074,10 @@ module Vmpooler
 
       @redis.with_metrics do |redis|
         poolsize = redis.hget('vmpooler__config__poolsize', pool['name'])
-        return if poolsize.nil?
+        break if poolsize.nil?
 
         poolsize = Integer(poolsize)
-        return if poolsize == pool['size']
+        break if poolsize == pool['size']
 
         mutex.synchronize do
           pool['size'] = poolsize
@@ -1087,7 +1088,7 @@ module Vmpooler
     def reset_pool(pool)
       poolname = pool['name']
       @redis.with_metrics do |redis|
-        return unless redis.sismember('vmpooler__poolreset', poolname)
+        break unless redis.sismember('vmpooler__poolreset', poolname)
 
         redis.srem('vmpooler__poolreset', poolname)
         mutex = pool_mutex(poolname)
@@ -1363,9 +1364,9 @@ module Vmpooler
     end
 
     def _check_ondemand_requests(maxloop = 0,
-                                loop_delay_min = CHECK_LOOP_DELAY_MIN_DEFAULT,
-                                loop_delay_max = CHECK_LOOP_DELAY_MAX_DEFAULT,
-                                loop_delay_decay = CHECK_LOOP_DELAY_DECAY_DEFAULT)
+                                 loop_delay_min = CHECK_LOOP_DELAY_MIN_DEFAULT,
+                                 loop_delay_max = CHECK_LOOP_DELAY_MAX_DEFAULT,
+                                 loop_delay_decay = CHECK_LOOP_DELAY_DECAY_DEFAULT)
 
       loop_delay_min = $config[:config]['check_loop_delay_min'] unless $config[:config]['check_loop_delay_min'].nil?
       loop_delay_max = $config[:config]['check_loop_delay_max'] unless $config[:config]['check_loop_delay_max'].nil?
@@ -1405,7 +1406,7 @@ module Vmpooler
 
     def create_ondemand_vms(request_id, redis)
       requested = redis.hget("vmpooler__odrequest__#{request_id}", 'requested')
-      if ! requested
+      unless requested
         $logger.log('s', "Failed to find odrequest for request_id '#{request_id}'")
         redis.zrem('vmpooler__provisioning__request', request_id)
         return
@@ -1424,16 +1425,18 @@ module Vmpooler
 
     def process_ondemand_vms(redis)
       queue_key = 'vmpooler__odcreate__task'
-      queue = redis.zrange(queue_key, 0, -1, :with_scores => true)
+      queue = redis.zrange(queue_key, 0, -1, with_scores: true)
       ondemand_clone_limit = $config[:config]['ondemand_clone_limit']
       @tasks['ondemand_clone_count'] = 0 unless @tasks['ondemand_clone_count']
       queue.each do |request, score|
         break unless @tasks['ondemand_clone_count'] < ondemand_clone_limit
+
         pool_alias, pool, count, request_id = request.split(':')
         count = count.to_i
         provider = get_provider_for_pool(pool)
         slots = ondemand_clone_limit - @tasks['ondemand_clone_count']
-        return if slots == 0
+        break if slots == 0
+
         if slots >= count
           count.times do
             @tasks['ondemand_clone_count'] += 1

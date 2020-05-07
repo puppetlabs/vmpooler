@@ -166,11 +166,11 @@ module Vmpooler
       metric_prefix: 'redis_connection_pool',
       size: size,
       timeout: timeout
-    ) {
+    ) do
       connection = Concurrent::Hash.new
       redis = new_redis(host, port, password)
       connection['connection'] = redis
-    }
+    end
   end
 
   def self.new_redis(host = 'localhost', port = nil, password = nil)

@@ -343,7 +343,7 @@ module Vmpooler
       result = { 'ok': false }
 
       request_id = payload['request_id']
-      request_id = generate_request_id unless request_id
+      request_id ||= generate_request_id
       score = Time.now.to_i
 
       result['request_id'] = request_id
@@ -357,13 +357,14 @@ module Vmpooler
       status 201
 
       platforms_with_aliases = []
-      payload.reject { |k,v| k == 'request_id' }.each do |poolname, count|
+      payload.reject { |k, _v| k == 'request_id' }.each do |poolname, count|
         selection = evaluate_template_aliases(poolname, count)
         selection.map { |selected_pool, selected_pool_count| platforms_with_aliases << "#{poolname}:#{selected_pool}:#{selected_pool_count}" }
       end
       platforms_string = platforms_with_aliases.join(',')
 
       return result unless backend.zadd('vmpooler__provisioning__request', score, request_id)
+
       backend.hset("vmpooler__odrequest__#{request_id}", 'requested', platforms_string)
       if Vmpooler::API.settings.config[:auth] and has_token?
         backend.hset("vmpooler__odrequest__#{request_id}", 'token:token', request.env['HTTP_X_AUTH_TOKEN'])
@@ -802,7 +803,7 @@ module Vmpooler
         payload = JSON.parse(request.body.read)
 
         if payload
-          invalid = invalid_templates(payload.reject { |k,v| k == 'request_id' })
+          invalid = invalid_templates(payload.reject { |k, _v| k == 'request_id' })
           if invalid.empty?
             result = generate_ondemand_request(payload)
           else
@@ -829,7 +830,6 @@ module Vmpooler
 
     get "#{api_prefix}/ondemandvm/:requestid/?" do
       content_type :json
-      result = { 'ok' => false }
 
       status 404
       result = check_ondemand_request(params[:requestid])
@@ -932,7 +932,6 @@ module Vmpooler
           pool_alias, pool, _count = platform.split(':')
           instances = backend.smembers("vmpooler__#{request_id}__#{pool_alias}__#{pool}")
           result[pool_alias] = { 'hostname': instances }
-          #backend.del("vmpooler__#{request_id}__#{pool_alias}__#{pool}")
         end
         status 200
       else
@@ -1110,13 +1109,6 @@ module Vmpooler
                 failure.push("You provided a lifetime (#{arg}) but you must provide a positive number.")
               end
 
-             #checkout = backend.hget("vmpooler__vm__#{params[:hostname]}", 'checkout')
-             #if checkout
-             #  existing_lifetime = (Time.now - Time.parse(checkout)) / 60 / 60
-             #  if (arg.to_i + existing_lifetime) >= max_lifetime_upper_limit
-             #    failure.push("You provided a lifetime (#{arg}) that exceeds the configured maximum of #{max_lifetime_upper_limit} when added to the time since checkout.")
-             #  end
-             #end
             when 'tags'
               unless arg.is_a?(Hash)
                 failure.push("You provided tags (#{arg}) as something other than a hash.")
