@@ -740,7 +740,7 @@ EOT
         expect(provider).to receive(:create_vm).with(pool, String)
         allow(logger).to receive(:log)
         redis_connection_pool.with do |redis|
-          expect(subject).to receive(:find_unique_hostname).with(pool, redis).and_return(vm)
+          expect(subject).to receive(:find_unique_hostname).with(pool).and_return(vm)
         end
       end
 
@@ -786,7 +786,7 @@ EOT
         expect(provider).to receive(:create_vm).with(pool, String).and_raise('MockError')
         allow(logger).to receive(:log)
         redis_connection_pool.with do |redis|
-          expect(subject).to receive(:find_unique_hostname).with(pool, redis).and_return(vm)
+          expect(subject).to receive(:find_unique_hostname).with(pool).and_return(vm)
         end
       end
 
@@ -833,7 +833,7 @@ EOT
         expect(provider).to receive(:create_vm).with(pool, String)
         allow(logger).to receive(:log)
         redis_connection_pool.with do |redis|
-          expect(subject).to receive(:find_unique_hostname).with(pool, redis).and_return(vm)
+          expect(subject).to receive(:find_unique_hostname).with(pool).and_return(vm)
         end
       end
 
@@ -3793,6 +3793,7 @@ EOT
 
   describe '#check_pending_pool_vms' do
     let(:provider) { double('provider') }
+    let(:timeout) { 10 }
     let(:pool_check_response) {
       {:checked_pending_vms => 0}
     }
@@ -3814,7 +3815,7 @@ EOT
           expect(subject).to receive(:fail_pending_vm).with(vm,pool,Integer,redis,false)
         end
 
-        subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory)
+        subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory, timeout)
       end
     end
 
@@ -3832,7 +3833,7 @@ EOT
 
       it 'should return the number of checked pending VMs' do
         allow(subject).to receive(:check_pending_vm)
-        subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory)
+        subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory, timeout)
 
         expect(pool_check_response[:checked_pending_vms]).to be(1)
       end
@@ -3841,7 +3842,7 @@ EOT
         expect(subject).to receive(:check_pending_vm).and_raise(RuntimeError,'MockError')
         expect(logger).to receive(:log).with('d', "[!] [#{pool}] _check_pool failed with an error while evaluating pending VMs: MockError")
 
-        subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory)
+        subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory, timeout)
       end
 
       it 'should use the pool timeout if set' do
@@ -3859,13 +3860,13 @@ EOT
         config[:config]['timeout'] = big_lifetime
         expect(subject).to receive(:check_pending_vm).with(vm,pool,big_lifetime,provider)
 
-        subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory)
+        subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory, big_lifetime)
       end
 
       it 'should use a pool timeout of 15 if nothing is set' do
-        expect(subject).to receive(:check_pending_vm).with(vm,pool,15,provider)
+        expect(subject).to receive(:check_pending_vm).with(vm,pool,timeout,provider)
 
-        subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory)
+        subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory, timeout)
       end
     end
   end

@@ -323,7 +323,7 @@ module Vmpooler
       end
     end
 
-    def generate_and_check_hostname(redis)
+    def generate_and_check_hostname
       # Generate a randomized hostname. The total name must no longer than 15
       # character including the hyphen. The shortest adjective in the corpus is
       # three characters long. Therefore, we can technically select a noun up to 11
@@ -332,20 +332,22 @@ module Vmpooler
       # letter adjectives, we actually limit the noun to 10 letters to avoid
       # inviting more conflicts. We favor selecting a longer noun rather than a
       # longer adjective because longer adjectives tend to be less fun.
-      noun = @name_generator.noun(max: 10)
-      adjective = @name_generator.adjective(max: 14 - noun.length)
-      random_name = [adjective, noun].join('-')
-      hostname = $config[:config]['prefix'] + random_name
-      available = redis.hlen('vmpooler__vm__' + hostname) == 0
+      @redis.with do |redis|
+        noun = @name_generator.noun(max: 10)
+        adjective = @name_generator.adjective(max: 14 - noun.length)
+        random_name = [adjective, noun].join('-')
+        hostname = $config[:config]['prefix'] + random_name
+        available = redis.hlen('vmpooler__vm__' + hostname) == 0
 
-      [hostname, available]
+        [hostname, available]
+      end
     end
 
-    def find_unique_hostname(pool_name, redis)
+    def find_unique_hostname(pool_name)
       hostname_retries = 0
       max_hostname_retries = 3
       while hostname_retries < max_hostname_retries
-        hostname, available = generate_and_check_hostname(redis)
+        hostname, available = generate_and_check_hostname
         break if available
 
         hostname_retries += 1
@@ -359,10 +361,10 @@ module Vmpooler
     end
 
     def _clone_vm(pool_name, provider, request_id = nil, pool_alias = nil)
-      @redis.with_metrics do |redis|
-        new_vmname = find_unique_hostname(pool_name, redis)
-        mutex = vm_mutex(new_vmname)
-        mutex.synchronize do
+      new_vmname = find_unique_hostname(pool_name)
+      mutex = vm_mutex(new_vmname)
+      mutex.synchronize do
+        @redis.with_metrics do |redis|
           # Add VM to Redis inventory ('pending' pool)
           redis.multi
           redis.sadd('vmpooler__pending__' + pool_name, new_vmname)
@@ -372,31 +374,37 @@ module Vmpooler
           redis.hset('vmpooler__vm__' + new_vmname, 'request_id', request_id) if request_id
           redis.hset('vmpooler__vm__' + new_vmname, 'pool_alias', pool_alias) if pool_alias
           redis.exec
+        end
 
-          begin
-            $logger.log('d', "[ ] [#{pool_name}] Starting to clone '#{new_vmname}'")
-            start = Time.now
-            provider.create_vm(pool_name, new_vmname)
-            finish = format('%<time>.2f', time: Time.now - start)
+        begin
+          $logger.log('d', "[ ] [#{pool_name}] Starting to clone '#{new_vmname}'")
+          start = Time.now
+          provider.create_vm(pool_name, new_vmname)
+          finish = format('%<time>.2f', time: Time.now - start)
 
+          @redis.with_metrics do |redis|
             redis.pipelined do
               redis.hset('vmpooler__clone__' + Date.today.to_s, pool_name + ':' + new_vmname, finish)
               redis.hset('vmpooler__vm__' + new_vmname, 'clone_time', finish)
             end
-            $logger.log('s', "[+] [#{pool_name}] '#{new_vmname}' cloned in #{finish} seconds")
+          end
+          $logger.log('s', "[+] [#{pool_name}] '#{new_vmname}' cloned in #{finish} seconds")
 
-            $metrics.timing("clone.#{pool_name}", finish)
-          rescue StandardError
+          $metrics.timing("clone.#{pool_name}", finish)
+        rescue StandardError
+          @redis.with_metrics do |redis|
             redis.pipelined do
               redis.srem("vmpooler__pending__#{pool_name}", new_vmname)
               expiration_ttl = $config[:redis]['data_ttl'].to_i * 60 * 60
               redis.expire("vmpooler__vm__#{new_vmname}", expiration_ttl)
             end
-            raise
-          ensure
-            if request_id
-              @tasks['ondemand_clone_count'] -= 1
-            else
+          end
+          raise
+        ensure
+          if request_id
+            @tasks['ondemand_clone_count'] -= 1
+          else
+            @redis.with_metrics do |redis|
               redis.decr('vmpooler__tasks__clone')
             end
           end
@@ -1169,7 +1177,7 @@ module Vmpooler
       end
     end
 
-    def check_pending_pool_vms(pool_name, provider, pool_check_response, inventory, pool_timeout = nil)
+    def check_pending_pool_vms(pool_name, provider, pool_check_response, inventory, pool_timeout)
       pool_timeout ||= $config[:config]['timeout'] || 15
       @redis.with_metrics do |redis|
         redis.smembers("vmpooler__pending__#{pool_name}").reverse.each do |vm|
