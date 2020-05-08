@@ -138,7 +138,8 @@ module Vmpooler
       finish = format('%<time>.2f', time: Time.now - Time.parse(clone_time))
 
       if request_id
-        if redis.hget("vmpooler__odrequest__#{request_id}", 'status') == 'failed'
+        ondemandrequest_hash = redis.hgetall("vmpooler__odrequest__#{request_id}")
+        if ondemandrequest_hash['status'] == 'failed'
           move_vm_queue(pool, vm, 'pending', 'completed', redis, "moved to completed queue. '#{request_id}' could not be filled in time")
           return nil
         end
@@ -147,9 +148,10 @@ module Vmpooler
         redis.pipelined do
           redis.hset("vmpooler__active__#{pool}", vm, Time.now)
           redis.hset("vmpooler__vm__#{vm}", 'checkout', Time.now)
+          redis.hset("vmpooler__vm__#{vm}", 'token:token', ondemandrequest_hash['token:token']) if ondemandrequest_hash['token:token']
+          redis.hset("vmpooler__vm__#{vm}", 'token:user', ondemandrequest_hash['token:user']) if ondemandrequest_hash['token:user']
           redis.sadd("vmpooler__#{request_id}__#{pool_alias}__#{pool}", vm)
         end
-        puts redis.smembers("vmpooler__#{request_id}__#{pool['alias']}__#{pool}")
         move_vm_queue(pool, vm, 'pending', 'running', redis)
       else
         redis.smove('vmpooler__pending__' + pool, 'vmpooler__ready__' + pool, vm)

@@ -130,9 +130,11 @@ def pool_has_ready_vm?(pool, vm, redis)
   !!redis.sismember('vmpooler__ready__' + pool, vm)
 end
 
-def create_ondemand_request_for_test(request_id, score, platforms_string, redis)
+def create_ondemand_request_for_test(request_id, score, platforms_string, redis, user = nil, token = nil)
   redis.zadd('vmpooler__provisioning__request', score, request_id)
   redis.hset("vmpooler__odrequest__#{request_id}", 'requested', platforms_string)
+  redis.hset("vmpooler__odrequest__#{request_id}", 'token:token', token) if token
+  redis.hset("vmpooler__odrequest__#{request_id}", 'token:user', user) if user
 end
 
 def set_ondemand_request_ready(request_id, redis)

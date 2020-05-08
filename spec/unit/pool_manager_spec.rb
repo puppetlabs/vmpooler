@@ -357,6 +357,28 @@ EOT
           end
         end
       end
+
+      context 'with auth on the request' do
+        let(:user) { 'vmpuser' }
+        let(:platform_alias) { pool }
+        let(:platforms_string) { "#{platform_alias}:#{pool}:1" }
+        let(:score) { current_time.to_i }
+        before(:each) do
+          redis_connection_pool.with do |redis|
+            create_ondemand_request_for_test(request_id, score, platforms_string, redis, user, token)
+          end
+        end
+
+        it 'should specify auth data on the vm' do
+          redis_connection_pool.with do |redis|
+            allow(redis).to receive(:hset)
+            expect(redis).to receive(:hset).with("vmpooler__vm__#{vm}", 'token:token', token)
+            expect(redis).to receive(:hset).with("vmpooler__vm__#{vm}", 'token:user', user)
+
+            subject.move_pending_vm_to_ready(vm, pool, redis, request_id)
+          end
+        end
+      end
     end
   end
 
