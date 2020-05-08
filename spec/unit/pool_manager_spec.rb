@@ -164,6 +164,7 @@ EOT
     before(:each) do
       redis_connection_pool.with do |redis|
         create_pending_vm(pool,vm,redis)
+        config[:config]['vm_checktime'] = 15
       end
     end
 
@@ -338,7 +339,7 @@ EOT
       context 'when the request has been marked as failed' do
         before(:each) do
           redis_connection_pool.with do |redis|
-            redis.hset("vmpooler__vm__#{vm}", 'status', 'failed')
+            redis.hset("vmpooler__odrequest__#{request_id}", 'status', 'failed')
           end
         end
 
@@ -360,7 +361,7 @@ EOT
   end
 
   describe '#check_ready_vm' do
-    let(:ttl) { 0 }
+    let(:ttl) { 5 }
     let(:poolconfig) { config[:pools][0] }
 
     before do
@@ -376,7 +377,7 @@ EOT
   end
 
   describe '#_check_ready_vm' do
-    let(:ttl) { 0 }
+    let(:ttl) { 5 }
     let(:host) { {} }
     let(:config) { YAML.load(<<-EOT
 ---
@@ -417,8 +418,6 @@ EOT
     end
 
     context 'a VM that has never been checked' do
-      let(:last_check_date) { Time.now - 901 }
-
       it 'should set the current check timestamp' do
         redis_connection_pool.with do |redis|
           expect(redis.hget("vmpooler__vm__#{vm}", 'check')).to be_nil
@@ -445,10 +444,6 @@ EOT
       end
 
       context 'and is ready' do
-        before(:each) do
-          expect(provider).to receive(:vm_ready?).with(pool, vm).and_return(true)
-        end
-
         it 'should only set the next check interval' do
           subject._check_ready_vm(vm, pool, ttl, provider)
         end
@@ -456,9 +451,8 @@ EOT
 
       context 'has correct name and is not ready' do
         before(:each) do
-          expect(provider).to receive(:vm_ready?).with(pool, vm).and_return(false)
           redis_connection_pool.with do |redis|
-            redis.hset("vmpooler__vm__#{vm}", 'ready', Time.now - 901)
+            redis.hset("vmpooler__vm__#{vm}", 'ready', Time.now - 200)
             redis.sadd("vmpooler__ready__#{pool}", vm)
           end
         end
@@ -501,36 +495,19 @@ EOT
 
         context 'with a hostname mismatch' do
           let(:different_hostname) { 'different_name' }
+          let(:longer_ttl) { 20 }
           before(:each) do
-            expect(provider).to receive(:get_vm).with(pool,vm).and_return(host)
             host['hostname'] = different_hostname
             redis_connection_pool.with do |redis|
-              redis.sadd("vmpooler__ready__#{pool}", vm)
+              expect(subject).to receive(:mismatched_hostname?).with(vm, pool, provider, redis).and_return(true)
+              redis.hset("vmpooler__vm__#{vm}", 'ready', Time.now - 300)
             end
           end
 
-          it 'should move the VM to the completed queue' do
-            redis_connection_pool.with do |redis|
-              expect(redis).to receive(:smove).with("vmpooler__ready__#{pool}", "vmpooler__completed__#{pool}", vm)
-            end
+          it 'should not run vm_still_ready?' do
+            expect(subject).to_not receive(:vm_still_ready?)
 
-            subject._check_ready_vm(vm, pool, ttl, provider)
-          end
-
-          it 'should move the VM to the completed queue in Redis' do
-            redis_connection_pool.with do |redis|
-              expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(true)
-              expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(false)
-              subject._check_ready_vm(vm, pool, ttl, provider)
-              expect(redis.sismember("vmpooler__ready__#{pool}", vm)).to be(false)
-              expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
-            end
-          end
-
-          it 'should log messages about being misnamed' do
-            expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' has mismatched hostname #{different_hostname}, removed from 'ready' queue")
-
-            subject._check_ready_vm(vm, pool, ttl, provider)
+            subject._check_ready_vm(vm, pool, longer_ttl, provider)
           end
         end
       end
@@ -3743,6 +3720,7 @@ EOT
 
   describe '#check_ready_pool_vms' do
     let(:provider) { double('provider') }
+    let(:pool_ttl) { 5 }
     let(:pool_check_response) {
       {:checked_ready_vms => 0}
     }
@@ -3761,7 +3739,7 @@ EOT
       it 'should not call check_ready_vm' do
         expect(subject).to receive(:check_ready_vm).exactly(0).times
 
-        subject.check_ready_pool_vms(pool, provider, pool_check_response, inventory)
+        subject.check_ready_pool_vms(pool, provider, pool_check_response, inventory, pool_ttl)
       end
 
       it 'should move the VM to completed queue' do
@@ -3769,7 +3747,7 @@ EOT
           expect(subject).to receive(:move_vm_queue).with(pool,vm,'ready','completed',redis,String).and_call_original
         end
 
-        subject.check_ready_pool_vms(pool, provider, pool_check_response, inventory)
+        subject.check_ready_pool_vms(pool, provider, pool_check_response, inventory, pool_ttl)
       end
     end
 
@@ -3787,7 +3765,7 @@ EOT
       end
 
       it 'should return the number of checked ready VMs' do
-        subject.check_ready_pool_vms(pool, provider, pool_check_response, inventory)
+        subject.check_ready_pool_vms(pool, provider, pool_check_response, inventory, pool_ttl)
 
         expect(pool_check_response[:checked_ready_vms]).to be(1)
       end
@@ -3806,9 +3784,9 @@ EOT
       end
 
       it 'should use a pool TTL of zero if none set' do
-        expect(subject).to receive(:check_ready_vm).with(vm,pool,0,provider)
+        expect(subject).to receive(:check_ready_vm).with(vm,pool,pool_ttl,provider)
 
-        subject.check_ready_pool_vms(pool, provider, pool_check_response, inventory)
+        subject.check_ready_pool_vms(pool, provider, pool_check_response, inventory, pool_ttl)
       end
     end
   end
@@ -4921,8 +4899,10 @@ EOT
 
   describe '#request_expired?' do
     let(:ondemand_request_ttl) { 5 }
+    let(:expiration_ttl) { 10 }
     before(:each) do
       config[:config]['ondemand_request_ttl'] = ondemand_request_ttl
+      config[:redis]['data_ttl'] = expiration_ttl
     end
 
     context 'with a request that has taken too long to be filled' do
@@ -4944,6 +4924,27 @@ EOT
       it 'logs a message that the request has expired' do
         redis_connection_pool.with do |redis|
           expect(logger).to receive(:log).with('s', "Ondemand request for '#{request_id}' failed to provision all instances within the configured ttl '#{ondemand_request_ttl}'")
+          subject.request_expired?(request_id, expired_time, redis)
+        end
+      end
+
+      it 'removes the request from processing requests' do
+        redis_connection_pool.with do |redis|
+          expect(redis).to receive(:zrem).with('vmpooler__provisioning__processing', request_id)
+          subject.request_expired?(request_id, expired_time, redis)
+        end
+      end
+
+      it 'sets the status as failed on the request hash' do
+        redis_connection_pool.with do |redis|
+          expect(redis).to receive(:hset).with("vmpooler__odrequest__#{request_id}", 'status', 'failed')
+          subject.request_expired?(request_id, expired_time, redis)
+        end
+      end
+
+      it 'marks the request hash for expiration' do
+        redis_connection_pool.with do |redis|
+          expect(redis).to receive(:expire).with("vmpooler__odrequest__#{request_id}", expiration_ttl * 60 * 60)
           subject.request_expired?(request_id, expired_time, redis)
         end
       end

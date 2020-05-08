@@ -111,7 +111,6 @@ module Vmpooler
 
     def fail_pending_vm(vm, pool, timeout, redis, exists = true)
       clone_stamp = redis.hget("vmpooler__vm__#{vm}", 'clone')
-      return true unless clone_stamp
 
       time_since_clone = (Time.now - Time.parse(clone_stamp)) / 60
       if time_since_clone > timeout
@@ -139,16 +138,16 @@ module Vmpooler
       finish = format('%<time>.2f', time: Time.now - Time.parse(clone_time))
 
       if request_id
-        vm_hash = redis.hgetall("vmpooler__vm__#{vm}")
-        if vm_hash['status'] == 'failed'
+        if redis.hget("vmpooler__odrequest__#{request_id}", 'status') == 'failed'
           move_vm_queue(pool, vm, 'pending', 'completed', redis, "moved to completed queue. '#{request_id}' could not be filled in time")
           return nil
         end
+        pool_alias = redis.hget("vmpooler__vm__#{vm}", 'pool_alias')
 
         redis.pipelined do
           redis.hset("vmpooler__active__#{pool}", vm, Time.now)
           redis.hset("vmpooler__vm__#{vm}", 'checkout', Time.now)
-          redis.sadd("vmpooler__#{request_id}__#{vm_hash['pool_alias']}__#{pool}", vm)
+          redis.sadd("vmpooler__#{request_id}__#{pool_alias}__#{pool}", vm)
         end
         puts redis.smembers("vmpooler__#{request_id}__#{pool['alias']}__#{pool}")
         move_vm_queue(pool, vm, 'pending', 'running', redis)
@@ -197,24 +196,23 @@ module Vmpooler
       mutex.synchronize do
         @redis.with_metrics do |redis|
           check_stamp = redis.hget('vmpooler__vm__' + vm, 'check')
-          break if check_stamp && (((Time.now - Time.parse(check_stamp)) / 60) <= $config[:config]['vm_checktime'])
+          last_checked_too_soon = ((Time.now - Time.parse(check_stamp)).to_i < $config[:config]['vm_checktime'] * 60) if check_stamp
+          break if check_stamp && last_checked_too_soon
 
           redis.hset('vmpooler__vm__' + vm, 'check', Time.now)
           # Check if the hosts TTL has expired
-          if ttl > 0
-            # if 'boottime' is nil, set bootime to beginning of unix epoch, forces TTL to be assumed expired
-            boottime = redis.hget("vmpooler__vm__#{vm}", 'ready')
-            if boottime
-              boottime = Time.parse(boottime)
-            else
-              boottime = Time.at(0)
-            end
-            if ((Time.now - boottime) / 60).to_s[/^\d+\.\d{1}/].to_f > ttl
-              redis.smove('vmpooler__ready__' + pool_name, 'vmpooler__completed__' + pool_name, vm)
+          # if 'boottime' is nil, set bootime to beginning of unix epoch, forces TTL to be assumed expired
+          boottime = redis.hget("vmpooler__vm__#{vm}", 'ready')
+          if boottime
+            boottime = Time.parse(boottime)
+          else
+            boottime = Time.at(0)
+          end
+          if (Time.now - boottime).to_i > ttl * 60
+            redis.smove('vmpooler__ready__' + pool_name, 'vmpooler__completed__' + pool_name, vm)
 
-              $logger.log('d', "[!] [#{pool_name}] '#{vm}' reached end of TTL after #{ttl} minutes, removed from 'ready' queue")
-              return nil
-            end
+            $logger.log('d', "[!] [#{pool_name}] '#{vm}' reached end of TTL after #{ttl} minutes, removed from 'ready' queue")
+            return nil
           end
 
           break if mismatched_hostname?(vm, pool_name, provider, redis)
@@ -1154,13 +1152,13 @@ module Vmpooler
       end
     end
 
-    def check_ready_pool_vms(pool_name, provider, pool_check_response, inventory, pool_ttl = 0)
+    def check_ready_pool_vms(pool_name, provider, pool_check_response, inventory, pool_ttl)
       @redis.with_metrics do |redis|
         redis.smembers("vmpooler__ready__#{pool_name}").each do |vm|
           if inventory[vm]
             begin
               pool_check_response[:checked_ready_vms] += 1
-              check_ready_vm(vm, pool_name, pool_ttl || 0, provider)
+              check_ready_vm(vm, pool_name, pool_ttl, provider)
             rescue StandardError => e
               $logger.log('d', "[!] [#{pool_name}] _check_pool failed with an error while evaluating ready VMs: #{e}")
             end
@@ -1495,7 +1493,8 @@ module Vmpooler
     def request_expired?(request_id, score, redis)
       delta = Time.now.to_i - score.to_i
       ondemand_request_ttl = $config[:config]['ondemand_request_ttl']
-      return false unless (delta / 60) > ondemand_request_ttl
+      return false unless delta > ondemand_request_ttl * 60
+
       $logger.log('s', "Ondemand request for '#{request_id}' failed to provision all instances within the configured ttl '#{ondemand_request_ttl}'")
       expiration_ttl = $config[:redis]['data_ttl'].to_i * 60 * 60
       redis.pipelined do
