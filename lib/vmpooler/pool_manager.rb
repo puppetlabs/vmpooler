@@ -139,12 +139,18 @@ module Vmpooler
       finish = format('%<time>.2f', time: Time.now - Time.parse(clone_time))
 
       if request_id
-        pool_alias = redis.hget("vmpooler__vm__#{vm}", 'pool_alias')
+        vm_hash = redis.hgetall("vmpooler__vm__#{vm}")
+        if vm_hash['status'] == 'failed'
+          move_vm_queue(pool, vm, 'pending', 'completed', redis, "moved to completed queue. '#{request_id}' could not be filled in time")
+          return nil
+        end
+
         redis.pipelined do
           redis.hset("vmpooler__active__#{pool}", vm, Time.now)
           redis.hset("vmpooler__vm__#{vm}", 'checkout', Time.now)
-          redis.sadd("vmpooler__#{request_id}__#{pool_alias}__#{pool}", vm)
+          redis.sadd("vmpooler__#{request_id}__#{vm_hash['pool_alias']}__#{pool}", vm)
         end
+        puts redis.smembers("vmpooler__#{request_id}__#{pool['alias']}__#{pool}")
         move_vm_queue(pool, vm, 'pending', 'running', redis)
       else
         redis.smove('vmpooler__pending__' + pool, 'vmpooler__ready__' + pool, vm)
@@ -1473,8 +1479,9 @@ module Vmpooler
     end
 
     def check_ondemand_requests_ready(redis)
-      in_progress_requests = redis.zrange('vmpooler__provisioning__processing', 0, -1)
-      in_progress_requests&.each do |request_id|
+      in_progress_requests = redis.zrange('vmpooler__provisioning__processing', 0, -1, with_scores: true)
+      in_progress_requests&.each do |request_id, score|
+        next if request_expired?(request_id, score, redis)
         next unless vms_ready?(request_id, redis)
 
         redis.multi
@@ -1483,6 +1490,36 @@ module Vmpooler
         redis.exec
       end
       in_progress_requests.length
+    end
+
+    def request_expired?(request_id, score, redis)
+      delta = Time.now.to_i - score.to_i
+      ondemand_request_ttl = $config[:config]['ondemand_request_ttl']
+      return false unless (delta / 60) > ondemand_request_ttl
+      $logger.log('s', "Ondemand request for '#{request_id}' failed to provision all instances within the configured ttl '#{ondemand_request_ttl}'")
+      expiration_ttl = $config[:redis]['data_ttl'].to_i * 60 * 60
+      redis.pipelined do
+        redis.zrem('vmpooler__provisioning__processing', request_id)
+        redis.hset("vmpooler__odrequest__#{request_id}", 'status', 'failed')
+        redis.expire("vmpooler__odrequest__#{request_id}", expiration_ttl)
+      end
+      remove_vms_for_failed_request(request_id, expiration_ttl, redis)
+      true
+    end
+
+    def remove_vms_for_failed_request(request_id, expiration_ttl, redis)
+      request_hash = redis.hgetall("vmpooler__odrequest__#{request_id}")
+      requested_platforms = request_hash['requested'].split(',')
+      requested_platforms.each do |platform|
+        platform_alias, pool, _count = platform.split(':')
+        pools_filled = redis.smembers("vmpooler__#{request_id}__#{platform_alias}__#{pool}")
+        redis.pipelined do
+          pools_filled&.each do |vm|
+            move_vm_queue(pool, vm, 'running', 'completed', redis, "moved to completed queue. '#{request_id}' could not be filled in time")
+          end
+          redis.expire("vmpooler__#{request_id}__#{platform_alias}__#{pool}", expiration_ttl)
+        end
+      end
     end
 
     def execute!(maxloop = 0, loop_delay = 1)

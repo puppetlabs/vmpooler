@@ -36,6 +36,7 @@ describe 'Pool Manager' do
 :config: {}
 :providers:
   :mock:
+:redis: {}
 :pools:
   - name: '#{pool}'
     size: 1
@@ -312,23 +313,47 @@ EOT
     end
 
     context 'with request_id' do
-      it 'sets the vm as active' do
-        redis_connection_pool.with do |redis|
-          expect(Time).to receive(:now).and_return(current_time).at_least(:once)
-          redis.hset("vmpooler__vm__#{vm}", 'pool_alias', pool)
-          subject.move_pending_vm_to_ready(vm, pool, redis, request_id)
-          expect(redis.hget("vmpooler__active__#{pool}", vm)).to eq(current_time.to_s)
-          expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to eq(current_time.to_s)
-          expect(redis.sismember("vmpooler__#{request_id}__#{pool}__#{pool}", vm)).to be true
+      context 'with a pending request' do
+        it 'sets the vm as active' do
+          redis_connection_pool.with do |redis|
+            expect(Time).to receive(:now).and_return(current_time).at_least(:once)
+            redis.hset("vmpooler__vm__#{vm}", 'pool_alias', pool)
+            subject.move_pending_vm_to_ready(vm, pool, redis, request_id)
+            expect(redis.hget("vmpooler__active__#{pool}", vm)).to eq(current_time.to_s)
+            expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to eq(current_time.to_s)
+            expect(redis.sismember("vmpooler__#{request_id}__#{pool}__#{pool}", vm)).to be true
+          end
+        end
+
+        it 'logs that the vm is ready for the request' do
+          redis_connection_pool.with do |redis|
+            redis.hset("vmpooler__vm__#{vm}", 'pool_alias', pool)
+            expect(logger).to receive(:log).with('s', "[>] [#{pool}] '#{vm}' is 'ready' for request '#{request_id}'")
+
+            subject.move_pending_vm_to_ready(vm, pool, redis, request_id)
+          end
         end
       end
 
-      it 'logs that the vm is ready for the request' do
-        redis_connection_pool.with do |redis|
-          redis.hset("vmpooler__vm__#{vm}", 'pool_alias', pool)
-          expect(logger).to receive(:log).with('s', "[>] [#{pool}] '#{vm}' is 'ready' for request '#{request_id}'")
+      context 'when the request has been marked as failed' do
+        before(:each) do
+          redis_connection_pool.with do |redis|
+            redis.hset("vmpooler__vm__#{vm}", 'status', 'failed')
+          end
+        end
 
-          subject.move_pending_vm_to_ready(vm, pool, redis, request_id)
+        it 'moves the vm to completed' do
+          redis_connection_pool.with do |redis|
+            expect(subject).to receive(:move_vm_queue).with(pool, vm, 'pending', 'completed', redis, "moved to completed queue. '#{request_id}' could not be filled in time")
+            subject.move_pending_vm_to_ready(vm, pool, redis, request_id)
+          end
+        end
+
+        it 'returns nil' do
+          redis_connection_pool.with do |redis|
+            result = subject.move_pending_vm_to_ready(vm, pool, redis, request_id)
+            expect(result).to be nil
+          end
         end
       end
     end
@@ -4836,6 +4861,11 @@ EOT
   end
 
   describe '#check_ondemand_requests_ready' do
+
+    before(:each) do
+      config[:config]['ondemand_request_ttl'] = 5
+    end
+
     it 'returns 0 when no provisoning requests are in progress' do
       redis_connection_pool.with do |redis|
         result = subject.check_ondemand_requests_ready(redis)
@@ -4875,6 +4905,92 @@ EOT
             expect(redis).to receive(:zrem).with('vmpooler__provisioning__processing', request_id)
             subject.check_ondemand_requests_ready(redis)
           end
+        end
+      end
+
+      context 'when a request has taken too long to be filled' do
+        it 'should return true for request_expired?' do
+          redis_connection_pool.with do |redis|
+            expect(subject).to receive(:request_expired?).with(request_id, Float, redis).and_return(true)
+            subject.check_ondemand_requests_ready(redis)
+          end
+        end
+      end
+    end
+  end
+
+  describe '#request_expired?' do
+    let(:ondemand_request_ttl) { 5 }
+    before(:each) do
+      config[:config]['ondemand_request_ttl'] = ondemand_request_ttl
+    end
+
+    context 'with a request that has taken too long to be filled' do
+      let(:expired_time) { (Time.now - 960).to_i }
+      before(:each) do
+        redis_connection_pool.with do |redis|
+          expect(subject).to receive(:remove_vms_for_failed_request)
+          create_ondemand_processing(request_id, expired_time, redis)
+        end
+      end
+
+      it 'returns true when the request is expired' do
+        redis_connection_pool.with do |redis|
+          result = subject.request_expired?(request_id, expired_time, redis)
+          expect(result).to be true
+        end
+      end
+
+      it 'logs a message that the request has expired' do
+        redis_connection_pool.with do |redis|
+          expect(logger).to receive(:log).with('s', "Ondemand request for '#{request_id}' failed to provision all instances within the configured ttl '#{ondemand_request_ttl}'")
+          subject.request_expired?(request_id, expired_time, redis)
+        end
+      end
+    end
+
+    context 'with a request that has been made within the ttl' do
+      before(:each) do
+        redis_connection_pool.with do |redis|
+          create_ondemand_processing(request_id, current_time, redis)
+        end
+      end
+
+      it 'should return false' do
+        redis_connection_pool.with do |redis|
+          result = subject.request_expired?(request_id, current_time, redis)
+          expect(result).to be false
+        end
+      end
+    end
+  end
+
+  describe '#remove_vms_for_failed_request)' do
+    let(:expiration_ttl) { 100 * 60 * 60 }
+    let(:platform_alias) { pool }
+    let(:platforms_string) { "#{platform_alias}:#{pool}:3" }
+    context 'with two vms marked as ready for the request' do
+      before(:each) do
+        redis_connection_pool.with do |redis|
+          create_ondemand_request_for_test(request_id, current_time, platforms_string, redis)
+          [vm,"#{vm}2"].each do |v|
+            create_running_vm(pool, v, redis)
+            redis.sadd("vmpooler__#{request_id}__#{platform_alias}__#{pool}", v)
+          end
+        end
+      end
+
+      it 'should remove the associated vms' do
+        redis_connection_pool.with do |redis|
+          expect(subject).to receive(:move_vm_queue).with(pool, String, 'running', 'completed', redis, "moved to completed queue. '#{request_id}' could not be filled in time").twice
+          subject.remove_vms_for_failed_request(request_id, expiration_ttl, redis)
+        end
+      end
+
+      it 'should mark the ready set for expiration' do
+        redis_connection_pool.with do |redis|
+          expect(redis).to receive(:expire).with("vmpooler__#{request_id}__#{platform_alias}__#{pool}", expiration_ttl)
+          subject.remove_vms_for_failed_request(request_id, expiration_ttl, redis)
         end
       end
     end

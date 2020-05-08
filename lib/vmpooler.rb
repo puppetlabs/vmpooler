@@ -64,6 +64,7 @@ module Vmpooler
     parsed_config[:config]['vm_checktime'] = string_to_int(ENV['VM_CHECKTIME']) || parsed_config[:config]['vm_checktime'] || 1
     parsed_config[:config]['vm_lifetime'] = string_to_int(ENV['VM_LIFETIME']) || parsed_config[:config]['vm_lifetime'] || 24
     parsed_config[:config]['ready_ttl'] = string_to_int(ENV['READY_TTL']) || parsed_config[:config]['ready_ttl'] || 5
+    parsed_config[:config]['ondemand_request_ttl'] = string_to_int(ENV['ONDEMAND_REQUEST_TTL']) || parsed_config[:config]['ready_ttl'] || 5
     parsed_config[:config]['prefix'] = ENV['PREFIX'] || parsed_config[:config]['prefix'] || ''
 
     parsed_config[:config]['logfile'] = ENV['LOGFILE'] if ENV['LOGFILE']
