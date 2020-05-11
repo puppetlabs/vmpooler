@@ -307,11 +307,9 @@ module Vmpooler
       pool_index = pool_index(pools)
       template_configs = backend.hgetall('vmpooler__config__template')
       template_configs&.each do |poolname, template|
-          if pool_index.include? poolname
-            unless pools[pool_index[poolname]]['template'] == template
-              pools[pool_index[poolname]]['template'] = template
-            end
-          end
+        next unless pool_index.include? poolname
+
+        pools[pool_index[poolname]]['template'] = template unless pools[pool_index[poolname]]['template'] == template
       end
     end
 
@@ -319,11 +317,9 @@ module Vmpooler
       pool_index = pool_index(pools)
       poolsize_configs = backend.hgetall('vmpooler__config__poolsize')
       poolsize_configs&.each do |poolname, size|
-          if pool_index.include? poolname
-            unless pools[pool_index[poolname]]['size'] == size.to_i
-              pools[pool_index[poolname]]['size'] == size.to_i
-            end
-          end
+        next unless pool_index.include? poolname
+
+        pools[pool_index[poolname]]['size'] == size.to_i unless pools[pool_index[poolname]]['size'] == size.to_i
       end
     end
 
@@ -331,21 +327,33 @@ module Vmpooler
       pool_index = pool_index(pools)
       clone_target_configs = backend.hgetall('vmpooler__config__clone_target')
       clone_target_configs&.each do |poolname, clone_target|
-          if pool_index.include? poolname
-            unless pools[pool_index[poolname]]['clone_target'] == clone_target
-              pools[pool_index[poolname]]['clone_target'] == clone_target
-            end
-          end
+        next unless pool_index.include? poolname
+
+        pools[pool_index[poolname]]['clone_target'] == clone_target unless pools[pool_index[poolname]]['clone_target'] == clone_target
       end
+    end
+
+    def too_many_requested?(payload)
+      payload&.each do |_poolname, count|
+        next unless count.to_i > config['max_ondemand_instances_per_request']
+
+        return true
+      end
+      false
     end
 
     def generate_ondemand_request(payload)
       result = { 'ok': false }
 
+      if too_many_requested?(payload.reject { |k, _v| k == 'request_id' })
+        result['message'] = "requested amount of instances exceeds the maximum #{config['max_ondemand_instances_per_request']}"
+        status 403
+        return result
+      end
+
+      score = Time.now.to_i
       request_id = payload['request_id']
       request_id ||= generate_request_id
-      score = Time.now.to_i
-
       result['request_id'] = request_id
 
       if backend.exists("vmpooler__odrequest__#{request_id}")

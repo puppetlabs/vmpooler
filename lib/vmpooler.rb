@@ -60,10 +60,11 @@ module Vmpooler
     # Set some configuration defaults
     parsed_config[:config]['task_limit'] = string_to_int(ENV['TASK_LIMIT']) || parsed_config[:config]['task_limit'] || 10
     parsed_config[:config]['ondemand_clone_limit'] = string_to_int(ENV['ONDEMAND_CLONE_LIMIT']) || parsed_config[:config]['ondemand_clone_limit'] || 10
+    parsed_config[:config]['max_ondemand_instances_per_request'] = string_to_int(ENV['MAX_ONDEMAND_INSTANCES_PER_REQUEST']) || parsed_config[:config]['max_ondemand_instances_per_request'] || 10
     parsed_config[:config]['migration_limit'] = string_to_int(ENV['MIGRATION_LIMIT']) if ENV['MIGRATION_LIMIT']
     parsed_config[:config]['vm_checktime'] = string_to_int(ENV['VM_CHECKTIME']) || parsed_config[:config]['vm_checktime'] || 1
     parsed_config[:config]['vm_lifetime'] = string_to_int(ENV['VM_LIFETIME']) || parsed_config[:config]['vm_lifetime'] || 24
-    parsed_config[:config]['max_lifetime_upper_limit'] = string_to_int(ENV['MAX_LIFETIME_UPPER_LIMIT']) || string_to_int(parsed_config[:config]['max_lifetime_upper_limit'])
+    parsed_config[:config]['max_lifetime_upper_limit'] = string_to_int(ENV['MAX_LIFETIME_UPPER_LIMIT']) || parsed_config[:config]['max_lifetime_upper_limit']
     parsed_config[:config]['ready_ttl'] = string_to_int(ENV['READY_TTL']) || parsed_config[:config]['ready_ttl'] || 5
     parsed_config[:config]['ondemand_request_ttl'] = string_to_int(ENV['ONDEMAND_REQUEST_TTL']) || parsed_config[:config]['ondemand_request_ttl'] || 5
     parsed_config[:config]['prefix'] = ENV['PREFIX'] || parsed_config[:config]['prefix'] || ''

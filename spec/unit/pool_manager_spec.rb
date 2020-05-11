@@ -4901,6 +4901,13 @@ EOT
           end
         end
 
+        it 'marks the ondemand request hash key for expiration in one month' do
+          redis_connection_pool.with do |redis|
+            expect(redis).to receive(:expire).with("vmpooler__odrequest__#{request_id}", 2592000)
+            subject.check_ondemand_requests_ready(redis)
+          end
+        end
+
         it 'removes the request from processing' do
           redis_connection_pool.with do |redis|
             expect(redis).to receive(:zrem).with('vmpooler__provisioning__processing', request_id)

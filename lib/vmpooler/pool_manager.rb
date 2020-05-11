@@ -1487,6 +1487,8 @@ module Vmpooler
     end
 
     def check_ondemand_requests_ready(redis)
+      # default expiration is one month to ensure the data does not stay in redis forever
+      default_expiration = 259_200_0
       in_progress_requests = redis.zrange('vmpooler__provisioning__processing', 0, -1, with_scores: true)
       in_progress_requests&.each do |request_id, score|
         next if request_expired?(request_id, score, redis)
@@ -1494,6 +1496,7 @@ module Vmpooler
 
         redis.multi
         redis.hset("vmpooler__odrequest__#{request_id}", 'status', 'ready')
+        redis.expire("vmpooler__odrequest__#{request_id}", default_expiration)
         redis.zrem('vmpooler__provisioning__processing', request_id)
         redis.exec
       end

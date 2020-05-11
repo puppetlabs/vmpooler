@@ -15,6 +15,7 @@ describe Vmpooler::API::V1 do
         config: {
           'site_name' => 'test pooler',
           'vm_lifetime_auth' => 2,
+          'max_ondemand_instances_per_request' => 50,
           'backend_weight' => {
             'compute1' => 5
           }
@@ -49,63 +50,85 @@ describe Vmpooler::API::V1 do
     describe 'POST /ondemandvm' do
 
       context 'with a configured pool' do
-        it 'generates a request_id when none is provided' do
-          expect(SecureRandom).to receive(:uuid).and_return(uuid)
-          post "#{prefix}/ondemandvm", '{"pool1":"1"}'
-          expect_json(true, 201)
 
-          expected = {
-            "ok": true,
-            "request_id": uuid
-          }
-          expect(last_response.body).to eq(JSON.pretty_generate(expected))
+        context 'with no request_id provided in payload' do
+          before(:each) do
+            expect(SecureRandom).to receive(:uuid).and_return(uuid)
+          end
+
+          it 'generates a request_id when none is provided' do
+            post "#{prefix}/ondemandvm", '{"pool1":"1"}'
+            expect_json(true, 201)
+
+            expected = {
+              "ok": true,
+              "request_id": uuid
+            }
+            expect(last_response.body).to eq(JSON.pretty_generate(expected))
+          end
+
+          it 'uses a configured platform to fulfill a ondemand request' do
+            post "#{prefix}/ondemandvm", '{"poolone":"1"}'
+            expect_json(true, 201)
+            expected = {
+              "ok": true,
+              "request_id": uuid
+            }
+            expect(last_response.body).to eq(JSON.pretty_generate(expected))
+          end
+
+          it 'creates a provisioning request in redis' do
+            expect(redis).to receive(:zadd).with('vmpooler__provisioning__request', Integer, uuid).and_return(1)
+            post "#{prefix}/ondemandvm", '{"poolone":"1"}'
+          end
+
+          it 'sets a platform string in redis for the request to indicate selected platforms' do
+            expect(redis).to receive(:hset).with("vmpooler__odrequest__#{uuid}", 'requested', 'poolone:pool1:1')
+            post "#{prefix}/ondemandvm", '{"poolone":"1"}'
+          end
         end
 
-        it 'uses the given request_id when provided' do
-          post "#{prefix}/ondemandvm", '{"pool1":"1","request_id":"1234"}'
-          expect_json(true, 201)
+        context 'with a resource request that exceeds the specified limit' do
+          let(:max_instances) { 50 }
+          before(:each) do
+            config[:config]['max_ondemand_instances_per_request'] = max_instances
+          end
 
-          expected = {
-            "ok": true,
-            "request_id": "1234"
-          }
-          expect(last_response.body).to eq(JSON.pretty_generate(expected))
+          it 'should reject the request with a message' do
+            post "#{prefix}/ondemandvm", '{"pool1":"51"}'
+            expect_json(false, 403)
+            expected = {
+              "ok": false,
+              "message": "requested amount of instances exceeds the maximum #{max_instances}"
+            }
+            expect(last_response.body).to eq(JSON.pretty_generate(expected))
+          end
         end
 
-        it 'returns 409 conflict error when the request_id has been used' do
-          post "#{prefix}/ondemandvm", '{"pool1":"1","request_id":"1234"}'
-          post "#{prefix}/ondemandvm", '{"pool1":"1","request_id":"1234"}'
-          expect_json(false, 409)
+        context 'with request_id provided in the payload' do
+          it 'uses the given request_id when provided' do
+            post "#{prefix}/ondemandvm", '{"pool1":"1","request_id":"1234"}'
+            expect_json(true, 201)
 
-          expected = {
-            "ok": false,
-            "request_id": "1234",
-            "message": "request_id '1234' has already been created"
-          }
-          expect(last_response.body).to eq(JSON.pretty_generate(expected))
-        end
+            expected = {
+              "ok": true,
+              "request_id": "1234"
+            }
+            expect(last_response.body).to eq(JSON.pretty_generate(expected))
+          end
 
-        it 'uses a configured platform to fulfill a ondemand request' do
-          expect(SecureRandom).to receive(:uuid).and_return(uuid)
-          post "#{prefix}/ondemandvm", '{"poolone":"1"}'
-          expect_json(true, 201)
-          expected = {
-            "ok": true,
-            "request_id": uuid
-          }
-          expect(last_response.body).to eq(JSON.pretty_generate(expected))
-        end
+          it 'returns 409 conflict error when the request_id has been used' do
+            post "#{prefix}/ondemandvm", '{"pool1":"1","request_id":"1234"}'
+            post "#{prefix}/ondemandvm", '{"pool1":"1","request_id":"1234"}'
+            expect_json(false, 409)
 
-        it 'creates a provisioning request in redis' do
-          expect(SecureRandom).to receive(:uuid).and_return(uuid)
-          expect(redis).to receive(:zadd).with('vmpooler__provisioning__request', Integer, uuid).and_return(1)
-          post "#{prefix}/ondemandvm", '{"poolone":"1"}'
-        end
-
-        it 'sets a platform string in redis for the request to indicate selected platforms' do
-          expect(SecureRandom).to receive(:uuid).and_return(uuid)
-          expect(redis).to receive(:hset).with("vmpooler__odrequest__#{uuid}", 'requested', 'poolone:pool1:1')
-          post "#{prefix}/ondemandvm", '{"poolone":"1"}'
+            expected = {
+              "ok": false,
+              "request_id": "1234",
+              "message": "request_id '1234' has already been created"
+            }
+            expect(last_response.body).to eq(JSON.pretty_generate(expected))
+          end
         end
 
         context 'with auth configured' do
