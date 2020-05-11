@@ -845,6 +845,16 @@ module Vmpooler
       JSON.pretty_generate(result)
     end
 
+    delete "#{api_prefix}/ondemandvm/:requestid/?" do
+      content_type :json
+      need_token! if Vmpooler::API.settings.config[:auth]
+
+      status 404
+      result = delete_ondemand_request(params[:requestid])
+
+      JSON.pretty_generate(result)
+    end
+
     post "#{api_prefix}/vm/?" do
       content_type :json
       result = { 'ok' => false }
@@ -958,6 +968,28 @@ module Vmpooler
         end
       end
 
+      result
+    end
+
+    def delete_ondemand_request(request_id)
+      result = { 'ok' => false }
+
+      platforms = backend.hget("vmpooler__odrequest__#{request_id}", 'requested')
+      unless platforms
+        result['message'] = "no request found for request_id '#{request_id}'"
+        return result
+      end
+
+      platforms.split(',').each do |platform|
+        pool_alias, pool, _count = platform.split(':')
+        backend.smembers("vmpooler__#{request_id}__#{pool_alias}__#{pool}")&.each do |vm|
+          backend.smove("vmpooler__running__#{pool}", "vmpooler__completed__#{pool}", vm)
+        end
+        backend.del("vmpooler__#{request_id}__#{pool_alias}__#{pool}")
+      end
+      backend.expire("vmpooler__odrequest__#{request_id}", 129_600_0)
+      status 200
+      result['ok'] = true
       result
     end
 

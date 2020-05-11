@@ -228,5 +228,56 @@ describe Vmpooler::API::V1 do
         end
       end
     end
+
+    describe 'DELETE /ondemandvm' do
+      let(:expiration) { 129_600_0 }
+      it 'returns 404 with message when request is not found' do
+        delete "#{prefix}/ondemandvm/#{uuid}"
+        expect_json(false, 404)
+        expected = {
+          "ok": false,
+          "message": "no request found for request_id '#{uuid}'"
+        }
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+      end
+
+      context 'when the request is found' do
+        let(:platforms_string) { 'pool1:pool1:1' }
+        let(:score) { current_time.to_i }
+        before(:each) do
+          create_ondemand_request_for_test(uuid, score, platforms_string, redis)
+        end
+
+        it 'returns 200 for a deleted request' do
+          delete "#{prefix}/ondemandvm/#{uuid}"
+          expect_json(true, 200)
+          expected = { 'ok': true }
+          expect(last_response.body).to eq(JSON.pretty_generate(expected))
+        end
+
+        it 'marks the request hash for expiration in two weeks' do
+          expect(redis).to receive(:expire).with("vmpooler__odrequest__#{uuid}", expiration)
+          delete "#{prefix}/ondemandvm/#{uuid}"
+        end
+
+        context 'with running instances' do
+          let(:pool) { 'pool1' }
+          let(:pool_alias) { pool }
+          before(:each) do
+            create_ondemand_vm(vmname, uuid, pool, pool_alias, redis)
+          end
+
+          it 'moves allocated instances to the completed queue' do
+            expect(redis).to receive(:smove).with("vmpooler__running__#{pool}", "vmpooler__completed__#{pool}", vmname)
+            delete "#{prefix}/ondemandvm/#{uuid}"
+          end
+
+          it 'deletes the set tracking instances allocated for the request' do
+            expect(redis).to receive(:del).with("vmpooler__#{uuid}__#{pool_alias}__#{pool}")
+            delete "#{prefix}/ondemandvm/#{uuid}"
+          end
+        end
+      end
+    end
   end
 end
