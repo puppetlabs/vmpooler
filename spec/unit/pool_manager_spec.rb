@@ -4120,7 +4120,7 @@ EOT
   end
 
   describe '#repopulate_pool_vms' do
-    let(:pool_size) { 0 }
+    let(:pool_size) { 1 }
     let(:config) {
       YAML.load(<<-EOT
 ---
@@ -4139,7 +4139,7 @@ EOT
     it 'should not call clone_vm when number of VMs is equal to the pool size' do
       expect(subject).to receive(:clone_vm).exactly(0).times
 
-      subject.repopulate_pool_vms(pool, provider, pool_check_response, pool_size)
+      subject.repopulate_pool_vms(pool, provider, pool_check_response, 0)
     end
 
     it 'should not call clone_vm when number of VMs is greater than the pool size' do
@@ -4181,6 +4181,12 @@ EOT
       expect(logger).to receive(:log).with('s', "[!] [#{pool}] is empty")
 
       subject.repopulate_pool_vms(pool, provider, pool_check_response, pool_size)
+    end
+
+    it 'should not log a message when the pool size is 0' do
+      expect(logger).to_not receive(:log).with('s', "[!] [#{pool}] is empty")
+
+      subject.repopulate_pool_vms(pool, provider, pool_check_response, 0)
     end
 
     context 'when pool is marked as empty' do

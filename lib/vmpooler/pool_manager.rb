@@ -1270,11 +1270,13 @@ module Vmpooler
         $metrics.gauge("ready.#{pool_name}", ready)
         $metrics.gauge("running.#{pool_name}", running)
 
-        if redis.get("vmpooler__empty__#{pool_name}")
-          redis.del("vmpooler__empty__#{pool_name}") unless ready == 0
-        elsif ready == 0
-          redis.set("vmpooler__empty__#{pool_name}", 'true')
-          $logger.log('s', "[!] [#{pool_name}] is empty")
+        unless pool_size == 0
+          if redis.get("vmpooler__empty__#{pool_name}")
+            redis.del("vmpooler__empty__#{pool_name}") unless ready == 0
+          elsif ready == 0
+            redis.set("vmpooler__empty__#{pool_name}", 'true')
+            $logger.log('s', "[!] [#{pool_name}] is empty")
+          end
         end
 
         (pool_size - total.to_i).times do
