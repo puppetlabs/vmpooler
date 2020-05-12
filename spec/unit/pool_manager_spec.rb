@@ -358,6 +358,28 @@ EOT
         end
       end
 
+      context 'when the request has been marked as deleted' do
+        before(:each) do
+          redis_connection_pool.with do |redis|
+            redis.hset("vmpooler__odrequest__#{request_id}", 'status', 'deleted')
+          end
+        end
+
+        it 'moves the vm to completed' do
+          redis_connection_pool.with do |redis|
+            expect(subject).to receive(:move_vm_queue).with(pool, vm, 'pending', 'completed', redis, "moved to completed queue. '#{request_id}' has been deleted")
+            subject.move_pending_vm_to_ready(vm, pool, redis, request_id)
+          end
+        end
+
+        it 'returns nil' do
+          redis_connection_pool.with do |redis|
+            result = subject.move_pending_vm_to_ready(vm, pool, redis, request_id)
+            expect(result).to be nil
+          end
+        end
+      end
+
       context 'with auth on the request' do
         let(:user) { 'vmpuser' }
         let(:platform_alias) { pool }

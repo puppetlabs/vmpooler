@@ -139,6 +139,9 @@ module Vmpooler
         if ondemandrequest_hash['status'] == 'failed'
           move_vm_queue(pool, vm, 'pending', 'completed', redis, "moved to completed queue. '#{request_id}' could not be filled in time")
           return nil
+        elsif ondemandrequest_hash['status'] == 'deleted'
+          move_vm_queue(pool, vm, 'pending', 'completed', redis, "moved to completed queue. '#{request_id}' has been deleted")
+          return nil
         end
         pool_alias = redis.hget("vmpooler__vm__#{vm}", 'pool_alias')
 
