@@ -35,9 +35,6 @@ module Vmpooler
       # Name generator for generating host names
       @name_generator = Spicy::Proton.new
 
-      @tasks = Concurrent::Hash.new
-      @tasks['ondemand_clone_count'] = 0
-
       # load specified providers from config file
       load_used_providers
     end
@@ -403,12 +400,9 @@ module Vmpooler
           end
           raise
         ensure
-          if request_id
-            @tasks['ondemand_clone_count'] -= 1
-          else
-            @redis.with_metrics do |redis|
-              redis.decr('vmpooler__tasks__clone')
-            end
+          @redis.with_metrics do |redis|
+            redis.decr('vmpooler__tasks__ondemandclone') if request_id
+            redis.decr('vmpooler__tasks__clone') unless request_id
           end
         end
       end
@@ -1443,26 +1437,26 @@ module Vmpooler
       queue_key = 'vmpooler__odcreate__task'
       queue = redis.zrange(queue_key, 0, -1, with_scores: true)
       ondemand_clone_limit = $config[:config]['ondemand_clone_limit']
-      @tasks['ondemand_clone_count'] = 0 unless @tasks['ondemand_clone_count']
       queue.each do |request, score|
-        break unless @tasks['ondemand_clone_count'] < ondemand_clone_limit
+        clone_count = redis.get('vmpooler__tasks__ondemandclone').to_i
+        break unless clone_count < ondemand_clone_limit
 
         pool_alias, pool, count, request_id = request.split(':')
         count = count.to_i
         provider = get_provider_for_pool(pool)
-        slots = ondemand_clone_limit - @tasks['ondemand_clone_count']
+        slots = ondemand_clone_limit - clone_count
         break if slots == 0
 
         if slots >= count
           count.times do
-            @tasks['ondemand_clone_count'] += 1
+            redis.incr('vmpooler__tasks__ondemandclone')
             clone_vm(pool, provider, request_id, pool_alias)
           end
           redis.zrem(queue_key, request)
         else
           remaining_count = count - slots
           slots.times do
-            @tasks['ondemand_clone_count'] += 1
+            redis.incr('vmpooler__tasks__ondemandclone')
             clone_vm(pool, provider, request_id, pool_alias)
           end
           redis.pipelined do
@@ -1542,6 +1536,7 @@ module Vmpooler
       @redis.with_metrics do |redis|
         # Clear out the tasks manager, as we don't know about any tasks at this point
         redis.set('vmpooler__tasks__clone', 0)
+        redis.set('vmpooler__tasks__ondemandclone', 0)
         # Clear out vmpooler__migrations since stale entries may be left after a restart
         redis.del('vmpooler__migration')
       end

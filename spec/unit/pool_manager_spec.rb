@@ -867,14 +867,11 @@ EOT
         end
       end
 
-      it 'should reduce the ondemand clone count' do
-        count = { 'ondemand_clone_count' => 1 }
-        subject.instance_variable_set(:@tasks, count)
+      it 'should reduce the clone count' do
         redis_connection_pool.with do |redis|
+          expect(redis).to receive(:decr).with('vmpooler__tasks__ondemandclone')
           subject._clone_vm(pool,provider,request_id,pool)
         end
-        count = subject.instance_variable_get(:@tasks)
-        expect(count['ondemand_clone_count']).to eq(0)
       end
     end
   end
@@ -3167,6 +3164,7 @@ EOT
       it 'should run startup tasks only once' do
         redis_connection_pool.with do |redis|
           expect(redis).to receive(:set).with('vmpooler__tasks__clone', 0).once
+          expect(redis).to receive(:set).with('vmpooler__tasks__ondemandclone', 0).once
           expect(redis).to receive(:del).with('vmpooler__migration').once
         end
 

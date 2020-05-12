@@ -238,7 +238,7 @@ module Vmpooler
         queue[:running]   = get_total_across_pools_redis_scard(pools, 'vmpooler__running__', backend)
         queue[:completed] = get_total_across_pools_redis_scard(pools, 'vmpooler__completed__', backend)
 
-        queue[:cloning] = backend.get('vmpooler__tasks__clone').to_i
+        queue[:cloning] = backend.get('vmpooler__tasks__clone').to_i + backend.get('vmpooler__tasks__ondemandclone').to_i
         queue[:booting] = queue[:pending].to_i - queue[:cloning].to_i
         queue[:booting] = 0 if queue[:booting] < 0
         queue[:total]   = queue[:pending].to_i + queue[:ready].to_i + queue[:running].to_i + queue[:completed].to_i
