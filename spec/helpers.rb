@@ -137,8 +137,8 @@ def create_ondemand_request_for_test(request_id, score, platforms_string, redis,
   redis.hset("vmpooler__odrequest__#{request_id}", 'token:user', user) if user
 end
 
-def set_ondemand_request_ready(request_id, redis)
-  redis.hset("vmpooler__odrequest__#{request_id}", 'status', 'ready')
+def set_ondemand_request_status(request_id, status, redis)
+  redis.hset("vmpooler__odrequest__#{request_id}", 'status', status)
 end
 
 def create_ondemand_vm(vmname, request_id, pool, pool_alias, redis)

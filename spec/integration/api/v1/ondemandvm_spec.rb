@@ -207,7 +207,7 @@ describe Vmpooler::API::V1 do
         context 'with ready instances' do
           before(:each) do
             create_ondemand_vm(vmname, uuid, 'pool1', 'pool1', redis)
-            set_ondemand_request_ready(uuid, redis)
+            set_ondemand_request_status(uuid, 'ready', redis)
           end
 
           it 'returns 200 with hostnames when the request is ready' do
@@ -222,6 +222,44 @@ describe Vmpooler::API::V1 do
                   vmname
                 ]
               }
+            }
+            expect(last_response.body).to eq(JSON.pretty_generate(expected))
+          end
+        end
+
+        context 'with a deleted request' do
+          before(:each) do
+            set_ondemand_request_status(uuid, 'deleted', redis)
+          end
+
+          it 'returns a message that the request has been deleted' do
+            get "#{prefix}/ondemandvm/#{uuid}"
+            expect_json(true, 200)
+            expected = {
+              "ok": true,
+              "request_id": uuid,
+              "ready": false,
+              "message": "The request has been deleted"
+            }
+            expect(last_response.body).to eq(JSON.pretty_generate(expected))
+          end
+        end
+
+        context 'with a failed request' do
+          let(:ondemand_request_ttl) { 5 }
+          before(:each) do
+            config[:config]['ondemand_request_ttl'] = ondemand_request_ttl
+            set_ondemand_request_status(uuid, 'failed', redis)
+          end
+
+          it 'returns a message that the request has failed' do
+            get "#{prefix}/ondemandvm/#{uuid}"
+            expect_json(true, 200)
+            expected = {
+              "ok": true,
+              "request_id": uuid,
+              "ready": false,
+              "message": "The request failed to provision instances within the configured ondemand_request_ttl '#{ondemand_request_ttl}'"
             }
             expect(last_response.body).to eq(JSON.pretty_generate(expected))
           end
