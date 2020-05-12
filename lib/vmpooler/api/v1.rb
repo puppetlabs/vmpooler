@@ -956,6 +956,9 @@ module Vmpooler
         result['ready'] = false
         result['message'] = "The request failed to provision instances within the configured ondemand_request_ttl '#{config['ondemand_request_ttl']}'"
         status 200
+      elsif request_hash['status'] == 'deleted'
+        result['message'] = 'The request has been deleted'
+        status 200
       else
         platform_parts = request_hash['requested'].split(',')
         platform_parts.each do |platform|
@@ -980,14 +983,20 @@ module Vmpooler
         return result
       end
 
-      platforms.split(',').each do |platform|
-        pool_alias, pool, _count = platform.split(':')
-        backend.smembers("vmpooler__#{request_id}__#{pool_alias}__#{pool}")&.each do |vm|
-          backend.smove("vmpooler__running__#{pool}", "vmpooler__completed__#{pool}", vm)
+      if backend.hget("vmpooler__odrequest__#{request_id}", 'status') == 'deleted'
+        result['message'] = 'the request has already been deleted'
+      else
+        backend.hset("vmpooler__odrequest__#{request_id}", 'status', 'deleted')
+
+        platforms.split(',').each do |platform|
+          pool_alias, pool, _count = platform.split(':')
+          backend.smembers("vmpooler__#{request_id}__#{pool_alias}__#{pool}")&.each do |vm|
+            backend.smove("vmpooler__running__#{pool}", "vmpooler__completed__#{pool}", vm)
+          end
+          backend.del("vmpooler__#{request_id}__#{pool_alias}__#{pool}")
         end
-        backend.del("vmpooler__#{request_id}__#{pool_alias}__#{pool}")
+        backend.expire("vmpooler__odrequest__#{request_id}", 129_600_0)
       end
-      backend.expire("vmpooler__odrequest__#{request_id}", 129_600_0)
       status 200
       result['ok'] = true
       result
