@@ -345,7 +345,8 @@ module Vmpooler
     def generate_ondemand_request(payload)
       result = { 'ok': false }
 
-      if too_many_requested?(payload.reject { |k, _v| k == 'request_id' })
+      requested_instances = payload.reject { |k, _v| k == 'request_id' }
+      if too_many_requested?(requested_instances)
         result['message'] = "requested amount of instances exceeds the maximum #{config['max_ondemand_instances_per_request']}"
         status 403
         return result
@@ -365,7 +366,7 @@ module Vmpooler
       status 201
 
       platforms_with_aliases = []
-      payload.reject { |k, _v| k == 'request_id' }.each do |poolname, count|
+      requested_instances.each do |poolname, count|
         selection = evaluate_template_aliases(poolname, count)
         selection.map { |selected_pool, selected_pool_count| platforms_with_aliases << "#{poolname}:#{selected_pool}:#{selected_pool_count}" }
       end
