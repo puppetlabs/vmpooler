@@ -9,9 +9,6 @@ services:
       - type: bind
         source: ${PWD}/vmpooler.yaml
         target: /etc/vmpooler/vmpooler.yaml
-      - type: bind
-        source: ${PWD}/providers.yaml
-        target: /etc/vmpooler/providers.yaml
     ports:
       - "4567:4567"
     networks:
@@ -21,7 +18,6 @@ services:
       - VMPOOLER_CONFIG_FILE=/etc/vmpooler/vmpooler.yaml
       - REDIS_SERVER=redislocal
       - LOGFILE=/dev/null
-      - EXTRA_CONFIG=/etc/vmpooler/providers.yaml
     image: vmpooler-local
     depends_on:
       - redislocal
