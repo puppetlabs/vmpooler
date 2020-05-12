@@ -309,7 +309,7 @@ module Vmpooler
       template_configs&.each do |poolname, template|
         next unless pool_index.include? poolname
 
-        pools[pool_index[poolname]]['template'] = template unless pools[pool_index[poolname]]['template'] == template
+        pools[pool_index[poolname]]['template'] = template
       end
     end
 
@@ -319,7 +319,7 @@ module Vmpooler
       poolsize_configs&.each do |poolname, size|
         next unless pool_index.include? poolname
 
-        pools[pool_index[poolname]]['size'] == size.to_i unless pools[pool_index[poolname]]['size'] == size.to_i
+        pools[pool_index[poolname]]['size'] = size.to_i
       end
     end
 
@@ -329,7 +329,7 @@ module Vmpooler
       clone_target_configs&.each do |poolname, clone_target|
         next unless pool_index.include? poolname
 
-        pools[pool_index[poolname]]['clone_target'] == clone_target unless pools[pool_index[poolname]]['clone_target'] == clone_target
+        pools[pool_index[poolname]]['clone_target'] = clone_target
       end
     end
 
