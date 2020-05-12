@@ -86,6 +86,24 @@ describe Vmpooler::API::V1 do
             expect(redis).to receive(:hset).with("vmpooler__odrequest__#{uuid}", 'requested', 'poolone:pool1:1')
             post "#{prefix}/ondemandvm", '{"poolone":"1"}'
           end
+
+          context 'with domain set in the config' do
+            let(:domain) { 'example.com' }
+            before(:each) do
+              config[:config]['domain'] = domain
+            end
+
+            it 'should include domain in the return reply' do
+              post "#{prefix}/ondemandvm", '{"poolone":"1"}'
+              expect_json(true, 201)
+              expected = {
+                "ok": true,
+                "request_id": uuid,
+                "domain": domain
+              }
+              expect(last_response.body).to eq(JSON.pretty_generate(expected))
+            end
+          end
         end
 
         context 'with a resource request that exceeds the specified limit' do
@@ -224,6 +242,29 @@ describe Vmpooler::API::V1 do
               }
             }
             expect(last_response.body).to eq(JSON.pretty_generate(expected))
+          end
+
+          context 'with domain set' do
+            let(:domain) { 'example.com' }
+            before(:each) do
+              config[:config]['domain'] = domain
+            end
+
+            it 'should include the domain in the result' do
+              get "#{prefix}/ondemandvm/#{uuid}"
+              expected = {
+                "ok": true,
+                "request_id": uuid,
+                "ready": true,
+                "pool1": {
+                  "hostname": [
+                    vmname
+                  ]
+                },
+                "domain": domain
+              }
+              expect(last_response.body).to eq(JSON.pretty_generate(expected))
+            end
           end
         end
 

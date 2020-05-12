@@ -380,6 +380,7 @@ module Vmpooler
                      backend.hget('vmpooler__token__' + request.env['HTTP_X_AUTH_TOKEN'], 'user'))
       end
 
+      result['domain'] = config['domain'] if config['domain']
       result[:ok] = true
       result
     end
@@ -951,6 +952,7 @@ module Vmpooler
           instances = backend.smembers("vmpooler__#{request_id}__#{pool_alias}__#{pool}")
           result[pool_alias] = { 'hostname': instances }
         end
+        result['domain'] = config['domain'] if config['domain']
         status 200
       elsif request_hash['status'] == 'failed'
         result['ready'] = false
