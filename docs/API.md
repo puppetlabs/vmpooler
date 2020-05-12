@@ -872,8 +872,18 @@ $ curl https://vmpooler.example.com/api/v1/ondemandvm/e3ff6271-d201-4f31-a315-d1
 
 ##### DELETE /ondemandvm
 
-Delete a ondemand request that is completed
+Delete a ondemand request
 
-Deleting a ondemand request will delete any instances created for the request and mark the backend data for expiration in two weeks
+Deleting a ondemand request will delete any instances created for the request and mark the backend data for expiration in two weeks. Any subsequent attempts to retrieve request data will indicate it has been deleted.
 
-
+Responses:
+* 200 - The API request was sucessful. A message will indicate if the request has already been deleted.
+* 404 - The request can not be found, or an unknown error occurred.
+```
+$ curl -X DELETE https://vmpooler.example.com/api/v1/ondemandvm/e3ff6271-d201-4f31-a315-d17f4e15863a
+```
+```json
+{
+  "ok": true
+}
+```
