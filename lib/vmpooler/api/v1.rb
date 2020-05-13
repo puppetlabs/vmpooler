@@ -508,7 +508,7 @@ module Vmpooler
           end
 
           # for backwards compatibility, include separate "empty" stats in "status" block
-          if ready == 0
+          if ready == 0 && max != 0
             result[:status][:empty] ||= []
             result[:status][:empty].push(pool['name'])
 
