@@ -815,6 +815,7 @@ An authentication token is required in order to request instances on demand when
 
 Responses:
 * 201 - Provisioning request accepted
+* 400 - Payload contains invalid JSON and cannot be parsed
 * 403 - Request exceeds the configured per pool maximum
 * 404 - A pool was requested, which is not available in the running configuration, or an unknown error occurred.
 * 409 - A request of the matching ID has already been created

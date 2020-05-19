@@ -956,7 +956,6 @@ module Vmpooler
         result['domain'] = config['domain'] if config['domain']
         status 200
       elsif request_hash['status'] == 'failed'
-        result['ready'] = false
         result['message'] = "The request failed to provision instances within the configured ondemand_request_ttl '#{config['ondemand_request_ttl']}'"
         status 200
       elsif request_hash['status'] == 'deleted'
