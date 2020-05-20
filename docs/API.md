@@ -816,6 +816,7 @@ An authentication token is required in order to request instances on demand when
 Responses:
 * 201 - Provisioning request accepted
 * 400 - Payload contains invalid JSON and cannot be parsed
+* 401 - No auth token provided, or provided auth token is not valid, and auth is enabled
 * 403 - Request exceeds the configured per pool maximum
 * 404 - A pool was requested, which is not available in the running configuration, or an unknown error occurred.
 * 409 - A request of the matching ID has already been created
@@ -879,6 +880,7 @@ Deleting a ondemand request will delete any instances created for the request an
 
 Responses:
 * 200 - The API request was sucessful. A message will indicate if the request has already been deleted.
+* 401 - No auth token provided, or provided auth token is not valid, and auth is enabled
 * 404 - The request can not be found, or an unknown error occurred.
 ```
 $ curl -X DELETE https://vmpooler.example.com/api/v1/ondemandvm/e3ff6271-d201-4f31-a315-d17f4e15863a
