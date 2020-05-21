@@ -315,6 +315,11 @@ EOT
 
     context 'with request_id' do
       context 'with a pending request' do
+        before(:each) do
+          allow(subject).to receive(:check_ondemand_request_ready)
+          config[:config]['ondemand_request_ttl'] = 20
+        end
+
         it 'sets the vm as active' do
           redis_connection_pool.with do |redis|
             expect(Time).to receive(:now).and_return(current_time).at_least(:once)
@@ -386,6 +391,8 @@ EOT
         let(:platforms_string) { "#{platform_alias}:#{pool}:1" }
         let(:score) { current_time.to_i }
         before(:each) do
+          config[:config]['ondemand_request_ttl'] = 20
+          allow(subject).to receive(:check_ondemand_request_ready)
           redis_connection_pool.with do |redis|
             create_ondemand_request_for_test(request_id, score, platforms_string, redis, user, token)
           end
@@ -4888,7 +4895,6 @@ EOT
   end
 
   describe '#check_ondemand_requests_ready' do
-
     before(:each) do
       config[:config]['ondemand_request_ttl'] = 5
     end
@@ -4914,40 +4920,62 @@ EOT
           expect(result).to eq(1)
         end
       end
+    end
+  end
 
-      context 'when the request is ready' do
-        before(:each) do
-          expect(subject).to receive(:vms_ready?).and_return(true)
-        end
+  describe '#check_ondemand_request_ready' do
+    let(:score) { current_time.to_f }
+    before(:each) do
+      config[:config]['ondemand_request_ttl'] = 5
+    end
 
-        it 'sets the request as ready' do
-          redis_connection_pool.with do |redis|
-            expect(redis).to receive(:hset).with("vmpooler__odrequest__#{request_id}", 'status', 'ready')
-            subject.check_ondemand_requests_ready(redis)
-          end
-        end
-
-        it 'marks the ondemand request hash key for expiration in one month' do
-          redis_connection_pool.with do |redis|
-            expect(redis).to receive(:expire).with("vmpooler__odrequest__#{request_id}", 2592000)
-            subject.check_ondemand_requests_ready(redis)
-          end
-        end
-
-        it 'removes the request from processing' do
-          redis_connection_pool.with do |redis|
-            expect(redis).to receive(:zrem).with('vmpooler__provisioning__processing', request_id)
-            subject.check_ondemand_requests_ready(redis)
-          end
+    context 'when the request is ready' do
+      before(:each) do
+        expect(subject).to receive(:vms_ready?).and_return(true)
+        redis_connection_pool.with do |redis|
+          expect(redis).to receive(:zscore).and_return(score)
         end
       end
 
-      context 'when a request has taken too long to be filled' do
-        it 'should return true for request_expired?' do
-          redis_connection_pool.with do |redis|
-            expect(subject).to receive(:request_expired?).with(request_id, Float, redis).and_return(true)
-            subject.check_ondemand_requests_ready(redis)
-          end
+      it 'sets the request as ready' do
+        redis_connection_pool.with do |redis|
+          expect(redis).to receive(:hset).with("vmpooler__odrequest__#{request_id}", 'status', 'ready')
+          subject.check_ondemand_request_ready(request_id, redis)
+        end
+      end
+
+      it 'marks the ondemand request hash key for expiration in one month' do
+        redis_connection_pool.with do |redis|
+          expect(redis).to receive(:expire).with("vmpooler__odrequest__#{request_id}", 2592000)
+          subject.check_ondemand_request_ready(request_id, redis)
+        end
+      end
+
+      it 'removes the request from processing' do
+        redis_connection_pool.with do |redis|
+          expect(redis).to receive(:zrem).with('vmpooler__provisioning__processing', request_id)
+          subject.check_ondemand_request_ready(request_id, redis)
+        end
+      end
+    end
+
+    context 'with the score provided' do
+      it 'should not request the score' do
+        redis_connection_pool.with do |redis|
+          expect(redis).to_not receive(:zscore)
+          expect(subject).to receive(:vms_ready?).and_return(true)
+          expect(redis).to receive(:zrem).with('vmpooler__provisioning__processing', request_id)
+          subject.check_ondemand_request_ready(request_id, redis, score)
+        end
+      end
+    end
+
+    context 'when a request has taken too long to be filled' do
+      it 'should return true for request_expired?' do
+        redis_connection_pool.with do |redis|
+          expect(redis).to receive(:zscore).and_return(score)
+          expect(subject).to receive(:request_expired?).with(request_id, Float, redis).and_return(true)
+          subject.check_ondemand_request_ready(request_id, redis)
         end
       end
     end
