@@ -646,6 +646,18 @@ EOT
       end
     end
 
+    context 'when create_vm_folder returns nil' do
+      before(:each) do
+        template_vm = new_template_object
+        allow(subject).to receive(:find_template_vm).and_return(new_template_object)
+        expect(subject).to receive(:find_vm_folder).and_return(nil)
+      end
+
+      it 'should raise an error' do
+        expect{ subject.create_vm(poolname, vmname) }.to raise_error(ArgumentError)
+      end
+    end
+
     context 'Given a successful creation' do
       let(:folder_object) { mock_RbVmomi_VIM_Folder({ :name => 'pool1'}) }
       before(:each) do

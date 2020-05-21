@@ -348,7 +348,7 @@ module Vmpooler
 
             begin
               vm_target_folder = find_vm_folder(pool_name, connection)
-              vm_target_folder = create_folder(connection, target_folder_path, target_datacenter_name) if vm_target_folder.nil? && @config[:config].key?('create_folders') && (@config[:config]['create_folders'] == true)
+              vm_target_folder ||= create_folder(connection, target_folder_path, target_datacenter_name) if @config[:config].key?('create_folders') && (@config[:config]['create_folders'] == true)
             rescue StandardError
               if @config[:config].key?('create_folders') && (@config[:config]['create_folders'] == true)
                 vm_target_folder = create_folder(connection, target_folder_path, target_datacenter_name)
@@ -356,6 +356,7 @@ module Vmpooler
                 raise
               end
             end
+            raise ArgumentError, "Can not find the configured folder for #{pool_name} #{target_folder_path}" unless vm_target_folder
 
             # Create the new VM
             new_vm_object = template_vm_object.CloneVM_Task(
