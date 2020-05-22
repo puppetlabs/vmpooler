@@ -6,12 +6,13 @@ module Vmpooler
   class Graphite < Metrics
     attr_reader :server, :port, :prefix
 
-    def initialize(params = {})
+    def initialize(logger, params = {})
       raise ArgumentError, "Graphite server is required. Config: #{params.inspect}" if params['server'].nil? || params['server'].empty?
 
       @server = params['server']
       @port   = params['port'] || 2003
       @prefix = params['prefix'] || 'vmpooler'
+      @logger = logger
     end
 
     def increment(label)
@@ -38,7 +39,7 @@ module Vmpooler
     rescue Errno::EADDRNOTAVAIL => e
       warn "Could not assign address to graphite server #{server}: #{e}"
     rescue StandardError => e
-      warn "Failure logging #{path} to graphite server [#{server}:#{port}]: #{e}"
+      @logger.log('s', "[!] Failure logging #{path} to graphite server [#{server}:#{port}]: #{e}")
     end
   end
 end

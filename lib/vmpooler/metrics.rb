@@ -3,13 +3,13 @@
 module Vmpooler
   class Metrics
     # static class instantiate appropriate metrics object.
-    def self.init(params)
+    def self.init(logger, params)
       if params[:statsd]
-        metrics = Vmpooler::Statsd.new(params[:statsd])
+        metrics = Vmpooler::Statsd.new(logger, params[:statsd])
       elsif params[:graphite]
-        metrics = Vmpooler::Graphite.new(params[:graphite])
+        metrics = Vmpooler::Graphite.new(logger, params[:graphite])
       elsif params[:prometheus]
-        metrics = Vmpooler::Promstats.new(params[:prometheus])
+        metrics = Vmpooler::Promstats.new(logger, params[:prometheus])
       else
         metrics = Vmpooler::DummyStatsd.new
       end

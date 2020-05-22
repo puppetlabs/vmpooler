@@ -106,12 +106,6 @@ module Vmpooler
     parsed_config[:graphite]['prefix'] = ENV['GRAPHITE_PREFIX'] if ENV['GRAPHITE_PREFIX']
     parsed_config[:graphite]['port'] = string_to_int(ENV['GRAPHITE_PORT']) if ENV['GRAPHITE_PORT']
 
-    if parsed_config.key? :prometheus
-#      parsed_config[:prometheus]['endpoint'] = ENV['PROMETHEUS_ENDPOINT'] if ENV['PROMETHEUS_ENDPOINT']
-#      parsed_config[:prometheus]['prefix'] = ENV['PROMETHEUS_PREFIX'] if ENV['PROMETHEUS_PREFIX']
-#      parsed_config[:prometheus]['metrics_prefix'] = ENV['PROMETHEUS_METRICS_PREFIX'] if ENV['PROMETHEUS_METRICS_PREFIX']
-    end
-
     parsed_config[:auth] = parsed_config[:auth] || {} if ENV['AUTH_PROVIDER']
     if parsed_config.key? :auth
       parsed_config[:auth]['provider'] = ENV['AUTH_PROVIDER'] if ENV['AUTH_PROVIDER']
@@ -187,10 +181,6 @@ module Vmpooler
 
   def self.new_redis(host = 'localhost', port = nil, password = nil)
     Redis.new(host: host, port: port, password: password)
-  end
-
-  def self.new_logger(logfile)
-    Vmpooler::Logger.new logfile
   end
 
   def self.pools(conf)

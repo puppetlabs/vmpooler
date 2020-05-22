@@ -20,13 +20,11 @@ module Vmpooler
 
     @p_metrics = {}
 
-    def initialize(params = {})
+    def initialize(logger, params = {})
       @prefix = params['prefix'] || 'vmpooler'
       @metrics_prefix = params['metrics_prefix'] || 'vmpooler'
       @endpoint = params['endpoint'] || '/prometheus'
-
-      # Hmm - think this is breaking the logger .....
-      @logger = params.delete('logger') || Logger.new(STDOUT)
+      @logger = logger
 
       # Setup up prometheus registry and data structures
       @prometheus = Prometheus::Client.registry
