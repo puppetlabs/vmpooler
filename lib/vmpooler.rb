@@ -169,7 +169,8 @@ module Vmpooler
   def self.redis_connection_pool(host, port, password, size, timeout, metrics)
     Vmpooler::PoolManager::GenericConnectionPool.new(
       metrics: metrics,
-      metric_prefix: 'redis_connection_pool',
+      connpool_type: 'redis_connection_pool',
+      connpool_provider: 'manager',
       size: size,
       timeout: timeout
     ) do

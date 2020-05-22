@@ -22,7 +22,8 @@ describe 'Pool Manager' do
   let(:provider_options) { {} }
   let(:redis_connection_pool) { Vmpooler::PoolManager::GenericConnectionPool.new(
     metrics: metrics,
-    metric_prefix: 'redis_connection_pool',
+    connpool_type: 'redis_connection_pool',
+    connpool_provider: 'testprovider',
     size: 1,
     timeout: 5
   ) { MockRedis.new }

@@ -79,7 +79,8 @@ EOT
   let(:vmname) { 'vm1' }
   let(:redis_connection_pool) { Vmpooler::PoolManager::GenericConnectionPool.new(
     metrics: metrics,
-    metric_prefix: 'redis_connection_pool',
+    connpool_type: 'redis_connection_pool',
+    connpool_provider: 'testprovider',
     size: 1,
     timeout: 5
   ) { MockRedis.new }
@@ -167,7 +168,7 @@ EOT
       end
 
       it 'should record metrics' do
-        expect(metrics).to receive(:timing).with('redis_connection_pool.waited', 0)
+        expect(metrics).to receive(:timing).with('connection_waited.redis_connection_pool.testprovider', 0)
         expect(metrics).to receive(:timing).with("destroy.#{pool}", finish)
 
         subject.destroy_vm_and_log(vmname, vm_object, pool, data_ttl)
