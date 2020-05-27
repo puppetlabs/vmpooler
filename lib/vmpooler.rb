@@ -78,7 +78,7 @@ module Vmpooler
     parsed_config[:config]['vm_lifetime_auth'] = string_to_int(ENV['VM_LIFETIME_AUTH']) if ENV['VM_LIFETIME_AUTH']
     parsed_config[:config]['max_tries'] = string_to_int(ENV['MAX_TRIES']) if ENV['MAX_TRIES']
     parsed_config[:config]['retry_factor'] = string_to_int(ENV['RETRY_FACTOR']) if ENV['RETRY_FACTOR']
-    parsed_config[:config]['create_folders'] = ENV['CREATE_FOLDERS'] if ENV['CREATE_FOLDERS']
+    parsed_config[:config]['create_folders'] = true?(ENV['CREATE_FOLDERS']) if ENV['CREATE_FOLDERS']
     parsed_config[:config]['create_template_delta_disks'] = ENV['CREATE_TEMPLATE_DELTA_DISKS'] if ENV['CREATE_TEMPLATE_DELTA_DISKS']
     set_linked_clone(parsed_config)
     parsed_config[:config]['experimental_features'] = ENV['EXPERIMENTAL_FEATURES'] if ENV['EXPERIMENTAL_FEATURES']

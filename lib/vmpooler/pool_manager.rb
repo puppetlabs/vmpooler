@@ -153,6 +153,7 @@ module Vmpooler
           redis.sadd("vmpooler__#{request_id}__#{pool_alias}__#{pool}", vm)
         end
         move_vm_queue(pool, vm, 'pending', 'running', redis)
+        check_ondemand_request_ready(request_id, redis)
       else
         redis.smove('vmpooler__pending__' + pool, 'vmpooler__ready__' + pool, vm)
       end
@@ -1486,20 +1487,28 @@ module Vmpooler
     end
 
     def check_ondemand_requests_ready(redis)
-      # default expiration is one month to ensure the data does not stay in redis forever
-      default_expiration = 259_200_0
       in_progress_requests = redis.zrange('vmpooler__provisioning__processing', 0, -1, with_scores: true)
       in_progress_requests&.each do |request_id, score|
-        next if request_expired?(request_id, score, redis)
-        next unless vms_ready?(request_id, redis)
-
-        redis.multi
-        redis.hset("vmpooler__odrequest__#{request_id}", 'status', 'ready')
-        redis.expire("vmpooler__odrequest__#{request_id}", default_expiration)
-        redis.zrem('vmpooler__provisioning__processing', request_id)
-        redis.exec
+        check_ondemand_request_ready(request_id, redis, score)
       end
       in_progress_requests.length
+    end
+
+    def check_ondemand_request_ready(request_id, redis, score = nil)
+      # default expiration is one month to ensure the data does not stay in redis forever
+      default_expiration = 259_200_0
+      processing_key = 'vmpooler__provisioning__processing'
+      ondemand_hash_key = "vmpooler__odrequest__#{request_id}"
+      score ||= redis.zscore(processing_key, request_id)
+      return if request_expired?(request_id, score, redis)
+
+      return unless vms_ready?(request_id, redis)
+
+      redis.multi
+      redis.hset(ondemand_hash_key, 'status', 'ready')
+      redis.expire(ondemand_hash_key, default_expiration)
+      redis.zrem(processing_key, request_id)
+      redis.exec
     end
 
     def request_expired?(request_id, score, redis)
