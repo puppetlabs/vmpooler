@@ -3312,6 +3312,16 @@ EOT
 
       expect(subject.find_vm(poolname,missing_vm,connection)).to be_nil
     end
+
+    it 'new test' do
+      expect(connection.searchIndex).to receive(:FindByInventoryPath).and_return(vm_object)
+      nic_a = MockGuestNicInfo.new()
+      nic_b = MockGuestNicInfo.new()
+      expect(vm_object.guest).to receive(:net).and_return([nic_a,nic_b])
+      expect(nic_a).to receive(:ipAddress).and_return(["192.168.0.1", "192.168.0.2"])
+      expect(nic_b).to receive(:ipAddress).and_return(["192.167.0.1"])
+      subject.get_all_ip_for_nics(poolname,missing_vm,connection)
+    end
   end
 
   describe '#get_base_vm_container_from' do

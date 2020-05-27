@@ -498,6 +498,19 @@ module Vmpooler
 
         true
       end
+
+      def dns_live?(vn_name, domain = nil)
+        require 'resolv' #ruby standard lib
+        fqdn = vm_name
+        fqdn = "#{fqdn}.#{domain}" if domain
+        begin
+          dnsip = Resolv.getaddress(fqdn)
+        rescue
+          dnsip = "N/A"
+        end
+        dnsip
+      end
+
     end
   end
 end

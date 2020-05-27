@@ -189,7 +189,10 @@ MockVirtualMachine = Struct.new(
   :name,
   # From RbVmomi::VIM::ManagedEntity
   # https://github.com/vmware/rbvmomi/blob/master/lib/rbvmomi/vim/ManagedEntity.rb
-  :path
+  :path,
+  # https://www.vmware.com/support/developer/vc-sdk/visdk400pubs/ReferenceGuide/vim.vm.GuestInfo.html
+  # From GuestInfo
+  :guest
 )
 
 MockVirtualMachineSnapshot = Struct.new(
@@ -286,6 +289,18 @@ MockVirtualHardware = Struct.new(
   # https://www.vmware.com/support/developer/vc-sdk/visdk400pubs/ReferenceGuide/vim.vm.VirtualHardware.html
   # From VirtualHardware
   :device
+)
+
+MockGuestInfo = Struct.new(
+    # https://www.vmware.com/support/developer/vc-sdk/visdk400pubs/ReferenceGuide/vim.vm.GuestInfo.html
+    # From GuestInfo
+    :hostName, :ipAddress, :net
+)
+
+MockGuestNicInfo = Struct.new(
+    # https://www.vmware.com/support/developer/vc-sdk/visdk400pubs/ReferenceGuide/vim.vm.GuestInfo.NicInfo.html
+    # From GuestNicInfo
+    :connected, :ipAddress, :macAddress
 )
 
 MockVirtualMachineConfigInfo = Struct.new(
@@ -691,6 +706,8 @@ def mock_RbVmomi_VIM_VirtualMachine(options = {})
   mock = MockVirtualMachine.new()
   mock.config = MockVirtualMachineConfigInfo.new()
   mock.config.hardware = MockVirtualHardware.new([])
+  mock.guest = MockGuestInfo.new()
+  mock.guest.net = MockGuestNicInfo.new([])
   mock.summary = MockVirtualMachineSummary.new()
   mock.summary.runtime = MockVirtualMachineRuntimeInfo.new()
   mock.summary.guest = MockVirtualMachineGuestSummary.new()

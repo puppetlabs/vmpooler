@@ -105,6 +105,7 @@ module Vmpooler
     end
 
     def fetch_single_vm(template)
+      require 'vmpooler/providers/vsphere'
       template_backends = [template]
       aliases = Vmpooler::API.settings.config[:alias]
       if aliases
@@ -144,6 +145,8 @@ module Vmpooler
 
           vms.reverse.each do |vm|
             ready = vm_ready?(vm, config['domain'])
+            dnsip = dns_live?(vm, config['domain'])
+            ips = get_all_ip_for_nics(template_backend, vm)
             if ready
               smoved = backend.smove("vmpooler__ready__#{template_backend}", "vmpooler__running__#{template_backend}", vm)
               if smoved

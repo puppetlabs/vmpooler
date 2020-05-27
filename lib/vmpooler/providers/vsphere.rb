@@ -1093,6 +1093,27 @@ module Vmpooler
           return true if pool['create_linked_clone']
           return true if @config[:config]['create_linked_clones']
         end
+
+        def _get_all_ip_for_nics(pool_name, vm_name, connection)
+          result = []
+          vm_object = find_vm(pool_name, vm_name, connection)
+          vm_object.guest.net.each do |nic|
+            addresses = nic.ipAddress
+
+            addresses.each do |adr|
+              puts adr
+              result << adr
+            end
+          end
+          result
+        end
+
+        def get_all_ip_for_nics(pool_name, vm_name)
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool_object)
+            _get_all_ip_for_nics(pool_name, vm_name, connection)
+          end
+        end
       end
     end
   end
