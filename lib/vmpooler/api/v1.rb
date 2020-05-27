@@ -838,6 +838,33 @@ module Vmpooler
       JSON.pretty_generate(result)
     end
 
+    post "#{api_prefix}/ondemandvm/:template/?" do
+      content_type :json
+      result = { 'ok' => false }
+
+      need_token! if Vmpooler::API.settings.config[:auth]
+
+      payload = extract_templates_from_query_params(params[:template])
+
+      if payload
+        invalid = invalid_templates(payload.reject { |k, _v| k == 'request_id' })
+        if invalid.empty?
+          result = generate_ondemand_request(payload)
+        else
+          result[:bad_templates] = invalid
+          invalid.each do |bad_template|
+            metrics.increment('ondemandrequest.invalid.' + bad_template)
+          end
+          status 404
+        end
+      else
+        metrics.increment('ondemandrequest.invalid.unknown')
+        status 404
+      end
+
+      JSON.pretty_generate(result)
+    end
+
     get "#{api_prefix}/ondemandvm/:requestid/?" do
       content_type :json
 
