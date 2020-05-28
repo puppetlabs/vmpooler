@@ -84,29 +84,29 @@ module Vmpooler
         when 'ldap'
           ldap_base = auth[:ldap]['base']
           ldap_port = auth[:ldap]['port'] || 389
+          ldap_user_obj = auth[:ldap]['user_object']
+          ldap_host = auth[:ldap]['host']
 
-          if ldap_base.is_a? Array
-            ldap_base.each do |search_base|
+          unless ldap_base.is_a? Array
+            ldap_base = ldap_base.split
+          end
+
+          unless ldap_user_obj.is_a? Array
+            ldap_user_obj = ldap_user_obj.split
+          end
+
+          ldap_base.each do |search_base|
+            ldap_user_obj.each do |search_user_obj|
               result = authenticate_ldap(
                 ldap_port,
-                auth[:ldap]['host'],
-                auth[:ldap]['user_object'],
+                ldap_host,
+                search_user_obj,
                 search_base,
                 username_str,
                 password_str
               )
-              return true if result == true
+              return true if result
             end
-          else
-            result = authenticate_ldap(
-              ldap_port,
-              auth[:ldap]['host'],
-              auth[:ldap]['user_object'],
-              ldap_base,
-              username_str,
-              password_str
-            )
-            return result
           end
 
           return false
