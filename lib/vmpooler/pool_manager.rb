@@ -301,14 +301,14 @@ module Vmpooler
       hostname_retries = 0
       max_hostname_retries = 3
       while hostname_retries < max_hostname_retries
-        hostname, available = generate_and_check_hostname(pool_name)
+        hostname, hostname_available = generate_and_check_hostname(pool_name)
         domain = $config[:config]['domain']
         dns_ip, dns_available = check_dns_available(hostname, domain)
-        break if available && dns_available
+        break if hostname_available && dns_available
 
         hostname_retries += 1
 
-        if !available
+        if !hostname_available
           $metrics.increment("errors.duplicatehostname.#{pool_name}")
           $logger.log('s', "[!] [#{pool_name}] Generated hostname #{hostname} was not unique (attempt \##{hostname_retries} of #{max_hostname_retries})")
         elsif !dns_available
@@ -317,7 +317,7 @@ module Vmpooler
         end
       end
 
-      raise "Unable to generate a unique hostname after #{hostname_retries} attempts. The last hostname checked was #{hostname}" unless available && dns_available
+      raise "Unable to generate a unique hostname after #{hostname_retries} attempts. The last hostname checked was #{hostname}" unless hostname_available && dns_available
 
       hostname
     end
