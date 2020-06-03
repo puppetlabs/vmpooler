@@ -681,6 +681,28 @@ EOT
         expect{subject._clone_vm(pool,provider)}.to raise_error(/MockError/)
       end
     end
+
+    context 'with #check_dns_available' do
+      before(:each) do
+        allow(logger).to receive(:log)
+      end
+      it 'should error out if DNS already exists' do
+        vm_name = "foo"
+        resolv = class_double("Resolv").as_stubbed_const(:transfer_nested_constants => true)
+        expect(subject).to receive(:generate_and_check_hostname).exactly(3).times.and_return([vm_name, true]) #skip this, make it available all times
+        expect(resolv).to receive(:getaddress).exactly(3).times.and_return("1.2.3.4")
+        expect(metrics).to receive(:increment).with("errors.staledns.#{vm_name}").exactly(3).times
+        expect{subject._clone_vm(pool,provider)}.to raise_error(/Unable to generate a unique hostname after/)
+      end
+      it 'should be successful if DNS does not exist' do
+        vm_name = "foo"
+        resolv = class_double("Resolv").as_stubbed_const(:transfer_nested_constants => true)
+        expect(subject).to receive(:generate_and_check_hostname).and_return([vm_name, true])
+        expect(resolv).to receive(:getaddress).exactly(1).times.and_raise(Resolv::ResolvError)
+        expect(provider).to receive(:create_vm).with(pool, String)
+        subject._clone_vm(pool,provider)
+      end
+    end
   end
 
   describe '#destroy_vm' do
@@ -2747,7 +2769,7 @@ EOT
       let(:loop_delay) { 1 }
       # Note a maxloop of zero can not be tested as it never terminates
       before(:each) do
-  
+
         allow(subject).to receive(:check_disk_queue)
         allow(subject).to receive(:check_snapshot_queue)
         allow(subject).to receive(:check_pool)
@@ -3639,7 +3661,7 @@ EOT
         # Modify the pool size to 1 and add a VM in the queue
         redis.sadd("vmpooler__#{queue_name}__#{pool}",vm)
         pool_size = 1
-  
+
         subject.repopulate_pool_vms(pool, provider, pool_check_response, pool_size)
       end
     end

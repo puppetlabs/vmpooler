@@ -2,6 +2,7 @@
 
 require 'vmpooler/providers'
 require 'spicy-proton'
+require 'resolv' # ruby standard lib
 
 module Vmpooler
   class PoolManager
@@ -295,20 +296,44 @@ module Vmpooler
     end
 
     def find_unique_hostname(pool_name)
+      # generate hostname that is not already in use in vmpooler
+      # also check that no dns record already exists
       hostname_retries = 0
       max_hostname_retries = 3
       while hostname_retries < max_hostname_retries
-        hostname, available = generate_and_check_hostname(pool_name)
-        break if available
+        hostname, hostname_available = generate_and_check_hostname(pool_name)
+        domain = $config[:config]['domain']
+        dns_ip, dns_available = check_dns_available(hostname, domain)
+        break if hostname_available && dns_available
 
         hostname_retries += 1
-        $metrics.increment("errors.duplicatehostname.#{pool_name}")
-        $logger.log('s', "[!] [#{pool_name}] Generated hostname #{hostname} was not unique (attempt \##{hostname_retries} of #{max_hostname_retries})")
+
+        if !hostname_available
+          $metrics.increment("errors.duplicatehostname.#{pool_name}")
+          $logger.log('s', "[!] [#{pool_name}] Generated hostname #{hostname} was not unique (attempt \##{hostname_retries} of #{max_hostname_retries})")
+        elsif !dns_available
+          $metrics.increment("errors.staledns.#{hostname}")
+          $logger.log('s', "[!] [#{pool_name}] Generated hostname #{hostname} already exists in DNS records (#{dns_ip}), stale DNS")
+        end
       end
 
-      raise "Unable to generate a unique hostname after #{hostname_retries} attempts. The last hostname checked was #{hostname}" unless available
+      raise "Unable to generate a unique hostname after #{hostname_retries} attempts. The last hostname checked was #{hostname}" unless hostname_available && dns_available
 
       hostname
+    end
+
+    def check_dns_available(vm_name, domain = nil)
+      # Query the DNS for the name we want to create and if it already exists, mark it unavailable
+      # This protects against stale DNS records
+      vm_name = "#{vm_name}.#{domain}" if domain
+      begin
+        dns_ip = Resolv.getaddress(vm_name)
+      rescue Resolv::ResolvError
+        # this is the expected case, swallow the error
+        # eg "no address for blah-daisy"
+        return ['', true]
+      end
+      [dns_ip, false]
     end
 
     def _clone_vm(pool_name, provider)
