@@ -50,7 +50,7 @@ describe Vmpooler::API::V1 do
       end
 
       it 'returns the number of ready vms for each pool' do
-        3.times {|i| create_ready_vm("pool1", "vm-#{i}") }
+        3.times {|i| create_ready_vm("pool1", "vm-#{i}", redis) }
         get "#{prefix}/status/"
 
         # of course /status doesn't conform to the weird standard everything else uses...
@@ -61,8 +61,8 @@ describe Vmpooler::API::V1 do
       end
 
       it 'returns the number of running vms for each pool' do
-        3.times {|i| create_running_vm("pool1", "vm-#{i}") }
-        4.times {|i| create_running_vm("pool2", "vm-#{i}") }
+        3.times {|i| create_running_vm("pool1", "vm-#{i}", redis) }
+        4.times {|i| create_running_vm("pool2", "vm-#{i}", redis) }
 
         get "#{prefix}/status/"
 
@@ -74,8 +74,8 @@ describe Vmpooler::API::V1 do
       end
 
       it 'returns the number of pending vms for each pool' do
-        3.times {|i| create_pending_vm("pool1", "vm-#{i}") }
-        4.times {|i| create_pending_vm("pool2", "vm-#{i}") }
+        3.times {|i| create_pending_vm("pool1", "vm-#{i}", redis) }
+        4.times {|i| create_pending_vm("pool2", "vm-#{i}", redis) }
 
         get "#{prefix}/status/"
 
@@ -230,8 +230,8 @@ describe Vmpooler::API::V1 do
       it 'returns the number of running VMs' do
         get "#{prefix}/totalrunning"
         expect(last_response.header['Content-Type']).to eq('application/json')
-        5.times {|i| create_running_vm("pool1", "vm-#{i}") }
-        5.times {|i| create_running_vm("pool3", "vm-#{i}") }
+        5.times {|i| create_running_vm("pool1", "vm-#{i}", redis, redis) }
+        5.times {|i| create_running_vm("pool3", "vm-#{i}", redis, redis) }
         result = JSON.parse(last_response.body)
         expect(result["running"] == 10)
       end

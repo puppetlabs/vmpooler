@@ -7,8 +7,7 @@ vmpooler provides configurable 'pools' of instantly-available (running) virtual 
 
 ## Usage
 
-At [Puppet, Inc.](http://puppet.com) we run acceptance tests on thousands of disposable VMs every day.  Dynamic cloning of VM templates initially worked fine for this, but added several seconds to each test run and was unable to account for failed clone tasks.  By pushing these operations to a backend service, we were able to both speed up tests and eliminate test failures due to underlying infrastructure failures.
-
+At [Puppet, Inc.](http://puppet.com) we run acceptance tests on thousands of disposable VMs every day. Vmpooler manages the lifecycle of these VMs from request through deletion, with options available to pool ready instances, and provision on demand.
 
 ## Installation
 
@@ -85,7 +84,7 @@ docker run -it vmpooler manager
 
 ### docker-compose
 
-A docker-compose file is provided to support running vmpooler easily via docker-compose.
+A docker-compose file is provided to support running vmpooler easily via docker-compose. This is useful for development because your local code is used to build the gem used in the docker-compose environment.
 
 ```
 docker-compose -f docker/docker-compose.yml up
@@ -113,7 +112,6 @@ A dashboard is provided to offer real-time statistics and historical graphs.  It
 
 ## Command-line Utility
 
-- The [vmpooler_client.py](https://github.com/puppetlabs/vmpooler-client) CLI utility provides easy access to the vmpooler service. The tool is cross-platform and written in Python.
 - [vmfloaty](https://github.com/briancain/vmfloaty) is a ruby based CLI tool and scripting library written in ruby.
 
 ## Vagrant plugin

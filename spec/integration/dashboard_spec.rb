@@ -56,11 +56,11 @@ describe Vmpooler::API do
 
       context 'without history param' do
         it 'returns basic JSON' do
-          create_ready_vm('pool1', 'vm1')
-          create_ready_vm('pool1', 'vm2')
-          create_ready_vm('pool1', 'vm3')
-          create_ready_vm('pool2', 'vm4')
-          create_ready_vm('pool2', 'vm5')
+          create_ready_vm('pool1', 'vm1', redis)
+          create_ready_vm('pool1', 'vm2', redis)
+          create_ready_vm('pool1', 'vm3', redis)
+          create_ready_vm('pool2', 'vm4', redis)
+          create_ready_vm('pool2', 'vm5', redis)
 
           get '/dashboard/stats/vmpooler/pool'
 
@@ -90,11 +90,11 @@ describe Vmpooler::API do
         end
 
         it 'returns JSON with history when redis has values' do
-          create_ready_vm('pool1', 'vm1')
-          create_ready_vm('pool1', 'vm2')
-          create_ready_vm('pool1', 'vm3')
-          create_ready_vm('pool2', 'vm4')
-          create_ready_vm('pool2', 'vm5')
+          create_ready_vm('pool1', 'vm1', redis)
+          create_ready_vm('pool1', 'vm2', redis)
+          create_ready_vm('pool1', 'vm3', redis)
+          create_ready_vm('pool2', 'vm4', redis)
+          create_ready_vm('pool2', 'vm5', redis)
 
           get '/dashboard/stats/vmpooler/pool', :history => true
 
@@ -140,18 +140,18 @@ describe Vmpooler::API do
         end
 
         it 'adds major correctly' do
-          create_running_vm('pool-1', 'vm1')
-          create_running_vm('pool-1', 'vm2')
-          create_running_vm('pool-1', 'vm3')
+          create_running_vm('pool-1', 'vm1', redis)
+          create_running_vm('pool-1', 'vm2', redis)
+          create_running_vm('pool-1', 'vm3', redis)
 
-          create_running_vm('pool-2', 'vm4')
-          create_running_vm('pool-2', 'vm5')
-          create_running_vm('pool-2', 'vm6')
-          create_running_vm('pool-2', 'vm7')
-          create_running_vm('pool-2', 'vm8')
+          create_running_vm('pool-2', 'vm4', redis)
+          create_running_vm('pool-2', 'vm5', redis)
+          create_running_vm('pool-2', 'vm6', redis)
+          create_running_vm('pool-2', 'vm7', redis)
+          create_running_vm('pool-2', 'vm8', redis)
 
-          create_running_vm('diffpool-1', 'vm9')
-          create_running_vm('diffpool-1', 'vm10')
+          create_running_vm('diffpool-1', 'vm9', redis)
+          create_running_vm('diffpool-1', 'vm10', redis)
 
           get '/dashboard/stats/vmpooler/running'
 

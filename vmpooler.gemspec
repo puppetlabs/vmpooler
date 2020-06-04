@@ -27,6 +27,7 @@ Gem::Specification.new do |s|
   s.add_dependency 'net-ldap', '~> 0.16'
   s.add_dependency 'statsd-ruby', '~> 1.4'
   s.add_dependency 'connection_pool', '~> 2.2'
+  s.add_dependency 'concurrent-ruby', '~> 1.1'
   s.add_dependency 'nokogiri', '~> 1.10'
   s.add_dependency 'spicy-proton', '~> 2.1'
 end

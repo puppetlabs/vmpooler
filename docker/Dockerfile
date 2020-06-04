@@ -8,9 +8,9 @@
 # RUN:
 #   docker run -e VMPOOLER_CONFIG -p 80:4567 -it vmpooler
 
-FROM jruby:9.2.9-jdk
+FROM jruby:9.2-jdk
 
-ARG vmpooler_version=0.5.0
+ARG vmpooler_version=0.11.3
 
 COPY docker/docker-entrypoint.sh /usr/local/bin/
 

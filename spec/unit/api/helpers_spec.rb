@@ -128,7 +128,7 @@ describe Vmpooler::API::Helpers do
       ]
 
       allow(redis).to receive(:pipelined).with(no_args).and_return [1,1]
-      allow(redis).to receive(:get).and_return 1
+      allow(redis).to receive(:get).and_return(1,0)
 
       expect(subject.get_queue_metrics(pools, redis)).to eq({pending: 2, cloning: 1, booting: 1, ready: 2, running: 2, completed: 2, total: 8})
     end
@@ -140,7 +140,7 @@ describe Vmpooler::API::Helpers do
       ]
 
       allow(redis).to receive(:pipelined).with(no_args).and_return [1,1]
-      allow(redis).to receive(:get).and_return 5
+      allow(redis).to receive(:get).and_return(5,0)
 
       expect(subject.get_queue_metrics(pools, redis)).to eq({pending: 2, cloning: 5, booting: 0, ready: 2, running: 2, completed: 2, total: 8})
     end

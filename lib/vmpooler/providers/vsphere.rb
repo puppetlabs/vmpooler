@@ -9,8 +9,8 @@ module Vmpooler
         # The connection_pool method is normally used only for testing
         attr_reader :connection_pool
 
-        def initialize(config, logger, metrics, name, options)
-          super(config, logger, metrics, name, options)
+        def initialize(config, logger, metrics, redis_connection_pool, name, options)
+          super(config, logger, metrics, redis_connection_pool, name, options)
 
           task_limit = global_config[:config].nil? || global_config[:config]['task_limit'].nil? ? 10 : global_config[:config]['task_limit'].to_i
           # The default connection pool size is:
@@ -39,6 +39,7 @@ module Vmpooler
           end
           @provider_hosts = {}
           @provider_hosts_lock = Mutex.new
+          @redis = redis_connection_pool
         end
 
         # name of the provider class
@@ -59,12 +60,16 @@ module Vmpooler
         def destroy_vm_and_log(vm_name, vm_object, pool, data_ttl)
           try = 0 if try.nil?
           max_tries = 3
-          $redis.srem("vmpooler__completed__#{pool}", vm_name)
-          $redis.hdel("vmpooler__active__#{pool}", vm_name)
-          $redis.hset("vmpooler__vm__#{vm_name}", 'destroy', Time.now)
+          @redis.with_metrics do |redis|
+            redis.multi
+            redis.srem("vmpooler__completed__#{pool}", vm_name)
+            redis.hdel("vmpooler__active__#{pool}", vm_name)
+            redis.hset("vmpooler__vm__#{vm_name}", 'destroy', Time.now)
 
-          # Auto-expire metadata key
-          $redis.expire('vmpooler__vm__' + vm_name, (data_ttl * 60 * 60))
+            # Auto-expire metadata key
+            redis.expire('vmpooler__vm__' + vm_name, (data_ttl * 60 * 60))
+            redis.exec
+          end
 
           start = Time.now
 
@@ -343,7 +348,7 @@ module Vmpooler
 
             begin
               vm_target_folder = find_vm_folder(pool_name, connection)
-              vm_target_folder = create_folder(connection, target_folder_path, target_datacenter_name) if vm_target_folder.nil? && @config[:config].key?('create_folders') && (@config[:config]['create_folders'] == true)
+              vm_target_folder ||= create_folder(connection, target_folder_path, target_datacenter_name) if @config[:config].key?('create_folders') && (@config[:config]['create_folders'] == true)
             rescue StandardError
               if @config[:config].key?('create_folders') && (@config[:config]['create_folders'] == true)
                 vm_target_folder = create_folder(connection, target_folder_path, target_datacenter_name)
@@ -351,6 +356,7 @@ module Vmpooler
                 raise
               end
             end
+            raise ArgumentError, "Can not find the configured folder for #{pool_name} #{target_folder_path}" unless vm_target_folder
 
             # Create the new VM
             new_vm_object = template_vm_object.CloneVM_Task(
@@ -968,22 +974,24 @@ module Vmpooler
             begin
               connection = ensured_vsphere_connection(pool_object)
               vm_hash = get_vm_details(pool_name, vm_name, connection)
-              $redis.hset("vmpooler__vm__#{vm_name}", 'host', vm_hash['host_name'])
-              migration_limit = @config[:config]['migration_limit'] if @config[:config].key?('migration_limit')
-              migration_count = $redis.scard('vmpooler__migration')
-              if migration_enabled? @config
-                if migration_count >= migration_limit
-                  logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{vm_hash['host_name']}. No migration will be evaluated since the migration_limit has been reached")
-                  break
-                end
-                run_select_hosts(pool_name, @provider_hosts)
-                if vm_in_target?(pool_name, vm_hash['host_name'], vm_hash['architecture'], @provider_hosts)
-                  logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{vm_hash['host_name']}")
+              @redis.with_metrics do |redis|
+                redis.hset("vmpooler__vm__#{vm_name}", 'host', vm_hash['host_name'])
+                migration_count = redis.scard('vmpooler__migration')
+                migration_limit = @config[:config]['migration_limit'] if @config[:config].key?('migration_limit')
+                if migration_enabled? @config
+                  if migration_count >= migration_limit
+                    logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{vm_hash['host_name']}. No migration will be evaluated since the migration_limit has been reached")
+                    break
+                  end
+                  run_select_hosts(pool_name, @provider_hosts)
+                  if vm_in_target?(pool_name, vm_hash['host_name'], vm_hash['architecture'], @provider_hosts)
+                    logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{vm_hash['host_name']}")
+                  else
+                    migrate_vm_to_new_host(pool_name, vm_name, vm_hash, connection)
+                  end
                 else
-                  migrate_vm_to_new_host(pool_name, vm_name, vm_hash, connection)
+                  logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{vm_hash['host_name']}")
                 end
-              else
-                logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{vm_hash['host_name']}")
               end
             rescue StandardError
               logger.log('s', "[!] [#{pool_name}] '#{vm_name}' is running on #{vm_hash['host_name']}")
@@ -993,15 +1001,23 @@ module Vmpooler
         end
 
         def migrate_vm_to_new_host(pool_name, vm_name, vm_hash, connection)
-          $redis.sadd('vmpooler__migration', vm_name)
+          @redis.with_metrics do |redis|
+            redis.sadd('vmpooler__migration', vm_name)
+          end
           target_host_name = select_next_host(pool_name, @provider_hosts, vm_hash['architecture'])
           target_host_object = find_host_by_dnsname(connection, target_host_name)
           finish = migrate_vm_and_record_timing(pool_name, vm_name, vm_hash, target_host_object, target_host_name)
-          $redis.hset("vmpooler__vm__#{vm_name}", 'host', target_host_name)
-          $redis.hset("vmpooler__vm__#{vm_name}", 'migrated', true)
+          @redis.with_metrics do |redis|
+            redis.multi
+            redis.hset("vmpooler__vm__#{vm_name}", 'host', target_host_name)
+            redis.hset("vmpooler__vm__#{vm_name}", 'migrated', true)
+            redis.exec
+          end
           logger.log('s', "[>] [#{pool_name}] '#{vm_name}' migrated from #{vm_hash['host_name']} to #{target_host_name} in #{finish} seconds")
         ensure
-          $redis.srem('vmpooler__migration', vm_name)
+          @redis.with_metrics do |redis|
+            redis.srem('vmpooler__migration', vm_name)
+          end
         end
 
         def migrate_vm_and_record_timing(pool_name, vm_name, vm_hash, target_host_object, dest_host_name)
@@ -1011,9 +1027,13 @@ module Vmpooler
           metrics.timing("migrate.#{pool_name}", finish)
           metrics.increment("migrate_from.#{vm_hash['host_name']}")
           metrics.increment("migrate_to.#{dest_host_name}")
-          checkout_to_migration = format('%<time>.2f', time: Time.now - Time.parse($redis.hget("vmpooler__vm__#{vm_name}", 'checkout')))
-          $redis.hset("vmpooler__vm__#{vm_name}", 'migration_time', finish)
-          $redis.hset("vmpooler__vm__#{vm_name}", 'checkout_to_migration', checkout_to_migration)
+          @redis.with_metrics do |redis|
+            checkout_to_migration = format('%<time>.2f', time: Time.now - Time.parse(redis.hget("vmpooler__vm__#{vm_name}", 'checkout')))
+            redis.multi
+            redis.hset("vmpooler__vm__#{vm_name}", 'migration_time', finish)
+            redis.hset("vmpooler__vm__#{vm_name}", 'checkout_to_migration', checkout_to_migration)
+            redis.exec
+          end
           finish
         end
 
