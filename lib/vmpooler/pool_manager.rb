@@ -353,7 +353,7 @@ module Vmpooler
       hostname_retries = 0
       max_hostname_retries = 3
       while hostname_retries < max_hostname_retries
-        hostname, hostname_available = generate_and_check_hostname(pool_name)
+        hostname, hostname_available = generate_and_check_hostname
         domain = $config[:config]['domain']
         dns_ip, dns_available = check_dns_available(hostname, domain)
         break if hostname_available && dns_available
