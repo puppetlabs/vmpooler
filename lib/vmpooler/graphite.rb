@@ -35,6 +35,8 @@ module Vmpooler
           socket.close
         end
       end
+    rescue Errno::EADDRNOTAVAIL => e
+      warn "Could not assign address to graphite server #{server}: #{e}"
     rescue StandardError => e
       warn "Failure logging #{path} to graphite server [#{server}:#{port}]: #{e}"
     end
