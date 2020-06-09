@@ -63,6 +63,20 @@ MockDatacenter = Struct.new(
   end
 end
 
+MockNetwork = Struct.new(
+  # https://www.vmware.com/support/developer/vc-sdk/visdk41pubs/ApiReference/vim.Network.html
+  # From Network
+  :host, :name, :summary, :vm
+)
+
+MockVirtualVmxnet3 = Struct.new(
+  # https://www.vmware.com/support/developer/vc-sdk/visdk400pubs/ReferenceGuide/vim.vm.device.VirtualVmxnet.html
+  # From VirtualEthenetCard
+  :addressType,
+  # From VirtualDevice
+  :key, :deviceInfo, :backing, :connectable
+)
+
 MockDatastore = Struct.new(
   # https://www.vmware.com/support/developer/vc-sdk/visdk41pubs/ApiReference/vim.Datastore.html
   # From Datastore
@@ -206,6 +220,33 @@ MockDescription = Struct.new(
   # https://www.vmware.com/support/developer/vc-sdk/visdk400pubs/ReferenceGuide/vim.Description.html
   # From Description
   :label, :summary
+)
+
+MockVirtualEthernetCardNetworkBackingInfo = Struct.new(
+  # https://www.vmware.com/support/developer/vc-sdk/visdk400pubs/ReferenceGuide/vim.vm.device.VirtualEthernetCard.NetworkBackingInfo.html
+  # From VirtualEthernetCardNetworkBackingInfo
+  :network,
+
+  # From VirtualDeviceBackingInfo
+  :deviceName, :useAutoDetect
+)
+
+MockVirtualDeviceConnectInfo = Struct.new(
+  # https://www.vmware.com/support/developer/vc-sdk/visdk400pubs/ReferenceGuide/vim.vm.device.VirtualDevice.ConnectInfo.html
+  # From VirtualDeviceConnectInfo
+  :allowGuestControl, :connected, :startConnected
+)
+
+MockVirtualMachineConfigSpec = Struct.new(
+  # https://pubs.vmware.com/vi3/sdk/ReferenceGuide/vim.vm.ConfigSpec.html
+  # From VirtualMachineConfigSpec
+  :deviceChange, :annotation, :extraConfig
+)
+
+MockVirtualMachineRelocateSpec = Struct.new(
+  # https://pubs.vmware.com/vi3/sdk/ReferenceGuide/vim.vm.RelocateSpec.html
+  # From VirtualMachineRelocateSpec
+  :datastore, :diskMoveType, :pool
 )
 
 MockDynamicProperty = Struct.new(
@@ -433,6 +474,7 @@ def mock_RbVmomi_VIM_Datacenter(options = {})
   # Currently don't support mocking datastore tree
   options[:datastores]      = [] if options[:datastores].nil?
   options[:name]            = 'Datacenter' + rand(65536).to_s if options[:name].nil?
+  options[:networks]        = [] if options[:networks].nil?
 
   mock = MockDatacenter.new()
 
@@ -440,6 +482,7 @@ def mock_RbVmomi_VIM_Datacenter(options = {})
   mock.hostFolder = mock_RbVmomi_VIM_Folder({ :name => 'hostFolderRoot'})
   mock.vmFolder = mock_RbVmomi_VIM_Folder({ :name => 'vmFolderRoot'})
   mock.datastore = []
+  mock.network = []
 
   # Create vmFolder hierarchy
   recurse_folder_tree(options[:vmfolder_tree],mock.vmFolder.childEntity)
@@ -451,6 +494,12 @@ def mock_RbVmomi_VIM_Datacenter(options = {})
   options[:datastores].each do |datastorename|
     mock_ds = mock_RbVmomi_VIM_Datastore({ :name => datastorename })
     mock.datastore << mock_ds
+  end
+
+  # Create mock Networks
+  options[:networks].each do |networkname|
+    mock_nw = mock_RbVmomi_VIM_Network({ :name => networkname })
+    mock.network << mock_nw
   end
 
   allow(mock).to receive(:is_a?) do |expected_type|
@@ -504,6 +553,72 @@ def mock_RbVmomi_VIM_Datastore(options = {})
   allow(mock).to receive(:is_a?) do |expected_type|
     expected_type == RbVmomi::VIM::Datastore
   end
+
+  mock
+end
+
+# https://www.vmware.com/support/developer/vc-sdk/visdk41pubs/ApiReference/vim.Network.html
+def mock_RbVmomi_VIM_Network(options = {})
+  options[:name] = 'Network' + rand(65536).to_s if options[:name].nil?
+
+  mock = MockNetwork.new()
+
+  mock.name = options[:name]
+
+  allow(mock).to receive(:is_a?) do |expected_type|
+    expected_type == RbVmomi::VIM::Network
+  end
+
+  mock
+end
+
+# https://www.vmware.com/support/developer/vc-sdk/visdk400pubs/ReferenceGuide/vim.vm.device.VirtualVmxnet3.html
+def mock_RbVmomi_VIM_VirtualVmxnet3(options = {})
+  options[:key] = rand(65536) if options[:key].nil?
+  options[:deviceInfo] = MockDescription.new()
+  options[:backing] = MockVirtualEthernetCardNetworkBackingInfo.new()
+  options[:addressType] = 'assigned'
+  options[:connectable] = MockVirtualDeviceConnectInfo.new()
+
+  mock = MockVirtualVmxnet3.new()
+
+  mock.key = options[:key]
+  mock.deviceInfo = options[:deviceInfo]
+  mock.backing = options[:backing]
+  mock.addressType = options[:addressType]
+  mock.connectable = options[:connectable]
+
+  allow(mock).to receive(:is_a?) do |expected_type|
+    expected_type == RbVmomi::VIM::VirtualVmxnet3
+  end
+
+  mock
+end
+
+# https://pubs.vmware.com/vi3/sdk/ReferenceGuide/vim.vm.RelocateSpec.html
+def mock_RbVmomi_VIM_VirtualMachineRelocateSpec(options = {})
+  options[:datastore] = 'Datastore' + rand(65536).to_s if options[:datastore].nil?
+  options[:diskMoveType] = :moveChildMostDiskBacking
+  options[:pool] = 'Pool' + rand(65536).to_s if options[:pool].nil?
+
+  mock = MockVirtualMachineRelocateSpec.new
+
+  mock.datastore = mock_RbVmomi_VIM_Datastore({ :name => options[:datastore]})
+  mock.diskMoveType = options[:diskMoveType]
+  mock.pool = mock_RbVmomi_VIM_ResourcePool({:name => options[:pool]})
+  allow(mock).to receive(:is_a?).and_return(RbVmomi::VIM::VirtualMachineRelocateSpec)
+  mock
+end
+
+# https://pubs.vmware.com/vi3/sdk/ReferenceGuide/vim.vm.ConfigSpec.html
+def mock_RbVmomi_VIM_VirtualMachineConfigSpec(options = {})
+  options[:device] = mock_RbVmomi_VIM_VirtualVmxnet3()
+
+
+  mock = MockVirtualMachineConfigSpec.new
+
+  mock.deviceChange = []
+  mock.deviceChange << { operation: :edit, device: options[:device]}
 
   mock
 end
