@@ -298,7 +298,6 @@ module Vmpooler
             template_path = pool['template']
             target_folder_path = pool['folder']
             target_datastore = pool['datastore']
-            target_cluster_name = get_target_cluster_from_config(pool_name)
             target_datacenter_name = get_target_datacenter_from_config(pool_name)
 
             # Get the template VM object
@@ -320,31 +319,19 @@ module Vmpooler
               ]
             )
 
-            # Put the VM in the specified folder and resource pool
-            relocate_spec = RbVmomi::VIM.VirtualMachineRelocateSpec(
-              datastore: find_datastore(target_datastore, connection, target_datacenter_name),
-              diskMoveType: get_disk_backing(pool)
-            )
-
-            manage_host_selection = @config[:config]['manage_host_selection'] if @config[:config].key?('manage_host_selection')
-            if manage_host_selection
-              run_select_hosts(pool_name, @provider_hosts)
-              target_host = select_next_host(pool_name, @provider_hosts)
-              host_object = find_host_by_dnsname(connection, target_host)
-              relocate_spec.host = host_object
-            else
-              # Choose a cluster/host to place the new VM on
-              target_cluster_object = find_cluster(target_cluster_name, connection, target_datacenter_name)
-              relocate_spec.pool = target_cluster_object.resourcePool
+            # Check if alternate network configuration is specified and add configuration
+            if pool.key?('network')
+              template_vm_network_device = template_vm_object.config.hardware.device.grep(RbVmomi::VIM::VirtualEthernetCard).first
+              network_name = pool['network']
+              network_device = set_network_device(target_datacenter_name, template_vm_network_device, network_name, connection)
+              config_spec.deviceChange = [{ operation: 'edit', device: network_device }]
             end
 
+            # Put the VM in the specified folder and resource pool
+            relocate_spec = create_relocate_spec(target_datastore, target_datacenter_name, pool_name, connection)
+
             # Create a clone spec
-            clone_spec = RbVmomi::VIM.VirtualMachineCloneSpec(
-              location: relocate_spec,
-              config: config_spec,
-              powerOn: true,
-              template: false
-            )
+            clone_spec = create_clone_spec(relocate_spec, config_spec)
 
             begin
               vm_target_folder = find_vm_folder(pool_name, connection)
@@ -356,7 +343,7 @@ module Vmpooler
                 raise
               end
             end
-            raise ArgumentError, "Can not find the configured folder for #{pool_name} #{target_folder_path}" unless vm_target_folder
+            raise ArgumentError, "Cannot find the configured folder for #{pool_name} #{target_folder_path}" unless vm_target_folder
 
             # Create the new VM
             new_vm_object = template_vm_object.CloneVM_Task(
@@ -368,6 +355,72 @@ module Vmpooler
             vm_hash = generate_vm_hash(new_vm_object, pool_name)
           end
           vm_hash
+        end
+
+        def create_relocate_spec(target_datastore, target_datacenter_name, pool_name, connection)
+          pool = pool_config(pool_name)
+          target_cluster_name = get_target_cluster_from_config(pool_name)
+
+          relocate_spec = RbVmomi::VIM.VirtualMachineRelocateSpec(
+            datastore: find_datastore(target_datastore, connection, target_datacenter_name),
+            diskMoveType: get_disk_backing(pool)
+          )
+          manage_host_selection = @config[:config]['manage_host_selection'] if @config[:config].key?('manage_host_selection')
+          if manage_host_selection
+            run_select_hosts(pool_name, @provider_hosts)
+            target_host = select_next_host(pool_name, @provider_hosts)
+            host_object = find_host_by_dnsname(connection, target_host)
+            relocate_spec.host = host_object
+          else
+            # Choose a cluster/host to place the new VM on
+            target_cluster_object = find_cluster(target_cluster_name, connection, target_datacenter_name)
+            relocate_spec.pool = target_cluster_object.resourcePool
+          end
+          relocate_spec
+        end
+
+        def create_clone_spec(relocate_spec, config_spec)
+          RbVmomi::VIM.VirtualMachineCloneSpec(
+            location: relocate_spec,
+            config: config_spec,
+            powerOn: true,
+            template: false
+          )
+        end
+
+        def set_network_device(datacentername, template_vm_network_device, network_name, connection)
+          # Retrieve network object
+          datacenter = connection.serviceInstance.find_datacenter(datacentername)
+          new_network = datacenter.network.find { |n| n.name == network_name }
+
+          # Determine network device type
+          network_device =
+            if template_vm_network_device.class.name == 'RbVmomi::VIM::VirtualVmxnet3'
+              RbVmomi::VIM.VirtualVmxnet3
+            elsif template_vm_network_device.class.name == 'RbVmomi::VIM::VirtualE1000'
+              RbVmomi::VIM.VirtualE1000
+            else
+              RbVmomi::VIM.VirtualPCNet32
+            end
+
+          # Set up new network device attributes
+          network_device.key = template_vm_network_device.key
+          network_device.deviceInfo = RbVmomi::VIM.Description(
+            label: template_vm_network_device.deviceInfo.label,
+            summary: network_name
+          )
+          network_device.backing = RbVmomi::VIM.VirtualEthernetCardNetworkBackingInfo(
+            deviceName: network_name,
+            network: new_network,
+            useAutoDetect: false
+          )
+          network_device.addressType = 'assigned'
+          network_device.connectable = RbVmomi::VIM.VirtualDeviceConnectInfo(
+            allowGuestControl: true,
+            startConnected: true,
+            connected: true
+          )
+          network_device
         end
 
         def create_disk(pool_name, vm_name, disk_size)
