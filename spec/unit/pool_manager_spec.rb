@@ -4872,6 +4872,14 @@ EOT
       end
     end
 
+    it 'fails if the request is not valid' do
+      redis_connection_pool.with do |redis|
+        request_id = "#{request_id}-wrong"
+        create_ondemand_request_for_test(request_id, current_time.to_i, "#{pool}:5", redis)
+        expect{subject.vms_ready?(request_id, redis)}.to raise_error(ArgumentError)
+      end
+    end
+
     it 'returns false when vms for request_id are not ready' do
       redis_connection_pool.with do |redis|
         result = subject.vms_ready?(request_id, redis)
