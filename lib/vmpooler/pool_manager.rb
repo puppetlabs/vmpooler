@@ -1501,7 +1501,7 @@ module Vmpooler
     def vms_ready?(request_id, redis)
       catch :request_not_ready do
         request_hash = redis.hgetall("vmpooler__odrequest__#{request_id}")
-        Parsing.get_platform_pool_count(request_hash['requested']) do |platform_alias,pool,count|
+        Parsing.get_platform_pool_count(request_hash['requested']) do |platform_alias, pool, count|
           pools_filled = redis.scard("vmpooler__#{request_id}__#{platform_alias}__#{pool}")
           throw :request_not_ready unless pools_filled.to_i == count.to_i
         end
@@ -1553,7 +1553,7 @@ module Vmpooler
 
     def remove_vms_for_failed_request(request_id, expiration_ttl, redis)
       request_hash = redis.hgetall("vmpooler__odrequest__#{request_id}")
-      Parsing.get_platform_pool_count(request_hash['requested']) do |platform_alias,pool,_count|
+      Parsing.get_platform_pool_count(request_hash['requested']) do |platform_alias, pool, _count|
         pools_filled = redis.smembers("vmpooler__#{request_id}__#{platform_alias}__#{pool}")
         redis.pipelined do
           pools_filled&.each do |vm|

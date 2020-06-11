@@ -5,7 +5,6 @@ require 'vmpooler/util/parsing'
 module Vmpooler
   class API
   class V1 < Sinatra::Base
-
     api_version = '1'
     api_prefix  = "/api/v#{api_version}"
 
@@ -339,6 +338,7 @@ module Vmpooler
     def too_many_requested?(payload)
       payload&.each do |poolname, count|
         next unless count.to_i > config['max_ondemand_instances_per_request']
+
         metrics.increment('ondemandrequest.toomanyrequests.' + poolname)
         return true
       end
@@ -979,7 +979,7 @@ module Vmpooler
 
       if request_hash['status'] == 'ready'
         result['ready'] = true
-        Parsing.get_platform_pool_count(request_hash['requested']) do |platform_alias,pool,_count|
+        Parsing.get_platform_pool_count(request_hash['requested']) do |platform_alias, pool, _count|
           instances = backend.smembers("vmpooler__#{request_id}__#{platform_alias}__#{pool}")
           result[platform_alias] = { 'hostname': instances }
         end
@@ -992,7 +992,7 @@ module Vmpooler
         result['message'] = 'The request has been deleted'
         status 200
       else
-        Parsing.get_platform_pool_count(request_hash['requested']) do |platform_alias,pool,count|
+        Parsing.get_platform_pool_count(request_hash['requested']) do |platform_alias, pool, count|
           instance_count = backend.scard("vmpooler__#{request_id}__#{platform_alias}__#{pool}")
           result[platform_alias] = {
             'ready': instance_count.to_s,
@@ -1018,7 +1018,7 @@ module Vmpooler
       else
         backend.hset("vmpooler__odrequest__#{request_id}", 'status', 'deleted')
 
-        Parsing.get_platform_pool_count(platforms) do |platform_alias,pool,_count|
+        Parsing.get_platform_pool_count(platforms) do |platform_alias, pool, _count|
           backend.smembers("vmpooler__#{request_id}__#{platform_alias}__#{pool}")&.each do |vm|
             backend.smove("vmpooler__running__#{pool}", "vmpooler__completed__#{pool}", vm)
           end
