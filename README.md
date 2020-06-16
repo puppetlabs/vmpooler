@@ -25,6 +25,12 @@ Vmpooler requires a [Redis](http://redis.io/) server. This is the datastore used
 
 Configuration for vmpooler may be provided via environment variables, or a configuration file.
 
+Note on jruby 9.2.11.x: We have found when running vmpooler on jruby 9.2.11.x we occasionally encounter a stack overflow error that causes the pool\_manager application component to fail and stop doing work. To address this issue on jruby 9.2.11.x we recommend setting the jruby option 'invokedynamic.yield=false'. To set this with jruby 9.2.11.1 you can specify the environment variable 'JRUBY\_OPTS' with the value '-Xinvokedynamic.yield=false'.
+
+The provided configuration defaults are reasonable for  small vmpooler instances with a few pools. If you plan to run a large vmpooler instance it is important to consider configuration values appropriate for the instance of your size in order to avoid starving the provider, or redis, of connections.
+
+As of vmpooler 0.13.x redis uses a connection pool to improve efficiency and ensure thread safe usage. At Puppet, we run an instance with about 100 pools at any given time. We have to provide it with 200 redis connections to the redis connection pool, and a timeout for connections of 40 seconds, to avoid timeouts. Because metrics are generated for connection available and waited your metrics provider will need to be able to cope with this volume. Statsd is recommended to ensure metrics get delivered reliably.
+
 Please see this [configuration](docs/configuration.md) document for more details about configuring vmpooler via environment variables.
 
 The following YAML configuration sets up two pools, `debian-7-i386` and `debian-7-x86_64`, which contain 5 running VMs each:
