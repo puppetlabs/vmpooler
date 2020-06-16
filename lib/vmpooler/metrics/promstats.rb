@@ -43,21 +43,29 @@ module Vmpooler
           },
           param_labels: %i[template_name]
         },
-        usage: {
+        user: {
           mtype: M_COUNTER,
-          docstring: 'Number of Pool Instances of this created',
-          prom_metric_prefix: "#{@metrics_prefix}_usage",
+          docstring: 'Number of Pool Instances this user created created',
+          prom_metric_prefix: "#{@metrics_prefix}_user",
           param_labels: %i[user poolname]
         },
-        user: {
-          # This metrics is leads to a lot of label values which is likely to challenge data storage
-          # on prometheus - see Best Practices: https://prometheus.io/docs/practices/naming/#labels
-          # So it is likely that this metric may need to be simplified or broken into a number
-          # of smaller metrics to capture the detail without challenging prometheus
+        usage_jenkins_instance: {
           mtype: M_COUNTER,
-          docstring: 'vmpooler user counters',
-          prom_metric_prefix: "#{@metrics_prefix}_user",
-          param_labels: %i[user instancex value_stream branch project job_name component_to_test poolname]
+          docstring: 'Pools by Jenkins Instance usage',
+          prom_metric_prefix: "#{@metrics_prefix}_usage_jenkins_instance",
+          param_labels: %i[jenkins_instance value_stream poolname]
+        },
+        usage_branch_project: {
+          mtype: M_COUNTER,
+          docstring: 'Pools by branch/project usage',
+          prom_metric_prefix: "#{@metrics_prefix}_usage_branch_project",
+          param_labels: %i[branch project poolname]
+        },
+        usage_job_component: {
+          mtype: M_COUNTER,
+          docstring: 'Pools by job/component usage',
+          prom_metric_prefix: "#{@metrics_prefix}_usage_job_component",
+          param_labels: %i[job_name component_to_test poolname]
         },
         checkout: {
           mtype: M_COUNTER,

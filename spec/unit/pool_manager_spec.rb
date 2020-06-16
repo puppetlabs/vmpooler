@@ -1110,7 +1110,7 @@ EOT
 
           it 'should emit a metric' do
             redis_connection_pool.with do |redis|
-              expect(metrics).to receive(:increment).with("usage.unauthenticated.#{template}")
+              expect(metrics).to receive(:increment).with("user.unauthenticated.#{template}")
 
               subject.get_vm_usage_labels(vm, redis)
             end
@@ -1126,7 +1126,8 @@ EOT
           end
 
           it 'should emit a metric' do
-            expect(metrics).to receive(:increment).with("usage.#{user}.#{template}")
+            expect(metrics).to receive(:increment).with("user.#{user}.#{template}")
+            expect(metrics).not_to receive(:increment)
 
             redis_connection_pool.with do |redis|
               subject.get_vm_usage_labels(vm, redis)
@@ -1135,7 +1136,7 @@ EOT
 
           context 'with a user with period in name' do
             let(:user) { 'test.user'.gsub('.', '_') }
-            let(:metric_string) { "usage.#{user}.#{template}" }
+            let(:metric_string) { "user.#{user}.#{template}" }
             let(:metric_nodes) { metric_string.split('.') }
 
             before(:each) do
@@ -1146,6 +1147,7 @@ EOT
 
             it 'should emit a metric with the character replaced' do
               expect(metrics).to receive(:increment).with(metric_string)
+              expect(metrics).not_to receive(:increment)
 
               redis_connection_pool.with do |redis|
                 subject.get_vm_usage_labels(vm, redis)
@@ -1155,7 +1157,6 @@ EOT
             it 'should include three nodes' do
               expect(metric_nodes.count).to eq(3)
             end
-
           end
 
           context 'with a jenkins_build_url label' do
@@ -1167,16 +1168,11 @@ EOT
             let(:branch) { value_stream_parts.pop }
             let(:project) { value_stream_parts.shift }
             let(:job_name) { value_stream_parts.join('_') }
-            let(:metric_string_nodes) {
-              [
-                'usage', user, instance, value_stream, branch, project, job_name, template
-              ]
-            }
-            let(:metric_string_sub) {
-              metric_string_nodes.map { |s| s.gsub('.', '_')
-              }
-            }
-            let(:metric_string) { metric_string_sub.join('.') }
+
+            let(:metric_string_1) { "user.#{user}.#{template}" }
+            let(:metric_string_2) { "usage_jenkins_instance.#{instance.gsub('.', '_')}.#{value_stream.gsub('.', '_')}.#{template}" }
+            let(:metric_string_3) { "usage_branch_project.#{branch.gsub('.', '_')}.#{project.gsub('.', '_')}.#{template}" }
+            let(:metric_string_4) { "usage_job_component.#{job_name.gsub('.', '_')}.none.#{template}" }
 
             before(:each) do
               redis_connection_pool.with do |redis|
@@ -1184,8 +1180,12 @@ EOT
               end
             end
 
-            it 'should emit a metric with information from the URL' do
-              expect(metrics).to receive(:increment).with(metric_string)
+            it 'should emit 4 metric withs information from the URL' do
+              expect(metrics).to receive(:increment).with(metric_string_1)
+              expect(metrics).to receive(:increment).with(metric_string_2)
+              expect(metrics).to receive(:increment).with(metric_string_3)
+              expect(metrics).to receive(:increment).with(metric_string_4)
+              expect(metrics).not_to receive(:increment)
 
               redis_connection_pool.with do |redis|
                 subject.get_vm_usage_labels(vm, redis)
@@ -1207,14 +1207,23 @@ EOT
             let(:expected_string) { "usage.#{user}.#{instance}.#{value_stream}.#{branch}.#{project}.#{job_name}.#{build_component}.#{template}" }
             let(:metric_nodes) { expected_string.split('.') }
 
+            let(:metric_string_1) { "user.#{user}.#{template}" }
+            let(:metric_string_2) { "usage_jenkins_instance.#{instance.gsub('.', '_')}.#{value_stream.gsub('.', '_')}.#{template}" }
+            let(:metric_string_3) { "usage_branch_project.#{branch.gsub('.', '_')}.#{project.gsub('.', '_')}.#{template}" }
+            let(:metric_string_4) { "usage_job_component.#{job_name.gsub('.', '_')}.#{build_component}.#{template}" }
+
             before(:each) do
               redis_connection_pool.with do |redis|
                 create_tag(vm, 'jenkins_build_url', jenkins_build_url, redis)
               end
             end
 
-            it 'should emit a metric with information from the URL' do
-              expect(metrics).to receive(:increment).with(expected_string)
+            it 'should emit 4 metrics with information from the URL' do
+              expect(metrics).to receive(:increment).with(metric_string_1)
+              expect(metrics).to receive(:increment).with(metric_string_2)
+              expect(metrics).to receive(:increment).with(metric_string_3)
+              expect(metrics).to receive(:increment).with(metric_string_4)
+              expect(metrics).not_to receive(:increment)
 
               redis_connection_pool.with do |redis|
                 subject.get_vm_usage_labels(vm, redis)
@@ -1236,18 +1245,52 @@ EOT
               let(:project) { value_stream_parts.shift }
               let(:job_name) { value_stream_parts.join('_') }
 
+              let(:metric_string_1) { "user.#{user}.#{template}" }
+              let(:metric_string_2) { "usage_jenkins_instance.#{instance.gsub('.', '_')}.#{value_stream.gsub('.', '_')}.#{template}" }
+              let(:metric_string_3) { "usage_branch_project.#{branch.gsub('.', '_')}.#{project.gsub('.', '_')}.#{template}" }
+              let(:metric_string_4) { "usage_job_component.#{job_name.gsub('.', '_')}.none.#{template}" }
+  
               before(:each) do
                 redis_connection_pool.with do |redis|
                   create_tag(vm, 'jenkins_build_url', jenkins_build_url, redis)
                 end
               end
 
-              it 'should emit a metric with information from the URL without a build_component' do
-                expect(metrics).to receive(:increment).with("usage.#{user}.#{instance}.#{value_stream}.#{branch}.#{project}.#{job_name}.#{template}")
-
+              it 'should emit 4 metrics with information from the URL without a build_component' do
+                expect(metrics).to receive(:increment).with(metric_string_1)
+                expect(metrics).to receive(:increment).with(metric_string_2)
+                expect(metrics).to receive(:increment).with(metric_string_3)
+                expect(metrics).to receive(:increment).with(metric_string_4)
+                expect(metrics).not_to receive(:increment)
+  
                 redis_connection_pool.with do |redis|
                   subject.get_vm_usage_labels(vm, redis)
                 end
+              end
+            end
+
+
+          end
+
+          context 'with a litmus job' do
+            let(:jenkins_build_url) { 'https://litmus_manual' }
+
+            let(:metric_string_1) { "user.#{user}.#{template}" }
+            let(:metric_string_2) { "usage_litmus.#{user}.#{template}" }
+
+            before(:each) do
+              redis_connection_pool.with do |redis|
+                create_tag(vm, 'jenkins_build_url', jenkins_build_url, redis)
+              end
+            end
+
+            it 'should emit 2 metrics with the second indicating a litmus job' do
+              expect(metrics).to receive(:increment).with(metric_string_1)
+              expect(metrics).to receive(:increment).with(metric_string_2)
+              expect(metrics).not_to receive(:increment)
+
+              redis_connection_pool.with do |redis|
+                subject.get_vm_usage_labels(vm, redis)
               end
             end
           end
@@ -1269,21 +1312,21 @@ EOT
       end
 
       context 'when match contains no value' do
-        it 'should return nil' do
-          expect(subject.component_to_test(matching_key, matching_key)).to be nil
+        it 'should return none' do
+          expect(subject.component_to_test(matching_key, matching_key)).to eq('none')
         end
       end
     end
 
     context 'when string contains no key value pairs' do
       it 'should return' do
-        expect(subject.component_to_test(matching_key, nonmatrix_string)).to be nil
+        expect(subject.component_to_test(matching_key, nonmatrix_string)).to eq('none')
       end
     end
 
     context 'when labels_string is a job number' do
       it 'should return nil' do
-        expect(subject.component_to_test(matching_key, '25')).to be nil
+        expect(subject.component_to_test(matching_key, '25')).to eq('none')
       end
     end
 

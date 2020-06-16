@@ -142,22 +142,42 @@ describe 'prometheus' do
           po.get(labels: metric[:labels])
         }.by(1)
       end
-      it 'Increments usage.#{user}.#{poolname}' do
+      it 'Increments user.#{user}.#{poolname}' do
         user = 'myuser'
         poolname = 'test-pool'
-        expect { subject.increment("usage.#{user}.#{poolname}") }.to change {
-          metric, po = subject.get("usage.#{user}.#{poolname}")
+        expect { subject.increment("user.#{user}.#{poolname}") }.to change {
+          metric, po = subject.get("user.#{user}.#{poolname}")
           po.get(labels: metric[:labels])
         }.by(1)
       end
-      it 'Increments label :user' do
-        # subject.increment(:user, :instance, :value_stream, :branch, :project, :job_name, :component_to_test, :poolname) - showing labels here
-        pending 'increment only supports a string containing a dot separator'
-        expect { subject.increment(:user) }.to change {
-          metric, po = subject.get(:user)
+      it 'Increments label usage_jenkins_instance.#{jenkins_instance}.#{value_stream}.#{poolname}' do
+        jenkins_instance = 'jenkins_test_instance'
+        value_stream = 'notional_value'
+        poolname = 'test-pool'
+        expect { subject.increment("usage_jenkins_instance.#{jenkins_instance}.#{value_stream}.#{poolname}") }.to change {
+          metric, po = subject.get("usage_jenkins_instance.#{jenkins_instance}.#{value_stream}.#{poolname}")
           po.get(labels: metric[:labels])
         }.by(1)
       end
+      it 'Increments label usage_branch_project.#{branch}.#{project}.#{poolname}' do
+        branch = 'treetop'
+        project = 'test-project'
+        poolname = 'test-pool'
+        expect { subject.increment("usage_branch_project.#{branch}.#{project}.#{poolname}") }.to change {
+          metric, po = subject.get("usage_branch_project.#{branch}.#{project}.#{poolname}")
+          po.get(labels: metric[:labels])
+        }.by(1)
+      end
+      it 'Increments label usage_job_component.#{job_name}.#{component_to_test}.#{poolname}' do
+        job_name = 'a-job'
+        component_to_test = 'component-name'
+        poolname = 'test-pool'
+        expect { subject.increment("usage_job_component.#{job_name}.#{component_to_test}.#{poolname}") }.to change {
+          metric, po = subject.get("usage_job_component.#{job_name}.#{component_to_test}.#{poolname}")
+          po.get(labels: metric[:labels])
+        }.by(1)
+      end
+
       it 'Increments connect.open' do
         expect { subject.increment('connect.open') }.to change {
           metric, po = subject.get('connect.open')

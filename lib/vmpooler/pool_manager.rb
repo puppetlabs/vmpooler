@@ -491,15 +491,16 @@ module Vmpooler
       return if checkout.nil?
 
       user ||= 'unauthenticated'
-      unless jenkins_build_url
-        user = user.gsub('.', '_')
-        $metrics.increment("usage.#{user}.#{poolname}")
-        return
-      end
+      user = user.gsub('.', '_')
+      $metrics.increment("user.#{user}.#{poolname}")
 
+      return unless jenkins_build_url
+
+      # TBD - Add Filter for Litmus here as well - to ignore for the moment.
       url_parts = jenkins_build_url.split('/')[2..-1]
-      instance = url_parts[0]
+      jenkins_instance = url_parts[0].gsub('.', '_')
       value_stream_parts = url_parts[2].split('_')
+      value_stream_parts = value_stream_parts.map { |s| s.gsub('.', '_') }
       value_stream = value_stream_parts.shift
       branch = value_stream_parts.pop
       project = value_stream_parts.shift
@@ -507,22 +508,9 @@ module Vmpooler
       build_metadata_parts = url_parts[3]
       component_to_test = component_to_test('RMM_COMPONENT_TO_TEST_NAME', build_metadata_parts)
 
-      metric_parts = [
-        'usage',
-        user,
-        instance,
-        value_stream,
-        branch,
-        project,
-        job_name,
-        component_to_test,
-        poolname
-      ]
-
-      metric_parts = metric_parts.reject(&:nil?)
-      metric_parts = metric_parts.map { |s| s.gsub('.', '_') }
-
-      $metrics.increment(metric_parts.join('.'))
+      $metrics.increment("usage_jenkins_instance.#{jenkins_instance}.#{value_stream}.#{poolname}")
+      $metrics.increment("usage_branch_project.#{branch}.#{project}.#{poolname}")
+      $metrics.increment("usage_job_component.#{job_name}.#{component_to_test}.#{poolname}")
     rescue StandardError => e
       $logger.log('d', "[!] [#{poolname}] failed while evaluating usage labels on '#{vm}' with an error: #{e}")
       raise
@@ -537,7 +525,7 @@ module Vmpooler
         next if value.nil?
         return value if key == match
       end
-      nil
+      'none'
     end
 
     def purge_unused_vms_and_folders
