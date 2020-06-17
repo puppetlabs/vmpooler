@@ -15,9 +15,6 @@ module Vmpooler
   require 'timeout'
   require 'yaml'
 
-  require 'prometheus/middleware/collector'
-  require 'prometheus/middleware/exporter'
-
   %w[api metrics logger pool_manager generic_connection_pool].each do |lib|
     require "vmpooler/#{lib}"
   end

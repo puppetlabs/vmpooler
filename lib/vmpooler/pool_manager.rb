@@ -496,7 +496,12 @@ module Vmpooler
 
       return unless jenkins_build_url
 
-      # TBD - Add Filter for Litmus here as well - to ignore for the moment.
+      if jenkins_build_url.include? 'litmus'
+        # Very simple filter for Litmus jobs - just count them coming through for the moment.
+        $metrics.increment("usage_litmus.#{user}.#{poolname}")
+        return
+      end
+
       url_parts = jenkins_build_url.split('/')[2..-1]
       jenkins_instance = url_parts[0].gsub('.', '_')
       value_stream_parts = url_parts[2].split('_')

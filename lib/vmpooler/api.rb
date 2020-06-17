@@ -35,7 +35,10 @@ module Vmpooler
         # in the config file.
         metrics.setup_prometheus_metrics
 
-        use Prometheus::Middleware::Collector, metrics_prefix: "#{metrics.metrics_prefix}_http"
+        # Using customised collector that filters out hostnames on API paths
+        require 'vmpooler/metrics/promstats/collector_middleware'
+        require 'prometheus/middleware/exporter'
+        use Vmpooler::Metrics::Promstats::CollectorMiddleware, metrics_prefix: "#{metrics.metrics_prefix}_http"
         use Prometheus::Middleware::Exporter, path: metrics.endpoint
       end
 

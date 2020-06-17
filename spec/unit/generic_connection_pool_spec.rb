@@ -1,7 +1,7 @@
 require 'spec_helper'
 
 describe 'GenericConnectionPool' do
-  let(:metrics) { Vmpooler::DummyStatsd.new }
+  let(:metrics) { Vmpooler::Metrics::DummyStatsd.new }
   let(:connpool_type) { 'test_connection_pool' }
   let(:connpool_provider) { 'testprovider' }
   let(:default_connpool_type) { 'connectionpool' }
