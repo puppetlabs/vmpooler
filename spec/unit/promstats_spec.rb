@@ -5,12 +5,12 @@ require 'spec_helper'
 describe 'prometheus' do
   logger = MockLogger.new
   params = { 'prefix': 'test', 'metrics_prefix': 'mtest', 'endpoint': 'eptest' }
-  subject = Vmpooler::Promstats.new(logger, params)
+  subject = Vmpooler::Metrics::Promstats.new(logger, params)
   let(:logger) { MockLogger.new }
 
   describe '#initialise' do
     it 'returns a Metrics object' do
-      expect(Vmpooler::Promstats.new(logger)).to be_a(Vmpooler::Metrics)
+      expect(Vmpooler::Metrics::Promstats.new(logger)).to be_a(Vmpooler::Metrics)
     end
   end
 
@@ -142,11 +142,26 @@ describe 'prometheus' do
           po.get(labels: metric[:labels])
         }.by(1)
       end
+      it 'Increments errors.staledns.#{pool_name}' do
+        pool_name = 'test-pool'
+        expect { subject.increment("errors.staledns.#{pool_name}") }.to change {
+          metric, po = subject.get("errors.staledns.#{pool_name}")
+          po.get(labels: metric[:labels])
+        }.by(1)
+      end
       it 'Increments user.#{user}.#{poolname}' do
         user = 'myuser'
         poolname = 'test-pool'
         expect { subject.increment("user.#{user}.#{poolname}") }.to change {
           metric, po = subject.get("user.#{user}.#{poolname}")
+          po.get(labels: metric[:labels])
+        }.by(1)
+      end
+      it 'Increments usage_litmus.#{user}.#{poolname}' do
+        user = 'myuser'
+        poolname = 'test-pool'
+        expect { subject.increment("usage_litmus.#{user}.#{poolname}") }.to change {
+          metric, po = subject.get("usage_litmus.#{user}.#{poolname}")
           po.get(labels: metric[:labels])
         }.by(1)
       end
@@ -177,7 +192,6 @@ describe 'prometheus' do
           po.get(labels: metric[:labels])
         }.by(1)
       end
-
       it 'Increments connect.open' do
         expect { subject.increment('connect.open') }.to change {
           metric, po = subject.get('connect.open')
@@ -204,6 +218,16 @@ describe 'prometheus' do
           po.get(labels: metric[:labels])
         }.by(1)
       end
+      it 'Increments label api_vm.#{method}.#{subpath}.#{operation}' do
+        method = 'get'
+        subpath = 'template'
+        operation = 'something'
+        expect { subject.increment("api_vm.#{method}.#{subpath}.#{operation}") }.to change {
+          metric, po = subject.get("api_vm.#{method}.#{subpath}.#{operation}")
+          po.get(labels: metric[:labels])
+        }.by(1)
+      end
+
     end
 
     describe '#gauge' do

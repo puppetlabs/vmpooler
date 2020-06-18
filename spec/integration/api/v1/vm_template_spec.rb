@@ -17,7 +17,7 @@ describe Vmpooler::API::V1 do
 
   describe '/vm/:template' do
     let(:prefix) { '/api/v1' }
-    let(:metrics) { Vmpooler::DummyStatsd.new }
+    let(:metrics) { Vmpooler::Metrics::DummyStatsd.new }
     let(:config) {
       {
         config: {

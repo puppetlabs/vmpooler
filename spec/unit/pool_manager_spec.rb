@@ -10,7 +10,7 @@ RSpec::Matchers.define :a_pool_with_name_of do |value|
 end
 describe 'Pool Manager' do
   let(:logger) { MockLogger.new }
-  let(:metrics) { Vmpooler::DummyStatsd.new }
+  let(:metrics) { Vmpooler::Metrics::DummyStatsd.new }
   let(:pool) { 'pool1' }
   let(:vm) { 'vm1' }
   let(:timeout) { 5 }

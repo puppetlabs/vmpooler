@@ -41,7 +41,7 @@ end
 
 describe 'Vmpooler::PoolManager::Provider::VSphere' do
   let(:logger) { MockLogger.new }
-  let(:metrics) { Vmpooler::DummyStatsd.new }
+  let(:metrics) { Vmpooler::Metrics::DummyStatsd.new }
   let(:poolname) { 'pool1'}
   let(:provider_options) { { 'param' => 'value' } }
   let(:datacenter_name) { 'MockDC' }
