@@ -648,7 +648,6 @@ EOT
 
     context 'when create_vm_folder returns nil' do
       before(:each) do
-        template_vm = new_template_object
         allow(subject).to receive(:find_template_vm).and_return(new_template_object)
         expect(subject).to receive(:find_vm_folder).and_return(nil)
       end
@@ -687,6 +686,43 @@ EOT
         result = subject.create_vm(poolname, vmname)
 
         expect(result['name']).to eq(vmname)
+      end
+    end
+  end
+
+  describe '#set_network_device' do
+    let(:datacenter_object) { mock_RbVmomi_VIM_Datacenter({
+      :datastores => ['datastore0'],
+      :networks => ['network0'],
+    })
+    }
+    let(:template_vm_network_device)  { mock_RbVmomi_VIM_VirtualVmxnet3() }
+
+    before(:each) do
+      allow(subject).to receive(:connect_to_vsphere).and_return(connection)
+      allow(connection.serviceInstance).to receive(:find_datacenter).and_return(datacenter_object)
+    end
+
+    context 'Given an invalid network name' do
+      network_name = "invalid_network"
+
+      it 'should raise an error' do
+        expect { subject.set_network_device("datacenter_name", template_vm_network_device, network_name, connection)}.to raise_error(/Cannot find network/)
+      end
+    end
+
+    context 'Given a valid network name' do
+      network_name = "network0"
+      it 'should return the network device' do
+        result = subject.set_network_device("datacenter_name", template_vm_network_device, network_name, connection)
+        expect(result).to be_instance_of(RbVmomi::VIM::VirtualVmxnet3)
+        expect(result.deviceInfo).to be_instance_of(RbVmomi::VIM::Description)
+        expect(result.deviceInfo.summary).to eq('network0')
+        expect(result.backing).to be_instance_of(RbVmomi::VIM::VirtualEthernetCardNetworkBackingInfo)
+        expect(result.backing.network.is_a?(RbVmomi::VIM::Network)).to be true
+        expect(result.backing.network.name).to eq('network0')
+        expect(result.connectable).to be_instance_of(RbVmomi::VIM::VirtualDeviceConnectInfo)
+        expect(result.addressType).to eq('assigned')
       end
     end
   end
@@ -1144,7 +1180,7 @@ EOT
 
     let (:credentials) { config[:providers][:vsphere] }
 
-    context 'succesful connection' do
+    context 'successful connection' do
       it 'should use the supplied credentials' do
         expect(RbVmomi::VIM).to receive(:connect).with({
           :host     => credentials['server'],
@@ -1436,7 +1472,7 @@ EOT
       allow(reconfig_vm_task).to receive(:wait_for_completion).and_return(true)
     end
 
-    context 'Succesfully addding disk' do
+    context 'Successfully adding disk' do
       it 'should return true' do
         expect(subject.add_disk(vm_object,disk_size,datastorename,connection,datacenter_name)).to be true
       end
@@ -1498,6 +1534,26 @@ EOT
       it 'should raise an error' do
         expect{ subject.add_disk(vm_object,disk_size,datastorename,connection,datacenter_name) }.to raise_error(NoMethodError)
       end
+    end
+  end
+
+  describe '#create_clone_spec' do
+    let(:relocate_spec) { mock_RbVmomi_VIM_VirtualMachineRelocateSpec({
+      :datastore => 'datastore0',
+      :diskMoveType => :moveChildMostDiskBacking,
+      :pool => 'pool0'
+    })
+    }
+
+    let(:config_spec) { mock_RbVmomi_VIM_VirtualMachineConfigSpec()}
+
+    it 'should return the configured clone spec' do
+      result = subject.create_clone_spec(relocate_spec, config_spec)
+      expect(result.location.pool.name).to eq('pool0')
+      expect(result.location.datastore.name).to eq('datastore0')
+      expect(result.location.diskMoveType).to eq(:moveChildMostDiskBacking)
+      expect(result.config.deviceChange.first[:operation]).to eq(:edit)
+      expect(result.config.deviceChange.first[:device].is_a?(RbVmomi::VIM::VirtualVmxnet3)).to be true
     end
   end
 
@@ -2378,7 +2434,7 @@ EOT
       end
 
       it 'should return the second host if called twice' do
-        result = subject.select_next_host(poolname, hosts_hash)
+        subject.select_next_host(poolname, hosts_hash)
         result2 = subject.select_next_host(poolname, hosts_hash)
         expect(result2).to eq('host2')
       end
@@ -2391,7 +2447,7 @@ EOT
       end
 
       it 'should return the second host if called twice' do
-        result = subject.select_next_host(poolname, hosts_hash, architecture)
+        subject.select_next_host(poolname, hosts_hash, architecture)
         result2 = subject.select_next_host(poolname, hosts_hash, architecture)
         expect(result2).to eq('host4')
       end
