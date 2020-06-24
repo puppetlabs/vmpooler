@@ -360,7 +360,7 @@ module Vmpooler
       request_id ||= generate_request_id
       result['request_id'] = request_id
 
-      if backend.exists("vmpooler__odrequest__#{request_id}")
+      if backend.exists?("vmpooler__odrequest__#{request_id}")
         result['message'] = "request_id '#{request_id}' has already been created"
         status 409
         metrics.increment('ondemandrequest.generate.duplicaterequests')
@@ -1164,7 +1164,7 @@ module Vmpooler
 
       params[:hostname] = hostname_shorten(params[:hostname], config['domain'])
 
-      if backend.exists('vmpooler__vm__' + params[:hostname])
+      if backend.exists?('vmpooler__vm__' + params[:hostname])
         begin
           jdata = JSON.parse(request.body.read)
         rescue StandardError
@@ -1240,7 +1240,7 @@ module Vmpooler
 
       params[:hostname] = hostname_shorten(params[:hostname], config['domain'])
 
-      if ((params[:size].to_i > 0 )and (backend.exists('vmpooler__vm__' + params[:hostname])))
+      if ((params[:size].to_i > 0 )and (backend.exists?('vmpooler__vm__' + params[:hostname])))
         result[params[:hostname]] = {}
         result[params[:hostname]]['disk'] = "+#{params[:size]}gb"
 
@@ -1263,7 +1263,7 @@ module Vmpooler
 
       params[:hostname] = hostname_shorten(params[:hostname], config['domain'])
 
-      if backend.exists('vmpooler__vm__' + params[:hostname])
+      if backend.exists?('vmpooler__vm__' + params[:hostname])
         result[params[:hostname]] = {}
 
         o = [('a'..'z'), ('0'..'9')].map(&:to_a).flatten

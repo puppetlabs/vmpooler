@@ -13,7 +13,7 @@ module Vmpooler
       def valid_token?(backend)
         return false unless has_token?
 
-        backend.exists('vmpooler__token__' + request.env['HTTP_X_AUTH_TOKEN']) ? true : false
+        backend.exists?('vmpooler__token__' + request.env['HTTP_X_AUTH_TOKEN']) ? true : false
       end
 
       def validate_token(backend)
