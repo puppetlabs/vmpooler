@@ -16,15 +16,15 @@ metrics = Vmpooler::Metrics.init(logger, config)
 
 torun_threads = []
 if ARGV.count == 0
-  torun = ['api', 'manager']
+  torun = %i[api manager]
 else
   torun = []
-  torun << 'api' if ARGV.include? 'api'
-  torun << 'manager' if ARGV.include? 'manager'
+  torun << :api if ARGV.include? 'api'
+  torun << :manager if ARGV.include? 'manager'
   exit(2) if torun.empty?
 end
 
-if torun.include? 'api'
+if torun.include? :api
   api = Thread.new do
     redis = Vmpooler.new_redis(redis_host, redis_port, redis_password)
     Vmpooler::API.execute(torun, config, redis, metrics)
@@ -38,7 +38,7 @@ elsif metrics.respond_to?(:setup_prometheus_metrics)
   torun_threads << prometheus_only_api
 end
 
-if torun.include? 'manager'
+if torun.include? :manager
   manager = Thread.new do
     Vmpooler::PoolManager.new(
       config,

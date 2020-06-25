@@ -36,6 +36,7 @@ module Vmpooler
         {
           errors: {
             mtype: M_COUNTER,
+            torun: %i[manager],
             docstring: 'Count of errors for pool',
             prom_metric_prefix: "#{@metrics_prefix}_errors",
             metric_suffixes: {
@@ -47,36 +48,42 @@ module Vmpooler
           },
           user: {
             mtype: M_COUNTER,
+            torun: %i[manager],
             docstring: 'Number of pool instances this user created created',
             prom_metric_prefix: "#{@metrics_prefix}_user",
             param_labels: %i[user poolname]
           },
           usage_litmus: {
             mtype: M_COUNTER,
+            torun: %i[manager],
             docstring: 'Pools by Litmus job usage',
             prom_metric_prefix: "#{@metrics_prefix}_usage_litmus",
             param_labels: %i[user poolname]
           },
           usage_jenkins_instance: {
             mtype: M_COUNTER,
+            torun: %i[manager],
             docstring: 'Pools by Jenkins instance usage',
             prom_metric_prefix: "#{@metrics_prefix}_usage_jenkins_instance",
             param_labels: %i[jenkins_instance value_stream poolname]
           },
           usage_branch_project: {
             mtype: M_COUNTER,
+            torun: %i[manager],
             docstring: 'Pools by branch/project usage',
             prom_metric_prefix: "#{@metrics_prefix}_usage_branch_project",
             param_labels: %i[branch project poolname]
           },
           usage_job_component: {
             mtype: M_COUNTER,
+            torun: %i[manager],
             docstring: 'Pools by job/component usage',
             prom_metric_prefix: "#{@metrics_prefix}_usage_job_component",
             param_labels: %i[job_name component_to_test poolname]
           },
           checkout: {
             mtype: M_COUNTER,
+            torun: %i[api],
             docstring: 'Pool checkout counts',
             prom_metric_prefix: "#{@metrics_prefix}_checkout",
             metric_suffixes: {
@@ -87,8 +94,42 @@ module Vmpooler
             },
             param_labels: %i[poolname]
           },
+          delete: {
+            mtype: M_COUNTER,
+            torun: %i[api],
+            docstring: 'Delete machine',
+            prom_metric_prefix: "#{@metrics_prefix}_delete",
+            metric_suffixes: {
+              success: 'succeeded',
+              failed: 'failed'
+            },
+            param_labels: []
+          },
+          ondemandrequest_generate: {
+            mtype: M_COUNTER,
+            torun: %i[api],
+            docstring: 'Ondemand request',
+            prom_metric_prefix: "#{@metrics_prefix}_ondemandrequest_generate",
+            metric_suffixes: {
+              duplicaterequests: 'failed duplicate request',
+              success: 'succeeded'
+            },
+            param_labels: []
+          },
+          ondemandrequest_fail: {
+            mtype: M_COUNTER,
+            torun: %i[api],
+            docstring: 'Ondemand request failure',
+            prom_metric_prefix: "#{@metrics_prefix}_ondemandrequest_fail",
+            metric_suffixes: {
+              toomanyrequests: 'too many requests',
+              invalid: 'invalid poolname'
+            },
+            param_labels: %i[poolname]
+          },
           config: {
             mtype: M_COUNTER,
+            torun: %i[api],
             docstring: 'vmpooler pool configuration request',
             prom_metric_prefix: "#{@metrics_prefix}_config",
             metric_suffixes: { invalid: 'Invalid' },
@@ -96,6 +137,7 @@ module Vmpooler
           },
           poolreset: {
             mtype: M_COUNTER,
+            torun: %i[api],
             docstring: 'Pool reset counter',
             prom_metric_prefix: "#{@metrics_prefix}_poolreset",
             metric_suffixes: { invalid: 'Invalid Pool' },
@@ -103,6 +145,7 @@ module Vmpooler
           },
           connect: {
             mtype: M_COUNTER,
+            torun: %i[manager],
             docstring: 'vmpooler connect (to vSphere)',
             prom_metric_prefix: "#{@metrics_prefix}_connect",
             metric_suffixes: {
@@ -113,42 +156,49 @@ module Vmpooler
           },
           migrate_from: {
             mtype: M_COUNTER,
+            torun: %i[manager],
             docstring: 'vmpooler machine migrated from',
             prom_metric_prefix: "#{@metrics_prefix}_migrate_from",
             param_labels: %i[host_name]
           },
           migrate_to: {
             mtype: M_COUNTER,
+            torun: %i[manager],
             docstring: 'vmpooler machine migrated to',
             prom_metric_prefix: "#{@metrics_prefix}_migrate_to",
             param_labels: %i[host_name]
           },
           api_vm: {
             mtype: M_COUNTER,
+            torun: %i[api],
             docstring: 'Total number of HTTP request/sub-operations handled by the Rack application under the /vm endpoint',
             prom_metric_prefix: "#{@metrics_prefix}_http_requests_vm_total",
             param_labels: %i[method subpath operation]
           },
           ready: {
             mtype: M_GAUGE,
+            torun: %i[manager],
             docstring: 'vmpooler number of machines in ready State',
             prom_metric_prefix: "#{@metrics_prefix}_ready",
             param_labels: %i[poolname]
           },
           running: {
             mtype: M_GAUGE,
+            torun: %i[manager],
             docstring: 'vmpooler number of machines running',
             prom_metric_prefix: "#{@metrics_prefix}_running",
             param_labels: %i[poolname]
           },
           connection_available: {
             mtype: M_GAUGE,
+            torun: %i[manager],
             docstring: 'vmpooler redis connections available',
             prom_metric_prefix: "#{@metrics_prefix}_connection_available",
             param_labels: %i[type provider]
           },
           time_to_ready_state: {
             mtype: M_HISTOGRAM,
+            torun: %i[manager],
             buckets: POOLER_TIME_BUCKETS,
             docstring: 'Time taken for machine to read ready state for pool',
             prom_metric_prefix: "#{@metrics_prefix}_time_to_ready_state",
@@ -156,6 +206,7 @@ module Vmpooler
           },
           migrate: {
             mtype: M_HISTOGRAM,
+            torun: %i[manager],
             buckets: POOLER_TIME_BUCKETS,
             docstring: 'vmpooler time taken to migrate machine for pool',
             prom_metric_prefix: "#{@metrics_prefix}_migrate",
@@ -163,6 +214,7 @@ module Vmpooler
           },
           clone: {
             mtype: M_HISTOGRAM,
+            torun: %i[manager],
             buckets: POOLER_TIME_BUCKETS,
             docstring: 'vmpooler time taken to clone machine',
             prom_metric_prefix: "#{@metrics_prefix}_clone",
@@ -170,6 +222,7 @@ module Vmpooler
           },
           destroy: {
             mtype: M_HISTOGRAM,
+            torun: %i[manager],
             buckets: POOLER_TIME_BUCKETS,
             docstring: 'vmpooler time taken to destroy machine',
             prom_metric_prefix: "#{@metrics_prefix}_destroy",
@@ -177,6 +230,7 @@ module Vmpooler
           },
           connection_waited: {
             mtype: M_HISTOGRAM,
+            torun: %i[manager],
             buckets: REDIS_CONNECT_BUCKETS,
             docstring: 'vmpooler redis connection wait time',
             prom_metric_prefix: "#{@metrics_prefix}_connection_waited",
@@ -222,9 +276,12 @@ module Vmpooler
 
       # Top level method to register all the prometheus metrics.
 
-      def setup_prometheus_metrics
+      def setup_prometheus_metrics(torun)
         @p_metrics = vmpooler_metrics_table
         @p_metrics.each do |_name, metric_spec|
+          # Only register metrics appropriate to api or manager
+          next if (torun & metric_spec[:torun]).empty?
+
           if metric_spec.key? :metric_suffixes
             # Iterate thru the suffixes if provided to register multiple counters here.
             metric_spec[:metric_suffixes].each do |metric_suffix|

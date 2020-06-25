@@ -339,7 +339,7 @@ module Vmpooler
       payload&.each do |poolname, count|
         next unless count.to_i > config['max_ondemand_instances_per_request']
 
-        metrics.increment('ondemandrequest.toomanyrequests.' + poolname)
+        metrics.increment('ondemandrequest_fail.toomanyrequests.' + poolname)
         return true
       end
       false
@@ -363,7 +363,7 @@ module Vmpooler
       if backend.exists?("vmpooler__odrequest__#{request_id}")
         result['message'] = "request_id '#{request_id}' has already been created"
         status 409
-        metrics.increment('ondemandrequest.generate.duplicaterequests')
+        metrics.increment('ondemandrequest_generate.duplicaterequests')
         return result
       end
 
@@ -387,7 +387,7 @@ module Vmpooler
 
       result['domain'] = config['domain'] if config['domain']
       result[:ok] = true
-      metrics.increment('ondemandrequest.generate.success')
+      metrics.increment('ondemandrequest_generate.success')
       result
     end
 
@@ -825,12 +825,12 @@ module Vmpooler
           else
             result[:bad_templates] = invalid
             invalid.each do |bad_template|
-              metrics.increment('ondemandrequest.invalid.' + bad_template)
+              metrics.increment('ondemandrequest_fail.invalid.' + bad_template)
             end
             status 404
           end
         else
-          metrics.increment('ondemandrequest.invalid.unknown')
+          metrics.increment('ondemandrequest_fail.invalid.unknown')
           status 404
         end
       rescue JSON::ParserError
@@ -860,12 +860,12 @@ module Vmpooler
         else
           result[:bad_templates] = invalid
           invalid.each do |bad_template|
-            metrics.increment('ondemandrequest.invalid.' + bad_template)
+            metrics.increment('ondemandrequest_fail.invalid.' + bad_template)
           end
           status 404
         end
       else
-        metrics.increment('ondemandrequest.invalid.unknown')
+        metrics.increment('ondemandrequest_fail.invalid.unknown')
         status 404
       end
 
@@ -1154,8 +1154,9 @@ module Vmpooler
 
           status 200
           result['ok'] = true
+          metrics.increment('delete.success')
         else
-          metrics.increment('delete.srem.failed')
+          metrics.increment('delete.failed')
         end
       end
 

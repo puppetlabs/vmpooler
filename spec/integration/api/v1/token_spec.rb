@@ -22,7 +22,7 @@ describe Vmpooler::API::V1 do
 
     before(:each) do
       expect(app).to receive(:run!).once
-      app.execute(['api'], config, redis, nil)
+      app.execute([:api], config, redis, nil)
     end
 
     describe 'GET /token' do
@@ -106,7 +106,7 @@ describe Vmpooler::API::V1 do
 
     before(:each) do
       expect(app).to receive(:run!).once
-      app.execute(['api'], config, redis, nil)
+      app.execute([:api], config, redis, nil)
       app.settings.set :config, config
       app.settings.set :redis, redis
     end

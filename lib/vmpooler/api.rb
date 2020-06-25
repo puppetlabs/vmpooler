@@ -33,7 +33,7 @@ module Vmpooler
       if metrics.respond_to?(:setup_prometheus_metrics)
         # Prometheus metrics are only setup if actually specified
         # in the config file.
-        metrics.setup_prometheus_metrics
+        metrics.setup_prometheus_metrics(torun)
 
         # Using customised collector that filters out hostnames on API paths
         require 'vmpooler/metrics/promstats/collector_middleware'
@@ -42,7 +42,7 @@ module Vmpooler
         use Prometheus::Middleware::Exporter, path: metrics.endpoint
       end
 
-      if torun.include? 'api'
+      if torun.include? :api
         use Vmpooler::Dashboard
         use Vmpooler::API::Dashboard
         use Vmpooler::API::Reroute

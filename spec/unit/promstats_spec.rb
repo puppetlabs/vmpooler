@@ -55,7 +55,7 @@ describe 'prometheus' do
   context 'setup_prometheus_metrics' do
     before(:all) do
       Prometheus::Client.config.data_store = Prometheus::Client::DataStores::Synchronized.new
-      subject.setup_prometheus_metrics
+      subject.setup_prometheus_metrics(%i[api manager])
     end
     let(:MCOUNTER) { 1 }
 
@@ -63,7 +63,7 @@ describe 'prometheus' do
       it 'calls add_prometheus_metric for each item in list' do
         Prometheus::Client.config.data_store = Prometheus::Client::DataStores::Synchronized.new
         expect(subject).to receive(:add_prometheus_metric).at_least(subject.vmpooler_metrics_table.size).times
-        subject.setup_prometheus_metrics
+        subject.setup_prometheus_metrics(%i[api manager])
       end
     end
 
@@ -99,6 +99,48 @@ describe 'prometheus' do
       it 'Increments checkout.invalid.unknown' do
         expect { subject.increment('checkout.invalid.unknown') }.to change {
           metric, po = subject.get('checkout.invalid.unknown')
+          po.get(labels: metric[:labels])
+        }.by(1)
+      end
+      it 'Increments delete.failed' do
+        bad_template = 'test-template'
+        expect { subject.increment('delete.failed') }.to change {
+          metric, po = subject.get('delete.failed')
+          po.get(labels: metric[:labels])
+        }.by(1)
+      end
+      it 'Increments delete.success' do
+        bad_template = 'test-template'
+        expect { subject.increment('delete.success') }.to change {
+          metric, po = subject.get('delete.success')
+          po.get(labels: metric[:labels])
+        }.by(1)
+      end
+      it 'Increments ondemandrequest_generate.duplicaterequests' do
+        bad_template = 'test-template'
+        expect { subject.increment('ondemandrequest_generate.duplicaterequests') }.to change {
+          metric, po = subject.get('ondemandrequest_generate.duplicaterequests')
+          po.get(labels: metric[:labels])
+        }.by(1)
+      end
+      it 'Increments ondemandrequest_generate.success' do
+        bad_template = 'test-template'
+        expect { subject.increment('ondemandrequest_generate.success') }.to change {
+          metric, po = subject.get('ondemandrequest_generate.success')
+          po.get(labels: metric[:labels])
+        }.by(1)
+      end
+      it 'Increments ondemandrequest_fail.toomanyrequests.#{bad_template}' do
+        bad_template = 'test-template'
+        expect { subject.increment("ondemandrequest_fail.toomanyrequests.#{bad_template}") }.to change {
+          metric, po = subject.get("ondemandrequest_fail.toomanyrequests.#{bad_template}")
+          po.get(labels: metric[:labels])
+        }.by(1)
+      end
+      it 'Increments ondemandrequest_fail.invalid.#{bad_template}' do
+        bad_template = 'test-template'
+        expect { subject.increment("ondemandrequest_fail.invalid.#{bad_template}") }.to change {
+          metric, po = subject.get("ondemandrequest_fail.invalid.#{bad_template}")
           po.get(labels: metric[:labels])
         }.by(1)
       end
