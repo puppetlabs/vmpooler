@@ -40,7 +40,7 @@ describe Vmpooler::API::V1 do
 
     before(:each) do
       expect(app).to receive(:run!).once
-      app.execute([:api], config, redis, metrics)
+      app.execute([:api], config, redis, metrics, nil)
       app.settings.set :config, auth: false
       app.settings.set :checkoutlock, checkoutlock
       create_token('abcdefghijklmnopqrstuvwxyz012345', 'jdoe', current_time)

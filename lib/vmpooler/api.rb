@@ -9,7 +9,7 @@ module Vmpooler
     # Load dashboard components
     require 'vmpooler/dashboard'
 
-    def self.execute(torun, config, redis, metrics)
+    def self.execute(torun, config, redis, metrics, logger)
       self.settings.set :config, config
       self.settings.set :redis, redis unless redis.nil?
       self.settings.set :metrics, metrics
@@ -43,6 +43,9 @@ module Vmpooler
       end
 
       if torun.include? :api
+        # Enable API request logging only if required
+        use Vmpooler::API::RequestLogger, logger: logger if config[:config]['request_logger']
+
         use Vmpooler::Dashboard
         use Vmpooler::API::Dashboard
         use Vmpooler::API::Reroute

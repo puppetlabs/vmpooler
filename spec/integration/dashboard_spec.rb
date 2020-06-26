@@ -18,6 +18,7 @@ describe Vmpooler::API do
   describe 'Dashboard' do
 
     let(:config) { {
+      config: {},
       pools: [
           {'name' => 'pool1', 'size' => 5}
       ],
@@ -26,7 +27,7 @@ describe Vmpooler::API do
 
     before(:each) do
       expect(app).to receive(:run!)
-      app.execute([:api], config, redis, nil)
+      app.execute([:api], config, redis, nil, nil)
       app.settings.set :config, auth: false
     end
 
@@ -64,6 +65,7 @@ describe Vmpooler::API do
 
     describe '/dashboard/stats/vmpooler/pool' do
       let(:config) { {
+          config: {},
           pools: [
               {'name' => 'pool1', 'size' => 5},
               {'name' => 'pool2', 'size' => 1}
@@ -134,6 +136,7 @@ describe Vmpooler::API do
 
     describe '/dashboard/stats/vmpooler/running' do
       let(:config) { {
+          config: {},
           pools: [
               {'name' => 'pool-1', 'size' => 5},
               {'name' => 'pool-2', 'size' => 1},

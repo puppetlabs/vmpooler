@@ -6,9 +6,10 @@
 #
 # The code was also failing Rubocop on PR check, so have addressed all the offenses.
 #
-# The method strip_ids_from_path has been adapted to add a match for hostnames in paths
-# to replace with a single ":hostname" string to avoid proliferation of stat lines for
-# each new vm hostname deleted, modified or otherwise queried.
+# The method strip_hostnames_from_path (originally strip_ids_from_path) has been adapted
+# to add a match for hostnames in paths # to replace with a single ":hostname" string to
+# avoid # proliferation of stat lines for # each new vm hostname deleted, modified or
+# otherwise queried.
 
 require 'benchmark'
 require 'prometheus/client'
@@ -91,12 +92,12 @@ module Vmpooler
           counter_labels = {
             code: code,
             method: env['REQUEST_METHOD'].downcase,
-            path: strip_ids_from_path(env['PATH_INFO'])
+            path: strip_hostnames_from_path(env['PATH_INFO'])
           }
 
           duration_labels = {
             method: env['REQUEST_METHOD'].downcase,
-            path: strip_ids_from_path(env['PATH_INFO'])
+            path: strip_hostnames_from_path(env['PATH_INFO'])
           }
 
           @requests.increment(labels: counter_labels)
@@ -105,10 +106,11 @@ module Vmpooler
           nil
         end
 
-        def strip_ids_from_path(path)
+        def strip_hostnames_from_path(path)
           # Custom for /vm path - so we just collect aggrate stats for all usage along this one
           # path. Custom counters are then added more specific endpoints in v1.rb
           # Since we aren't parsing UID/GIDs as in the original example, these are removed.
+          # Similarly, request IDs are also stripped from the /ondemand path.
           path
             .gsub(%r{/vm/.+$}, '/vm')
             .gsub(%r{/ondemand/.+$}, '/ondemand')

@@ -18,16 +18,21 @@ describe Vmpooler::API::V1 do
   describe '/token' do
     let(:prefix) { '/api/v1' }
     let(:current_time) { Time.now }
-    let(:config) { { } }
+    let(:config) { { 
+      config: {}
+    } }
 
     before(:each) do
       expect(app).to receive(:run!).once
-      app.execute([:api], config, redis, nil)
+      app.execute([:api], config, redis, nil, nil)
     end
 
     describe 'GET /token' do
       context '(auth not configured)' do
-        let(:config) { { auth: false } }
+        let(:config) { { 
+          config: {},
+          auth: false 
+        } }
 
         it 'returns a 404' do
           get "#{prefix}/token"
@@ -38,6 +43,7 @@ describe Vmpooler::API::V1 do
       context '(auth configured)' do
         let(:config) {
           {
+            config: {},
             auth: {
               'provider' => 'dummy'
             }
@@ -65,7 +71,10 @@ describe Vmpooler::API::V1 do
 
     describe 'POST /token' do
       context '(auth not configured)' do
-        let(:config) { { auth: false } }
+        let(:config) { { 
+          config: {}, 
+          auth: false 
+        } }
 
         it 'returns a 404' do
           post "#{prefix}/token"
@@ -76,6 +85,7 @@ describe Vmpooler::API::V1 do
       context '(auth configured)' do
         let(:config) {
           {
+            config: {},
             auth: {
               'provider' => 'dummy'
             }
@@ -106,7 +116,7 @@ describe Vmpooler::API::V1 do
 
     before(:each) do
       expect(app).to receive(:run!).once
-      app.execute([:api], config, redis, nil)
+      app.execute([:api], config, redis, nil, nil)
       app.settings.set :config, config
       app.settings.set :redis, redis
     end
@@ -118,7 +128,10 @@ describe Vmpooler::API::V1 do
 
     describe 'GET /token/:token' do
       context '(auth not configured)' do
-        let(:config) { { auth: false } }
+        let(:config) { { 
+          config: {},
+          auth: false 
+        } }
 
         it 'returns a 404' do
           get "#{prefix}/token/this"
@@ -128,6 +141,7 @@ describe Vmpooler::API::V1 do
 
       context '(auth configured)' do
         let(:config) { {
+          config: {},
           auth: true,
           pools: [
             {'name' => 'pool1', 'size' => 5}
@@ -150,7 +164,10 @@ describe Vmpooler::API::V1 do
 
     describe 'DELETE /token/:token' do
       context '(auth not configured)' do
-        let(:config) { { auth: false } }
+        let(:config) { { 
+          config: {},
+          auth: false
+        } }
 
         it 'returns a 404' do
           delete "#{prefix}/token/this"
@@ -161,6 +178,7 @@ describe Vmpooler::API::V1 do
       context '(auth configured)' do
         let(:config) {
           {
+            config: {},
             auth: {
               'provider' => 'dummy'
             }

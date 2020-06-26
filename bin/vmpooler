@@ -27,13 +27,13 @@ end
 if torun.include? :api
   api = Thread.new do
     redis = Vmpooler.new_redis(redis_host, redis_port, redis_password)
-    Vmpooler::API.execute(torun, config, redis, metrics)
+    Vmpooler::API.execute(torun, config, redis, metrics, logger)
   end
   torun_threads << api
 elsif metrics.respond_to?(:setup_prometheus_metrics)
   # Run the cut down API - Prometheus Metrics only.
   prometheus_only_api = Thread.new do
-    Vmpooler::API.execute(torun, config, nil, metrics)
+    Vmpooler::API.execute(torun, config, nil, metrics, logger)
   end
   torun_threads << prometheus_only_api
 end

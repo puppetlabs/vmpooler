@@ -84,6 +84,7 @@ module Vmpooler
     parsed_config[:config]['experimental_features'] = ENV['EXPERIMENTAL_FEATURES'] if ENV['EXPERIMENTAL_FEATURES']
     parsed_config[:config]['purge_unconfigured_folders'] = ENV['PURGE_UNCONFIGURED_FOLDERS'] if ENV['PURGE_UNCONFIGURED_FOLDERS']
     parsed_config[:config]['usage_stats'] = ENV['USAGE_STATS'] if ENV['USAGE_STATS']
+    parsed_config[:config]['request_logger'] = ENV['REQUEST_LOGGER'] if ENV['REQUEST_LOGGER']
 
     parsed_config[:redis] = parsed_config[:redis] || {}
     parsed_config[:redis]['server'] = ENV['REDIS_SERVER'] || parsed_config[:redis]['server'] || 'localhost'

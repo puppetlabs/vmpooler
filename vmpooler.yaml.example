@@ -509,6 +509,12 @@
 #     Expects a boolean value
 #     (optional; default: false)
 #
+#   - request_logger
+#     Enable API Request logging to the logger
+#     When enabled all requests to the API are written to the standard logger.
+#     Expects a boolean value
+#     (optional; default: false)
+#
 #   - max_lifetime_upper_limit
 #     Sets a lifetime upper limit (in hours) for how long the vm lifetime can be set via the API. Lifetime can be set and extended
 #     so this configuration is used to enforce an upper limit to both the initial lifetime request and/or the extended
