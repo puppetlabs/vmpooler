@@ -14,10 +14,11 @@ module Vmpooler
       M_HISTOGRAM = 4
 
       # Customised Bucket set to use for the Pooler clone times set to more appropriate intervals.
-      POOLER_TIME_BUCKETS = [1.0, 2.5, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0].freeze
+      POOLER_CLONE_TIME_BUCKETS = [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 120.0, 180.0, 240.0, 300.0, 600.0].freeze
+      POOLER_READY_TIME_BUCKETS = [30.0, 60.0, 120.0, 180.0, 240.0, 300.0, 500.0, 800.0, 1200.0, 1600.0].freeze
       # Same for redis connection times - this is the same as the current Prometheus Default.
       # https://github.com/prometheus/client_ruby/blob/master/lib/prometheus/client/histogram.rb#L14
-      REDIS_CONNECT_BUCKETS = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10].freeze
+      REDIS_CONNECT_BUCKETS = [1.0, 2.0, 3.0, 5.0, 8.0, 13.0, 18.0, 23.0].freeze
 
       @p_metrics = {}
 
@@ -199,7 +200,7 @@ module Vmpooler
           time_to_ready_state: {
             mtype: M_HISTOGRAM,
             torun: %i[manager],
-            buckets: POOLER_TIME_BUCKETS,
+            buckets: POOLER_READY_TIME_BUCKETS,
             docstring: 'Time taken for machine to read ready state for pool',
             prom_metric_prefix: "#{@metrics_prefix}_time_to_ready_state",
             param_labels: %i[poolname]
@@ -207,7 +208,7 @@ module Vmpooler
           migrate: {
             mtype: M_HISTOGRAM,
             torun: %i[manager],
-            buckets: POOLER_TIME_BUCKETS,
+            buckets: POOLER_CLONE_TIME_BUCKETS,
             docstring: 'vmpooler time taken to migrate machine for pool',
             prom_metric_prefix: "#{@metrics_prefix}_migrate",
             param_labels: %i[poolname]
@@ -215,7 +216,7 @@ module Vmpooler
           clone: {
             mtype: M_HISTOGRAM,
             torun: %i[manager],
-            buckets: POOLER_TIME_BUCKETS,
+            buckets: POOLER_CLONE_TIME_BUCKETS,
             docstring: 'vmpooler time taken to clone machine',
             prom_metric_prefix: "#{@metrics_prefix}_clone",
             param_labels: %i[poolname]
@@ -223,7 +224,7 @@ module Vmpooler
           destroy: {
             mtype: M_HISTOGRAM,
             torun: %i[manager],
-            buckets: POOLER_TIME_BUCKETS,
+            buckets: POOLER_CLONE_TIME_BUCKETS,
             docstring: 'vmpooler time taken to destroy machine',
             prom_metric_prefix: "#{@metrics_prefix}_destroy",
             param_labels: %i[poolname]
