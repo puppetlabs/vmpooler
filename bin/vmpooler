@@ -11,33 +11,38 @@ redis_connection_pool_size = config[:redis]['connection_pool_size']
 redis_connection_pool_timeout = config[:redis]['connection_pool_timeout']
 logger_file = config[:config]['logfile']
 
-metrics = Vmpooler.new_metrics(config)
+logger = Vmpooler::Logger.new logger_file
+metrics = Vmpooler::Metrics.init(logger, config)
 
 torun_threads = []
 if ARGV.count == 0
-  torun = ['api', 'manager']
+  torun = %i[api manager]
 else
   torun = []
-  torun << 'api' if ARGV.include? 'api'
-  torun << 'manager' if ARGV.include? 'manager'
+  torun << :api if ARGV.include? 'api'
+  torun << :manager if ARGV.include? 'manager'
   exit(2) if torun.empty?
 end
 
-if torun.include? 'api'
+if torun.include? :api
   api = Thread.new do
-    thr = Vmpooler::API.new
     redis = Vmpooler.new_redis(redis_host, redis_port, redis_password)
-    thr.helpers.configure(config, redis, metrics)
-    thr.helpers.execute!
+    Vmpooler::API.execute(torun, config, redis, metrics, logger)
   end
   torun_threads << api
+elsif metrics.respond_to?(:setup_prometheus_metrics)
+  # Run the cut down API - Prometheus Metrics only.
+  prometheus_only_api = Thread.new do
+    Vmpooler::API.execute(torun, config, nil, metrics, logger)
+  end
+  torun_threads << prometheus_only_api
 end
 
-if torun.include? 'manager'
+if torun.include? :manager
   manager = Thread.new do
     Vmpooler::PoolManager.new(
       config,
-      Vmpooler.new_logger(logger_file),
+      logger,
       Vmpooler.redis_connection_pool(redis_host, redis_port, redis_password, redis_connection_pool_size, redis_connection_pool_timeout, metrics),
       metrics
     ).execute!

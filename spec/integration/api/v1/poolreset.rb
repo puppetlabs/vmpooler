@@ -8,6 +8,10 @@ describe Vmpooler::API::V1 do
     Vmpooler::API
   end
 
+  after(:each) do
+    Vmpooler::API.reset!
+  end
+
   let(:config) {
     {
       config: {
@@ -27,14 +31,13 @@ describe Vmpooler::API::V1 do
 
   describe '/poolreset' do
     let(:prefix) { '/api/v1' }
-    let(:metrics) { Vmpooler::DummyStatsd.new }
+    let(:metrics) { Vmpooler::Metrics::DummyStatsd.new }
 
     let(:current_time) { Time.now }
 
     before(:each) do
-      app.settings.set :config, config
-      app.settings.set :redis, redis
-      app.settings.set :metrics, metrics
+      expect(app).to receive(:run!).once
+      app.execute([:api], config, redis, metrics, nil)
       app.settings.set :config, auth: false
       create_token('abcdefghijklmnopqrstuvwxyz012345', 'jdoe', current_time)
     end

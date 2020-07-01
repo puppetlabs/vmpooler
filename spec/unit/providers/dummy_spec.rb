@@ -3,7 +3,7 @@ require 'vmpooler/providers/dummy'
 
 describe 'Vmpooler::PoolManager::Provider::Dummy' do
   let(:logger) { MockLogger.new }
-  let(:metrics) { Vmpooler::DummyStatsd.new }
+  let(:metrics) { Vmpooler::Metrics::DummyStatsd.new }
   let(:pool_name) { 'pool1' }
   let(:other_pool_name) { 'pool2' }
   let(:vm_name) { 'vm1' }

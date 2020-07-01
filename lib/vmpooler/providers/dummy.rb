@@ -29,7 +29,8 @@ module Vmpooler
           logger.log('d', "[#{name}] ConnPool - Creating a connection pool of size #{connpool_size} with timeout #{connpool_timeout}")
           @connection_pool = Vmpooler::PoolManager::GenericConnectionPool.new(
             metrics: metrics,
-            metric_prefix: "#{name}_provider_connection_pool",
+            connpool_type: 'provider_connection_pool',
+            connpool_provider: name,
             size: connpool_size,
             timeout: connpool_timeout
           ) do

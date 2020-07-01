@@ -6,7 +6,7 @@ require 'vmpooler/providers/base'
 
 describe 'Vmpooler::PoolManager::Provider::Base' do
   let(:logger) { MockLogger.new }
-  let(:metrics) { Vmpooler::DummyStatsd.new }
+  let(:metrics) { Vmpooler::Metrics::DummyStatsd.new }
   let(:config) { {} }
   let(:provider_name) { 'base' }
   let(:provider_options) { { 'param' => 'value' } }

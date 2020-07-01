@@ -51,6 +51,10 @@ Metrics/ModuleLength:
 Style/WordArray:
   Enabled: false
 
+# RedundantBegin is causing lib/pool_manager & vsphere.rb to fail in Ruby 2.5+
+Style/RedundantBegin:
+  Enabled: false
+
 # Either sytnax for regex is ok
 Style/RegexpLiteral:
   Enabled: false

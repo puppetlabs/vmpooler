@@ -15,7 +15,7 @@ module Vmpooler
   require 'timeout'
   require 'yaml'
 
-  %w[api graphite logger pool_manager statsd dummy_statsd generic_connection_pool].each do |lib|
+  %w[api metrics logger pool_manager generic_connection_pool].each do |lib|
     require "vmpooler/#{lib}"
   end
 
@@ -84,6 +84,7 @@ module Vmpooler
     parsed_config[:config]['experimental_features'] = ENV['EXPERIMENTAL_FEATURES'] if ENV['EXPERIMENTAL_FEATURES']
     parsed_config[:config]['purge_unconfigured_folders'] = ENV['PURGE_UNCONFIGURED_FOLDERS'] if ENV['PURGE_UNCONFIGURED_FOLDERS']
     parsed_config[:config]['usage_stats'] = ENV['USAGE_STATS'] if ENV['USAGE_STATS']
+    parsed_config[:config]['request_logger'] = ENV['REQUEST_LOGGER'] if ENV['REQUEST_LOGGER']
 
     parsed_config[:redis] = parsed_config[:redis] || {}
     parsed_config[:redis]['server'] = ENV['REDIS_SERVER'] || parsed_config[:redis]['server'] || 'localhost'
@@ -166,7 +167,8 @@ module Vmpooler
   def self.redis_connection_pool(host, port, password, size, timeout, metrics)
     Vmpooler::PoolManager::GenericConnectionPool.new(
       metrics: metrics,
-      metric_prefix: 'redis_connection_pool',
+      connpool_type: 'redis_connection_pool',
+      connpool_provider: 'manager',
       size: size,
       timeout: timeout
     ) do
@@ -178,20 +180,6 @@ module Vmpooler
 
   def self.new_redis(host = 'localhost', port = nil, password = nil)
     Redis.new(host: host, port: port, password: password)
-  end
-
-  def self.new_logger(logfile)
-    Vmpooler::Logger.new logfile
-  end
-
-  def self.new_metrics(params)
-    if params[:statsd]
-      Vmpooler::Statsd.new(params[:statsd])
-    elsif params[:graphite]
-      Vmpooler::Graphite.new(params[:graphite])
-    else
-      Vmpooler::DummyStatsd.new
-    end
   end
 
   def self.pools(conf)

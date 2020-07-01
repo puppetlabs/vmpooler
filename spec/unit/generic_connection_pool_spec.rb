@@ -1,16 +1,18 @@
 require 'spec_helper'
 
 describe 'GenericConnectionPool' do
-  let(:metrics) { Vmpooler::DummyStatsd.new }
-  let(:metric_prefix) { 'prefix' }
-  let(:default_metric_prefix) { 'connectionpool' }
+  let(:metrics) { Vmpooler::Metrics::DummyStatsd.new }
+  let(:connpool_type) { 'test_connection_pool' }
+  let(:connpool_provider) { 'testprovider' }
+  let(:default_connpool_type) { 'connectionpool' }
   let(:connection_object) { double('connection') }
   let(:pool_size) { 1 }
   let(:pool_timeout) { 1 }
 
   subject { Vmpooler::PoolManager::GenericConnectionPool.new(
               metrics: metrics,
-              metric_prefix: metric_prefix,
+              connpool_type: connpool_type,
+              connpool_provider: connpool_provider,
               size: pool_size,
               timeout: pool_timeout
             ) { connection_object }
@@ -65,7 +67,7 @@ describe 'GenericConnectionPool' do
 
     context 'When metrics are configured' do
       it 'should emit a gauge metric when the connection is grabbed and released' do
-        expect(metrics).to receive(:gauge).with(/\.available/,Integer).exactly(2).times
+        expect(metrics).to receive(:gauge).with(/connection_available/,Integer).exactly(2).times
 
         subject.with_metrics do |conn1|
           # do nothing
@@ -73,7 +75,7 @@ describe 'GenericConnectionPool' do
       end
 
       it 'should emit a timing metric when the connection is grabbed' do
-        expect(metrics).to receive(:timing).with(/\.waited/,Integer).exactly(1).times
+        expect(metrics).to receive(:timing).with(/connection_waited/,Integer).exactly(1).times
 
         subject.with_metrics do |conn1|
           # do nothing
@@ -81,8 +83,8 @@ describe 'GenericConnectionPool' do
       end
 
       it 'should emit metrics with the specified prefix' do
-        expect(metrics).to receive(:gauge).with(/#{metric_prefix}\./,Integer).at_least(1).times
-        expect(metrics).to receive(:timing).with(/#{metric_prefix}\./,Integer).at_least(1).times
+        expect(metrics).to receive(:gauge).with(/#{connpool_type}\./,Integer).at_least(1).times
+        expect(metrics).to receive(:timing).with(/#{connpool_type}\./,Integer).at_least(1).times
 
         subject.with_metrics do |conn1|
           # do nothing
@@ -90,11 +92,11 @@ describe 'GenericConnectionPool' do
       end
 
       context 'Metrix prefix is missing' do
-        let(:metric_prefix) { nil }
+        let(:connpool_type) { nil }
 
         it 'should emit metrics with default prefix' do
-          expect(metrics).to receive(:gauge).with(/#{default_metric_prefix}\./,Integer).at_least(1).times
-          expect(metrics).to receive(:timing).with(/#{default_metric_prefix}\./,Integer).at_least(1).times
+          expect(metrics).to receive(:gauge).with(/#{default_connpool_type}\./,Integer).at_least(1).times
+          expect(metrics).to receive(:timing).with(/#{default_connpool_type}\./,Integer).at_least(1).times
 
           subject.with_metrics do |conn1|
             # do nothing
@@ -103,11 +105,11 @@ describe 'GenericConnectionPool' do
       end
 
       context 'Metrix prefix is empty' do
-        let(:metric_prefix) { '' }
+        let(:connpool_type) { '' }
 
         it 'should emit metrics with default prefix' do
-          expect(metrics).to receive(:gauge).with(/#{default_metric_prefix}\./,Integer).at_least(1).times
-          expect(metrics).to receive(:timing).with(/#{default_metric_prefix}\./,Integer).at_least(1).times
+          expect(metrics).to receive(:gauge).with(/#{default_connpool_type}\./,Integer).at_least(1).times
+          expect(metrics).to receive(:timing).with(/#{default_connpool_type}\./,Integer).at_least(1).times
 
           subject.with_metrics do |conn1|
             # do nothing

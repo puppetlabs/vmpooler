@@ -11,8 +11,10 @@ module Vmpooler
       def initialize(options = {}, &block)
         super(options, &block)
         @metrics = options[:metrics]
-        @metric_prefix = options[:metric_prefix]
-        @metric_prefix = 'connectionpool' if @metric_prefix.nil? || @metric_prefix == ''
+        @connpool_type = options[:connpool_type]
+        @connpool_type = 'connectionpool' if @connpool_type.nil? || @connpool_type == ''
+        @connpool_provider = options[:connpool_provider]
+        @connpool_provider = 'unknown' if @connpool_provider.nil? || @connpool_provider == ''
       end
 
       def with_metrics(options = {})
@@ -20,15 +22,15 @@ module Vmpooler
           start = Time.now
           conn = checkout(options)
           timespan_ms = ((Time.now - start) * 1000).to_i
-          @metrics&.gauge(@metric_prefix + '.available', @available.length)
-          @metrics&.timing(@metric_prefix + '.waited', timespan_ms)
+          @metrics&.gauge("connection_available.#{@connpool_type}.#{@connpool_provider}", @available.length)
+          @metrics&.timing("connection_waited.#{@connpool_type}.#{@connpool_provider}", timespan_ms)
           begin
             Thread.handle_interrupt(Exception => :immediate) do
               yield conn
             end
           ensure
             checkin
-            @metrics&.gauge(@metric_prefix + '.available', @available.length)
+            @metrics&.gauge("connection_available.#{@connpool_type}.#{@connpool_provider}", @available.length)
           end
         end
       end

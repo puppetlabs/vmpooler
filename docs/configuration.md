@@ -191,6 +191,13 @@ https://jenkins.example.com/job/platform\_puppet-agent-extra\_puppet-agent-integ
 Expects a boolean value
 (optional; default: false)
 
+### REQUEST\_LOGGER
+
+Enable API request logging to the logger
+When enabled all requests to the API are written to the standard logger.
+Expects a boolean value
+(optional; default: false)
+
 ### EXTRA\_CONFIG
 
 Specify additional application configuration files
