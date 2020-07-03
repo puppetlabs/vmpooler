@@ -27,7 +27,7 @@ describe Vmpooler::API do
 
     before(:each) do
       expect(app).to receive(:run!)
-      app.execute([:api], config, redis, nil, nil)
+      app.execute([:dashboard], config, redis, nil, nil)
       app.settings.set :config, auth: false
     end
 

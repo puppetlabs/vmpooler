@@ -16,20 +16,21 @@ metrics = Vmpooler::Metrics.init(logger, config)
 
 torun_threads = []
 if ARGV.count == 0
-  torun = %i[api manager]
+  torun = %i[api manager dashboard]
 else
   torun = []
   torun << :api if ARGV.include? 'api'
   torun << :manager if ARGV.include? 'manager'
+  torun << :dashboard if ARGV.include? 'dashboard'
   exit(2) if torun.empty?
 end
 
-if torun.include? :api
-  api = Thread.new do
+if (torun & %i[api dashboard]).any?
+  api_or_dashboard = Thread.new do
     redis = Vmpooler.new_redis(redis_host, redis_port, redis_password)
     Vmpooler::API.execute(torun, config, redis, metrics, logger)
   end
-  torun_threads << api
+  torun_threads << api_or_dashboard
 elsif metrics.respond_to?(:setup_prometheus_metrics)
   # Run the cut down API - Prometheus Metrics only.
   prometheus_only_api = Thread.new do

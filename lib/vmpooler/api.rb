@@ -3,7 +3,7 @@
 module Vmpooler
   class API < Sinatra::Base
     # Load API components
-    %w[helpers dashboard reroute v1 request_logger].each do |lib|
+    %w[helpers reroute v1 request_logger dashboard].each do |lib|
       require "vmpooler/api/#{lib}"
     end
     # Load dashboard components
@@ -42,12 +42,17 @@ module Vmpooler
         use Prometheus::Middleware::Exporter, path: metrics.endpoint
       end
 
-      if torun.include? :api
+      # Determine which parts of the API to actually run.
+      # The Dashboard also runs the API parts for its own "self-referencing" purposes, i.e. to re-use those parts
+      # that allow it to pull the information from redis.
+      if (torun & %i[api dashboard]).any?
         # Enable API request logging only if required
-        use Vmpooler::API::RequestLogger, logger: logger if config[:config]['request_logger']
+        use Vmpooler::API::RequestLogger, logger: logger if config[:config]['request_logger'] && (torun.include? :api)
 
-        use Vmpooler::Dashboard
-        use Vmpooler::API::Dashboard
+        if torun.include? :dashboard
+          use Vmpooler::Dashboard
+          use Vmpooler::API::Dashboard
+        end
         use Vmpooler::API::Reroute
         use Vmpooler::API::V1
       end
