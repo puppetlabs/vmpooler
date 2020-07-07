@@ -986,7 +986,12 @@ module Vmpooler
         result['ready'] = true
         Parsing.get_platform_pool_count(request_hash['requested']) do |platform_alias, pool, _count|
           instances = backend.smembers("vmpooler__#{request_id}__#{platform_alias}__#{pool}")
-          result[platform_alias] = { 'hostname': instances }
+
+          if result.key?(platform_alias)
+            result[platform_alias][:hostname] = result[platform_alias][:hostname] + instances
+          else
+            result[platform_alias] = { 'hostname': instances }
+          end
         end
         result['domain'] = config['domain'] if config['domain']
         status 200
@@ -999,10 +1004,17 @@ module Vmpooler
       else
         Parsing.get_platform_pool_count(request_hash['requested']) do |platform_alias, pool, count|
           instance_count = backend.scard("vmpooler__#{request_id}__#{platform_alias}__#{pool}")
-          result[platform_alias] = {
-            'ready': instance_count.to_s,
-            'pending': (count.to_i - instance_count.to_i).to_s
-          }
+          instances_pending = count.to_i - instance_count.to_i
+
+          if result.key?(platform_alias) && result[platform_alias].key?(:ready)
+            result[platform_alias][:ready] = (result[platform_alias][:ready].to_i + instance_count).to_s
+            result[platform_alias][:pending] = (result[platform_alias][:pending].to_i + instances_pending).to_s
+          else
+            result[platform_alias] = {
+              'ready': instance_count.to_s,
+              'pending': instances_pending.to_s
+            }
+          end
         end
       end
 
