@@ -240,7 +240,7 @@
 #
 # This section contains the connection information required to store
 # historical data via statsd.  This is mutually exclusive with graphite
-# and takes precedence.
+# and prometheus and takes precedence.
 #
 # Available configuration parameters:
 #
@@ -267,7 +267,7 @@
 #
 # This section contains the connection information required to store
 # historical data in an external Graphite database.  This is mutually exclusive
-# with statsd.
+# with statsd and prometheus - i.e. only one can be selected.
 #
 # Available configuration parameters:
 #
@@ -287,6 +287,34 @@
 
 :graphite:
   server: 'graphite.example.com'
+
+# :prometheus
+#
+# This section contains the connection information required to store
+# historical data in an external Graphite database.  This is mutually exclusive
+# with statsd and graphite - i.e. only one can be selected.
+#
+# Available configuration parameters:
+#
+#   - prefix
+#     The prefix for this vmpooler instance.
+#     (optional; default: 'vmpooler')
+#
+#   - prometheus_prefix
+#     The prefix to use while storing prometheus data.
+#     (optional; default: 'vmpooler')
+#
+#   - prometheus_endpoint
+#     The metrics endpoint on the vmpooler server
+#     (optional; default: '/prometheus')
+
+# Example:
+
+:prometheus:
+  prefix: 'staging'
+  prometheus_prefix: 'vmpooler'
+  prometheus_endpoint: '/prometheus'
+
 
 # :auth:
 #
