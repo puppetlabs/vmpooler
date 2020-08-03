@@ -150,8 +150,11 @@ module Vmpooler
         redis.pipelined do
           redis.hset("vmpooler__active__#{pool}", vm, Time.now)
           redis.hset("vmpooler__vm__#{vm}", 'checkout', Time.now)
-          redis.hset("vmpooler__vm__#{vm}", 'token:token', ondemandrequest_hash['token:token']) if ondemandrequest_hash['token:token']
-          redis.hset("vmpooler__vm__#{vm}", 'token:user', ondemandrequest_hash['token:user']) if ondemandrequest_hash['token:user']
+          if ondemandrequest_hash['token:token']
+            redis.hset("vmpooler__vm__#{vm}", 'token:token', ondemandrequest_hash['token:token'])
+            redis.hset("vmpooler__vm__#{vm}", 'token:user', ondemandrequest_hash['token:user'])
+            redis.hset("vmpooler__vm__#{vm}", 'lifetime', $config[:config]['vm_lifetime_auth'].to_i)
+          end
           redis.sadd("vmpooler__#{request_id}__#{pool_alias}__#{pool}", vm)
         end
         move_vm_queue(pool, vm, 'pending', 'running', redis)
