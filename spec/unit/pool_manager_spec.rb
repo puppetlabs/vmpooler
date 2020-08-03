@@ -1418,16 +1418,24 @@ EOT
       )
     }
 
-    it 'should return a list of pool folders' do
-      expect(provider).to receive(:get_target_datacenter_from_config).with(pool).and_return(datacenter)
+    context 'when evaluating pool folders' do
+      before do
+        expect(subject).not_to be_nil
+        # Inject mock provider into global variable - Note this is a code smell
+        $providers = { provider_name => provider }
+      end
 
-      expect(subject.pool_folders(provider)).to eq(expected_response)
-    end
+      it 'should return a list of pool folders' do
+        expect(provider).to receive(:get_target_datacenter_from_config).with(pool).and_return(datacenter)
 
-    it 'should raise an error when the provider fails to get the datacenter' do
-      expect(provider).to receive(:get_target_datacenter_from_config).with(pool).and_raise('mockerror')
+        expect(subject.pool_folders(provider_name)).to eq(expected_response)
+      end
 
-      expect{ subject.pool_folders(provider) }.to raise_error(RuntimeError, 'mockerror')
+      it 'should raise an error when the provider fails to get the datacenter' do
+        expect(provider).to receive(:get_target_datacenter_from_config).with(pool).and_raise('mockerror')
+
+        expect{ subject.pool_folders(provider_name) }.to raise_error(RuntimeError, 'mockerror')
+      end
     end
   end
 
@@ -1456,20 +1464,28 @@ EOT
       )
     }
 
-    it 'should run purge_unconfigured_folders' do
-      expect(subject).to receive(:pool_folders).and_return(configured_folders)
-      expect(provider).to receive(:purge_unconfigured_folders).with(base_folders, configured_folders, whitelist)
-      expect(provider).to receive(:provider_config).and_return({})
+    context 'when purging folders' do
+      before do
+        expect(subject).not_to be_nil
+        # Inject mock provider into global variable - Note this is a code smell
+        $providers = { provider_name => provider }
+      end
 
-      subject.purge_vms_and_folders(provider)
-    end
+      it 'should run purge_unconfigured_folders' do
+        expect(subject).to receive(:pool_folders).and_return(configured_folders)
+        expect(provider).to receive(:purge_unconfigured_folders).with(base_folders, configured_folders, whitelist)
+        expect(provider).to receive(:provider_config).and_return({})
 
-    it 'should raise any errors' do
-      expect(subject).to receive(:pool_folders).and_return(configured_folders)
-      expect(provider).to receive(:purge_unconfigured_folders).with(base_folders, configured_folders, whitelist).and_raise('mockerror')
-      expect(provider).to receive(:provider_config).and_return({})
+        subject.purge_vms_and_folders(provider_name)
+      end
 
-      expect{ subject.purge_vms_and_folders(provider) }.to raise_error(RuntimeError, 'mockerror')
+      it 'should raise any errors' do
+        expect(subject).to receive(:pool_folders).and_return(configured_folders)
+        expect(provider).to receive(:purge_unconfigured_folders).with(base_folders, configured_folders, whitelist).and_raise('mockerror')
+        expect(provider).to receive(:provider_config).and_return({})
+
+        expect{ subject.purge_vms_and_folders(provider_name) }.to raise_error(RuntimeError, 'mockerror')
+      end
     end
   end
 
