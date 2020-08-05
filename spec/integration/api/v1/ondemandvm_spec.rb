@@ -24,15 +24,19 @@ describe Vmpooler::API::V1 do
           'vm_lifetime_auth' => 2,
           'max_ondemand_instances_per_request' => 50,
           'backend_weight' => {
-            'compute1' => 5
+            'compute1' => 5,
+            'compute2' => 0
           }
         },
         pools: [
-          {'name' => 'pool1', 'size' => 0},
-          {'name' => 'pool2', 'size' => 0, 'clone_target' => 'compute1'},
+          {'name' => 'pool1', 'size' => 0, 'clone_target' => 'compute1'},
+          {'name' => 'pool2', 'size' => 0, 'clone_target' => 'compute2'},
           {'name' => 'pool3', 'size' => 0, 'clone_target' => 'compute1'}
         ],
-        alias: { 'poolone' => ['pool1'] },
+        alias: {
+          'poolone' => ['pool1'],
+          'pool2' => ['pool1']
+        },
         pool_names: [ 'pool1', 'pool2', 'pool3', 'poolone' ]
       }
     }
@@ -90,6 +94,22 @@ describe Vmpooler::API::V1 do
           it 'sets a platform string in redis for the request to indicate selected platforms' do
             expect(redis).to receive(:hset).with("vmpooler__odrequest__#{uuid}", 'requested', 'poolone:pool1:1')
             post "#{prefix}/ondemandvm", '{"poolone":"1"}'
+          end
+
+          context 'with a backend of 0 weight' do
+            before(:each) do
+              config[:config]['backend_weight']['compute1'] = 0
+            end
+
+            it 'sets the platform string in redis for the request to indicate the selected platforms' do
+              expect(redis).to receive(:hset).with("vmpooler__odrequest__#{uuid}", 'requested', 'pool1:pool1:1')
+              post "#{prefix}/ondemandvm", '{"pool1":"1"}'
+            end
+          end
+
+          it 'sets the platform string in redis for the request to indicate the selected platforms using weight' do
+            expect(redis).to receive(:hset).with("vmpooler__odrequest__#{uuid}", 'requested', 'pool2:pool1:1')
+            post "#{prefix}/ondemandvm", '{"pool2":"1"}'
           end
 
           context 'with domain set in the config' do
