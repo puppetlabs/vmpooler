@@ -38,8 +38,8 @@ module Vmpooler
         # Using customised collector that filters out hostnames on API paths
         require 'vmpooler/metrics/promstats/collector_middleware'
         require 'prometheus/middleware/exporter'
-        use Vmpooler::Metrics::Promstats::CollectorMiddleware, metrics_prefix: "#{metrics.metrics_prefix}_http"
-        use Prometheus::Middleware::Exporter, path: metrics.endpoint
+        use Vmpooler::Metrics::Promstats::CollectorMiddleware, metrics_prefix: "#{metrics.prometheus_prefix}_http"
+        use Prometheus::Middleware::Exporter, path: metrics.prometheus_endpoint
       end
 
       if torun.include? :api
