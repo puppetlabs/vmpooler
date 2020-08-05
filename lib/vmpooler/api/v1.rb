@@ -89,17 +89,15 @@ module Vmpooler
         template_backends += aliases
         weighted_pools = get_pool_weights(template_backends)
 
-        pickup = Pickup.new(weighted_pools) if weighted_pools.count == template_backends.count
-        count.to_i.times do
-          if pickup
+        if weighted_pools.count > 1 && weighted_pools.count == template_backends.count
+          pickup = Pickup.new(weighted_pools)
+          count.to_i.times do
             selection << pickup.pick
-          else
+          end
+        else
+          count.to_i.times do
             selection << template_backends.sample
           end
-        end
-      else
-        count.to_i.times do
-          selection << template
         end
       end
 
