@@ -368,7 +368,7 @@ module Vmpooler
           $metrics.increment("errors.duplicatehostname.#{pool_name}")
           $logger.log('s', "[!] [#{pool_name}] Generated hostname #{hostname} was not unique (attempt \##{hostname_retries} of #{max_hostname_retries})")
         elsif !dns_available
-          $metrics.increment("errors.staledns.#{hostname}")
+          $metrics.increment("errors.staledns.#{pool_name}")
           $logger.log('s', "[!] [#{pool_name}] Generated hostname #{hostname} already exists in DNS records (#{dns_ip}), stale DNS")
         end
       end
