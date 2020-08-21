@@ -89,17 +89,15 @@ module Vmpooler
         template_backends += aliases
         weighted_pools = get_pool_weights(template_backends)
 
-        pickup = Pickup.new(weighted_pools) if weighted_pools.count == template_backends.count
-        count.to_i.times do
-          if pickup
+        if weighted_pools.count > 1 && weighted_pools.count == template_backends.count
+          pickup = Pickup.new(weighted_pools)
+          count.to_i.times do
             selection << pickup.pick
-          else
+          end
+        else
+          count.to_i.times do
             selection << template_backends.sample
           end
-        end
-      else
-        count.to_i.times do
-          selection << template
         end
       end
 
@@ -809,7 +807,7 @@ module Vmpooler
 
     post "#{api_prefix}/ondemandvm/?" do
       content_type :json
-      metrics.increment('api_vm.post.ondemand.requestid')
+      metrics.increment('http_requests_vm_total.post.ondemand.requestid')
 
       need_token! if Vmpooler::API.settings.config[:auth]
 
@@ -847,7 +845,7 @@ module Vmpooler
     post "#{api_prefix}/ondemandvm/:template/?" do
       content_type :json
       result = { 'ok' => false }
-      metrics.increment('api_vm.delete.ondemand.template')
+      metrics.increment('http_requests_vm_total.delete.ondemand.template')
 
       need_token! if Vmpooler::API.settings.config[:auth]
 
@@ -874,7 +872,7 @@ module Vmpooler
 
     get "#{api_prefix}/ondemandvm/:requestid/?" do
       content_type :json
-      metrics.increment('api_vm.get.ondemand.request')
+      metrics.increment('http_requests_vm_total.get.ondemand.request')
 
       status 404
       result = check_ondemand_request(params[:requestid])
@@ -885,7 +883,7 @@ module Vmpooler
     delete "#{api_prefix}/ondemandvm/:requestid/?" do
       content_type :json
       need_token! if Vmpooler::API.settings.config[:auth]
-      metrics.increment('api_vm.delete.ondemand.request')
+      metrics.increment('http_requests_vm_total.delete.ondemand.request')
 
       status 404
       result = delete_ondemand_request(params[:requestid])
@@ -896,7 +894,7 @@ module Vmpooler
     post "#{api_prefix}/vm/?" do
       content_type :json
       result = { 'ok' => false }
-      metrics.increment('api_vm.post.vm.checkout')
+      metrics.increment('http_requests_vm_total.post.vm.checkout')
 
       payload = JSON.parse(request.body.read)
 
@@ -1051,7 +1049,7 @@ module Vmpooler
     post "#{api_prefix}/vm/:template/?" do
       content_type :json
       result = { 'ok' => false }
-      metrics.increment('api_vm.get.vm.template')
+      metrics.increment('http_requests_vm_total.get.vm.template')
 
       payload = extract_templates_from_query_params(params[:template])
 
@@ -1075,7 +1073,7 @@ module Vmpooler
 
     get "#{api_prefix}/vm/:hostname/?" do
       content_type :json
-      metrics.increment('api_vm.get.vm.hostname')
+      metrics.increment('http_requests_vm_total.get.vm.hostname')
 
       result = {}
 
@@ -1148,7 +1146,7 @@ module Vmpooler
 
     delete "#{api_prefix}/vm/:hostname/?" do
       content_type :json
-      metrics.increment('api_vm.delete.vm.hostname')
+      metrics.increment('http_requests_vm_total.delete.vm.hostname')
 
       result = {}
 
@@ -1177,7 +1175,7 @@ module Vmpooler
 
     put "#{api_prefix}/vm/:hostname/?" do
       content_type :json
-      metrics.increment('api_vm.put.vm.modify')
+      metrics.increment('http_requests_vm_total.put.vm.modify')
 
       status 404
       result = { 'ok' => false }
@@ -1254,7 +1252,7 @@ module Vmpooler
 
     post "#{api_prefix}/vm/:hostname/disk/:size/?" do
       content_type :json
-      metrics.increment('api_vm.post.vm.disksize')
+      metrics.increment('http_requests_vm_total.post.vm.disksize')
 
       need_token! if Vmpooler::API.settings.config[:auth]
 
@@ -1278,7 +1276,7 @@ module Vmpooler
 
     post "#{api_prefix}/vm/:hostname/snapshot/?" do
       content_type :json
-      metrics.increment('api_vm.post.vm.snapshot')
+      metrics.increment('http_requests_vm_total.post.vm.snapshot')
 
       need_token! if Vmpooler::API.settings.config[:auth]
 
@@ -1304,7 +1302,7 @@ module Vmpooler
 
     post "#{api_prefix}/vm/:hostname/snapshot/:snapshot/?" do
       content_type :json
-      metrics.increment('api_vm.post.vm.disksize')
+      metrics.increment('http_requests_vm_total.post.vm.disksize')
 
       need_token! if Vmpooler::API.settings.config[:auth]
 
