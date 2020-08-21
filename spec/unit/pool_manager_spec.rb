@@ -913,7 +913,7 @@ EOT
         resolv = class_double("Resolv").as_stubbed_const(:transfer_nested_constants => true)
         expect(subject).to receive(:generate_and_check_hostname).exactly(3).times.and_return([vm_name, true]) #skip this, make it available all times
         expect(resolv).to receive(:getaddress).exactly(3).times.and_return("1.2.3.4")
-        expect(metrics).to receive(:increment).with("errors.staledns.#{vm_name}").exactly(3).times
+        expect(metrics).to receive(:increment).with("errors.staledns.#{pool}").exactly(3).times
         expect{subject._clone_vm(pool,provider)}.to raise_error(/Unable to generate a unique hostname after/)
       end
       it 'should be successful if DNS does not exist' do
