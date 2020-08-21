@@ -114,6 +114,9 @@ module Vmpooler
           path
             .gsub(%r{/vm/.+$}, '/vm')
             .gsub(%r{/ondemand/.+$}, '/ondemand')
+            .gsub(%r{/token/.+$}, '/token')
+            .gsub(%r{/lib/.+$}, '/lib')
+            .gsub(%r{/img/.+$}, '/img')
         end
       end
     end

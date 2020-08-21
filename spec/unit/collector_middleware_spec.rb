@@ -55,7 +55,7 @@ describe Vmpooler::Metrics::Promstats::CollectorMiddleware do
     expect(registry.get(metric).get(labels: labels)).to include("0.1" => 0, "0.25" => 1)
   end
 
-  it 'normalizes paths cotaining /vm by default' do
+  it 'normalizes paths containing /vm by default' do
     expect(Benchmark).to receive(:realtime).and_yield.and_return(0.3)
 
     get '/foo/vm/bar-mumble-flame'
@@ -80,6 +80,62 @@ describe Vmpooler::Metrics::Promstats::CollectorMiddleware do
 
     metric = :http_server_request_duration_seconds
     labels = { method: 'get', path: '/foo/ondemand' }
+    expect(registry.get(metric).get(labels: labels)).to include("0.1" => 0, "0.5" => 1)
+  end
+
+  it 'normalizes paths containing /token by default' do
+    expect(Benchmark).to receive(:realtime).and_yield.and_return(0.3)
+
+    get '/token/secret-token-name'
+
+    metric = :http_server_requests_total
+    labels = { method: 'get', path: '/token', code: '200' }
+    expect(registry.get(metric).get(labels: labels)).to eql(1.0)
+
+    metric = :http_server_request_duration_seconds
+    labels = { method: 'get', path: '/token' }
+    expect(registry.get(metric).get(labels: labels)).to include("0.1" => 0, "0.5" => 1)
+  end
+
+  it 'normalizes paths containing /api/v1/token by default' do
+    expect(Benchmark).to receive(:realtime).and_yield.and_return(0.3)
+
+    get '/api/v1/token/secret-token-name'
+
+    metric = :http_server_requests_total
+    labels = { method: 'get', path: '/api/v1/token', code: '200' }
+    expect(registry.get(metric).get(labels: labels)).to eql(1.0)
+
+    metric = :http_server_request_duration_seconds
+    labels = { method: 'get', path: '/api/v1/token' }
+    expect(registry.get(metric).get(labels: labels)).to include("0.1" => 0, "0.5" => 1)
+  end
+
+  it 'normalizes paths containing /img by default' do
+    expect(Benchmark).to receive(:realtime).and_yield.and_return(0.3)
+
+    get '/img/image-name'
+
+    metric = :http_server_requests_total
+    labels = { method: 'get', path: '/img', code: '200' }
+    expect(registry.get(metric).get(labels: labels)).to eql(1.0)
+
+    metric = :http_server_request_duration_seconds
+    labels = { method: 'get', path: '/img' }
+    expect(registry.get(metric).get(labels: labels)).to include("0.1" => 0, "0.5" => 1)
+  end
+
+  it 'normalizes paths containing /lib by default' do
+    expect(Benchmark).to receive(:realtime).and_yield.and_return(0.3)
+
+    get '/lib/xxxxx.js'
+
+    metric = :http_server_requests_total
+    labels = { method: 'get', path: '/lib', code: '200' }
+    expect(registry.get(metric).get(labels: labels)).to eql(1.0)
+
+    metric = :http_server_request_duration_seconds
+    labels = { method: 'get', path: '/lib' }
     expect(registry.get(metric).get(labels: labels)).to include("0.1" => 0, "0.5" => 1)
   end
 
