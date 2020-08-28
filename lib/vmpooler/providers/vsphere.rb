@@ -304,6 +304,7 @@ module Vmpooler
             # Get the template VM object
             raise("Pool #{pool_name} did not specify a full path for the template for the provider #{name}") unless valid_template_path? template_path
 
+            # TBD - check that template exists?
             template_vm_object = find_template_vm(pool, connection)
 
             # Annotate with creation time, origin template, etc.
@@ -1131,6 +1132,7 @@ module Vmpooler
         def create_template_delta_disks(pool)
           @connection_pool.with_metrics do |pool_object|
             connection = ensured_vsphere_connection(pool_object)
+            # TBD - Verify template exists.
             template_vm_object = find_template_vm(pool, connection)
 
             template_vm_object.add_delta_disk_layer_on_all_disks

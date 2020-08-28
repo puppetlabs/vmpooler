@@ -326,6 +326,8 @@ module Vmpooler
           else
             $logger.log('s', "[!] [#{pool_name}] failed while cloning VM with an error: #{e}")
           end
+          # TBD: not convinced we need a raise here
+          # Check with Matt.
           raise
         end
       end
@@ -991,6 +993,8 @@ module Vmpooler
           end
         end
       end
+      # TBD - we should NOT set this as prepared if it doesn't exist
+      # TBD - Look for error creating template delta disks more than once.
       redis.hset('vmpooler__template__prepared', pool['name'], pool['template'])
     end
 
@@ -1045,6 +1049,7 @@ module Vmpooler
     def update_pool_template(pool, provider, configured_template, prepared_template, redis)
       pool['template'] = configured_template
       $logger.log('s', "[*] [#{pool['name']}] template updated from #{prepared_template} to #{configured_template}")
+      # TBD - Before we drain pool check if new template exists.
       # Remove all ready and pending VMs so new instances are created from the new template
       drain_pool(pool['name'], redis)
       # Prepare template for deployment
@@ -1298,6 +1303,8 @@ module Vmpooler
           end
         end
 
+        # TBD - add limit check here.
+
         (pool_size - total.to_i).times do
           if redis.get('vmpooler__tasks__clone').to_i < $config[:config]['task_limit'].to_i
             begin
@@ -1347,6 +1354,8 @@ module Vmpooler
       # Evaluates a pool template to ensure templates are prepared adequately for the configured provider
       # If a pool template configuration change is detected then template preparation is repeated for the new template
       # Additionally, a pool will drain ready and pending instances
+      # TBD - Should we really be checking if the template actually exists - lets do this .....
+      # and down pool or empty it ....
       evaluate_template(pool, provider)
 
       # Check to see if a pool size change has been made via the configuration API
