@@ -21,6 +21,7 @@ module Vmpooler
       REDIS_CONNECT_BUCKETS = [1.0, 2.0, 3.0, 5.0, 8.0, 13.0, 18.0, 23.0].freeze
 
       @p_metrics = {}
+      @torun = []
 
       def initialize(logger, params = {})
         @prefix = params['prefix'] || 'vmpooler'
@@ -368,6 +369,7 @@ module Vmpooler
       # Top level method to register all the prometheus metrics.
 
       def setup_prometheus_metrics(torun)
+        @torun = torun
         @p_metrics = vmpooler_metrics_table
         @p_metrics.each do |name, metric_spec|
           # Only register metrics appropriate to api or manager
@@ -399,7 +401,10 @@ module Vmpooler
         metric_key = sublabels.shift.to_sym
         raise("Invalid Metric #{metric_key} for #{label}") unless @p_metrics.key? metric_key
 
-        metric = @p_metrics[metric_key].clone
+        metric_spec = @p_metrics[metric_key]
+        raise("Invalid Component #{component} for #{metric_key}") if (metric_spec[:torun] & @torun).nil?
+
+        metric = metric_spec.clone
 
         if metric.key? :metric_suffixes
           metric_subkey = sublabels.shift.to_sym

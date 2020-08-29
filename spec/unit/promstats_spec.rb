@@ -21,7 +21,10 @@ describe 'prometheus' do
           param_labels: %i[first second last] }
       end
       let!(:labels_hash) { { labels: { :first => nil, :second => nil, :last => nil } } }
-      before { subject.instance_variable_set(:@p_metrics, { foo: foo_metrics }) }
+      before { 
+        subject.instance_variable_set(:@p_metrics, { foo: foo_metrics, torun: %i[api] }) 
+        subject.instance_variable_set(:@torun, [ :api ]) 
+      }
   
       it 'returns the metric for a given label including parsed labels' do
         expect(subject.find_metric('foo.bar')).to include(metric_name: 'mtest_foo_bar')
@@ -41,10 +44,15 @@ describe 'prometheus' do
     context "Node Name Handling" do
       let!(:node_metrics) do
         { metric_name: 'connection_to',
-          param_labels: %i[node] }
+          param_labels: %i[node],
+          torun: %i[api] 
+        }
       end
       let!(:nodename_hash) { { labels: { :node => 'test.bar.net'}}}
-      before { subject.instance_variable_set(:@p_metrics, { connection_to: node_metrics }) }
+      before { 
+        subject.instance_variable_set(:@p_metrics, { connection_to: node_metrics })
+        subject.instance_variable_set(:@torun, [ :api ]) 
+      }
 
       it 'Return final remaining fields (e.g. fqdn) in last label' do
         expect(subject.find_metric('connection_to.test.bar.net')).to include(nodename_hash)
