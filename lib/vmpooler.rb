@@ -164,7 +164,7 @@ module Vmpooler
     pools
   end
 
-  def self.redis_connection_pool(host, port, password, size, timeout, metrics)
+  def self.redis_connection_pool(host, port, password, size, timeout, metrics, redis_reconnect_attempts = 0)
     Vmpooler::PoolManager::GenericConnectionPool.new(
       metrics: metrics,
       connpool_type: 'redis_connection_pool',
@@ -173,13 +173,14 @@ module Vmpooler
       timeout: timeout
     ) do
       connection = Concurrent::Hash.new
-      redis = new_redis(host, port, password)
+      redis = new_redis(host, port, password, redis_reconnect_attempts)
       connection['connection'] = redis
     end
   end
 
-  def self.new_redis(host = 'localhost', port = nil, password = nil)
-    Redis.new(host: host, port: port, password: password)
+  def self.new_redis(host = 'localhost', port = nil, password = nil, redis_reconnect_attempts = 10)
+    Redis.new(host: host, port: port, password: password, reconnect_attempts: redis_reconnect_attempts, reconnect_delay: 1.5,
+              reconnect_delay_max: 10.0)
   end
 
   def self.pools(conf)

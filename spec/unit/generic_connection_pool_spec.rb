@@ -25,6 +25,13 @@ describe 'GenericConnectionPool' do
       connection: 'connection'
     }}
 
+    it 'should error out when connection pool could not establish no nothing' do
+      newsub = Vmpooler.redis_connection_pool("foo,bar", "1234", "fuba", 1, 1, metrics, 0)
+      expect { newsub.with_metrics do |conn_pool_object|
+        conn_pool_object.srem('foo', "bar")
+      end }.to raise_error Redis::CannotConnectError
+    end
+
     it 'should return a connection object when grabbing one from the pool' do
       subject.with_metrics do |conn_pool_object|
         expect(conn_pool_object).to be(connection_object)
