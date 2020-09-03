@@ -204,6 +204,12 @@
 #   - redis_connection_pool_timeout
 #     How long a task should wait (in seconds) for a redis connection when all connections are in use.
 #     (default: 5)
+#
+#   - reconnect_attempts
+#     How many times to retry one redis connection, for example if the host:port is not available
+#     The time between attempts starts at 1.5s and increases up to 10s, in such a way that 10 attempts
+#     takes about 80s, at which point an error is returned.
+#     (default: 10)
 
 # Example:
 
