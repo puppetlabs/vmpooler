@@ -5,7 +5,7 @@ require 'prometheus/client'
 module Vmpooler
   class Metrics
     class Promstats < Metrics
-      attr_reader :prefix, :endpoint, :metrics_prefix
+      attr_reader :prefix, :prometheus_endpoint, :prometheus_prefix
 
       # Constants for Metric Types
       M_COUNTER   = 1
@@ -21,25 +21,139 @@ module Vmpooler
       REDIS_CONNECT_BUCKETS = [1.0, 2.0, 3.0, 5.0, 8.0, 13.0, 18.0, 23.0].freeze
 
       @p_metrics = {}
+      @torun = []
 
       def initialize(logger, params = {})
         @prefix = params['prefix'] || 'vmpooler'
-        @metrics_prefix = params['metrics_prefix'] || 'vmpooler'
-        @endpoint = params['endpoint'] || '/prometheus'
+        @prometheus_prefix = params['prometheus_prefix'] || 'vmpooler'
+        @prometheus_endpoint = params['prometheus_endpoint'] || '/prometheus'
         @logger = logger
 
         # Setup up prometheus registry and data structures
         @prometheus = Prometheus::Client.registry
       end
 
-      # Metrics structure used to register the metrics and also translate/interpret the incoming metrics.
+=begin # rubocop:disable Style/BlockComments
+      The Metrics table is used to register metrics and translate/interpret the incoming metrics.
+
+      This table describes all of the prometheus metrics that are recognised by the application.
+      The background documentation for defining metrics is at: https://prometheus.io/docs/introduction/
+      In particular, the naming practices should be adhered to: https://prometheus.io/docs/practices/naming/
+      The Ruby Client docs are also useful: https://github.com/prometheus/client_ruby
+
+      The table here allows the currently used stats definitions to be translated correctly for Prometheus.
+      The current format is of the form A.B.C, where the final fields may be actual values (e.g. poolname).
+      Prometheus metrics cannot use the '.' as a character, so this is either translated into '_' or
+      variable parameters are expressed as labels accompanying the metric.
+
+      Sample statistics are:
+          # Example showing hostnames (FQDN)
+          migrate_from.pix-jj26-chassis1-2.ops.puppetlabs.net
+          migrate_to.pix-jj26-chassis1-8.ops.puppetlabs.net
+
+          # Example showing poolname as a parameter
+          poolreset.invalid.centos-8-x86_64
+
+          # Examples showing similar sub-typed checkout stats
+          checkout.empty.centos-8-x86_64
+          checkout.invalid.centos-8-x86_64
+          checkout.invalid.unknown
+          checkout.success.centos-8-x86_64
+
+          # Stats without any final parameter.
+          connect.fail
+          connect.open
+          delete.failed
+          delete.success
+
+          # Stats with multiple param_labels
+          vmpooler_user.debian-8-x86_64-pixa4.john
+
+        The metrics implementation here preserves the existing framework which will continue to support
+        graphite and statsd (since vmpooler is used outside of puppet). Some rationalisation and renaming
+        of the actual metrics was done to get a more usable model to fit within the prometheus framework.
+        This particularly applies to the user stats collected once individual machines are terminated as
+        this would have challenged prometheus' ability due to multiple (8) parameters being collected
+        in a single measure (which has a very high cardinality).
+
+        Prometheus requires all metrics to be pre-registered (which is the primary reason for this
+        table) and also uses labels to differentiate the characteristics of the measurement. This
+        is used throughout to capture information such as poolnames. So for example, this is a sample
+        of the prometheus metrics generated for the "vmpooler_ready" measurement:
+
+          # TYPE vmpooler_ready gauge
+          # HELP vmpooler_ready vmpooler number of machines in ready State
+          vmpooler_ready{vmpooler_instance="vmpooler",poolname="win-10-ent-x86_64-pixa4"} 2.0
+          vmpooler_ready{vmpooler_instance="vmpooler",poolname="debian-8-x86_64-pixa4"} 2.0
+          vmpooler_ready{vmpooler_instance="vmpooler",poolname="centos-8-x86_64-pixa4"} 2.0
+
+        Prometheus supports the following metric types:
+        (see https://prometheus.io/docs/concepts/metric_types/)
+
+          Counter (increment):
+            A counter is a cumulative metric that represents a single monotonically increasing counter whose
+            value can only increase or be reset to zero on restart
+
+          Gauge:
+            A gauge is a metric that represents a single numerical value that can arbitrarily go up and down.
+
+          Histogram:
+            A histogram samples observations (usually things like request durations or response sizes) and
+            counts them in configurable buckets. It also provides a sum of all observed values.
+            This replaces the timer metric supported by statsd
+
+          Summary :
+            Summary provides a total count of observations and a sum of all observed values, it calculates
+            configurable quantiles over a sliding time window.
+            (Summary is not used in vmpooler)
+
+        vmpooler_metrics_table is a table of hashes, where the hash key represents the first part of the
+        metric name, e.g. for the metric 'delete.*' (see above) the key would be 'delete:'. "Sub-metrics",
+        are supported, again for the 'delete.*' example, this can be subbed into '.failed' and '.success'
+
+        The entries within the hash as are follows:
+
+          mtype:
+            Metric type, which is one of the following constants:
+              M_COUNTER   = 1
+              M_GAUGE     = 2
+              M_SUMMARY   = 3
+              M_HISTOGRAM = 4
+
+          torun:
+            Indicates which process the metric is for - within vmpooler this is either ':api' or ':manager'
+            (there is a suggestion that we change this to two separate tables).
+
+          docstring:
+            Documentation string for the metric - this is displayed as HELP text by the endpoint.
+
+          metric_suffixes:
+            Array of sub-metrics of the form 'sub-metric: "doc-string for sub-metric"'. This supports
+            the generation of individual sub-metrics for all elements in the array.
+
+          param_labels:
+            This is an optional array of symbols for the final labels in a metric. It should not be
+            specified if there are no additional parameters.
+
+            If it specified, it can either be a single symbol, or two or more symbols. The treatment
+            differs if there is only one symbol given as all of the remainder of the metric string
+            supplied is collected into a label with the symbol name. This allows the handling of
+            node names (FQDN).
+
+            To illustrate:
+            1. In the 'connect.*' or 'delete.*' example above, it should not be specified.
+            2. For the 'migrate_from.*' example above, the remainder of the measure is collected
+               as the 'host_name' label.
+            3. For the 'vmpooler_user' example above, the first parameter is treated as the pool
+               name, and the second as the username.
+
+=end
       def vmpooler_metrics_table
         {
           errors: {
             mtype: M_COUNTER,
             torun: %i[manager],
             docstring: 'Count of errors for pool',
-            prom_metric_prefix: "#{@metrics_prefix}_errors",
             metric_suffixes: {
               markedasfailed: 'timeout waiting for instance to initialise',
               duplicatehostname: 'unable to create instance due to duplicate hostname',
@@ -51,42 +165,36 @@ module Vmpooler
             mtype: M_COUNTER,
             torun: %i[manager],
             docstring: 'Number of pool instances this user created created',
-            prom_metric_prefix: "#{@metrics_prefix}_user",
             param_labels: %i[user poolname]
           },
           usage_litmus: {
             mtype: M_COUNTER,
             torun: %i[manager],
             docstring: 'Pools by Litmus job usage',
-            prom_metric_prefix: "#{@metrics_prefix}_usage_litmus",
             param_labels: %i[user poolname]
           },
           usage_jenkins_instance: {
             mtype: M_COUNTER,
             torun: %i[manager],
             docstring: 'Pools by Jenkins instance usage',
-            prom_metric_prefix: "#{@metrics_prefix}_usage_jenkins_instance",
             param_labels: %i[jenkins_instance value_stream poolname]
           },
           usage_branch_project: {
             mtype: M_COUNTER,
             torun: %i[manager],
             docstring: 'Pools by branch/project usage',
-            prom_metric_prefix: "#{@metrics_prefix}_usage_branch_project",
             param_labels: %i[branch project poolname]
           },
           usage_job_component: {
             mtype: M_COUNTER,
             torun: %i[manager],
             docstring: 'Pools by job/component usage',
-            prom_metric_prefix: "#{@metrics_prefix}_usage_job_component",
             param_labels: %i[job_name component_to_test poolname]
           },
           checkout: {
             mtype: M_COUNTER,
             torun: %i[api],
             docstring: 'Pool checkout counts',
-            prom_metric_prefix: "#{@metrics_prefix}_checkout",
             metric_suffixes: {
               nonresponsive: 'checkout failed - non responsive machine',
               empty: 'checkout failed - no machine',
@@ -99,7 +207,6 @@ module Vmpooler
             mtype: M_COUNTER,
             torun: %i[api],
             docstring: 'Delete machine',
-            prom_metric_prefix: "#{@metrics_prefix}_delete",
             metric_suffixes: {
               success: 'succeeded',
               failed: 'failed'
@@ -110,7 +217,6 @@ module Vmpooler
             mtype: M_COUNTER,
             torun: %i[api],
             docstring: 'Ondemand request',
-            prom_metric_prefix: "#{@metrics_prefix}_ondemandrequest_generate",
             metric_suffixes: {
               duplicaterequests: 'failed duplicate request',
               success: 'succeeded'
@@ -121,7 +227,6 @@ module Vmpooler
             mtype: M_COUNTER,
             torun: %i[api],
             docstring: 'Ondemand request failure',
-            prom_metric_prefix: "#{@metrics_prefix}_ondemandrequest_fail",
             metric_suffixes: {
               toomanyrequests: 'too many requests',
               invalid: 'invalid poolname'
@@ -132,7 +237,6 @@ module Vmpooler
             mtype: M_COUNTER,
             torun: %i[api],
             docstring: 'vmpooler pool configuration request',
-            prom_metric_prefix: "#{@metrics_prefix}_config",
             metric_suffixes: { invalid: 'Invalid' },
             param_labels: %i[poolname]
           },
@@ -140,7 +244,6 @@ module Vmpooler
             mtype: M_COUNTER,
             torun: %i[api],
             docstring: 'Pool reset counter',
-            prom_metric_prefix: "#{@metrics_prefix}_poolreset",
             metric_suffixes: { invalid: 'Invalid Pool' },
             param_labels: %i[poolname]
           },
@@ -148,7 +251,6 @@ module Vmpooler
             mtype: M_COUNTER,
             torun: %i[manager],
             docstring: 'vmpooler connect (to vSphere)',
-            prom_metric_prefix: "#{@metrics_prefix}_connect",
             metric_suffixes: {
               open: 'Connect Succeeded',
               fail: 'Connect Failed'
@@ -159,42 +261,36 @@ module Vmpooler
             mtype: M_COUNTER,
             torun: %i[manager],
             docstring: 'vmpooler machine migrated from',
-            prom_metric_prefix: "#{@metrics_prefix}_migrate_from",
             param_labels: %i[host_name]
           },
           migrate_to: {
             mtype: M_COUNTER,
             torun: %i[manager],
             docstring: 'vmpooler machine migrated to',
-            prom_metric_prefix: "#{@metrics_prefix}_migrate_to",
             param_labels: %i[host_name]
           },
-          api_vm: {
+          http_requests_vm_total: {
             mtype: M_COUNTER,
             torun: %i[api],
             docstring: 'Total number of HTTP request/sub-operations handled by the Rack application under the /vm endpoint',
-            prom_metric_prefix: "#{@metrics_prefix}_http_requests_vm_total",
             param_labels: %i[method subpath operation]
           },
           ready: {
             mtype: M_GAUGE,
             torun: %i[manager],
             docstring: 'vmpooler number of machines in ready State',
-            prom_metric_prefix: "#{@metrics_prefix}_ready",
             param_labels: %i[poolname]
           },
           running: {
             mtype: M_GAUGE,
             torun: %i[manager],
             docstring: 'vmpooler number of machines running',
-            prom_metric_prefix: "#{@metrics_prefix}_running",
             param_labels: %i[poolname]
           },
           connection_available: {
             mtype: M_GAUGE,
             torun: %i[manager],
             docstring: 'vmpooler redis connections available',
-            prom_metric_prefix: "#{@metrics_prefix}_connection_available",
             param_labels: %i[type provider]
           },
           time_to_ready_state: {
@@ -202,7 +298,6 @@ module Vmpooler
             torun: %i[manager],
             buckets: POOLER_READY_TIME_BUCKETS,
             docstring: 'Time taken for machine to read ready state for pool',
-            prom_metric_prefix: "#{@metrics_prefix}_time_to_ready_state",
             param_labels: %i[poolname]
           },
           migrate: {
@@ -210,7 +305,6 @@ module Vmpooler
             torun: %i[manager],
             buckets: POOLER_CLONE_TIME_BUCKETS,
             docstring: 'vmpooler time taken to migrate machine for pool',
-            prom_metric_prefix: "#{@metrics_prefix}_migrate",
             param_labels: %i[poolname]
           },
           clone: {
@@ -218,7 +312,6 @@ module Vmpooler
             torun: %i[manager],
             buckets: POOLER_CLONE_TIME_BUCKETS,
             docstring: 'vmpooler time taken to clone machine',
-            prom_metric_prefix: "#{@metrics_prefix}_clone",
             param_labels: %i[poolname]
           },
           destroy: {
@@ -226,7 +319,6 @@ module Vmpooler
             torun: %i[manager],
             buckets: POOLER_CLONE_TIME_BUCKETS,
             docstring: 'vmpooler time taken to destroy machine',
-            prom_metric_prefix: "#{@metrics_prefix}_destroy",
             param_labels: %i[poolname]
           },
           connection_waited: {
@@ -234,7 +326,6 @@ module Vmpooler
             torun: %i[manager],
             buckets: REDIS_CONNECT_BUCKETS,
             docstring: 'vmpooler redis connection wait time',
-            prom_metric_prefix: "#{@metrics_prefix}_connection_waited",
             param_labels: %i[type provider]
           }
         }
@@ -278,8 +369,9 @@ module Vmpooler
       # Top level method to register all the prometheus metrics.
 
       def setup_prometheus_metrics(torun)
+        @torun = torun
         @p_metrics = vmpooler_metrics_table
-        @p_metrics.each do |_name, metric_spec|
+        @p_metrics.each do |name, metric_spec|
           # Only register metrics appropriate to api or manager
           next if (torun & metric_spec[:torun]).empty?
 
@@ -288,7 +380,7 @@ module Vmpooler
             metric_spec[:metric_suffixes].each do |metric_suffix|
               add_prometheus_metric(
                 metric_spec,
-                "#{metric_spec[:prom_metric_prefix]}_#{metric_suffix[0]}",
+                "#{@prometheus_prefix}_#{name}_#{metric_suffix[0]}",
                 "#{metric_spec[:docstring]} #{metric_suffix[1]}"
               )
             end
@@ -296,7 +388,7 @@ module Vmpooler
             # No Additional counter suffixes so register this as metric.
             add_prometheus_metric(
               metric_spec,
-              metric_spec[:prom_metric_prefix],
+              "#{@prometheus_prefix}_#{name}",
               metric_spec[:docstring]
             )
           end
@@ -309,15 +401,18 @@ module Vmpooler
         metric_key = sublabels.shift.to_sym
         raise("Invalid Metric #{metric_key} for #{label}") unless @p_metrics.key? metric_key
 
-        metric = @p_metrics[metric_key].clone
+        metric_spec = @p_metrics[metric_key]
+        raise("Invalid Component #{component} for #{metric_key}") if (metric_spec[:torun] & @torun).nil?
+
+        metric = metric_spec.clone
 
         if metric.key? :metric_suffixes
           metric_subkey = sublabels.shift.to_sym
           raise("Invalid Metric #{metric_key}_#{metric_subkey} for #{label}") unless metric[:metric_suffixes].key? metric_subkey.to_sym
 
-          metric[:metric_name] = "#{metric[:prom_metric_prefix]}_#{metric_subkey}"
+          metric[:metric_name] = "#{@prometheus_prefix}_#{metric_key}_#{metric_subkey}"
         else
-          metric[:metric_name] = metric[:prom_metric_prefix]
+          metric[:metric_name] = "#{@prometheus_prefix}_#{metric_key}"
         end
 
         # Check if we are looking for a parameter value at last element.

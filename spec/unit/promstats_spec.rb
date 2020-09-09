@@ -4,7 +4,7 @@ require 'spec_helper'
 
 describe 'prometheus' do
   logger = MockLogger.new
-  params = { 'prefix': 'test', 'metrics_prefix': 'mtest', 'endpoint': 'eptest' }
+  params = { 'prefix' => 'test', 'prometheus_prefix'  => 'mtest', 'prometheus_endpoint'  => 'eptest' }
   subject = Vmpooler::Metrics::Promstats.new(logger, params)
   let(:logger) { MockLogger.new }
 
@@ -21,10 +21,13 @@ describe 'prometheus' do
           param_labels: %i[first second last] }
       end
       let!(:labels_hash) { { labels: { :first => nil, :second => nil, :last => nil } } }
-      before { subject.instance_variable_set(:@p_metrics, { foo: foo_metrics }) }
+      before { 
+        subject.instance_variable_set(:@p_metrics, { foo: foo_metrics, torun: %i[api] }) 
+        subject.instance_variable_set(:@torun, [ :api ]) 
+      }
   
       it 'returns the metric for a given label including parsed labels' do
-        expect(subject.find_metric('foo.bar')).to include(metric_name: '_bar')
+        expect(subject.find_metric('foo.bar')).to include(metric_name: 'mtest_foo_bar')
         expect(subject.find_metric('foo.bar')).to include(foo_metrics)
         expect(subject.find_metric('foo.bar')).to include(labels_hash)
       end
@@ -41,10 +44,15 @@ describe 'prometheus' do
     context "Node Name Handling" do
       let!(:node_metrics) do
         { metric_name: 'connection_to',
-          param_labels: %i[node] }
+          param_labels: %i[node],
+          torun: %i[api] 
+        }
       end
       let!(:nodename_hash) { { labels: { :node => 'test.bar.net'}}}
-      before { subject.instance_variable_set(:@p_metrics, { connection_to: node_metrics }) }
+      before { 
+        subject.instance_variable_set(:@p_metrics, { connection_to: node_metrics })
+        subject.instance_variable_set(:@torun, [ :api ]) 
+      }
 
       it 'Return final remaining fields (e.g. fqdn) in last label' do
         expect(subject.find_metric('connection_to.test.bar.net')).to include(nodename_hash)
@@ -57,7 +65,6 @@ describe 'prometheus' do
       Prometheus::Client.config.data_store = Prometheus::Client::DataStores::Synchronized.new
       subject.setup_prometheus_metrics(%i[api manager])
     end
-    let(:MCOUNTER) { 1 }
 
     describe '#setup_prometheus_metrics' do
       it 'calls add_prometheus_metric for each item in list' do
@@ -260,12 +267,12 @@ describe 'prometheus' do
           po.get(labels: metric[:labels])
         }.by(1)
       end
-      it 'Increments label api_vm.#{method}.#{subpath}.#{operation}' do
+      it 'Increments label http_requests_vm_total.#{method}.#{subpath}.#{operation}' do
         method = 'get'
         subpath = 'template'
         operation = 'something'
-        expect { subject.increment("api_vm.#{method}.#{subpath}.#{operation}") }.to change {
-          metric, po = subject.get("api_vm.#{method}.#{subpath}.#{operation}")
+        expect { subject.increment("http_requests_vm_total.#{method}.#{subpath}.#{operation}") }.to change {
+          metric, po = subject.get("http_requests_vm_total.#{method}.#{subpath}.#{operation}")
           po.get(labels: metric[:labels])
         }.by(1)
       end

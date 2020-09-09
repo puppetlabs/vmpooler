@@ -58,59 +58,58 @@ module Vmpooler
     end
 
     # Set some configuration defaults
-    parsed_config[:config]['task_limit'] = string_to_int(ENV['TASK_LIMIT']) || parsed_config[:config]['task_limit'] || 10
-    parsed_config[:config]['ondemand_clone_limit'] = string_to_int(ENV['ONDEMAND_CLONE_LIMIT']) || parsed_config[:config]['ondemand_clone_limit'] || 10
+    parsed_config[:config]['task_limit']                         = string_to_int(ENV['TASK_LIMIT']) || parsed_config[:config]['task_limit'] || 10
+    parsed_config[:config]['ondemand_clone_limit']               = string_to_int(ENV['ONDEMAND_CLONE_LIMIT']) || parsed_config[:config]['ondemand_clone_limit'] || 10
     parsed_config[:config]['max_ondemand_instances_per_request'] = string_to_int(ENV['MAX_ONDEMAND_INSTANCES_PER_REQUEST']) || parsed_config[:config]['max_ondemand_instances_per_request'] || 10
-    parsed_config[:config]['migration_limit'] = string_to_int(ENV['MIGRATION_LIMIT']) if ENV['MIGRATION_LIMIT']
-    parsed_config[:config]['vm_checktime'] = string_to_int(ENV['VM_CHECKTIME']) || parsed_config[:config]['vm_checktime'] || 1
-    parsed_config[:config]['vm_lifetime'] = string_to_int(ENV['VM_LIFETIME']) || parsed_config[:config]['vm_lifetime'] || 24
-    parsed_config[:config]['max_lifetime_upper_limit'] = string_to_int(ENV['MAX_LIFETIME_UPPER_LIMIT']) || parsed_config[:config]['max_lifetime_upper_limit']
-    parsed_config[:config]['ready_ttl'] = string_to_int(ENV['READY_TTL']) || parsed_config[:config]['ready_ttl'] || 60
-    parsed_config[:config]['ondemand_request_ttl'] = string_to_int(ENV['ONDEMAND_REQUEST_TTL']) || parsed_config[:config]['ondemand_request_ttl'] || 5
-    parsed_config[:config]['prefix'] = ENV['PREFIX'] || parsed_config[:config]['prefix'] || ''
-
-    parsed_config[:config]['logfile'] = ENV['LOGFILE'] if ENV['LOGFILE']
-
-    parsed_config[:config]['site_name'] = ENV['SITE_NAME'] if ENV['SITE_NAME']
-    parsed_config[:config]['domain'] = ENV['DOMAIN'] if ENV['DOMAIN']
-    parsed_config[:config]['clone_target'] = ENV['CLONE_TARGET'] if ENV['CLONE_TARGET']
-    parsed_config[:config]['timeout'] = string_to_int(ENV['TIMEOUT']) if ENV['TIMEOUT']
-    parsed_config[:config]['vm_lifetime_auth'] = string_to_int(ENV['VM_LIFETIME_AUTH']) if ENV['VM_LIFETIME_AUTH']
-    parsed_config[:config]['max_tries'] = string_to_int(ENV['MAX_TRIES']) if ENV['MAX_TRIES']
-    parsed_config[:config]['retry_factor'] = string_to_int(ENV['RETRY_FACTOR']) if ENV['RETRY_FACTOR']
-    parsed_config[:config]['create_folders'] = true?(ENV['CREATE_FOLDERS']) if ENV['CREATE_FOLDERS']
-    parsed_config[:config]['create_template_delta_disks'] = ENV['CREATE_TEMPLATE_DELTA_DISKS'] if ENV['CREATE_TEMPLATE_DELTA_DISKS']
+    parsed_config[:config]['migration_limit']                    = string_to_int(ENV['MIGRATION_LIMIT']) if ENV['MIGRATION_LIMIT']
+    parsed_config[:config]['vm_checktime']                       = string_to_int(ENV['VM_CHECKTIME']) || parsed_config[:config]['vm_checktime'] || 1
+    parsed_config[:config]['vm_lifetime']                        = string_to_int(ENV['VM_LIFETIME']) || parsed_config[:config]['vm_lifetime'] || 24
+    parsed_config[:config]['max_lifetime_upper_limit']           = string_to_int(ENV['MAX_LIFETIME_UPPER_LIMIT']) || parsed_config[:config]['max_lifetime_upper_limit']
+    parsed_config[:config]['ready_ttl']                          = string_to_int(ENV['READY_TTL']) || parsed_config[:config]['ready_ttl'] || 60
+    parsed_config[:config]['ondemand_request_ttl']               = string_to_int(ENV['ONDEMAND_REQUEST_TTL']) || parsed_config[:config]['ondemand_request_ttl'] || 5
+    parsed_config[:config]['prefix']                             = ENV['PREFIX'] || parsed_config[:config]['prefix'] || ''
+    parsed_config[:config]['logfile']                            = ENV['LOGFILE'] if ENV['LOGFILE']
+    parsed_config[:config]['site_name']                          = ENV['SITE_NAME'] if ENV['SITE_NAME']
+    parsed_config[:config]['domain']                             = ENV['DOMAIN'] if ENV['DOMAIN']
+    parsed_config[:config]['clone_target']                       = ENV['CLONE_TARGET'] if ENV['CLONE_TARGET']
+    parsed_config[:config]['timeout']                            = string_to_int(ENV['TIMEOUT']) if ENV['TIMEOUT']
+    parsed_config[:config]['vm_lifetime_auth']                   = string_to_int(ENV['VM_LIFETIME_AUTH']) if ENV['VM_LIFETIME_AUTH']
+    parsed_config[:config]['max_tries']                          = string_to_int(ENV['MAX_TRIES']) if ENV['MAX_TRIES']
+    parsed_config[:config]['retry_factor']                       = string_to_int(ENV['RETRY_FACTOR']) if ENV['RETRY_FACTOR']
+    parsed_config[:config]['create_folders']                     = true?(ENV['CREATE_FOLDERS']) if ENV['CREATE_FOLDERS']
+    parsed_config[:config]['experimental_features']              = ENV['EXPERIMENTAL_FEATURES'] if ENV['EXPERIMENTAL_FEATURES']
+    parsed_config[:config]['purge_unconfigured_folders']         = ENV['PURGE_UNCONFIGURED_FOLDERS'] if ENV['PURGE_UNCONFIGURED_FOLDERS']
+    parsed_config[:config]['usage_stats']                        = ENV['USAGE_STATS'] if ENV['USAGE_STATS']
+    parsed_config[:config]['request_logger']                     = ENV['REQUEST_LOGGER'] if ENV['REQUEST_LOGGER']
+    parsed_config[:config]['create_template_delta_disks']        = ENV['CREATE_TEMPLATE_DELTA_DISKS'] if ENV['CREATE_TEMPLATE_DELTA_DISKS']
     set_linked_clone(parsed_config)
-    parsed_config[:config]['experimental_features'] = ENV['EXPERIMENTAL_FEATURES'] if ENV['EXPERIMENTAL_FEATURES']
-    parsed_config[:config]['purge_unconfigured_folders'] = ENV['PURGE_UNCONFIGURED_FOLDERS'] if ENV['PURGE_UNCONFIGURED_FOLDERS']
-    parsed_config[:config]['usage_stats'] = ENV['USAGE_STATS'] if ENV['USAGE_STATS']
-    parsed_config[:config]['request_logger'] = ENV['REQUEST_LOGGER'] if ENV['REQUEST_LOGGER']
 
-    parsed_config[:redis] = parsed_config[:redis] || {}
-    parsed_config[:redis]['server'] = ENV['REDIS_SERVER'] || parsed_config[:redis]['server'] || 'localhost'
-    parsed_config[:redis]['port'] = string_to_int(ENV['REDIS_PORT']) if ENV['REDIS_PORT']
-    parsed_config[:redis]['password'] = ENV['REDIS_PASSWORD'] if ENV['REDIS_PASSWORD']
-    parsed_config[:redis]['data_ttl'] = string_to_int(ENV['REDIS_DATA_TTL']) || parsed_config[:redis]['data_ttl'] || 168
-    parsed_config[:redis]['connection_pool_size'] = string_to_int(ENV['REDIS_CONNECTION_POOL_SIZE']) || parsed_config[:redis]['connection_pool_size'] || 10
+    parsed_config[:redis]                            = parsed_config[:redis] || {}
+    parsed_config[:redis]['server']                  = ENV['REDIS_SERVER'] || parsed_config[:redis]['server'] || 'localhost'
+    parsed_config[:redis]['port']                    = string_to_int(ENV['REDIS_PORT']) if ENV['REDIS_PORT']
+    parsed_config[:redis]['password']                = ENV['REDIS_PASSWORD'] if ENV['REDIS_PASSWORD']
+    parsed_config[:redis]['data_ttl']                = string_to_int(ENV['REDIS_DATA_TTL']) || parsed_config[:redis]['data_ttl'] || 168
+    parsed_config[:redis]['connection_pool_size']    = string_to_int(ENV['REDIS_CONNECTION_POOL_SIZE']) || parsed_config[:redis]['connection_pool_size'] || 10
     parsed_config[:redis]['connection_pool_timeout'] = string_to_int(ENV['REDIS_CONNECTION_POOL_TIMEOUT']) || parsed_config[:redis]['connection_pool_timeout'] || 5
+    parsed_config[:redis]['reconnect_attempts']      = string_to_int(ENV['REDIS_RECONNECT_ATTEMPTS']) || parsed_config[:redis]['reconnect_attempts'] || 10
 
-    parsed_config[:statsd] = parsed_config[:statsd] || {} if ENV['STATSD_SERVER']
+    parsed_config[:statsd]           = parsed_config[:statsd] || {} if ENV['STATSD_SERVER']
     parsed_config[:statsd]['server'] = ENV['STATSD_SERVER'] if ENV['STATSD_SERVER']
     parsed_config[:statsd]['prefix'] = ENV['STATSD_PREFIX'] if ENV['STATSD_PREFIX']
-    parsed_config[:statsd]['port'] = string_to_int(ENV['STATSD_PORT']) if ENV['STATSD_PORT']
+    parsed_config[:statsd]['port']   = string_to_int(ENV['STATSD_PORT']) if ENV['STATSD_PORT']
 
-    parsed_config[:graphite] = parsed_config[:graphite] || {} if ENV['GRAPHITE_SERVER']
+    parsed_config[:graphite]           = parsed_config[:graphite] || {} if ENV['GRAPHITE_SERVER']
     parsed_config[:graphite]['server'] = ENV['GRAPHITE_SERVER'] if ENV['GRAPHITE_SERVER']
     parsed_config[:graphite]['prefix'] = ENV['GRAPHITE_PREFIX'] if ENV['GRAPHITE_PREFIX']
-    parsed_config[:graphite]['port'] = string_to_int(ENV['GRAPHITE_PORT']) if ENV['GRAPHITE_PORT']
+    parsed_config[:graphite]['port']   = string_to_int(ENV['GRAPHITE_PORT']) if ENV['GRAPHITE_PORT']
 
     parsed_config[:auth] = parsed_config[:auth] || {} if ENV['AUTH_PROVIDER']
     if parsed_config.key? :auth
-      parsed_config[:auth]['provider'] = ENV['AUTH_PROVIDER'] if ENV['AUTH_PROVIDER']
-      parsed_config[:auth][:ldap] = parsed_config[:auth][:ldap] || {} if parsed_config[:auth]['provider'] == 'ldap'
-      parsed_config[:auth][:ldap]['host'] = ENV['LDAP_HOST'] if ENV['LDAP_HOST']
-      parsed_config[:auth][:ldap]['port'] = string_to_int(ENV['LDAP_PORT']) if ENV['LDAP_PORT']
-      parsed_config[:auth][:ldap]['base'] = ENV['LDAP_BASE'] if ENV['LDAP_BASE']
+      parsed_config[:auth]['provider']           = ENV['AUTH_PROVIDER'] if ENV['AUTH_PROVIDER']
+      parsed_config[:auth][:ldap]                = parsed_config[:auth][:ldap] || {} if parsed_config[:auth]['provider'] == 'ldap'
+      parsed_config[:auth][:ldap]['host']        = ENV['LDAP_HOST'] if ENV['LDAP_HOST']
+      parsed_config[:auth][:ldap]['port']        = string_to_int(ENV['LDAP_PORT']) if ENV['LDAP_PORT']
+      parsed_config[:auth][:ldap]['base']        = ENV['LDAP_BASE'] if ENV['LDAP_BASE']
       parsed_config[:auth][:ldap]['user_object'] = ENV['LDAP_USER_OBJECT'] if ENV['LDAP_USER_OBJECT']
     end
 
@@ -164,7 +163,7 @@ module Vmpooler
     pools
   end
 
-  def self.redis_connection_pool(host, port, password, size, timeout, metrics)
+  def self.redis_connection_pool(host, port, password, size, timeout, metrics, redis_reconnect_attempts = 0)
     Vmpooler::PoolManager::GenericConnectionPool.new(
       metrics: metrics,
       connpool_type: 'redis_connection_pool',
@@ -173,13 +172,14 @@ module Vmpooler
       timeout: timeout
     ) do
       connection = Concurrent::Hash.new
-      redis = new_redis(host, port, password)
+      redis = new_redis(host, port, password, redis_reconnect_attempts)
       connection['connection'] = redis
     end
   end
 
-  def self.new_redis(host = 'localhost', port = nil, password = nil)
-    Redis.new(host: host, port: port, password: password)
+  def self.new_redis(host = 'localhost', port = nil, password = nil, redis_reconnect_attempts = 10)
+    Redis.new(host: host, port: port, password: password, reconnect_attempts: redis_reconnect_attempts, reconnect_delay: 1.5,
+              reconnect_delay_max: 10.0)
   end
 
   def self.pools(conf)

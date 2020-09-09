@@ -150,8 +150,11 @@ module Vmpooler
         redis.pipelined do
           redis.hset("vmpooler__active__#{pool}", vm, Time.now)
           redis.hset("vmpooler__vm__#{vm}", 'checkout', Time.now)
-          redis.hset("vmpooler__vm__#{vm}", 'token:token', ondemandrequest_hash['token:token']) if ondemandrequest_hash['token:token']
-          redis.hset("vmpooler__vm__#{vm}", 'token:user', ondemandrequest_hash['token:user']) if ondemandrequest_hash['token:user']
+          if ondemandrequest_hash['token:token']
+            redis.hset("vmpooler__vm__#{vm}", 'token:token', ondemandrequest_hash['token:token'])
+            redis.hset("vmpooler__vm__#{vm}", 'token:user', ondemandrequest_hash['token:user'])
+            redis.hset("vmpooler__vm__#{vm}", 'lifetime', $config[:config]['vm_lifetime_auth'].to_i)
+          end
           redis.sadd("vmpooler__#{request_id}__#{pool_alias}__#{pool}", vm)
         end
         move_vm_queue(pool, vm, 'pending', 'running', redis)
@@ -365,7 +368,7 @@ module Vmpooler
           $metrics.increment("errors.duplicatehostname.#{pool_name}")
           $logger.log('s', "[!] [#{pool_name}] Generated hostname #{hostname} was not unique (attempt \##{hostname_retries} of #{max_hostname_retries})")
         elsif !dns_available
-          $metrics.increment("errors.staledns.#{hostname}")
+          $metrics.increment("errors.staledns.#{pool_name}")
           $logger.log('s', "[!] [#{pool_name}] Generated hostname #{hostname} already exists in DNS records (#{dns_ip}), stale DNS")
         end
       end
@@ -536,15 +539,14 @@ module Vmpooler
     def purge_unused_vms_and_folders
       global_purge = $config[:config]['purge_unconfigured_folders']
       providers = $config[:providers].keys
-      providers.each do |provider|
-        provider_purge = $config[:providers][provider]['purge_unconfigured_folders']
-        provider_purge = global_purge if provider_purge.nil?
+      providers.each do |provider_key|
+        provider_purge = $config[:providers][provider_key]['purge_unconfigured_folders'] || global_purge
         if provider_purge
           Thread.new do
             begin
-              purge_vms_and_folders($providers[provider.to_s])
+              purge_vms_and_folders(provider_key)
             rescue StandardError => e
-              $logger.log('s', "[!] failed while purging provider #{provider} VMs and folders with an error: #{e}")
+              $logger.log('s', "[!] failed while purging provider #{provider_key} VMs and folders with an error: #{e}")
             end
           end
         end
@@ -553,14 +555,13 @@ module Vmpooler
     end
 
     # Return a list of pool folders
-    def pool_folders(provider)
-      provider_name = provider.name
+    def pool_folders(provider_name)
       folders = {}
       $config[:pools].each do |pool|
-        next unless pool['provider'] == provider_name
+        next unless pool['provider'] == provider_name.to_s
 
         folder_parts = pool['folder'].split('/')
-        datacenter = provider.get_target_datacenter_from_config(pool['name'])
+        datacenter = $providers[provider_name.to_s].get_target_datacenter_from_config(pool['name'])
         folders[folder_parts.pop] = "#{datacenter}/vm/#{folder_parts.join('/')}"
       end
       folders
@@ -574,8 +575,9 @@ module Vmpooler
       base.uniq
     end
 
-    def purge_vms_and_folders(provider)
-      configured_folders = pool_folders(provider)
+    def purge_vms_and_folders(provider_name)
+      provider = $providers[provider_name.to_s]
+      configured_folders = pool_folders(provider_name)
       base_folders = get_base_folders(configured_folders)
       whitelist = provider.provider_config['folder_whitelist']
       provider.purge_unconfigured_folders(base_folders, configured_folders, whitelist)
