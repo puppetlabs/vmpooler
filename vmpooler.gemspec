@@ -22,7 +22,7 @@ Gem::Specification.new do |s|
   s.add_dependency 'rack', '~> 2.2'
   s.add_dependency 'rake', '~> 13.0'
   s.add_dependency 'redis', '~> 4.1'
-  s.add_dependency 'rbvmomi', '~> 2.1'
+  s.add_dependency 'rbvmomi', '>= 2.1', '< 4.0'
   s.add_dependency 'sinatra', '~> 2.0'
   s.add_dependency 'prometheus-client', '~> 2.0'
   s.add_dependency 'net-ldap', '~> 0.16'
