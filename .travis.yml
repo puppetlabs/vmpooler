@@ -5,16 +5,13 @@ os: linux
 
 jobs:
   include:
-    - rvm: 2.4.9
+    - rvm: 2.5.8
       env: "CHECK=rubocop"
 
-    - rvm: 2.4.9
+    - rvm: 2.5.8
       env: "CHECK=test"
 
-    - rvm: 2.5.7
-      env: "CHECK=test"
-
-    - rvm: jruby-9.2.9.0
+    - rvm: jruby-9.2.12.0
       env: "CHECK=test"
 
 script:
