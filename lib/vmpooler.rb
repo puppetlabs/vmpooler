@@ -15,6 +15,14 @@ module Vmpooler
   require 'timeout'
   require 'yaml'
 
+  # Dependencies for tracing
+  require 'opentelemetry-api'
+  require 'opentelemetry/exporter/jaeger'
+  require 'opentelemetry-instrumentation-concurrent_ruby'
+  require 'opentelemetry-instrumentation-redis'
+  require 'opentelemetry-instrumentation-sinatra'
+  require 'opentelemetry-sdk'
+
   %w[api metrics logger pool_manager generic_connection_pool].each do |lib|
     require "vmpooler/#{lib}"
   end
@@ -102,6 +110,10 @@ module Vmpooler
     parsed_config[:graphite]['server'] = ENV['GRAPHITE_SERVER'] if ENV['GRAPHITE_SERVER']
     parsed_config[:graphite]['prefix'] = ENV['GRAPHITE_PREFIX'] if ENV['GRAPHITE_PREFIX']
     parsed_config[:graphite]['port']   = string_to_int(ENV['GRAPHITE_PORT']) if ENV['GRAPHITE_PORT']
+
+    parsed_config[:tracing]                = parsed_config[:tracing] || {}
+    parsed_config[:tracing]['enabled']     = ENV['VMPOOLER_TRACING_ENABLED'] || parsed_config[:tracing]['enabled'] || 'false'
+    parsed_config[:tracing]['jaeger_host'] = ENV['VMPOOLER_TRACING_JAEGER_HOST'] || parsed_config[:tracing]['jaeger_host'] || 'http://localhost:14268/api/traces'
 
     parsed_config[:auth] = parsed_config[:auth] || {} if ENV['AUTH_PROVIDER']
     if parsed_config.key? :auth
@@ -212,5 +224,43 @@ module Vmpooler
     parsed_config[:config]['create_linked_clones'] = parsed_config[:config]['create_linked_clones'] || true
     parsed_config[:config]['create_linked_clones'] = ENV['CREATE_LINKED_CLONES'] if ENV['CREATE_LINKED_CLONES'] =~ /true|false/
     parsed_config[:config]['create_linked_clones'] = true?(parsed_config[:config]['create_linked_clones']) if parsed_config[:config]['create_linked_clones']
+  end
+
+  def self.configure_tracing(startup_args, prefix, tracing_enabled, tracing_jaeger_host, version)
+    if startup_args.length == 1 && startup_args.include?('api')
+      service_name = 'vmpooler-api'
+    elsif startup_args.length == 1 && startup_args.include?('manager')
+      service_name = 'vmpooler-manager'
+    else
+      service_name = 'vmpooler'
+    end
+
+    service_name += "-#{prefix}" unless prefix.empty?
+
+    if tracing_enabled.eql?('false')
+      puts "Exporting of traces has been disabled so the span processor has been se to a 'NoopSpanExporter'"
+      span_processor = OpenTelemetry::SDK::Trace::Export::BatchSpanProcessor.new(
+        exporter: OpenTelemetry::SDK::Trace::Export::NoopSpanExporter.new
+      )
+    else
+      puts "Exporting of traces will be done over HTTP in binary Thrift format to #{tracing_jaeger_host}"
+      span_processor = OpenTelemetry::SDK::Trace::Export::BatchSpanProcessor.new(
+        exporter: OpenTelemetry::Exporter::Jaeger::CollectorExporter.new(endpoint: tracing_jaeger_host)
+      )
+    end
+
+    OpenTelemetry::SDK.configure do |c|
+      c.use 'OpenTelemetry::Instrumentation::Sinatra'
+      c.use 'OpenTelemetry::Instrumentation::ConcurrentRuby'
+      c.use 'OpenTelemetry::Instrumentation::Redis'
+
+      c.add_span_processor(span_processor)
+      c.resource = OpenTelemetry::SDK::Resources::Resource.create(
+        {
+          OpenTelemetry::SDK::Resources::Constants::SERVICE_RESOURCE[:name] => service_name,
+          OpenTelemetry::SDK::Resources::Constants::SERVICE_RESOURCE[:version] => version
+        }
+      )
+    end
   end
 end

@@ -1,7 +1,7 @@
 # For local development run with a dummy provider
-version: '3.2'
+version: '3.8'
 services:
-  vmpooler:
+  vmpooler-api:
     build:
       context: ../
       dockerfile: docker/Dockerfile_local
@@ -10,7 +10,7 @@ services:
         source: ${PWD}/vmpooler.yaml
         target: /etc/vmpooler/vmpooler.yaml
     ports:
-      - "4567:4567"
+      - "8080:4567"
     networks:
       - redis-net
     environment:
@@ -18,7 +18,35 @@ services:
       - VMPOOLER_CONFIG_FILE=/etc/vmpooler/vmpooler.yaml
       - REDIS_SERVER=redislocal
       - LOGFILE=/dev/null
+      - JRUBY_OPTS=-Xinvokedynamic.yield=false
+      - VMPOOLER_TRACING_ENABLED=true
+      - VMPOOLER_TRACING_JAEGER_HOST=http://jaeger-aio:14268/api/traces
     image: vmpooler-local
+    command: api
+    depends_on:
+      - redislocal
+  vmpooler-manager:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile_local
+    volumes:
+      - type: bind
+        source: ${PWD}/vmpooler.yaml
+        target: /etc/vmpooler/vmpooler.yaml
+    ports:
+      - "8081:4567"
+    networks:
+      - redis-net
+    environment:
+      - VMPOOLER_DEBUG=true # for use of dummy auth
+      - VMPOOLER_CONFIG_FILE=/etc/vmpooler/vmpooler.yaml
+      - REDIS_SERVER=redislocal
+      - LOGFILE=/dev/null
+      - JRUBY_OPTS=-Xinvokedynamic.yield=false
+      - VMPOOLER_TRACING_ENABLED=true
+      - VMPOOLER_TRACING_JAEGER_HOST=http://jaeger-aio:14268/api/traces
+    image: vmpooler-local
+    command: manager
     depends_on:
       - redislocal
   redislocal:
@@ -29,6 +57,17 @@ services:
       - "6379:6379"
     networks:
       - redis-net
+  jaeger-aio:
+    image: jaegertracing/all-in-one:1.18
+    ports:
+      - "14250:14250"
+      - "8082:16686"
+    networks:
+      - redis-net
+    user: '1001'
+    read_only: true
+    cap_drop:
+      - ALL
 
 networks:
   redis-net:

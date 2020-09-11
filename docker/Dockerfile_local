@@ -15,7 +15,16 @@ COPY ./ ./
 
 ENV RACK_ENV=production
 
-RUN gem install bundler && bundle install && gem build vmpooler.gemspec && gem install vmpooler*.gem && \
-      chmod +x /usr/local/bin/docker-entrypoint.sh
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends make && \
+    apt-get clean autoclean && \
+    apt-get autoremove -y && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN gem install bundler && \
+    bundle install && \
+    gem build vmpooler.gemspec && \
+    gem install vmpooler*.gem && \
+    chmod +x /usr/local/bin/docker-entrypoint.sh
 
 ENTRYPOINT ["docker-entrypoint.sh"]
