@@ -2,30 +2,39 @@
 # frozen_string_literal: true
 
 require 'vmpooler'
+require 'vmpooler/version'
 
 config = Vmpooler.config
+logger_file = config[:config]['logfile']
+prefix = config[:config]['prefix']
 redis_host = config[:redis]['server']
 redis_port = config[:redis]['port']
 redis_password = config[:redis]['password']
 redis_connection_pool_size = config[:redis]['connection_pool_size']
 redis_connection_pool_timeout = config[:redis]['connection_pool_timeout']
 redis_reconnect_attempts = config[:redis]['reconnect_attempts']
-logger_file = config[:config]['logfile']
+tracing_enabled = config[:tracing]['enabled']
+tracing_jaeger_host = config[:tracing]['jaeger_host']
 
 logger = Vmpooler::Logger.new logger_file
 metrics = Vmpooler::Metrics.init(logger, config)
+
+version = Vmpooler::VERSION
+
+startup_args = ARGV
+Vmpooler.configure_tracing(startup_args, prefix, tracing_enabled, tracing_jaeger_host, version)
 
 torun_threads = []
 if ARGV.count == 0
   torun = %i[api manager]
 else
   torun = []
-  torun << :api if ARGV.include? 'api'
-  torun << :manager if ARGV.include? 'manager'
+  torun << :api if ARGV.include?('api')
+  torun << :manager if ARGV.include?('manager')
   exit(2) if torun.empty?
 end
 
-if torun.include? :api
+if torun.include?(:api)
   api = Thread.new do
     redis = Vmpooler.new_redis(redis_host, redis_port, redis_password)
     Vmpooler::API.execute(torun, config, redis, metrics, logger)
@@ -39,7 +48,7 @@ elsif metrics.respond_to?(:setup_prometheus_metrics)
   torun_threads << prometheus_only_api
 end
 
-if torun.include? :manager
+if torun.include?(:manager)
   manager = Thread.new do
     Vmpooler::PoolManager.new(
       config,

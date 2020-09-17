@@ -16,6 +16,13 @@ gem 'nokogiri', '~> 1.10'
 gem 'spicy-proton', '~> 2.1'
 gem 'concurrent-ruby', '~> 1.1'
 
+gem 'opentelemetry-api', '~> 0.6.0'
+gem 'opentelemetry-exporter-jaeger', '~> 0.6.0'
+gem 'opentelemetry-instrumentation-concurrent_ruby', '~> 0.6.0'
+gem 'opentelemetry-instrumentation-redis', '~> 0.6.0'
+gem 'opentelemetry-instrumentation-sinatra', '~> 0.6.0'
+gem 'opentelemetry-sdk', '~> 0.6.0'
+
 group :development do
   gem 'pry'
 end
