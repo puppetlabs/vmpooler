@@ -17,6 +17,12 @@ COPY docker/docker-entrypoint.sh /usr/local/bin/
 ENV LOGFILE=/dev/stdout \
       RACK_ENV=production
 
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends make && \
+    apt-get clean autoclean && \
+    apt-get autoremove -y && \
+    rm -rf /var/lib/apt/lists/*
+
 RUN gem install vmpooler -v ${vmpooler_version} && \
       chmod +x /usr/local/bin/docker-entrypoint.sh
 
