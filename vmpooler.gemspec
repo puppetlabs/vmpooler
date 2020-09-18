@@ -31,4 +31,12 @@ Gem::Specification.new do |s|
   s.add_dependency 'concurrent-ruby', '~> 1.1'
   s.add_dependency 'nokogiri', '~> 1.10'
   s.add_dependency 'spicy-proton', '~> 2.1'
+
+  s.add_dependency 'opentelemetry-api', '~> 0.6.0'
+  s.add_dependency 'opentelemetry-exporter-jaeger', '~> 0.6.0'
+  s.add_dependency 'opentelemetry-instrumentation-concurrent_ruby', '~> 0.6.0'
+  s.add_dependency 'opentelemetry-instrumentation-redis', '~> 0.6.0'
+  s.add_dependency 'opentelemetry-instrumentation-sinatra', '~> 0.6.0'
+  s.add_dependency 'opentelemetry-resource_detectors', '~> 0.6.0'
+  s.add_dependency 'opentelemetry-sdk', '~> 0.6.0'
 end
