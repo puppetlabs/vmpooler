@@ -17,11 +17,12 @@ module Vmpooler
 
   # Dependencies for tracing
   require 'opentelemetry-api'
-  require 'opentelemetry/exporter/jaeger'
   require 'opentelemetry-instrumentation-concurrent_ruby'
   require 'opentelemetry-instrumentation-redis'
   require 'opentelemetry-instrumentation-sinatra'
   require 'opentelemetry-sdk'
+  require 'opentelemetry/exporter/jaeger'
+  require 'opentelemetry/resource/detectors'
 
   %w[api metrics logger pool_manager generic_connection_pool].each do |lib|
     require "vmpooler/#{lib}"
@@ -255,6 +256,8 @@ module Vmpooler
       c.use 'OpenTelemetry::Instrumentation::Redis'
 
       c.add_span_processor(span_processor)
+
+      c.resource = OpenTelemetry::Resource::Detectors::AutoDetector.detect
       c.resource = OpenTelemetry::SDK::Resources::Resource.create(
         {
           OpenTelemetry::SDK::Resources::Constants::SERVICE_RESOURCE[:name] => service_name,
