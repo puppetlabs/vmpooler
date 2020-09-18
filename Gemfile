@@ -21,6 +21,7 @@ gem 'opentelemetry-exporter-jaeger', '~> 0.6.0'
 gem 'opentelemetry-instrumentation-concurrent_ruby', '~> 0.6.0'
 gem 'opentelemetry-instrumentation-redis', '~> 0.6.0'
 gem 'opentelemetry-instrumentation-sinatra', '~> 0.6.0'
+gem 'opentelemetry-resource_detectors', '~> 0.6.0'
 gem 'opentelemetry-sdk', '~> 0.6.0'
 
 group :development do
