@@ -14,17 +14,24 @@ RUN mkdir -p /var/lib/vmpooler
 
 WORKDIR /var/lib/vmpooler
 
+RUN echo "deb http://httpredir.debian.org/debian jessie main" >/etc/apt/sources.list.d/jessie-main.list
+
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends make redis-server && \
+    apt-get clean autoclean && \
+    apt-get autoremove -y && \
+    rm -rf /var/lib/apt/lists/*
+
 ADD Gemfile* /var/lib/vmpooler/
+
 RUN bundle install --system
 
 RUN ln -s /opt/jruby/bin/jruby /usr/bin/jruby
 
-RUN echo "deb http://httpredir.debian.org/debian jessie main" >/etc/apt/sources.list.d/jessie-main.list
-RUN apt-get update && apt-get install -y redis-server && rm -rf /var/lib/apt/lists/*
-
 COPY . /var/lib/vmpooler
 
 ENV VMPOOLER_LOG /var/log/vmpooler.log
+
 CMD \
     /etc/init.d/redis-server start \
     && /var/lib/vmpooler/scripts/vmpooler_init.sh start \
