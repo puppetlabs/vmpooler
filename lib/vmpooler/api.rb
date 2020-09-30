@@ -3,7 +3,7 @@
 module Vmpooler
   class API < Sinatra::Base
     # Load API components
-    %w[helpers dashboard reroute v1 request_logger].each do |lib|
+    %w[helpers dashboard reroute v1 request_logger healthcheck].each do |lib|
       require "vmpooler/api/#{lib}"
     end
     # Load dashboard components
@@ -40,6 +40,10 @@ module Vmpooler
         require 'prometheus/middleware/exporter'
         use Vmpooler::Metrics::Promstats::CollectorMiddleware, metrics_prefix: "#{metrics.prometheus_prefix}_http"
         use Prometheus::Middleware::Exporter, path: metrics.prometheus_endpoint
+        # Note that a user may want to use this check without prometheus
+        # However, prometheus setup includes the web server which is required for this check
+        # At this time prometheus is a requirement of using the health check on manager
+        use Vmpooler::API::Healthcheck
       end
 
       if torun.include? :api
