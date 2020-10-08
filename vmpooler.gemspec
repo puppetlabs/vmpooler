@@ -21,7 +21,7 @@ Gem::Specification.new do |s|
   s.add_dependency 'connection_pool', '~> 2.2'
   s.add_dependency 'net-ldap', '~> 0.16'
   s.add_dependency 'nokogiri', '~> 1.10'
-  s.add_dependency 'opentelemetry-api', '~> 0.6.0'
+  s.add_dependency 'opentelemetry-api', '>= 0.6', '< 0.8'
   s.add_dependency 'opentelemetry-exporter-jaeger', '~> 0.6.0'
   s.add_dependency 'opentelemetry-instrumentation-concurrent_ruby', '~> 0.6.0'
   s.add_dependency 'opentelemetry-instrumentation-redis', '~> 0.6.0'
