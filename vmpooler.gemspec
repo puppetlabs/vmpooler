@@ -25,7 +25,7 @@ Gem::Specification.new do |s|
   s.add_dependency 'opentelemetry-exporter-jaeger', '~> 0.7.0'
   s.add_dependency 'opentelemetry-instrumentation-concurrent_ruby', '~> 0.7.0'
   s.add_dependency 'opentelemetry-instrumentation-redis', '~> 0.7.0'
-  s.add_dependency 'opentelemetry-instrumentation-sinatra', '~> 0.7.0'
+  s.add_dependency 'opentelemetry-instrumentation-sinatra', '~> 0.7.1'
   s.add_dependency 'opentelemetry-resource_detectors', '~> 0.7.0'
   s.add_dependency 'opentelemetry-sdk', '~> 0.7.0'
   s.add_dependency 'pickup', '~> 0.0.11'
