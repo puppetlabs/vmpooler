@@ -257,13 +257,10 @@ module Vmpooler
 
       c.add_span_processor(span_processor)
 
+      c.service_name = service_name
+      c.service_version = version
+
       c.resource = OpenTelemetry::Resource::Detectors::AutoDetector.detect
-      c.resource = OpenTelemetry::SDK::Resources::Resource.create(
-        {
-          OpenTelemetry::SDK::Resources::Constants::SERVICE_RESOURCE[:name] => service_name,
-          OpenTelemetry::SDK::Resources::Constants::SERVICE_RESOURCE[:version] => version
-        }
-      )
     end
   end
 end
