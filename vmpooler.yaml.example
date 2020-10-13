@@ -654,6 +654,15 @@
 #       The datacenter within vCenter to manage VMs.
 #       (optional: default is the first datacenter in vSphere)
 #
+#     - snapshot_mainMem_ioBlockPages
+#       Provisions VMs with the option "mainMem.ioBlockPages". This setting can be useful
+#       (paired with mainMem.iowait below) for tuning the performance of snapshot management actions.
+#       See: https://kb.vmware.com/s/article/76687
+#
+#     - snapshot_mainMem_iowait
+#       Provisions VMs with the option "mainMem.iowait". This setting can be useful
+#       for tuning the performance of snapshot management actions
+#
 # Example:
 
 :pools:
@@ -677,3 +686,5 @@
     ready_ttl: 1440
     provider: vsphere
     create_linked_clone: false
+    snapshot_mainMem_ioBlockPages: '2048'
+    snapshot_mainMem_iowait: '0'

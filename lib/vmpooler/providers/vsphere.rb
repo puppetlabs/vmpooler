@@ -306,19 +306,26 @@ module Vmpooler
 
             template_vm_object = find_template_vm(pool, connection)
 
+            extra_config = [
+              { key: 'guestinfo.hostname', value: new_vmname }
+            ]
+
+            if pool.key?('snapshot_mainMem_ioBlockPages')
+              ioblockpages = pool['snapshot_mainMem_ioBlockPages']
+              extra_config.push(
+                { key: 'mainMem.ioBlockPages', value: ioblockpages }
+              )
+            end
+            if pool.key?('snapshot_mainMem_iowait')
+              iowait = pool['snapshot_mainMem_iowait']
+              extra_config.push(
+                { key: 'mainMem.iowait', value: iowait }
+              )
+            end
+
             # Annotate with creation time, origin template, etc.
             # Add extraconfig options that can be queried by vmtools
-            config_spec = RbVmomi::VIM.VirtualMachineConfigSpec(
-              annotation: JSON.pretty_generate(
-                name: new_vmname,
-                created_by: provider_config['username'],
-                base_template: template_path,
-                creation_timestamp: Time.now.utc
-              ),
-              extraConfig: [
-                { key: 'guestinfo.hostname', value: new_vmname }
-              ]
-            )
+            config_spec = create_config_spec(new_vmname, template_path, extra_config)
 
             # Check if alternate network configuration is specified and add configuration
             if pool.key?('network')
@@ -356,6 +363,18 @@ module Vmpooler
             vm_hash = generate_vm_hash(new_vm_object, pool_name)
           end
           vm_hash
+        end
+
+        def create_config_spec(vm_name, template_name, extra_config)
+          RbVmomi::VIM.VirtualMachineConfigSpec(
+            annotation: JSON.pretty_generate(
+              name: vm_name,
+              created_by: provider_config['username'],
+              base_template: template_name,
+              creation_timestamp: Time.now.utc
+            ),
+            extraConfig: extra_config
+          )
         end
 
         def create_relocate_spec(target_datastore, target_datacenter_name, pool_name, connection)
