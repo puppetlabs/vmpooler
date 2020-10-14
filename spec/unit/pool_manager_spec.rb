@@ -647,12 +647,20 @@ EOT
     end
 
     context 'valid host' do
-      it 'should not move VM if it has no checkout time' do
+      it 'should kill a VM if it has no checkout time' do
         redis_connection_pool.with do |redis|
           expect(provider).to receive(:vm_ready?).and_return(true)
           expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
           subject._check_running_vm(vm, pool, 0, provider)
-          expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
+          expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(false)
+        end
+      end
+
+      it 'should log a message when the machine is removed due to no active data' do
+        redis_connection_pool.with do |redis|
+          expect(provider).to receive(:vm_ready?).and_return(true)
+          expect(logger).to receive(:log).with('d',"[!] [#{pool}] '#{vm}' is listed as running, but has no checkouttime data. Removing from running")
+          subject._check_running_vm(vm, pool, 0, provider)
         end
       end
 

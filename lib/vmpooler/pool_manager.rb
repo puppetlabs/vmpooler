@@ -289,19 +289,15 @@ module Vmpooler
                 move_vm_queue(pool, vm, 'running', 'completed', redis, "reached end of TTL after #{ttl} hours")
                 throw :stop_checking
               end
-            end
-
-            if provider.vm_ready?(pool, vm)
-              throw :stop_checking
             else
-              host = provider.get_vm(pool, vm)
-
-              if host
-                throw :stop_checking
-              else
-                move_vm_queue(pool, vm, 'running', 'completed', redis, 'is no longer in inventory, removing from running')
-              end
+              move_vm_queue(pool, vm, 'running', 'completed', redis, 'is listed as running, but has no checkouttime data. Removing from running')
             end
+
+            throw :stop_checking if provider.vm_ready?(pool, vm)
+
+            throw :stop_checking if provider.get_vm(pool, vm)
+
+            move_vm_queue(pool, vm, 'running', 'completed', redis, 'is no longer in inventory, removing from running')
           end
         end
       end
