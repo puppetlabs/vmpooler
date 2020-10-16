@@ -689,6 +689,37 @@ EOT
         expect(result['name']).to eq(vmname)
       end
     end
+
+    context 'Given valid snapshot tuning settings' do
+      let(:folder_object) { mock_RbVmomi_VIM_Folder({ :name => 'pool1'}) }
+      let(:now) { Time.now }
+      let(:config_spec) {
+        [
+          { key: 'guestinfo.hostname', value: vmname },
+          { key: 'mainMem.ioBlockPages', value: '300' },
+          { key: 'mainMem.iowait', value: '2' }
+        ]
+      }
+
+      before(:each) do
+        template_vm = new_template_object
+        allow(subject).to receive(:find_template_vm).and_return(new_template_object)
+        allow(template_vm).to receive(:CloneVM_Task).and_return(clone_vm_task)
+        allow(clone_vm_task).to receive(:wait_for_completion).and_return(new_vm_object)
+        allow(subject).to receive(:find_vm_folder).and_return(folder_object)
+        allow(Time).to receive(:now).and_return(Time.now)
+        config[:pools][0]['snapshot_mainMem_ioBlockPages'] = '300'
+        config[:pools][0]['snapshot_mainMem_iowait'] = '2'
+      end
+
+      it 'should apply the appropriate extraConfig settings' do
+        result = subject.create_config_spec(vmname, "template1", config_spec)
+        expect(result.extraConfig).to include(
+          { :key => 'mainMem.ioBlockPages', :value => '300' },
+          { :key => 'mainMem.iowait', :value => '2'}
+        )
+      end
+    end
   end
 
   describe '#set_network_device' do
