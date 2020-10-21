@@ -1,0 +1,29 @@
+name: Verify Pre-Deploy Status
+
+on: pull_request
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout repo
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      # Run checks
+      - name: Lightstep Pre-Deploy Check
+        uses: lightstep/lightstep-action-predeploy@v0.1.4
+        id: lightstep-predeploy
+        with:
+          lightstep_api_key: ${{ secrets.LIGHTSTEP_API_KEY }}
+          pagerduty_api_token: ${ { secrets.PAGERDUTY_API_TOKEN } }
+
+      # Output status as a comment
+      - name: Add a Comment
+        uses: unsplash/comment-on-pr@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          msg: ${{ steps.lightstep-predeploy.outputs.lightstep_predeploy_md }}
+          check_for_duplicate_msg: true

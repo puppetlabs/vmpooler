@@ -1,0 +1,9 @@
+organization: Puppet Inc
+project: puppet-inc-prod
+conditions: 
+  # API /status error >0%
+  - SZcJVQfy
+integrations:
+  pagerduty:
+    # VMPooler service
+    service: P714ID4
