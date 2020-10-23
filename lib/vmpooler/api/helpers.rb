@@ -114,11 +114,13 @@ module Vmpooler
       end
 
       def export_tags(backend, hostname, tags)
-        tags.each_pair do |tag, value|
-          next if value.nil? or value.empty?
+        backend.pipelined do
+          tags.each_pair do |tag, value|
+            next if value.nil? or value.empty?
 
-          backend.hset('vmpooler__vm__' + hostname, 'tag:' + tag, value)
-          backend.hset('vmpooler__tag__' + Date.today.to_s, hostname + ':' + tag, value)
+            backend.hset('vmpooler__vm__' + hostname, 'tag:' + tag, value)
+            backend.hset('vmpooler__tag__' + Date.today.to_s, hostname + ':' + tag, value)
+          end
         end
       end
 
