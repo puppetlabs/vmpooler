@@ -1585,7 +1585,7 @@ EOT
       expect(result.location.datastore.name).to eq('datastore0')
       expect(result.location.diskMoveType).to eq(:moveChildMostDiskBacking)
       expect(result.config.deviceChange.first[:operation]).to eq(:edit)
-      expect(result.config.deviceChange.first[:device].is_a?(RbVmomi::VIM::VirtualVmxnet3)).to be true
+      expect(result.config.deviceChange.first[:device].instance_of?(RbVmomi::VIM::VirtualVmxnet3)).to be true
     end
   end
 
@@ -1885,7 +1885,7 @@ EOT
 
       it 'should return the folder when found' do
         allow(connection.searchIndex).to receive(:FindByInventoryPath).and_return(folder_object)
-        allow(folder_object).to receive(:class).and_return(RbVmomi::VIM::Folder)
+        allow(folder_object).to receive(:instance_of?).and_return(RbVmomi::VIM::Folder)
         result = subject.find_vm_folder(poolname,connection)
         expect(result.name).to eq(foldername)
       end
@@ -1901,7 +1901,7 @@ EOT
 
       it 'should return the folder when found' do
         allow(connection.searchIndex).to receive(:FindByInventoryPath).and_return(folder_object)
-        allow(folder_object).to receive(:class).and_return(RbVmomi::VIM::Folder)
+        allow(folder_object).to receive(:instance_of?).and_return(RbVmomi::VIM::Folder)
         result = subject.find_vm_folder(poolname,connection)
         expect(result.name).to eq(foldername)
       end
@@ -1918,7 +1918,7 @@ EOT
 
       it 'should return the folder when found' do
         allow(connection.searchIndex).to receive(:FindByInventoryPath).and_return(folder_object)
-        allow(folder_object).to receive(:class).and_return(RbVmomi::VIM::Folder)
+        allow(folder_object).to receive(:instance_of?).and_return(RbVmomi::VIM::Folder)
         result = subject.find_vm_folder(poolname,connection)
         expect(result.name).to eq(foldername)
       end

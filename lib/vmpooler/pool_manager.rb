@@ -108,7 +108,7 @@ module Vmpooler
       $logger.log('d', "[!] [#{pool}] '#{vm}' no longer exists. Removing from pending.")
     end
 
-    def fail_pending_vm(vm, pool, timeout, redis, exists = true)
+    def fail_pending_vm(vm, pool, timeout, redis, exists: true)
       clone_stamp = redis.hget("vmpooler__vm__#{vm}", 'clone')
 
       time_since_clone = (Time.now - Time.parse(clone_stamp)) / 60
@@ -117,7 +117,7 @@ module Vmpooler
           request_id = redis.hget("vmpooler__vm__#{vm}", 'request_id')
           pool_alias = redis.hget("vmpooler__vm__#{vm}", 'pool_alias') if request_id
           redis.multi
-          redis.smove('vmpooler__pending__' + pool, 'vmpooler__completed__' + pool, vm)
+          redis.smove("vmpooler__pending__#{pool}", "vmpooler__completed__#{pool}", vm)
           redis.zadd('vmpooler__odcreate__task', 1, "#{pool_alias}:#{pool}:1:#{request_id}") if request_id
           redis.exec
           $metrics.increment("errors.markedasfailed.#{pool}")
@@ -133,15 +133,16 @@ module Vmpooler
     end
 
     def move_pending_vm_to_ready(vm, pool, redis, request_id = nil)
-      clone_time = redis.hget('vmpooler__vm__' + vm, 'clone')
+      clone_time = redis.hget("vmpooler__vm__#{vm}", 'clone')
       finish = format('%<time>.2f', time: Time.now - Time.parse(clone_time))
 
       if request_id
         ondemandrequest_hash = redis.hgetall("vmpooler__odrequest__#{request_id}")
-        if ondemandrequest_hash['status'] == 'failed'
+        case ondemandrequest_hash['status']
+        when 'failed'
           move_vm_queue(pool, vm, 'pending', 'completed', redis, "moved to completed queue. '#{request_id}' could not be filled in time")
           return nil
-        elsif ondemandrequest_hash['status'] == 'deleted'
+        when 'deleted'
           move_vm_queue(pool, vm, 'pending', 'completed', redis, "moved to completed queue. '#{request_id}' has been deleted")
           return nil
         end
@@ -160,11 +161,11 @@ module Vmpooler
         move_vm_queue(pool, vm, 'pending', 'running', redis)
         check_ondemand_request_ready(request_id, redis)
       else
-        redis.smove('vmpooler__pending__' + pool, 'vmpooler__ready__' + pool, vm)
+        redis.smove("vmpooler__pending__#{pool}", "vmpooler__ready__#{pool}", vm)
       end
 
       redis.pipelined do
-        redis.hset('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm, finish) # maybe remove as this is never used by vmpooler itself?
+        redis.hset("vmpooler__boot__#{Date.today}", "#{pool}:#{vm}", finish) # maybe remove as this is never used by vmpooler itself?
         redis.hset("vmpooler__vm__#{vm}", 'ready', Time.now)
 
         # last boot time is displayed in API, and used by alarming script
@@ -203,11 +204,11 @@ module Vmpooler
 
       mutex.synchronize do
         @redis.with_metrics do |redis|
-          check_stamp = redis.hget('vmpooler__vm__' + vm, 'check')
+          check_stamp = redis.hget("vmpooler__vm__#{vm}", 'check')
           last_checked_too_soon = ((Time.now - Time.parse(check_stamp)).to_i < $config[:config]['vm_checktime'] * 60) if check_stamp
           break if check_stamp && last_checked_too_soon
 
-          redis.hset('vmpooler__vm__' + vm, 'check', Time.now)
+          redis.hset("vmpooler__vm__#{vm}", 'check', Time.now)
           # Check if the hosts TTL has expired
           # if 'boottime' is nil, set bootime to beginning of unix epoch, forces TTL to be assumed expired
           boottime = redis.hget("vmpooler__vm__#{vm}", 'ready')
@@ -217,7 +218,7 @@ module Vmpooler
             boottime = Time.at(0)
           end
           if (Time.now - boottime).to_i > ttl * 60
-            redis.smove('vmpooler__ready__' + pool_name, 'vmpooler__completed__' + pool_name, vm)
+            redis.smove("vmpooler__ready__#{pool_name}", "vmpooler__completed__#{pool_name}", vm)
 
             $logger.log('d', "[!] [#{pool_name}] '#{vm}' reached end of TTL after #{ttl} minutes, removed from 'ready' queue")
             return nil
@@ -256,7 +257,7 @@ module Vmpooler
       return if hostname.empty?
       return if hostname == vm
 
-      redis.smove('vmpooler__ready__' + pool_name, 'vmpooler__completed__' + pool_name, vm)
+      redis.smove("vmpooler__ready__#{pool_name}", "vmpooler__completed__#{pool_name}", vm)
       $logger.log('d', "[!] [#{pool_name}] '#{vm}' has mismatched hostname #{hostname}, removed from 'ready' queue")
       true
     end
@@ -280,7 +281,7 @@ module Vmpooler
         catch :stop_checking do
           @redis.with_metrics do |redis|
             # Check that VM is within defined lifetime
-            checkouttime = redis.hget('vmpooler__active__' + pool, vm)
+            checkouttime = redis.hget("vmpooler__active__#{pool}", vm)
             if checkouttime
               time_since_checkout = Time.now - Time.parse(checkouttime)
               running = time_since_checkout / 60 / 60
@@ -341,7 +342,7 @@ module Vmpooler
         adjective = @name_generator.adjective(max: 14 - noun.length)
         random_name = [adjective, noun].join('-')
         hostname = $config[:config]['prefix'] + random_name
-        available = redis.hlen('vmpooler__vm__' + hostname) == 0
+        available = redis.hlen("vmpooler__vm__#{hostname}") == 0
 
         [hostname, available]
       end
@@ -395,12 +396,12 @@ module Vmpooler
         @redis.with_metrics do |redis|
           # Add VM to Redis inventory ('pending' pool)
           redis.multi
-          redis.sadd('vmpooler__pending__' + pool_name, new_vmname)
-          redis.hset('vmpooler__vm__' + new_vmname, 'clone', Time.now)
-          redis.hset('vmpooler__vm__' + new_vmname, 'template', pool_name) # This value is used to represent the pool.
-          redis.hset('vmpooler__vm__' + new_vmname, 'pool', pool_name)
-          redis.hset('vmpooler__vm__' + new_vmname, 'request_id', request_id) if request_id
-          redis.hset('vmpooler__vm__' + new_vmname, 'pool_alias', pool_alias) if pool_alias
+          redis.sadd("vmpooler__pending__#{pool_name}", new_vmname)
+          redis.hset("vmpooler__vm__#{new_vmname}", 'clone', Time.now)
+          redis.hset("vmpooler__vm__#{new_vmname}", 'template', pool_name) # This value is used to represent the pool.
+          redis.hset("vmpooler__vm__#{new_vmname}", 'pool', pool_name)
+          redis.hset("vmpooler__vm__#{new_vmname}", 'request_id', request_id) if request_id
+          redis.hset("vmpooler__vm__#{new_vmname}", 'pool_alias', pool_alias) if pool_alias
           redis.exec
         end
 
@@ -412,8 +413,8 @@ module Vmpooler
 
           @redis.with_metrics do |redis|
             redis.pipelined do
-              redis.hset('vmpooler__clone__' + Date.today.to_s, pool_name + ':' + new_vmname, finish)
-              redis.hset('vmpooler__vm__' + new_vmname, 'clone_time', finish)
+              redis.hset("vmpooler__clone__#{Date.today}", "#{pool_name}:#{new_vmname}", finish)
+              redis.hset("vmpooler__vm__#{new_vmname}", 'clone_time', finish)
             end
           end
           $logger.log('s', "[+] [#{pool_name}] '#{new_vmname}' cloned in #{finish} seconds")
@@ -456,18 +457,18 @@ module Vmpooler
       mutex.synchronize do
         @redis.with_metrics do |redis|
           redis.pipelined do
-            redis.hdel('vmpooler__active__' + pool, vm)
-            redis.hset('vmpooler__vm__' + vm, 'destroy', Time.now)
+            redis.hdel("vmpooler__active__#{pool}", vm)
+            redis.hset("vmpooler__vm__#{vm}", 'destroy', Time.now)
 
             # Auto-expire metadata key
-            redis.expire('vmpooler__vm__' + vm, ($config[:redis]['data_ttl'].to_i * 60 * 60))
+            redis.expire("vmpooler__vm__#{vm}", ($config[:redis]['data_ttl'].to_i * 60 * 60))
           end
 
           start = Time.now
 
           provider.destroy_vm(pool, vm)
 
-          redis.srem('vmpooler__completed__' + pool, vm)
+          redis.srem("vmpooler__completed__#{pool}", vm)
 
           finish = format('%<time>.2f', time: Time.now - start)
           $logger.log('s', "[-] [#{pool}] '#{vm}' destroyed in #{finish} seconds")
@@ -603,10 +604,10 @@ module Vmpooler
 
       if result
         @redis.with_metrics do |redis|
-          rdisks = redis.hget('vmpooler__vm__' + vm_name, 'disk')
+          rdisks = redis.hget("vmpooler__vm__#{vm_name}", 'disk')
           disks = rdisks ? rdisks.split(':') : []
           disks.push("+#{disk_size}gb")
-          redis.hset('vmpooler__vm__' + vm_name, 'disk', disks.join(':'))
+          redis.hset("vmpooler__vm__#{vm_name}", 'disk', disks.join(':'))
         end
 
         $logger.log('s', "[+] [disk_manager] '#{vm_name}' attached #{disk_size}gb disk in #{finish} seconds")
@@ -638,7 +639,7 @@ module Vmpooler
 
       if result
         @redis.with_metrics do |redis|
-          redis.hset('vmpooler__vm__' + vm_name, 'snapshot:' + snapshot_name, Time.now.to_s)
+          redis.hset("vmpooler__vm__#{vm_name}", "snapshot:#{snapshot_name}", Time.now.to_s)
         end
         $logger.log('s', "[+] [snapshot_manager] '#{vm_name}' snapshot created in #{finish} seconds")
       else
@@ -697,7 +698,7 @@ module Vmpooler
 
     def get_pool_name_for_vm(vm_name, redis)
       # the 'template' is a bad name.  Should really be 'poolname'
-      redis.hget('vmpooler__vm__' + vm_name, 'template')
+      redis.hget("vmpooler__vm__#{vm_name}", 'template')
     end
 
     # @param pool_name [String] - the name of the pool
@@ -867,16 +868,12 @@ module Vmpooler
 
             if options[:clone_target_change]
               clone_target = redis.hget('vmpooler__config__clone_target}', options[:poolname])
-              if clone_target
-                break unless clone_target == initial_clone_target
-              end
+              break if clone_target && !clone_target == initial_clone_target
             end
 
             if options[:pool_template_change]
               configured_template = redis.hget('vmpooler__config__template', options[:poolname])
-              if configured_template
-                break unless initial_template == configured_template
-              end
+              break if configured_template && initial_template != configured_template
             end
 
             if options[:pool_reset]
@@ -970,21 +967,17 @@ module Vmpooler
     def sync_pool_template(pool)
       @redis.with_metrics do |redis|
         pool_template = redis.hget('vmpooler__config__template', pool['name'])
-        if pool_template
-          pool['template'] = pool_template unless pool['template'] == pool_template
-        end
+        pool['template'] = pool_template if pool_template && pool['template'] != pool_template
       end
     end
 
     def prepare_template(pool, provider, redis)
-      if $config[:config]['create_template_delta_disks']
-        unless redis.sismember('vmpooler__template__deltas', pool['template'])
-          begin
-            provider.create_template_delta_disks(pool)
-            redis.sadd('vmpooler__template__deltas', pool['template'])
-          rescue StandardError => e
-            $logger.log('s', "[!] [#{pool['name']}] failed while preparing a template with an error. As a result vmpooler could not create the template delta disks. Either a template delta disk already exists, or the template delta disk creation failed. The error is: #{e}")
-          end
+      if $config[:config]['create_template_delta_disks'] && !redis.sismember('vmpooler__template__deltas', pool['template'])
+        begin
+          provider.create_template_delta_disks(pool)
+          redis.sadd('vmpooler__template__deltas', pool['template'])
+        rescue StandardError => e
+          $logger.log('s', "[!] [#{pool['name']}] failed while preparing a template with an error. As a result vmpooler could not create the template delta disks. Either a template delta disk already exists, or the template delta disk creation failed. The error is: #{e}")
         end
       end
       redis.hset('vmpooler__template__prepared', pool['name'], pool['template'])
@@ -1135,15 +1128,15 @@ module Vmpooler
         mutex.synchronize do
           @redis.with_metrics do |redis|
             provider.vms_in_pool(pool['name']).each do |vm|
-              if !redis.sismember('vmpooler__running__' + pool['name'], vm['name']) &&
-                 !redis.sismember('vmpooler__ready__' + pool['name'], vm['name']) &&
-                 !redis.sismember('vmpooler__pending__' + pool['name'], vm['name']) &&
-                 !redis.sismember('vmpooler__completed__' + pool['name'], vm['name']) &&
-                 !redis.sismember('vmpooler__discovered__' + pool['name'], vm['name']) &&
-                 !redis.sismember('vmpooler__migrating__' + pool['name'], vm['name'])
+              if !redis.sismember("vmpooler__running__#{pool['name']}", vm['name']) &&
+                 !redis.sismember("vmpooler__ready__#{pool['name']}", vm['name']) &&
+                 !redis.sismember("vmpooler__pending__#{pool['name']}", vm['name']) &&
+                 !redis.sismember("vmpooler__completed__#{pool['name']}", vm['name']) &&
+                 !redis.sismember("vmpooler__discovered__#{pool['name']}", vm['name']) &&
+                 !redis.sismember("vmpooler__migrating__#{pool['name']}", vm['name'])
 
                 pool_check_response[:discovered_vms] += 1
-                redis.sadd('vmpooler__discovered__' + pool['name'], vm['name'])
+                redis.sadd("vmpooler__discovered__#{pool['name']}", vm['name'])
 
                 $logger.log('s', "[?] [#{pool['name']}] '#{vm['name']}' added to 'discovered' queue")
               end
@@ -1164,7 +1157,7 @@ module Vmpooler
         redis.smembers("vmpooler__running__#{pool_name}").each do |vm|
           if inventory[vm]
             begin
-              vm_lifetime = redis.hget('vmpooler__vm__' + vm, 'lifetime') || $config[:config]['vm_lifetime'] || 12
+              vm_lifetime = redis.hget("vmpooler__vm__#{vm}", 'lifetime') || $config[:config]['vm_lifetime'] || 12
               pool_check_response[:checked_running_vms] += 1
               check_running_vm(vm, pool_name, vm_lifetime, provider)
             rescue StandardError => e
@@ -1206,7 +1199,7 @@ module Vmpooler
               $logger.log('d', "[!] [#{pool_name}] _check_pool failed with an error while evaluating pending VMs: #{e}")
             end
           else
-            fail_pending_vm(vm, pool_name, pool_timeout, redis, false)
+            fail_pending_vm(vm, pool_name, pool_timeout, redis, exists: false)
           end
         end
       end

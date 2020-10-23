@@ -128,34 +128,32 @@ module Vmpooler
 
         pools.each do |pool|
           running = running_hash[pool['name']]
-          pool['major'] = Regexp.last_match[1] if pool['name'] =~ /^(\w+)\-/
+          pool['major'] = Regexp.last_match[1] if pool['name'] =~ /^(\w+)-/
           result[pool['major']] ||= {}
           result[pool['major']]['running'] = result[pool['major']]['running'].to_i + running.to_i
         end
 
-        if params[:history]
-          if graph_url
-            begin
-              buffer = URI.parse(graph_link('.running.*&from=-1hour&format=json')).read
-              JSON.parse(buffer).each do |pool|
-                if pool['target'] =~ /.*\.(.*)$/
-                  pool['name'] = Regexp.last_match[1]
-                  pool['major'] = Regexp.last_match[1] if pool['name'] =~ /^(\w+)\-/
-                  result[pool['major']]['history'] ||= []
+        if params[:history] && graph_url
+          begin
+            buffer = URI.parse(graph_link('.running.*&from=-1hour&format=json')).read
+            JSON.parse(buffer).each do |pool|
+              if pool['target'] =~ /.*\.(.*)$/
+                pool['name'] = Regexp.last_match[1]
+                pool['major'] = Regexp.last_match[1] if pool['name'] =~ /^(\w+)-/
+                result[pool['major']]['history'] ||= []
 
-                  for i in 0..pool['datapoints'].length
-                    if pool['datapoints'][i] && pool['datapoints'][i][0]
-                      pool['last'] = pool['datapoints'][i][0]
-                      result[pool['major']]['history'][i] ||= 0
-                      result[pool['major']]['history'][i] = result[pool['major']]['history'][i].to_i + pool['datapoints'][i][0].to_i
-                    else
-                      result[pool['major']]['history'][i] = result[pool['major']]['history'][i].to_i + pool['last'].to_i
-                    end
+                for i in 0..pool['datapoints'].length
+                  if pool['datapoints'][i] && pool['datapoints'][i][0]
+                    pool['last'] = pool['datapoints'][i][0]
+                    result[pool['major']]['history'][i] ||= 0
+                    result[pool['major']]['history'][i] = result[pool['major']]['history'][i].to_i + pool['datapoints'][i][0].to_i
+                  else
+                    result[pool['major']]['history'][i] = result[pool['major']]['history'][i].to_i + pool['last'].to_i
                   end
                 end
               end
-            rescue StandardError
             end
+          rescue StandardError
           end
         end
         JSON.pretty_generate(result)

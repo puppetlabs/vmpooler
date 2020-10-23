@@ -23,6 +23,7 @@ module Vmpooler
       @p_metrics = {}
       @torun = []
 
+      # rubocop:disable Lint/MissingSuper
       def initialize(logger, params = {})
         @prefix = params['prefix'] || 'vmpooler'
         @prometheus_prefix = params['prometheus_prefix'] || 'vmpooler'
@@ -32,6 +33,7 @@ module Vmpooler
         # Setup up prometheus registry and data structures
         @prometheus = Prometheus::Client.registry
       end
+# rubocop:enable Lint/MissingSuper
 
 =begin # rubocop:disable Style/BlockComments
       The Metrics table is used to register metrics and translate/interpret the incoming metrics.

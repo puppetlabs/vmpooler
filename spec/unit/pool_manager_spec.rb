@@ -185,7 +185,7 @@ EOT
     it 'moves VM to completed queue if VM has exceeded timeout and exists' do
       redis_connection_pool.with do |redis|
         redis.hset("vmpooler__vm__#{vm}", 'clone',Date.new(2001,1,1).to_s)
-        expect(subject.fail_pending_vm(vm, pool, timeout, redis, true)).to eq(true)
+        expect(subject.fail_pending_vm(vm, pool, timeout, redis, exists: true)).to eq(true)
         expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(false)
         expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
       end
@@ -195,7 +195,7 @@ EOT
       redis_connection_pool.with do |redis|
         redis.hset("vmpooler__vm__#{vm}", 'clone',Date.new(2001,1,1).to_s)
         expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes")
-        expect(subject.fail_pending_vm(vm, pool, timeout, redis, true)).to eq(true)
+        expect(subject.fail_pending_vm(vm, pool, timeout, redis, exists: true)).to eq(true)
       end
     end
 
@@ -203,14 +203,14 @@ EOT
       redis_connection_pool.with do |redis|
         redis.hset("vmpooler__vm__#{vm}", 'clone',Date.new(2001,1,1).to_s)
         expect(subject).to receive(:remove_nonexistent_vm).with(vm, pool, redis)
-        expect(subject.fail_pending_vm(vm, pool, timeout, redis, false)).to eq(true)
+        expect(subject.fail_pending_vm(vm, pool, timeout, redis, exists: false)).to eq(true)
       end
     end
 
     it 'swallows error if an error is raised' do
       redis_connection_pool.with do |redis|
         redis.hset("vmpooler__vm__#{vm}", 'clone','iamnotparsable_asdate')
-        expect(subject.fail_pending_vm(vm, pool, timeout, redis, true)).to eq(false)
+        expect(subject.fail_pending_vm(vm, pool, timeout, redis, exists: true)).to eq(false)
       end
     end
 
@@ -219,7 +219,7 @@ EOT
         redis.hset("vmpooler__vm__#{vm}", 'clone','iamnotparsable_asdate')
         expect(logger).to receive(:log).with('d', String)
 
-        subject.fail_pending_vm(vm, pool, timeout, redis, true)
+        subject.fail_pending_vm(vm, pool, timeout, redis, exists: true)
       end
     end
 
@@ -230,7 +230,7 @@ EOT
           redis.hset("vmpooler__vm__#{vm}", 'clone',(Time.now - 900).to_s)
           redis.hset("vmpooler__vm__#{vm}", 'pool_alias', pool)
           redis.hset("vmpooler__vm__#{vm}", 'request_id', request_id)
-          subject.fail_pending_vm(vm, pool, timeout, redis, true)
+          subject.fail_pending_vm(vm, pool, timeout, redis, exists: true)
           expect(redis.zrange('vmpooler__odcreate__task', 0, -1)).to eq(["#{pool}:#{pool}:1:#{request_id}"])
         end
       end
@@ -3950,7 +3950,7 @@ EOT
 
       it 'should call fail_pending_vm' do
         redis_connection_pool.with do |redis|
-          expect(subject).to receive(:fail_pending_vm).with(vm,pool,Integer,redis,false)
+          expect(subject).to receive(:fail_pending_vm).with(vm, pool, Integer, redis, exists: false)
         end
 
         subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory, timeout)
