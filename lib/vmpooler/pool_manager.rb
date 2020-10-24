@@ -868,7 +868,7 @@ module Vmpooler
 
             if options[:clone_target_change]
               clone_target = redis.hget('vmpooler__config__clone_target}', options[:poolname])
-              break if clone_target && !clone_target == initial_clone_target
+              break if clone_target && clone_target != initial_clone_target
             end
 
             if options[:pool_template_change]
