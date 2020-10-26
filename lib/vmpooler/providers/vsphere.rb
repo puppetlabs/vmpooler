@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require 'vmpooler/providers/base'
+require 'bigdecimal'
+require 'bigdecimal/util'
 
 module Vmpooler
   class PoolManager
@@ -49,9 +51,7 @@ module Vmpooler
         end
 
         def folder_configured?(folder_title, base_folder, configured_folders, whitelist)
-          if whitelist
-            return true if whitelist.include?(folder_title)
-          end
+          return true if whitelist&.include?(folder_title)
           return false unless configured_folders.keys.include?(folder_title)
           return false unless configured_folders[folder_title] == base_folder
 
@@ -68,7 +68,7 @@ module Vmpooler
             redis.hset("vmpooler__vm__#{vm_name}", 'destroy', Time.now)
 
             # Auto-expire metadata key
-            redis.expire('vmpooler__vm__' + vm_name, (data_ttl * 60 * 60))
+            redis.expire("vmpooler__vm__#{vm_name}", (data_ttl * 60 * 60))
             redis.exec
           end
 
@@ -203,9 +203,7 @@ module Vmpooler
             return
           end
           wait_for_host_selection(dc, target, loop_delay, max_age) if target[dc].key?('checking')
-          if target[dc].key?('check_time_finished')
-            select_target_hosts(target, cluster, datacenter) if now - target[dc]['check_time_finished'] > max_age
-          end
+          select_target_hosts(target, cluster, datacenter) if target[dc].key?('check_time_finished') && now - target[dc]['check_time_finished'] > max_age
         end
 
         def wait_for_host_selection(dc, target, maxloop = 0, loop_delay = 1, max_age = 60)
@@ -418,15 +416,15 @@ module Vmpooler
           # Determine network device type
           # All possible device type options here: https://vdc-download.vmware.com/vmwb-repository/dcr-public/98d63b35-d822-47fe-a87a-ddefd469df06/2e3c7b58-f2bd-486e-8bb1-a75eb0640bee/doc/vim.vm.device.VirtualEthernetCard.html
           network_device =
-            if template_vm_network_device.is_a? RbVmomi::VIM::VirtualVmxnet2
+            if template_vm_network_device.instance_of? RbVmomi::VIM::VirtualVmxnet2
               RbVmomi::VIM.VirtualVmxnet2
-            elsif template_vm_network_device.is_a? RbVmomi::VIM::VirtualVmxnet3
+            elsif template_vm_network_device.instance_of? RbVmomi::VIM::VirtualVmxnet3
               RbVmomi::VIM.VirtualVmxnet3
-            elsif template_vm_network_device.is_a? RbVmomi::VIM::VirtualE1000
+            elsif template_vm_network_device.instance_of? RbVmomi::VIM::VirtualE1000
               RbVmomi::VIM.VirtualE1000
-            elsif template_vm_network_device.is_a? RbVmomi::VIM::VirtualE1000e
+            elsif template_vm_network_device.instance_of? RbVmomi::VIM::VirtualE1000e
               RbVmomi::VIM.VirtualE1000e
-            elsif template_vm_network_device.is_a? RbVmomi::VIM::VirtualSriovEthernetCard
+            elsif template_vm_network_device.instance_of? RbVmomi::VIM::VirtualSriovEthernetCard
               RbVmomi::VIM.VirtualSriovEthernetCard
             else
               RbVmomi::VIM.VirtualPCNet32
@@ -560,7 +558,7 @@ module Vmpooler
           boottime = vm_object.runtime.bootTime if vm_object.runtime&.bootTime
           powerstate = vm_object.runtime.powerState if vm_object.runtime&.powerState
 
-          hash = {
+          {
             'name' => vm_object.name,
             'hostname' => hostname,
             'template' => pool_configuration['template'],
@@ -568,8 +566,6 @@ module Vmpooler
             'boottime' => boottime,
             'powerstate' => powerstate
           }
-
-          hash
         end
 
         # vSphere helper methods
@@ -794,7 +790,7 @@ module Vmpooler
           }
 
           folder_object = connection.searchIndex.FindByInventoryPath(propSpecs) # rubocop:disable Naming/VariableName
-          return nil unless folder_object.class == RbVmomi::VIM::Folder
+          return nil unless folder_object.instance_of? RbVmomi::VIM::Folder
 
           folder_object
         end
@@ -810,9 +806,7 @@ module Vmpooler
         #    the cpu or memory utilization is bigger than the limit param
         def get_host_utilization(host, model = nil, limit = 90)
           limit = @config[:config]['utilization_limit'] if @config[:config].key?('utilization_limit')
-          if model
-            return nil unless host_has_cpu_model?(host, model)
-          end
+          return nil if model && !host_has_cpu_model?(host, model)
           return nil if host.runtime.inMaintenanceMode
           return nil unless host.overallStatus == 'green'
           return nil unless host.configIssue.empty?
@@ -821,9 +815,9 @@ module Vmpooler
           memory_utilization = memory_utilization_for host
 
           return nil if cpu_utilization.nil?
-          return nil if cpu_utilization == 0.0
+          return nil if cpu_utilization.to_d == 0.0.to_d
           return nil if memory_utilization.nil?
-          return nil if memory_utilization == 0.0
+          return nil if memory_utilization.to_d == 0.0.to_d
 
           return nil if cpu_utilization > limit
           return nil if memory_utilization > limit
@@ -838,8 +832,7 @@ module Vmpooler
         def get_host_cpu_arch_version(host)
           cpu_model = host.hardware.cpuPkg[0].description
           cpu_model_parts = cpu_model.split
-          arch_version = cpu_model_parts[4]
-          arch_version
+          cpu_model_parts[4]
         end
 
         def cpu_utilization_for(host)
@@ -931,8 +924,7 @@ module Vmpooler
           target_hosts = get_cluster_host_utilization(cluster_object)
           raise("There is no host candidate in vcenter that meets all the required conditions, check that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory'") if target_hosts.empty?
 
-          least_used_host = target_hosts.min[1]
-          least_used_host
+          target_hosts.min[1]
         end
 
         def find_cluster(cluster, connection, datacentername)
@@ -979,11 +971,10 @@ module Vmpooler
         end
 
         def build_propSpecs(datacenter, folder, vmname) # rubocop:disable Naming/MethodName
-          propSpecs = { # rubocop:disable Naming/VariableName
+          {
             entity => self,
             :inventoryPath => "#{datacenter}/vm/#{folder}/#{vmname}"
           }
-          propSpecs # rubocop:disable Naming/VariableName
         end
 
         def find_vm(pool_name, vmname, connection)

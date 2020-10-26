@@ -13,12 +13,12 @@ module Vmpooler
       def valid_token?(backend)
         return false unless has_token?
 
-        backend.exists?('vmpooler__token__' + request.env['HTTP_X_AUTH_TOKEN']) ? true : false
+        backend.exists?("vmpooler__token__#{request.env['HTTP_X_AUTH_TOKEN']}") ? true : false
       end
 
       def validate_token(backend)
         if valid_token?(backend)
-          backend.hset('vmpooler__token__' + request.env['HTTP_X_AUTH_TOKEN'], 'last', Time.now)
+          backend.hset("vmpooler__token__#{request.env['HTTP_X_AUTH_TOKEN']}last#{Time.now}")
 
           return true
         end
@@ -118,8 +118,8 @@ module Vmpooler
           tags.each_pair do |tag, value|
             next if value.nil? or value.empty?
 
-            backend.hset('vmpooler__vm__' + hostname, 'tag:' + tag, value)
-            backend.hset('vmpooler__tag__' + Date.today.to_s, hostname + ':' + tag, value)
+            backend.hset("vmpooler__vm__#{hostname}", "tag:#{tag}", value)
+            backend.hset("vmpooler__tag__#{Date.today}", "#{hostname}:#{tag}", value)
           end
         end
       end
@@ -147,7 +147,7 @@ module Vmpooler
 
       def hostname_shorten(hostname, domain=nil)
         if domain && hostname =~ /^[\w-]+\.#{domain}$/
-          hostname = hostname[/[^\.]+/]
+          hostname = hostname[/[^.]+/]
         end
 
         hostname
@@ -253,17 +253,15 @@ module Vmpooler
 
         tags = {}
 
-        backend.hgetall('vmpooler__tag__' + date_str).each do |key, value|
+        backend.hgetall("vmpooler__tag__#{date_str}").each do |key, value|
           hostname = 'unknown'
           tag = 'unknown'
 
-          if key =~ /\:/
+          if key =~ /:/
             hostname, tag = key.split(':', 2)
           end
 
-          if opts[:only]
-            next unless tag == opts[:only]
-          end
+          next if opts[:only] && tag != opts[:only]
 
           tags[tag] ||= {}
           tags[tag][value] ||= 0
@@ -321,7 +319,7 @@ module Vmpooler
             }
         }
 
-        task[:count][:total] = backend.hlen('vmpooler__' + task_str + '__' + date_str).to_i
+        task[:count][:total] = backend.hlen("vmpooler__#{task_str}__#{date_str}").to_i
 
         if task[:count][:total] > 0
           if opts[:bypool] == true
@@ -330,11 +328,11 @@ module Vmpooler
             task[:count][:pool]    = {}
             task[:duration][:pool] = {}
 
-            backend.hgetall('vmpooler__' + task_str + '__' + date_str).each do |key, value|
+            backend.hgetall("vmpooler__#{task_str}__#{date_str}").each do |key, value|
               pool     = 'unknown'
               hostname = 'unknown'
 
-              if key =~ /\:/
+              if key =~ /:/
                 pool, hostname = key.split(':')
               else
                 hostname = key

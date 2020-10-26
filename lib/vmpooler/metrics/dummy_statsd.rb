@@ -5,9 +5,6 @@ module Vmpooler
     class DummyStatsd < Metrics
       attr_reader :server, :port, :prefix
 
-      def initialize(*)
-      end
-
       def increment(*)
         true
       end

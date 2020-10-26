@@ -588,7 +588,7 @@ def mock_RbVmomi_VIM_VirtualVmxnet3(options = {})
   mock.addressType = options[:addressType]
   mock.connectable = options[:connectable]
 
-  allow(mock).to receive(:is_a?) do |expected_type|
+  allow(mock).to receive(:instance_of?) do |expected_type|
     expected_type == RbVmomi::VIM::VirtualVmxnet3
   end
 

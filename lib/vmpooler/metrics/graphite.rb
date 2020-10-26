@@ -7,6 +7,7 @@ module Vmpooler
     class Graphite < Metrics
       attr_reader :server, :port, :prefix
 
+      # rubocop:disable Lint/MissingSuper
       def initialize(logger, params = {})
         raise ArgumentError, "Graphite server is required. Config: #{params.inspect}" if params['server'].nil? || params['server'].empty?
 
@@ -15,6 +16,7 @@ module Vmpooler
         @prefix = params['prefix'] || 'vmpooler'
         @logger = logger
       end
+      # rubocop:enable Lint/MissingSuper
 
       def increment(label)
         log label, 1

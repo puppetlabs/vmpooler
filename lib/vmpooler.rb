@@ -53,17 +53,13 @@ module Vmpooler
 
     # Bail out if someone attempts to start vmpooler with dummy authentication
     # without enbaling debug mode.
-    if parsed_config.key? :auth
-      if parsed_config[:auth]['provider'] == 'dummy'
-        unless ENV['VMPOOLER_DEBUG']
-          warning = [
-            'Dummy authentication should not be used outside of debug mode',
-            'please set environment variable VMPOOLER_DEBUG to \'true\' if you want to use dummy authentication'
-          ]
+    if parsed_config.key?(:auth) && parsed_config[:auth]['provider'] == 'dummy' && !ENV['VMPOOLER_DEBUG']
+      warning = [
+        'Dummy authentication should not be used outside of debug mode',
+        'please set environment variable VMPOOLER_DEBUG to \'true\' if you want to use dummy authentication'
+      ]
 
-          raise warning.join(";\s")
-        end
-      end
+      raise warning.join(";\s")
     end
 
     # Set some configuration defaults
@@ -140,14 +136,14 @@ module Vmpooler
       parsed_config[:pool_names] << pool['name']
       pool['ready_ttl'] ||= parsed_config[:config]['ready_ttl']
       if pool['alias']
-        if pool['alias'].is_a?(Array)
+        if pool['alias'].instance_of?(Array)
           pool['alias'].each do |pool_alias|
             parsed_config[:alias] ||= {}
             parsed_config[:alias][pool_alias] = [pool['name']] unless parsed_config[:alias].key? pool_alias
             parsed_config[:alias][pool_alias] << pool['name'] unless parsed_config[:alias][pool_alias].include? pool['name']
             parsed_config[:pool_names] << pool_alias
           end
-        elsif pool['alias'].is_a?(String)
+        elsif pool['alias'].instance_of?(String)
           parsed_config[:alias][pool['alias']] = pool['name']
           parsed_config[:pool_names] << pool['alias']
         end
