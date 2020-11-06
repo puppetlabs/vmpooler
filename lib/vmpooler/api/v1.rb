@@ -209,7 +209,7 @@ module Vmpooler
             break
           else
             vms << [vmpool, vmname, vmtemplate]
-            metrics.increment("checkout.success.#{vmtemplate}")
+            metrics.increment("checkout.success.#{vmpool}")
           end
         end
       end
