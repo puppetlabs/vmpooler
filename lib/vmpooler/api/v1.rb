@@ -163,18 +163,15 @@ module Vmpooler
     end
 
     def return_vm_to_ready_state(template, vm)
-      backend.multi
       backend.srem("vmpooler__migrating__#{template}", vm)
       backend.hdel("vmpooler__active__#{template}", vm)
       backend.hdel("vmpooler__vm__#{vm}", 'checkout', 'token:token', 'token:user')
       backend.smove("vmpooler__running__#{template}", "vmpooler__ready__#{template}", vm)
-      backend.exec
     end
 
     def account_for_starting_vm(template, vm)
       user = backend.hget("vmpooler__token__#{request.env['HTTP_X_AUTH_TOKEN']}", 'user')
       has_token_result = has_token?
-      backend.multi
       backend.sadd("vmpooler__migrating__#{template}", vm)
       backend.hset("vmpooler__active__#{template}", vm, Time.now)
       backend.hset("vmpooler__vm__#{vm}", 'checkout', Time.now)
@@ -187,7 +184,6 @@ module Vmpooler
           backend.hset("vmpooler__vm__#{vm}", 'lifetime', config['vm_lifetime_auth'].to_i)
         end
       end
-      backend.exec
     end
 
     def update_result_hosts(result, template, vm)
