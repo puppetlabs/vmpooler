@@ -209,7 +209,7 @@ module Vmpooler
           if vmname
             account_for_starting_vm(vmpool, vmname)
             vms << [vmpool, vmname, vmtemplate]
-            metrics.increment("checkout.success.#{vmtemplate}")
+            metrics.increment("checkout.success.#{vmpool}")
           else
             failed = true
             metrics.increment("checkout.empty.#{requested}")
