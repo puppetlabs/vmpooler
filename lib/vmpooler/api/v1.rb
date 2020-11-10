@@ -163,26 +163,31 @@ module Vmpooler
     end
 
     def return_vm_to_ready_state(template, vm)
+      backend.multi
+      backend.srem("vmpooler__migrating__#{template}", vm)
+      backend.hdel("vmpooler__active__#{template}", vm)
+      backend.hdel("vmpooler__vm__#{vm}", 'checkout', 'token:token', 'token:user')
       backend.smove("vmpooler__running__#{template}", "vmpooler__ready__#{template}", vm)
+      backend.exec
     end
 
     def account_for_starting_vm(template, vm)
+      user = backend.hget("vmpooler__token__#{request.env['HTTP_X_AUTH_TOKEN']}", 'user')
+      has_token_result = has_token?
+      backend.multi
       backend.sadd("vmpooler__migrating__#{template}", vm)
       backend.hset("vmpooler__active__#{template}", vm, Time.now)
       backend.hset("vmpooler__vm__#{vm}", 'checkout', Time.now)
 
-      if Vmpooler::API.settings.config[:auth] and has_token?
-        validate_token(backend)
-
+      if Vmpooler::API.settings.config[:auth] and has_token_result
         backend.hset("vmpooler__vm__#{vm}", 'token:token', request.env['HTTP_X_AUTH_TOKEN'])
-        backend.hset("vmpooler__vm__#{vm}", 'token:user',
-                     backend.hget("vmpooler__token__#{request.env['HTTP_X_AUTH_TOKEN']}", 'user')
-        )
+        backend.hset("vmpooler__vm__#{vm}", 'token:user', user)
 
         if config['vm_lifetime_auth'].to_i > 0
           backend.hset("vmpooler__vm__#{vm}", 'lifetime', config['vm_lifetime_auth'].to_i)
         end
       end
+      backend.exec
     end
 
     def update_result_hosts(result, template, vm)
@@ -200,16 +205,19 @@ module Vmpooler
       failed = false
       vms = []
 
+      validate_token(backend) if Vmpooler::API.settings.config[:auth] and has_token?
+
       payload.each do |requested, count|
         count.to_i.times do |_i|
           vmname, vmpool, vmtemplate = fetch_single_vm(requested)
-          if !vmname
+          if vmname
+            account_for_starting_vm(vmpool, vmname)
+            vms << [vmpool, vmname, vmtemplate]
+            metrics.increment("checkout.success.#{vmtemplate}")
+          else
             failed = true
             metrics.increment("checkout.empty.#{requested}")
             break
-          else
-            vms << [vmpool, vmname, vmtemplate]
-            metrics.increment("checkout.success.#{vmpool}")
           end
         end
       end
@@ -220,8 +228,7 @@ module Vmpooler
         end
         status 503
       else
-        vms.each do |(vmpool, vmname, vmtemplate)|
-          account_for_starting_vm(vmpool, vmname)
+        vms.each do |(_vmpool, vmname, vmtemplate)|
           update_result_hosts(result, vmtemplate, vmname)
         end
 
@@ -1094,7 +1101,7 @@ module Vmpooler
         result[params[:hostname]]['lifetime'] = (rdata['lifetime'] || config['vm_lifetime']).to_i
 
         if rdata['destroy']
-          result[params[:hostname]]['running'] = ((Time.parse(rdata['destroy']) - Time.parse(rdata['checkout'])) / 60 / 60).round(2)
+          result[params[:hostname]]['running'] = ((Time.parse(rdata['destroy']) - Time.parse(rdata['checkout'])) / 60 / 60).round(2) if rdata['checkout']
           result[params[:hostname]]['state'] = 'destroyed'
         elsif rdata['checkout']
           result[params[:hostname]]['running'] = ((Time.now - Time.parse(rdata['checkout'])) / 60 / 60).round(2)
