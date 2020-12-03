@@ -13,7 +13,7 @@ jobs:
 
       # Run checks
       - name: Lightstep Pre-Deploy Check
-        uses: lightstep/lightstep-action-predeploy@v0.1.4
+        uses: lightstep/lightstep-action-predeploy@v0.2.6
         id: lightstep-predeploy
         with:
           lightstep_api_key: ${{ secrets.LIGHTSTEP_API_KEY }}
