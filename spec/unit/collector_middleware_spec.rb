@@ -72,14 +72,14 @@ describe Vmpooler::Metrics::Promstats::CollectorMiddleware do
   it 'normalizes paths containing /ondemandvm by ' do
     expect(Benchmark).to receive(:realtime).and_yield.and_return(0.3)
 
-    get '/foo/ondemand/bar/fatman'
+    get '/foo/ondemandvm/bar/fatman'
 
     metric = :http_server_requests_total
-    labels = { method: 'get', path: '/foo/ondemand', code: '200' }
+    labels = { method: 'get', path: '/foo/ondemandvm', code: '200' }
     expect(registry.get(metric).get(labels: labels)).to eql(1.0)
 
     metric = :http_server_request_duration_seconds
-    labels = { method: 'get', path: '/foo/ondemand' }
+    labels = { method: 'get', path: '/foo/ondemandvm' }
     expect(registry.get(metric).get(labels: labels)).to include("0.1" => 0, "0.5" => 1)
   end
 
