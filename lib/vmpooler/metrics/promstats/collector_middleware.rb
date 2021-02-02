@@ -113,7 +113,7 @@ module Vmpooler
           # Similarly, request IDs are also stripped from the /ondemand path.
           path
             .gsub(%r{/vm/.+$}, '/vm')
-            .gsub(%r{/ondemand/.+$}, '/ondemand')
+            .gsub(%r{/ondemandvm/.+$}, '/ondemandvm')
             .gsub(%r{/token/.+$}, '/token')
             .gsub(%r{/lib/.+$}, '/lib')
             .gsub(%r{/img/.+$}, '/img')
