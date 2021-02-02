@@ -16,7 +16,6 @@ module Vmpooler
   require 'yaml'
 
   # Dependencies for tracing
-  require 'opentelemetry-api'
   require 'opentelemetry-instrumentation-concurrent_ruby'
   require 'opentelemetry-instrumentation-redis'
   require 'opentelemetry-instrumentation-sinatra'
