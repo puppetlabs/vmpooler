@@ -3,7 +3,7 @@
 module Vmpooler
   class API < Sinatra::Base
     # Load API components
-    %w[helpers dashboard reroute v1 request_logger healthcheck].each do |lib|
+    %w[helpers dashboard reroute v1 request_logger healthcheck restart].each do |lib|
       require "vmpooler/api/#{lib}"
     end
     # Load dashboard components
@@ -44,6 +44,7 @@ module Vmpooler
         # However, prometheus setup includes the web server which is required for this check
         # At this time prometheus is a requirement of using the health check on manager
         use Vmpooler::API::Healthcheck
+        use Vmpooler::API::Restart, logger: logger
       end
 
       if torun.include? :api
@@ -54,6 +55,7 @@ module Vmpooler
         use Vmpooler::API::Dashboard
         use Vmpooler::API::Reroute
         use Vmpooler::API::V1
+        use Vmpooler::API::Restart, logger: logger
       end
 
       # Get thee started O WebServer

@@ -890,3 +890,23 @@ $ curl -X DELETE https://vmpooler.example.com/api/v1/ondemandvm/e3ff6271-d201-4f
   "ok": true
 }
 ```
+
+##### GET /restart
+
+Restart vmpooler
+
+An authentication token is required from an authorized user.
+
+Responses:
+* 200 - The restart was successful and status is ok
+* 404 - No auth token provided, or provided auth token is not valid
+
+```
+$ curl -X GET -H X-AUTH-TOKEN:a9znth9dn01t416hrguu56ze37t790bl --url https://vmpooler.example.com/restart
+```
+```json
+{
+  "ok": true
+  "message": "Restarting ..."
+}
+```
