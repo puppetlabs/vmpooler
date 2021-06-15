@@ -1,6 +1,6 @@
 require 'spec_helper'
 require 'rack/test'
-#require 'pry-byebug'
+
 
 
 
@@ -17,7 +17,7 @@ describe Vmpooler::API::Restart do
   # https://rubydoc.info/gems/sinatra/Sinatra/Base#reset!-class_method 
   before(:each) do
     app.reset!
-    #allow_any_instance_of(Vmpooler::API::Restart).to receive(:exit_process)
+    allow_any_instance_of(Vmpooler::API::Restart).to receive(:exit_process)
   end
 
 
@@ -43,7 +43,7 @@ describe Vmpooler::API::Restart do
             expect(last_response.status).to eq(401)
         end
 
-        it 'vmpooler restarts when a token is provided' do
+        it 'vmpooler restarts and returns a 200 when a token is provided' do
           
           get "/restart/"
 
