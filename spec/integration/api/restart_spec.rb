@@ -1,9 +1,13 @@
 require 'spec_helper'
 require 'rack/test'
+#require 'pry-byebug'
+
+
 
 describe Vmpooler::API::Restart do
   include Rack::Test::Methods
-
+  let(:backend) { MockRedis.new }
+  
   def app()
     Vmpooler::API
   end
@@ -13,60 +17,40 @@ describe Vmpooler::API::Restart do
   # https://rubydoc.info/gems/sinatra/Sinatra/Base#reset!-class_method 
   before(:each) do
     app.reset!
+    #allow_any_instance_of(Vmpooler::API::Restart).to receive(:exit_process)
   end
 
 
 
   describe '/restart' do  
+    let(:current_time) { Time.now } 
+    let(:config) { { 
+      config: {}
+    } }
+
     before(:each) do
       expect(app).to receive(:run!).once
       app.execute([:api], config, redis, nil, nil)
+      create_token('abcdefghijklmnopqrstuvwxyz012345', 'jdoe', current_time)
     end
 
-    
-    describe 'GET /restart' do
-      context '(auth not configured)' do
-        let(:config) { { 
-          config: {},
-          auth: false 
-          } }
-    
-        it 'returns a 404' do
-          get "/restart"
-            expect_json(ok = false, http = 404)
-        end
-      end
 
+      context 'when restart endpoint is called' do
 
-      context '(auth configured)' do
-        let(:config) {
-          {
-            config: {},
-            auth: {
-              'provider' => 'dummy'
-            }
-          }
-        }
-        let(:username_str) { 'admin' }
-        let(:password_str) { 's3cr3t' }
-    
         it 'returns a 401 if no token is provided' do
-          get "/restart"
-            expect_json(ok = false, http = 401)
+          get "/restart/"
+            expect(ok = false)
+            expect(last_response.status).to eq(401)
         end
 
-        it 'restarts if token is provided' do
-    
-          authorize 'admin', 's3cr3t'
-          get "/restart"
-            expect_json(ok = true, http = 200)
-    
-            expect(JSON.parse(last_response.body).to eq JSON.parse(JSON.dump({ 'ok' => true, 'message' => 'Restarting ...' })))
+        it 'vmpooler restarts when a token is provided' do
           
+          get "/restart/"
+
+            expect(last_response.header['Content-Type']).to eq('application/json') 
+            expect(last_response.status).to eq(200) 
+            expect(last_response.body).to eq(JSON.pretty_generate({ 'ok' => true, 'message' => 'Restarting ...' })) 
         end
       end
-    
-    end
-
   end  
 end

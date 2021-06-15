@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'json'
 
 module Vmpooler
@@ -36,9 +38,9 @@ module Vmpooler
       end
 
       get '/restart/?' do
+        content_type :json
         # token authentication
         need_token!
-
         # restart operation
         exit_process
         status 200
