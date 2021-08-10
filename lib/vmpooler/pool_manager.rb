@@ -473,52 +473,9 @@ module Vmpooler
           finish = format('%<time>.2f', time: Time.now - start)
           $logger.log('s', "[-] [#{pool}] '#{vm}' destroyed in #{finish} seconds")
           $metrics.timing("destroy.#{pool}", finish)
-          get_vm_usage_labels(vm, redis)
         end
       end
       dereference_mutex(vm)
-    end
-
-    def get_vm_usage_labels(vm, redis)
-      return unless $config[:config]['usage_stats']
-
-      redis.multi
-      redis.hget("vmpooler__vm__#{vm}", 'checkout')
-      redis.hget("vmpooler__vm__#{vm}", 'tag:jenkins_build_url')
-      redis.hget("vmpooler__vm__#{vm}", 'token:user')
-      redis.hget("vmpooler__vm__#{vm}", 'template')
-      checkout, jenkins_build_url, user, poolname = redis.exec
-      return if checkout.nil?
-
-      user ||= 'unauthenticated'
-      user = user.gsub('.', '_')
-      $metrics.increment("user.#{user}.#{poolname}")
-
-      return unless jenkins_build_url
-
-      if jenkins_build_url.include? 'litmus'
-        # Very simple filter for Litmus jobs - just count them coming through for the moment.
-        $metrics.increment("usage_litmus.#{user}.#{poolname}")
-        return
-      end
-
-      url_parts = jenkins_build_url.split('/')[2..-1]
-      jenkins_instance = url_parts[0].gsub('.', '_')
-      value_stream_parts = url_parts[2].split('_')
-      value_stream_parts = value_stream_parts.map { |s| s.gsub('.', '_') }
-      value_stream = value_stream_parts.shift
-      branch = value_stream_parts.pop
-      project = value_stream_parts.shift
-      job_name = value_stream_parts.join('_')
-      build_metadata_parts = url_parts[3]
-      component_to_test = component_to_test('RMM_COMPONENT_TO_TEST_NAME', build_metadata_parts)
-
-      $metrics.increment("usage_jenkins_instance.#{jenkins_instance}.#{value_stream}.#{poolname}")
-      $metrics.increment("usage_branch_project.#{branch}.#{project}.#{poolname}")
-      $metrics.increment("usage_job_component.#{job_name}.#{component_to_test}.#{poolname}")
-    rescue StandardError => e
-      $logger.log('d', "[!] [#{poolname}] failed while evaluating usage labels on '#{vm}' with an error: #{e}")
-      raise
     end
 
     def component_to_test(match, labels_string)

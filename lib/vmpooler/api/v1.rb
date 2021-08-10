@@ -210,6 +210,7 @@ module Vmpooler
             account_for_starting_vm(vmpool, vmname)
             vms << [vmpool, vmname, vmtemplate]
             metrics.increment("checkout.success.#{vmpool}")
+            update_user_metrics('allocate', vmname) if Vmpooler::API.settings.config[:config]['usage_stats']
           else
             failed = true
             metrics.increment("checkout.empty.#{requested}")
@@ -233,6 +234,46 @@ module Vmpooler
       end
 
       result
+    end
+
+    def update_user_metrics(operation, vmname)
+      backend.multi
+      backend.hget("vmpooler__vm__#{vmname}", 'tag:jenkins_build_url')
+      backend.hget("vmpooler__vm__#{vmname}", 'token:user')
+      backend.hget("vmpooler__vm__#{vmname}", 'template')
+      jenkins_build_url, user, poolname = backend.exec
+
+      if user
+        user = user.gsub('.', '_')
+      else
+        user = 'unauthenticated'
+      end
+      metrics.increment("user.#{user}.#{operation}.#{poolname}")
+
+      if jenkins_build_url
+        if jenkins_build_url.include? 'litmus'
+          # Very simple filter for Litmus jobs - just count them coming through for the moment.
+          metrics.increment("usage_litmus.#{user}.#{operation}.#{poolname}")
+          return
+        end
+
+        url_parts = jenkins_build_url.split('/')[2..-1]
+        jenkins_instance = url_parts[0].gsub('.', '_')
+        value_stream_parts = url_parts[2].split('_')
+        value_stream_parts = value_stream_parts.map { |s| s.gsub('.', '_') }
+        value_stream = value_stream_parts.shift
+        branch = value_stream_parts.pop
+        project = value_stream_parts.shift
+        job_name = value_stream_parts.join('_')
+        build_metadata_parts = url_parts[3]
+        component_to_test = component_to_test('RMM_COMPONENT_TO_TEST_NAME', build_metadata_parts)
+
+        metrics.increment("usage_jenkins_instance.#{jenkins_instance}.#{value_stream}.#{operation}.#{poolname}")
+        metrics.increment("usage_branch_project.#{branch}.#{project}.#{operation}.#{poolname}")
+        metrics.increment("usage_job_component.#{job_name}.#{component_to_test}.#{operation}.#{poolname}")
+      end
+    rescue StandardError => e
+      puts 'd', "[!] [#{poolname}] failed while evaluating usage labels on '#{vmname}' with an error: #{e}"
     end
 
     def update_pool_size(payload)
@@ -1169,6 +1210,7 @@ module Vmpooler
           status 200
           result['ok'] = true
           metrics.increment('delete.success')
+          update_user_metrics('destroy', params[:hostname]) if Vmpooler::API.settings.config[:config]['usage_stats']
         else
           metrics.increment('delete.failed')
         end

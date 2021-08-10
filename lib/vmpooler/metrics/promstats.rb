@@ -165,33 +165,33 @@ module Vmpooler
           },
           user: {
             mtype: M_COUNTER,
-            torun: %i[manager],
-            docstring: 'Number of pool instances this user created created',
-            param_labels: %i[user poolname]
+            torun: %i[api],
+            docstring: 'Number of pool instances and the operation performed by a user',
+            param_labels: %i[user operation poolname]
           },
           usage_litmus: {
             mtype: M_COUNTER,
-            torun: %i[manager],
-            docstring: 'Pools by Litmus job usage',
-            param_labels: %i[user poolname]
+            torun: %i[api],
+            docstring: 'Number of pool instances and the operation performed by Litmus jobs',
+            param_labels: %i[user operation poolname]
           },
           usage_jenkins_instance: {
             mtype: M_COUNTER,
-            torun: %i[manager],
-            docstring: 'Pools by Jenkins instance usage',
-            param_labels: %i[jenkins_instance value_stream poolname]
+            torun: %i[api],
+            docstring: 'Number of pool instances and the operation performed by Jenkins instances',
+            param_labels: %i[jenkins_instance value_stream operation poolname]
           },
           usage_branch_project: {
             mtype: M_COUNTER,
-            torun: %i[manager],
-            docstring: 'Pools by branch/project usage',
-            param_labels: %i[branch project poolname]
+            torun: %i[api],
+            docstring: 'Number of pool instances and the operation performed by Jenkins branch/project',
+            param_labels: %i[branch project operation poolname]
           },
           usage_job_component: {
             mtype: M_COUNTER,
-            torun: %i[manager],
-            docstring: 'Pools by job/component usage',
-            param_labels: %i[job_name component_to_test poolname]
+            torun: %i[api],
+            docstring: 'Number of pool instances and the operation performed by Jenkins job/component',
+            param_labels: %i[job_name component_to_test operation poolname]
           },
           checkout: {
             mtype: M_COUNTER,
