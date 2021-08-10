@@ -198,46 +198,51 @@ describe 'prometheus' do
           po.get(labels: metric[:labels])
         }.by(1)
       end
-      it 'Increments user.#{user}.#{poolname}' do
+      it 'Increments user.#{user}.#{operation}.#{poolname}' do
         user = 'myuser'
+        operation = 'allocate'
         poolname = 'test-pool'
-        expect { subject.increment("user.#{user}.#{poolname}") }.to change {
-          metric, po = subject.get("user.#{user}.#{poolname}")
+        expect { subject.increment("user.#{user}.#{operation}.#{poolname}") }.to change {
+          metric, po = subject.get("user.#{user}.#{operation}.#{poolname}")
           po.get(labels: metric[:labels])
         }.by(1)
       end
-      it 'Increments usage_litmus.#{user}.#{poolname}' do
+      it 'Increments usage_litmus.#{user}.#{operation}.#{poolname}' do
         user = 'myuser'
+        operation = 'allocate'
         poolname = 'test-pool'
-        expect { subject.increment("usage_litmus.#{user}.#{poolname}") }.to change {
-          metric, po = subject.get("usage_litmus.#{user}.#{poolname}")
+        expect { subject.increment("usage_litmus.#{user}.#{operation}.#{poolname}") }.to change {
+          metric, po = subject.get("usage_litmus.#{user}.#{operation}.#{poolname}")
           po.get(labels: metric[:labels])
         }.by(1)
       end
-      it 'Increments label usage_jenkins_instance.#{jenkins_instance}.#{value_stream}.#{poolname}' do
+      it 'Increments label usage_jenkins_instance.#{jenkins_instance}.#{value_stream}.#{operation}.#{poolname}' do
         jenkins_instance = 'jenkins_test_instance'
         value_stream = 'notional_value'
+        operation = 'allocate'
         poolname = 'test-pool'
-        expect { subject.increment("usage_jenkins_instance.#{jenkins_instance}.#{value_stream}.#{poolname}") }.to change {
-          metric, po = subject.get("usage_jenkins_instance.#{jenkins_instance}.#{value_stream}.#{poolname}")
+        expect { subject.increment("usage_jenkins_instance.#{jenkins_instance}.#{value_stream}.#{operation}.#{poolname}") }.to change {
+          metric, po = subject.get("usage_jenkins_instance.#{jenkins_instance}.#{value_stream}.#{operation}.#{poolname}")
           po.get(labels: metric[:labels])
         }.by(1)
       end
-      it 'Increments label usage_branch_project.#{branch}.#{project}.#{poolname}' do
+      it 'Increments label usage_branch_project.#{branch}.#{project}.#{operation}.#{poolname}' do
         branch = 'treetop'
         project = 'test-project'
+        operation = 'allocate'
         poolname = 'test-pool'
-        expect { subject.increment("usage_branch_project.#{branch}.#{project}.#{poolname}") }.to change {
-          metric, po = subject.get("usage_branch_project.#{branch}.#{project}.#{poolname}")
+        expect { subject.increment("usage_branch_project.#{branch}.#{project}.#{operation}.#{poolname}") }.to change {
+          metric, po = subject.get("usage_branch_project.#{branch}.#{project}.#{operation}.#{poolname}")
           po.get(labels: metric[:labels])
         }.by(1)
       end
-      it 'Increments label usage_job_component.#{job_name}.#{component_to_test}.#{poolname}' do
+      it 'Increments label usage_job_component.#{job_name}.#{component_to_test}.#{operation}.#{poolname}' do
         job_name = 'a-job'
         component_to_test = 'component-name'
+        operation = 'allocate'
         poolname = 'test-pool'
-        expect { subject.increment("usage_job_component.#{job_name}.#{component_to_test}.#{poolname}") }.to change {
-          metric, po = subject.get("usage_job_component.#{job_name}.#{component_to_test}.#{poolname}")
+        expect { subject.increment("usage_job_component.#{job_name}.#{component_to_test}.#{operation}.#{poolname}") }.to change {
+          metric, po = subject.get("usage_job_component.#{job_name}.#{component_to_test}.#{operation}.#{poolname}")
           po.get(labels: metric[:labels])
         }.by(1)
       end

@@ -532,13 +532,13 @@
 #
 #   - usage_stats
 #     Enable shipping of VM usage stats
-#     When enabled a metric is emitted when a machine is destroyed. Tags are inspected and used to organize
+#     When enabled a metric is emitted when a user requested to allocate and destroy a VM. Tags are inspected and used to organize
 #     shipped metrics if there is a jenkins_build_url tag set for the VM.
-#     Without the jenkins_build_url tag set the metric will be sent as "usage.$user.$pool_name".
+#     Without the jenkins_build_url tag set the metric will be sent as "usage.$user.$operation.$pool_name".
 #     When the jenkins_build_url tag is set the metric will be sent with additional data. Here is an example
 #     based off of the following URL, and requested by the user ABS;
 #     https://jenkins.example.com/job/platform_puppet-agent-extra_puppet-agent-integration-suite_pr/RMM_COMPONENT_TO_TEST_NAME=puppet,SLAVE_LABEL=beaker,TEST_TARGET=redhat7-64a/824/
-#     "usage.$user.$instance.$value_stream.$branch.$project.$job_name.$component_to_test.$pool_name", which translates to
+#     "usage.$user.$instance.$value_stream.$branch.$project.$job_name.$component_to_test.$operation.$pool_name", which translates to
 #     "usage.$user.jenkins_example_com.platform.pr.puppet-agent-extra.puppet-agent-integration-suite.puppet.$pool_name"
 #     Expects a boolean value
 #     (optional; default: false)
