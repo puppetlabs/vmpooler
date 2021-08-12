@@ -46,6 +46,15 @@ module Vmpooler
           parsed_config.merge!(extra_config)
         end
       end
+      parsed_config[:config]['pools_from_dir'] = ENV['POOLS_FROM_DIR'] if ENV['POOLS_FROM_DIR']
+      if parsed_config[:config]['pools_from_dir'] && Dir.exist?(parsed_config[:config]['pools_from_dir'])
+        pools_from_dir = []
+        Dir["#{parsed_config[:config]['pools_from_dir']}/*.yaml"].sort.each do |file_name|
+          parsed_pool = Yaml.load_file(file_name)
+          pools_from_dir += parsed_pool if parsed_pool
+        end
+        parsed_config[:pools] = pools_from_dir unless pools_from_dir.empty?
+      end
     end
 
     parsed_config ||= { config: {} }
