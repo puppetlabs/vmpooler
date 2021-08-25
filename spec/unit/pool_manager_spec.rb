@@ -1062,43 +1062,6 @@ EOT
     end
   end
 
-  describe '#component_to_test' do
-    let(:matching_key) { 'LABEL_ONE' }
-    let(:matching_value) { 'test' }
-    let(:labels_string) { "#{matching_key}=#{matching_value},LABEL_TWO=test2,LABEL_THREE=test3" }
-    let(:nonmatrix_string) { 'test,stuff,and,things' }
-
-    context 'when string contains a matching key' do
-      it 'should print the corresponding value' do
-        expect(subject.component_to_test(matching_key, labels_string)).to eq(matching_value)
-      end
-
-      context 'when match contains no value' do
-        it 'should return none' do
-          expect(subject.component_to_test(matching_key, matching_key)).to eq('none')
-        end
-      end
-    end
-
-    context 'when string contains no key value pairs' do
-      it 'should return' do
-        expect(subject.component_to_test(matching_key, nonmatrix_string)).to eq('none')
-      end
-    end
-
-    context 'when labels_string is a job number' do
-      it 'should return nil' do
-        expect(subject.component_to_test(matching_key, '25')).to eq('none')
-      end
-    end
-
-    context 'when labels_string is nil' do
-      it 'should return nil' do
-        expect(subject.component_to_test(matching_key, nil)).to be nil
-      end
-    end
-  end
-
   describe '#purge_unused_vms_and_folders' do
     let(:config) { YAML.load(<<-EOT
 ---
