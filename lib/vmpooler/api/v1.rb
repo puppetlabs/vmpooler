@@ -236,6 +236,18 @@ module Vmpooler
       result
     end
 
+    def component_to_test(match, labels_string)
+      return if labels_string.nil?
+
+      labels_string_parts = labels_string.split(',')
+      labels_string_parts.each do |part|
+        key, value = part.split('=')
+        next if value.nil?
+        return value if key == match
+      end
+      'none'
+    end
+
     def update_user_metrics(operation, vmname)
       backend.multi
       backend.hget("vmpooler__vm__#{vmname}", 'tag:jenkins_build_url')

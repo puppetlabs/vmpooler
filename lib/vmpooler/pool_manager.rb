@@ -478,18 +478,6 @@ module Vmpooler
       dereference_mutex(vm)
     end
 
-    def component_to_test(match, labels_string)
-      return if labels_string.nil?
-
-      labels_string_parts = labels_string.split(',')
-      labels_string_parts.each do |part|
-        key, value = part.split('=')
-        next if value.nil?
-        return value if key == match
-      end
-      'none'
-    end
-
     def purge_unused_vms_and_folders
       global_purge = $config[:config]['purge_unconfigured_folders']
       providers = $config[:providers].keys
