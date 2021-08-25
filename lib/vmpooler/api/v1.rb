@@ -242,6 +242,7 @@ module Vmpooler
       backend.hget("vmpooler__vm__#{vmname}", 'token:user')
       backend.hget("vmpooler__vm__#{vmname}", 'template')
       jenkins_build_url, user, poolname = backend.exec
+      poolname = poolname.gsub('.', '_')
 
       if user
         user = user.gsub('.', '_')
