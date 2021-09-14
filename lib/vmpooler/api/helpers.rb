@@ -56,14 +56,11 @@ module Vmpooler
         return false
       end
 
-      def authenticate_ldap(port, host, user_object, base, username_str, password_str)
+      def authenticate_ldap(port, host, encryption_hash, user_object, base, username_str, password_str)
         ldap = Net::LDAP.new(
           :host => host,
           :port => port,
-          :encryption => {
-            :method => :start_tls,
-            :tls_options => { :ssl_version => 'TLSv1' }
-          },
+          :encryption => encryption_hash,
           :base => base,
           :auth => {
             :method => :simple,
@@ -86,6 +83,10 @@ module Vmpooler
           ldap_port = auth[:ldap]['port'] || 389
           ldap_user_obj = auth[:ldap]['user_object']
           ldap_host = auth[:ldap]['host']
+          ldap_encryption_hash = auth[:ldap]['encryption'] || {
+            :method => :start_tls,
+            :tls_options => { :ssl_version => 'TLSv1' }
+          }
 
           unless ldap_base.is_a? Array
             ldap_base = ldap_base.split
@@ -100,6 +101,7 @@ module Vmpooler
               result = authenticate_ldap(
                 ldap_port,
                 ldap_host,
+                ldap_encryption_hash,
                 search_user_obj,
                 search_base,
                 username_str,

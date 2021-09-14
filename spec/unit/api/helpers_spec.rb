@@ -264,22 +264,46 @@ describe Vmpooler::API::Helpers do
         }
       }
       let(:default_port) { 389 }
+      let(:default_encryption) do
+        {
+          :method => :start_tls,
+          :tls_options => { :ssl_version => 'TLSv1' }
+        }
+      end
       it 'should attempt ldap authentication' do
-        expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object, base, username_str, password_str)
+        expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object, base, username_str, password_str)
 
         subject.authenticate(auth, username_str, password_str)
       end
 
       it 'should return true when authentication is successful' do
-        expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object, base, username_str, password_str).and_return(true)
+        expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object, base, username_str, password_str).and_return(true)
 
         expect(subject.authenticate(auth, username_str, password_str)).to be true
       end
 
       it 'should return false when authentication fails' do
-        expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object, base, username_str, password_str).and_return(false)
+        expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object, base, username_str, password_str).and_return(false)
 
         expect(subject.authenticate(auth, username_str, password_str)).to be false
+      end
+
+      context 'with an alternate ssl_version' do
+        let(:secure_encryption) do
+          {
+            :method => :start_tls,
+            :tls_options => { :ssl_version => 'TLSv1_2' }
+          }
+        end
+        before(:each) do
+          auth[:ldap]['encryption'] = secure_encryption
+        end
+
+        it 'should specify the alternate ssl_version when authenticating' do
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, secure_encryption, user_object, base, username_str, password_str)
+
+          subject.authenticate(auth, username_str, password_str)
+        end
       end
 
       context 'with an alternate port' do
@@ -289,7 +313,27 @@ describe Vmpooler::API::Helpers do
         end
 
         it 'should specify the alternate port when authenticating' do
-          expect(subject).to receive(:authenticate_ldap).with(alternate_port, host, user_object, base, username_str, password_str)
+          expect(subject).to receive(:authenticate_ldap).with(alternate_port, host, default_encryption, user_object, base, username_str, password_str)
+
+          subject.authenticate(auth, username_str, password_str)
+        end
+      end
+
+      context 'with simple_tls and port 636' do
+        let(:secure_port) { 636 }
+        let(:secure_encryption) do
+          {
+            :method => :simple_tls,
+            :tls_options => { :ssl_version => 'TLSv1_2' }
+          }
+        end
+        before(:each) do
+          auth[:ldap]['port'] = secure_port
+          auth[:ldap]['encryption'] = secure_encryption
+        end
+
+        it 'should specify the secure port and encryption options when authenticating' do
+          expect(subject).to receive(:authenticate_ldap).with(secure_port, host, secure_encryption, user_object, base, username_str, password_str)
 
           subject.authenticate(auth, username_str, password_str)
         end
@@ -307,36 +351,36 @@ describe Vmpooler::API::Helpers do
         end
 
         it 'should attempt to bind with each base' do
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object, base[0], username_str, password_str)
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object, base[1], username_str, password_str)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object, base[0], username_str, password_str)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object, base[1], username_str, password_str)
 
           subject.authenticate(auth, username_str, password_str)
         end
 
         it 'should not search the second base when the first binds' do
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object, base[0], username_str, password_str).and_return(true)
-          expect(subject).to_not receive(:authenticate_ldap).with(default_port, host, user_object, base[1], username_str, password_str)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object, base[0], username_str, password_str).and_return(true)
+          expect(subject).to_not receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object, base[1], username_str, password_str)
 
           subject.authenticate(auth, username_str, password_str)
         end
 
         it 'should search the second base when the first bind fails' do
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object, base[0], username_str, password_str).and_return(false)
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object, base[1], username_str, password_str)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object, base[0], username_str, password_str).and_return(false)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object, base[1], username_str, password_str)
 
           subject.authenticate(auth, username_str, password_str)
         end
 
         it 'should return true when any bind succeeds' do
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object, base[0], username_str, password_str).and_return(false)
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object, base[1], username_str, password_str).and_return(true)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object, base[0], username_str, password_str).and_return(false)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object, base[1], username_str, password_str).and_return(true)
 
           expect(subject.authenticate(auth, username_str, password_str)).to be true
         end
 
         it 'should return false when all bind attempts fail' do
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object, base[0], username_str, password_str).and_return(false)
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object, base[1], username_str, password_str).and_return(false)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object, base[0], username_str, password_str).and_return(false)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object, base[1], username_str, password_str).and_return(false)
 
           expect(subject.authenticate(auth, username_str, password_str)).to be false
         end
@@ -354,36 +398,36 @@ describe Vmpooler::API::Helpers do
         end
 
         it 'should attempt to bind with each user object' do
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[0], base, username_str, password_str)
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[1], base, username_str, password_str)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[0], base, username_str, password_str)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[1], base, username_str, password_str)
 
           subject.authenticate(auth, username_str, password_str)
         end
 
         it 'should not search the second user object when the first binds' do
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[0], base, username_str, password_str).and_return(true)
-          expect(subject).to_not receive(:authenticate_ldap).with(default_port, host, user_object[1], base, username_str, password_str)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[0], base, username_str, password_str).and_return(true)
+          expect(subject).to_not receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[1], base, username_str, password_str)
 
           subject.authenticate(auth, username_str, password_str)
         end
 
         it 'should search the second user object when the first bind fails' do
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[0], base, username_str, password_str).and_return(false)
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[1], base, username_str, password_str)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[0], base, username_str, password_str).and_return(false)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[1], base, username_str, password_str)
 
           subject.authenticate(auth, username_str, password_str)
         end
 
         it 'should return true when any bind succeeds' do
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[0], base, username_str, password_str).and_return(false)
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[1], base, username_str, password_str).and_return(true)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[0], base, username_str, password_str).and_return(false)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[1], base, username_str, password_str).and_return(true)
 
           expect(subject.authenticate(auth, username_str, password_str)).to be true
         end
 
         it 'should return false when all bind attempts fail' do
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[0], base, username_str, password_str).and_return(false)
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[1], base, username_str, password_str).and_return(false)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[0], base, username_str, password_str).and_return(false)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[1], base, username_str, password_str).and_return(false)
 
           expect(subject.authenticate(auth, username_str, password_str)).to be false
         end
@@ -408,64 +452,64 @@ describe Vmpooler::API::Helpers do
         end
 
         it 'should attempt to bind with each user object and base' do
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[0], base[0], username_str, password_str)
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[1], base[0], username_str, password_str)
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[0], base[1], username_str, password_str)
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[1], base[1], username_str, password_str)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[0], base[0], username_str, password_str)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[1], base[0], username_str, password_str)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[0], base[1], username_str, password_str)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[1], base[1], username_str, password_str)
 
           subject.authenticate(auth, username_str, password_str)
         end
 
         it 'should not continue searching when the first combination binds' do
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[0], base[0], username_str, password_str).and_return(true)
-          expect(subject).to_not receive(:authenticate_ldap).with(default_port, host, user_object[1], base[0], username_str, password_str)
-          expect(subject).to_not receive(:authenticate_ldap).with(default_port, host, user_object[0], base[1], username_str, password_str)
-          expect(subject).to_not receive(:authenticate_ldap).with(default_port, host, user_object[1], base[1], username_str, password_str)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[0], base[0], username_str, password_str).and_return(true)
+          expect(subject).to_not receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[1], base[0], username_str, password_str)
+          expect(subject).to_not receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[0], base[1], username_str, password_str)
+          expect(subject).to_not receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[1], base[1], username_str, password_str)
 
           subject.authenticate(auth, username_str, password_str)
         end
 
         it 'should search the remaining combinations when the first bind fails' do
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[0], base[0], username_str, password_str).and_return(false)
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[1], base[0], username_str, password_str)
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[0], base[1], username_str, password_str)
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[1], base[1], username_str, password_str)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[0], base[0], username_str, password_str).and_return(false)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[1], base[0], username_str, password_str)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[0], base[1], username_str, password_str)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[1], base[1], username_str, password_str)
 
           subject.authenticate(auth, username_str, password_str)
         end
 
         it 'should search the remaining combinations when the first two binds fail' do
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[0], base[0], username_str, password_str).and_return(false)
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[1], base[0], username_str, password_str).and_return(false)
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[0], base[1], username_str, password_str)
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[1], base[1], username_str, password_str)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[0], base[0], username_str, password_str).and_return(false)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[1], base[0], username_str, password_str).and_return(false)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[0], base[1], username_str, password_str)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[1], base[1], username_str, password_str)
 
           subject.authenticate(auth, username_str, password_str)
         end
 
         it 'should search the remaining combination when the first three binds fail' do
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[0], base[0], username_str, password_str).and_return(false)
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[1], base[0], username_str, password_str).and_return(false)
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[0], base[1], username_str, password_str).and_return(false)
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[1], base[1], username_str, password_str)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[0], base[0], username_str, password_str).and_return(false)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[1], base[0], username_str, password_str).and_return(false)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[0], base[1], username_str, password_str).and_return(false)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[1], base[1], username_str, password_str)
 
           subject.authenticate(auth, username_str, password_str)
         end
 
         it 'should return true when any bind succeeds' do
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[0], base[0], username_str, password_str).and_return(false)
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[1], base[0], username_str, password_str).and_return(false)
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[0], base[1], username_str, password_str).and_return(false)
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[1], base[1], username_str, password_str).and_return(true)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[0], base[0], username_str, password_str).and_return(false)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[1], base[0], username_str, password_str).and_return(false)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[0], base[1], username_str, password_str).and_return(false)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[1], base[1], username_str, password_str).and_return(true)
 
           expect(subject.authenticate(auth, username_str, password_str)).to be true
         end
 
         it 'should return false when all bind attempts fail' do
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[0], base[0], username_str, password_str).and_return(false)
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[1], base[0], username_str, password_str).and_return(false)
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[0], base[1], username_str, password_str).and_return(false)
-          expect(subject).to receive(:authenticate_ldap).with(default_port, host, user_object[1], base[1], username_str, password_str).and_return(false)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[0], base[0], username_str, password_str).and_return(false)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[1], base[0], username_str, password_str).and_return(false)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[0], base[1], username_str, password_str).and_return(false)
+          expect(subject).to receive(:authenticate_ldap).with(default_port, host, default_encryption, user_object[1], base[1], username_str, password_str).and_return(false)
 
           expect(subject.authenticate(auth, username_str, password_str)).to be false
         end
@@ -493,16 +537,19 @@ describe Vmpooler::API::Helpers do
     let(:base) { 'ou=users,dc=example,dc=com' }
     let(:username_str) { 'admin' }
     let(:password_str) { 's3cr3t' }
+    let(:encryption) do
+      {
+        :method => :start_tls,
+        :tls_options => { :ssl_version => 'TLSv1' }
+      }
+    end
     let(:ldap) { double('ldap') }
     it 'should create a new ldap connection' do
       allow(ldap).to receive(:bind)
       expect(Net::LDAP).to receive(:new).with(
         :host => host,
         :port => port,
-        :encryption => {
-          :method => :start_tls,
-          :tls_options => { :ssl_version => 'TLSv1' }
-        },
+        :encryption => encryption,
         :base => base,
         :auth => {
           :method => :simple,
@@ -511,21 +558,21 @@ describe Vmpooler::API::Helpers do
         }
       ).and_return(ldap)
 
-      subject.authenticate_ldap(port, host, user_object, base, username_str, password_str)
+      subject.authenticate_ldap(port, host, encryption, user_object, base, username_str, password_str)
     end
 
     it 'should return true when a bind is successful' do
       expect(Net::LDAP).to receive(:new).and_return(ldap)
       expect(ldap).to receive(:bind).and_return(true)
 
-      expect(subject.authenticate_ldap(port, host, user_object, base, username_str, password_str)).to be true
+      expect(subject.authenticate_ldap(port, host, encryption, user_object, base, username_str, password_str)).to be true
     end
 
     it 'should return false when a bind fails' do
       expect(Net::LDAP).to receive(:new).and_return(ldap)
       expect(ldap).to receive(:bind).and_return(false)
 
-      expect(subject.authenticate_ldap(port, host, user_object, base, username_str, password_str)).to be false
+      expect(subject.authenticate_ldap(port, host, encryption, user_object, base, username_str, password_str)).to be false
     end
   end
 
