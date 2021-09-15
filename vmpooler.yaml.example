@@ -373,7 +373,11 @@
   provider: 'ldap'
   :ldap:
     host: 'ldap.example.com'
-    port: 389
+    port: 636
+    encryption:
+      :method: :simple_tls
+      :tls_options:
+        :ssl_version: 'TLSv1_2'
     base: 'ou=users,dc=company,dc=com'
     user_object: 'uid'
 

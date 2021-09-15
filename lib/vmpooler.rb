@@ -119,6 +119,11 @@ module Vmpooler
       parsed_config[:auth][:ldap]['port']        = string_to_int(ENV['LDAP_PORT']) if ENV['LDAP_PORT']
       parsed_config[:auth][:ldap]['base']        = ENV['LDAP_BASE'] if ENV['LDAP_BASE']
       parsed_config[:auth][:ldap]['user_object'] = ENV['LDAP_USER_OBJECT'] if ENV['LDAP_USER_OBJECT']
+      if parsed_config[:auth]['provider'] == 'ldap' && parsed_config[:auth][:ldap].key?('encryption')
+        parsed_config[:auth][:ldap]['encryption'] = parsed_config[:auth][:ldap]['encryption']
+      elsif parsed_config[:auth]['provider'] == 'ldap'
+        parsed_config[:auth][:ldap]['encryption'] = {}
+      end
     end
 
     # Create an index of pool aliases
