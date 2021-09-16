@@ -46,5 +46,6 @@ Gem::Specification.new do |s|
   s.add_development_dependency 'rspec', '>= 3.2'
   s.add_development_dependency 'rubocop', '~> 1.1.0'
   s.add_development_dependency 'simplecov', '>= 0.11.2'
+  s.add_development_dependency 'thor', '~> 1.0', '>= 1.0.1'
   s.add_development_dependency 'yarjuf', '>= 2.0'
 end
