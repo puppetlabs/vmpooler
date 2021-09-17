@@ -1,9 +1,11 @@
+.bundle/
 .vagrant/
-results.xml
+coverage/
+vendor/
+.dccache
 .ruby-version
-Gemfile.lock
 Gemfile.local
-vendor
+Gemfile.lock
+results.xml
 /vmpooler.yaml
-.bundle
-coverage
+
