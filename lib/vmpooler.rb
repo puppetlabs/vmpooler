@@ -133,8 +133,17 @@ module Vmpooler
       parsed_config[:pools] = load_pools_from_redis(redis)
     end
 
+    # Marshal.dump is paired with Marshal.load to create a copy that has its own memory space
+    # so that each can be edited independently
+    # rubocop:disable Security/MarshalLoad
+
+    # retain a copy of the pools that were observed at startup
+    serialized_pools = Marshal.dump(parsed_config[:pools])
+    parsed_config[:pools_at_startup] = Marshal.load(serialized_pools)
+
     # Create an index of pools by title
     parsed_config[:pool_index] = pool_index(parsed_config[:pools])
+    # rubocop:enable Security/MarshalLoad
 
     parsed_config[:pools].each do |pool|
       parsed_config[:pool_names] << pool['name']

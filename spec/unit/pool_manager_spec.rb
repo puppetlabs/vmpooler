@@ -3159,6 +3159,54 @@ EOT
       end
     end
 
+    describe 'with the undo_override wakeup option' do
+      let(:wakeup_option) {{
+        :undo_override => true,
+        :poolname => pool
+      }}
+
+      let(:wakeup_period) { -1 } # A negative number forces the wakeup evaluation to always occur
+
+      context 'when a undoing a template override is requested' do
+        before(:each) do
+          redis_connection_pool.with do |redis|
+            redis.sadd('vmpooler__pool__undo_template_override', pool)
+            allow(redis).to receive(:hget)
+          end
+        end
+
+        it 'should sleep until the undo override request is detected' do
+          redis_connection_pool.with do |redis|
+            expect(subject).to receive(:sleep).at_least(2).times
+            expect(subject).to receive(:sleep).at_most(3).times
+            expect(redis).to receive(:sismember).with('vmpooler__pool__undo_template_override', pool).and_return(false,false,true)
+            expect(redis).to receive(:sismember).with('vmpooler__pool__undo_size_override', pool).and_return(false,false)
+          end
+
+          subject.sleep_with_wakeup_events(loop_delay, wakeup_period, wakeup_option)
+        end
+      end
+
+      context 'when a undoing a size override is requested' do
+        before(:each) do
+          redis_connection_pool.with do |redis|
+            redis.sadd('vmpooler__pool__undo_size_override', pool)
+            allow(redis).to receive(:hget)
+          end
+        end
+
+        it 'should sleep until the undo override request is detected' do
+          redis_connection_pool.with do |redis|
+            expect(subject).to receive(:sleep).exactly(3).times
+            expect(redis).to receive(:sismember).with('vmpooler__pool__undo_template_override', pool).and_return(false,false,false)
+            expect(redis).to receive(:sismember).with('vmpooler__pool__undo_size_override', pool).and_return(false,false,true)
+          end
+
+          subject.sleep_with_wakeup_events(loop_delay, wakeup_period, wakeup_option)
+        end
+      end
+    end
+
     describe 'with the pending_vm wakeup option' do
       let(:wakeup_option) {{
         :pending_vm => true,
@@ -3474,6 +3522,54 @@ EOT
 
         subject.check_pool(pool_object,maxloop,0)
       end
+    end
+  end
+
+  describe 'undo_override' do
+    let(:mutex) { Mutex.new }
+    let(:original_template) { 'templates/template1' }
+    let(:override_template) { 'templates/template2' }
+    let(:original_size) { 2 }
+    let(:override_size) { 10 }
+    let(:config) { YAML.load(<<-EOT
+---
+:config:
+  task_limit: 5
+:providers:
+  :mock:
+:pools:
+  - name: '#{pool}'
+    size: #{override_size}
+    template: '#{override_template}'
+:pool_index:
+  '#{pool}': 0
+:pools_at_startup:
+  - name: '#{pool}'
+    size: #{original_size}
+    template: '#{original_template}'
+EOT
+      )
+    }
+
+    before(:each) do
+      redis_connection_pool.with do |redis|
+        redis.sadd('vmpooler__pool__undo_template_override', pool)
+        redis.sadd('vmpooler__pool__undo_size_override', pool)
+        # allow(redis).to receive(:hget)
+      end
+    end
+
+    it 'should revert to the original template and pool size' do
+      redis_connection_pool.with do |redis|
+        expect(redis).to receive(:sismember).with('vmpooler__pool__undo_template_override', pool).and_return(true)
+        expect(redis).to receive(:srem).with('vmpooler__pool__undo_template_override', pool).and_return(true)
+        expect(subject).to receive(:update_pool_template).with(config[:pools][0], provider, original_template, override_template, redis)
+
+        expect(redis).to receive(:sismember).with('vmpooler__pool__undo_size_override', pool).and_return(true)
+        expect(redis).to receive(:srem).with('vmpooler__pool__undo_size_override', pool).and_return(true)
+      end
+
+      subject.undo_override(config[:pools][0], provider)
     end
   end
 
