@@ -10,9 +10,6 @@
 
 FROM jruby:9.2-jdk
 
-COPY docker/docker-entrypoint.sh /usr/local/bin/
-COPY ./ ./
-
 ENV RACK_ENV=production
 
 RUN apt-get update -qq && \
@@ -21,9 +18,18 @@ RUN apt-get update -qq && \
     apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
 
+COPY docker/docker-entrypoint.sh /usr/local/bin/
+COPY ./Gemfile ./
+COPY ./vmpooler.gemspec ./
+COPY ./lib/vmpooler/version.rb ./lib/vmpooler/version.rb
+
 RUN gem install bundler && \
-    bundle install && \
-    gem build vmpooler.gemspec && \
+    bundle config set --local jobs 3 && \
+    bundle install
+
+COPY ./ ./
+
+RUN gem build vmpooler.gemspec && \
     gem install vmpooler*.gem && \
     chmod +x /usr/local/bin/docker-entrypoint.sh
 

@@ -26,6 +26,10 @@ describe Vmpooler::API::V1 do
         {'name' => 'pool1', 'size' => 5, 'template' => 'templates/pool1', 'clone_target' => 'default_cluster'},
         {'name' => 'pool2', 'size' => 10}
       ],
+      pools_at_startup: [
+        {'name' => 'pool1', 'size' => 5, 'template' => 'templates/pool1', 'clone_target' => 'default_cluster'},
+        {'name' => 'pool2', 'size' => 10}
+      ],
       statsd: { 'prefix' => 'stats_prefix'},
       alias: { 'poolone' => 'pool1' },
       pool_names: [ 'pool1', 'pool2', 'poolone' ]
@@ -43,6 +47,47 @@ describe Vmpooler::API::V1 do
       app.execute([:api], config, redis, metrics, nil)
       app.settings.set :config, auth: false
       create_token('abcdefghijklmnopqrstuvwxyz012345', 'jdoe', current_time)
+    end
+
+    describe 'DELETE /config/pooltemplate/:pool' do
+      it 'resets a pool template' do
+        post "#{prefix}/config/pooltemplate", '{"pool1":"templates/new_template"}'
+        delete "#{prefix}/config/pooltemplate/pool1"
+        expect_json(ok = true, http = 201)
+
+        expected = {
+          ok: true,
+          template_before_reset: 'templates/new_template',
+          template_before_overrides: 'templates/pool1'
+        }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+      end
+
+      it 'succeeds when the pool has not been overridden' do
+        delete "#{prefix}/config/pooltemplate/pool1"
+        expect_json(ok = true, http = 200)
+      end
+
+      it 'fails on nonexistent pools' do
+        delete "#{prefix}/config/pooltemplate/poolpoolpool"
+        expect_json(ok = false, http = 404)
+      end
+
+      context 'with experimental features disabled' do
+        before(:each) do
+          config[:config]['experimental_features'] = false
+        end
+
+        it 'should return 405' do
+          delete "#{prefix}/config/pooltemplate/pool1"
+          expect_json(ok = false, http = 405)
+
+          expected = { ok: false }
+          expect(last_response.body).to eq(JSON.pretty_generate(expected))
+        end
+      end
+
     end
 
     describe 'POST /config/pooltemplate' do
@@ -140,6 +185,56 @@ describe Vmpooler::API::V1 do
         end
       end
 
+    end
+
+    describe 'DELETE /config/poolsize' do
+      it 'resets a pool size' do
+        post "#{prefix}/config/poolsize", '{"pool1":"2"}'
+        delete "#{prefix}/config/poolsize/pool1"
+        expect_json(ok = true, http = 201)
+
+        expected = {
+          ok: true,
+          pool_size_before_reset: 2,
+          pool_size_before_overrides: 5
+        }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+      end
+
+      it 'fails when a specified pool does not exist' do
+        delete "#{prefix}/config/poolsize/pool10"
+        expect_json(ok = false, http = 404)
+        expected = { ok: false }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+      end
+
+      it 'succeeds when a pool has not been overridden' do
+        delete "#{prefix}/config/poolsize/pool1"
+        expect_json(ok = true, http = 200)
+        expected = {
+          ok: true,
+          pool_size_before_reset: 5,
+          pool_size_before_overrides: 5
+        }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+      end
+
+      context 'with experimental features disabled' do
+        before(:each) do
+          config[:config]['experimental_features'] = false
+        end
+
+        it 'should return 405' do
+          delete "#{prefix}/config/poolsize/pool1"
+          expect_json(ok = false, http = 405)
+
+          expected = { ok: false }
+          expect(last_response.body).to eq(JSON.pretty_generate(expected))
+        end
+      end
     end
 
     describe 'POST /config/poolsize' do

@@ -28,6 +28,10 @@ module Vmpooler
       Vmpooler::API.settings.config[:pools]
     end
 
+    def pools_at_startup
+      Vmpooler::API.settings.config[:pools_at_startup]
+    end
+
     def pool_exists?(template)
       Vmpooler::API.settings.config[:pool_names].include?(template)
     end
@@ -289,6 +293,32 @@ module Vmpooler
       puts 'd', "[!] [#{poolname}] failed while evaluating usage labels on '#{vmname}' with an error: #{e}"
     end
 
+    def reset_pool_size(poolname)
+      result = { 'ok' => false }
+
+      pool_index = pool_index(pools)
+
+      pools_updated = 0
+      sync_pool_sizes
+
+      pool_size_now = pools[pool_index[poolname]]['size'].to_i
+      pool_size_original = pools_at_startup[pool_index[poolname]]['size'].to_i
+      result['pool_size_before_reset'] = pool_size_now
+      result['pool_size_before_overrides'] = pool_size_original
+
+      unless pool_size_now == pool_size_original
+        pools[pool_index[poolname]]['size'] = pool_size_original
+        backend.hdel('vmpooler__config__poolsize', poolname)
+        backend.sadd('vmpooler__pool__undo_size_override', poolname)
+        pools_updated += 1
+        status 201
+      end
+
+      status 200 unless pools_updated > 0
+      result['ok'] = true
+      result
+    end
+
     def update_pool_size(payload)
       result = { 'ok' => false }
 
@@ -304,6 +334,33 @@ module Vmpooler
           status 201
         end
       end
+      status 200 unless pools_updated > 0
+      result['ok'] = true
+      result
+    end
+
+    def reset_pool_template(poolname)
+      result = { 'ok' => false }
+
+      pool_index_live = pool_index(pools)
+      pool_index_original = pool_index(pools_at_startup)
+
+      pools_updated = 0
+      sync_pool_templates
+
+      template_now = pools[pool_index_live[poolname]]['template']
+      template_original = pools_at_startup[pool_index_original[poolname]]['template']
+      result['template_before_reset'] = template_now
+      result['template_before_overrides'] = template_original
+
+      unless template_now == template_original
+        pools[pool_index_live[poolname]]['template'] = template_original
+        backend.hdel('vmpooler__config__template', poolname)
+        backend.sadd('vmpooler__pool__undo_template_override', poolname)
+        pools_updated += 1
+        status 201
+      end
+
       status 200 unless pools_updated > 0
       result['ok'] = true
       result
@@ -1375,6 +1432,26 @@ module Vmpooler
       JSON.pretty_generate(result)
     end
 
+    delete "#{api_prefix}/config/poolsize/:pool/?" do
+      content_type :json
+      result = { 'ok' => false }
+
+      if config['experimental_features']
+        need_token! if Vmpooler::API.settings.config[:auth]
+
+        if pool_exists?(params[:pool])
+          result = reset_pool_size(params[:pool])
+        else
+          metrics.increment('config.invalid.unknown')
+          status 404
+        end
+      else
+        status 405
+      end
+
+      JSON.pretty_generate(result)
+    end
+
     post "#{api_prefix}/config/poolsize/?" do
       content_type :json
       result = { 'ok' => false }
@@ -1395,6 +1472,26 @@ module Vmpooler
             result[:not_configured] = invalid
             status 400
           end
+        else
+          metrics.increment('config.invalid.unknown')
+          status 404
+        end
+      else
+        status 405
+      end
+
+      JSON.pretty_generate(result)
+    end
+
+    delete "#{api_prefix}/config/pooltemplate/:pool/?" do
+      content_type :json
+      result = { 'ok' => false }
+
+      if config['experimental_features']
+        need_token! if Vmpooler::API.settings.config[:auth]
+
+        if pool_exists?(params[:pool])
+          result = reset_pool_template(params[:pool])
         else
           metrics.increment('config.invalid.unknown')
           status 404

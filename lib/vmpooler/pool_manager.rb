@@ -784,6 +784,10 @@ module Vmpooler
     #   - Fires when a pool reset is requested
     #   - Additional options
     #       :poolname
+    # :undo_override
+    #   - Fires when a pool override removal is requested
+    #   - Additional options
+    #       :poolname
     #
     def sleep_with_wakeup_events(loop_delay, wakeup_period = 5, options = {})
       exit_by = Time.now + loop_delay
@@ -824,6 +828,11 @@ module Vmpooler
             if options[:pool_reset]
               pending = redis.sismember('vmpooler__poolreset', options[:poolname])
               break if pending
+            end
+
+            if options[:undo_override]
+              break if redis.sismember('vmpooler__pool__undo_template_override', options[:poolname])
+              break if redis.sismember('vmpooler__pool__undo_size_override', options[:poolname])
             end
 
             if options[:pending_vm]
@@ -880,7 +889,7 @@ module Vmpooler
               loop_delay = (loop_delay * loop_delay_decay).to_i
               loop_delay = loop_delay_max if loop_delay > loop_delay_max
             end
-            sleep_with_wakeup_events(loop_delay, loop_delay_min, pool_size_change: true, poolname: pool['name'], pool_template_change: true, clone_target_change: true, pending_vm: true, pool_reset: true)
+            sleep_with_wakeup_events(loop_delay, loop_delay_min, pool_size_change: true, poolname: pool['name'], pool_template_change: true, clone_target_change: true, pending_vm: true, pool_reset: true, undo_override: true)
 
             unless maxloop == 0
               break if loop_count >= maxloop
@@ -1040,15 +1049,18 @@ module Vmpooler
       return if mutex.locked?
 
       @redis.with_metrics do |redis|
-        poolsize = redis.hget('vmpooler__config__poolsize', pool['name'])
-        break if poolsize.nil?
+        pool_size_requested = redis.hget('vmpooler__config__poolsize', pool['name'])
+        break if pool_size_requested.nil?
 
-        poolsize = Integer(poolsize)
-        break if poolsize == pool['size']
+        pool_size_requested = Integer(pool_size_requested)
+        pool_size_currently = pool['size']
+        break if pool_size_requested == pool_size_currently
 
         mutex.synchronize do
-          pool['size'] = poolsize
+          pool['size'] = pool_size_requested
         end
+
+        $logger.log('s', "[*] [#{pool['name']}] size updated from #{pool_size_currently} to #{pool_size_requested}")
       end
     end
 
@@ -1063,6 +1075,38 @@ module Vmpooler
           drain_pool(poolname, redis)
           $logger.log('s', "[*] [#{poolname}] reset has cleared ready and pending instances")
         end
+      end
+    end
+
+    def undo_override(pool, provider)
+      poolname = pool['name']
+      mutex = pool_mutex(poolname)
+      return if mutex.locked?
+
+      @redis.with_metrics do |redis|
+        break unless redis.sismember('vmpooler__pool__undo_template_override', poolname)
+
+        redis.srem('vmpooler__pool__undo_template_override', poolname)
+        template_now = pool['template']
+        template_original = $config[:pools_at_startup][$config[:pool_index][poolname]]['template']
+
+        mutex.synchronize do
+          update_pool_template(pool, provider, template_original, template_now, redis)
+        end
+      end
+
+      @redis.with_metrics do |redis|
+        break unless redis.sismember('vmpooler__pool__undo_size_override', poolname)
+
+        redis.srem('vmpooler__pool__undo_size_override', poolname)
+        pool_size_now = pool['size']
+        pool_size_original = $config[:pools_at_startup][$config[:pool_index][poolname]]['size']
+
+        mutex.synchronize do
+          pool['size'] = pool_size_original
+        end
+
+        $logger.log('s', "[*] [#{poolname}] size updated from #{pool_size_now} to #{pool_size_original}")
       end
     end
 
@@ -1299,6 +1343,9 @@ module Vmpooler
 
       # Reset a pool when poolreset is requested from the API
       reset_pool(pool)
+
+      # Undo overrides submitted via the api
+      undo_override(pool, provider)
 
       pool_check_response
     end

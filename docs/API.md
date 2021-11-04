@@ -743,6 +743,28 @@ $ curl -X POST -H "Content-Type: application/json" -d '{"debian-7-i386":"2","deb
 }
 ```
 
+##### DELETE /config/poolsize/&lt;pool&gt;
+
+Delete an overridden pool size. This results in the values from VMPooler's config being used.
+
+Return codes:
+* 200 - when nothing was changed but no error occurred
+* 201 - size reset successful
+* 401 - when not authorized
+* 404 - pool does not exist
+* 405 - The endpoint is disabled because experimental features are disabled
+
+```
+$ curl -X DELETE -u jdoe --url vmpooler.example.com/api/v1/poolsize/almalinux-8-x86_64
+```
+```json
+{
+    "ok": true,
+    "pool_size_before_overrides": 2,
+    "pool_size_before_reset": 4
+}
+```
+
 ##### POST /config/pooltemplate
 
 Change the template configured for a pool, and replenish the pool with instances built from the new template.
@@ -772,6 +794,28 @@ $ curl -X POST -H "Content-Type: application/json" -d '{"debian-7-i386":"templat
 ```json
 {
   "ok": true
+}
+```
+
+##### DELETE /config/pooltemplate/&lt;pool&gt;
+
+Delete an overridden pool template. This results in the values from VMPooler's config being used.
+
+Return codes:
+* 200 - when nothing was changed but no error occurred
+* 201 - template reset successful
+* 401 - when not authorized
+* 404 - pool does not exist
+* 405 - The endpoint is disabled because experimental features are disabled
+
+```
+$ curl -X DELETE -u jdoe --url vmpooler.example.com/api/v1/pooltemplate/almalinux-8-x86_64
+```
+```json
+{
+    "ok": true,
+    "template_before_overrides": "templates/almalinux-8-x86_64-0.0.2",
+    "template_before_reset": "templates/almalinux-8-x86_64-0.0.3-beta"
 }
 ```
 

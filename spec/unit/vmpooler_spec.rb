@@ -20,6 +20,21 @@ describe 'Vmpooler' do
           expect(Vmpooler.config[:pools]).to eq(default_config[:pools])
         end
       end
+
+      it 'keeps a copy of the original pools at startup' do
+        Dir.chdir(fixtures_dir) do
+          configuration = Vmpooler.config
+          expect(configuration[:pools]).to eq(configuration[:pools_at_startup])
+        end
+      end
+
+      it 'the copy is a separate object and not a reference' do
+        Dir.chdir(fixtures_dir) do
+          configuration = Vmpooler.config
+          configuration[:pools][0]['template'] = 'sam'
+          expect(configuration[:pools]).not_to eq(configuration[:pools_at_startup])
+        end
+      end
     end
 
     context 'when config variable is set' do
