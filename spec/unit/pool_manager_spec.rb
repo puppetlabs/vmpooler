@@ -70,14 +70,13 @@ EOT
     )
     }
     it do
-      files = ["#{project_root_dir}/lib/vmpooler/providers/vsphere.rb",
-               "#{project_root_dir}/lib/vmpooler/providers/dummy.rb"]
+      files = ["#{project_root_dir}/lib/vmpooler/providers/dummy.rb"]
       expect(subject.load_used_providers).to eq(files)
     end
   end
 
   it '#default_providers' do
-    expect(subject.default_providers).to eq(['vsphere', 'dummy'])
+    expect(subject.default_providers).to eq(['dummy'])
   end
 
   describe '#check_pending_vm' do
@@ -2728,13 +2727,14 @@ EOT
   :vsphere: {}
 :pools:
   - name: #{pool}
+    provider: 'vsphere'
   - name: 'dummy'
     provider: 'vsphere'
 EOT
         )}
 
         it 'should call create_provider_object idempotently' do
-          # Even though there are two pools using the vsphere provider (the default), it should only
+          # Even though there are two pools using the vsphere provider, it should only
           # create the provider object once.
           expect(subject).to receive(:create_provider_object).with(Object, Object, Object, redis_connection_pool, 'vsphere', 'vsphere', Object).and_return(vsphere_provider)
 
@@ -2753,50 +2753,6 @@ EOT
 
           expect{ subject.execute!(1,0) }.to raise_error(/MockError/)
         end
-      end
-    end
-
-    context 'creating multiple vsphere Providers' do
-      let(:vsphere_provider) { double('vsphere_provider') }
-      let(:vsphere_provider2) { double('vsphere_provider') }
-      let(:provider1) { Vmpooler::PoolManager::Provider::Base.new(config, logger, metrics, redis_connection_pool, 'vsphere', provider_options) }
-      let(:provider2) { Vmpooler::PoolManager::Provider::Base.new(config, logger, metrics, redis_connection_pool, 'secondvsphere', provider_options) }
-      let(:config) {
-        YAML.load(<<-EOT
----
-:providers:
-  :vsphere:
-    server: 'blah1'
-    provider_class: 'vsphere'
-  :secondvsphere:
-    server: 'blah2'
-    provider_class: 'vsphere'
-:pools:
-  - name: #{pool}
-    provider: 'vsphere'
-  - name: 'secondpool'
-    provider: 'secondvsphere'
-EOT
-        )}
-
-      it 'should call create_provider_object twice' do
-        # The two pools use a different provider name, but each provider_class is vsphere
-        expect(subject).to receive(:create_provider_object).with(Object, Object, Object, redis_connection_pool, "vsphere", "vsphere", Object).and_return(vsphere_provider)
-        expect(subject).to receive(:create_provider_object).with(Object, Object, Object, redis_connection_pool, "vsphere", "secondvsphere", Object).and_return(vsphere_provider2)
-        subject.execute!(1,0)
-      end
-
-      it 'should have vsphere providers with different servers' do
-        allow(subject).to receive(:get_provider_for_pool).with(pool).and_return(provider1)
-        result = subject.get_provider_for_pool(pool)
-        allow(provider1).to receive(:provider_config).and_call_original
-        expect(result.provider_config['server']).to eq('blah1')
-
-        allow(subject).to receive(:get_provider_for_pool).with('secondpool').and_return(provider2)
-        result = subject.get_provider_for_pool('secondpool')
-        allow(provider1).to receive(:provider_config).and_call_original
-        expect(result.provider_config['server']).to eq('blah2')
-        subject.execute!(1,0)
       end
     end
 
@@ -2830,7 +2786,7 @@ EOT
       end
 
 
-      context 'default to the vphere provider' do
+      context 'default to the dummy provider' do
         let(:config) {
         YAML.load(<<-EOT
 ---
@@ -2841,18 +2797,18 @@ EOT
 EOT
         )}
 
-        it 'should set providers with no provider to vsphere' do
+        it 'should set providers with no provider to dummy' do
           expect(subject.config[:pools][0]['provider']).to be_nil
           expect(subject.config[:pools][1]['provider']).to eq('dummy')
 
           subject.execute!(1,0)
 
-          expect(subject.config[:pools][0]['provider']).to eq('vsphere')
+          expect(subject.config[:pools][0]['provider']).to eq('dummy')
           expect(subject.config[:pools][1]['provider']).to eq('dummy')
         end
 
         it 'should log a message' do
-          expect(logger).to receive(:log).with('d', "[!] Setting provider for pool '#{pool}' to 'vsphere' as default")
+          expect(logger).to receive(:log).with('d', "[!] Setting provider for pool '#{pool}' to 'dummy' as default")
 
           subject.execute!(1,0)
         end
