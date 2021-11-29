@@ -12,12 +12,8 @@ describe 'providers' do
   end
 
   it '#load_all_providers' do
-    p = [
-        File.join(project_root_dir, 'lib', 'vmpooler', 'providers', 'base.rb'),
-        File.join(project_root_dir, 'lib', 'vmpooler', 'providers', 'dummy.rb'),
-        File.join(project_root_dir, 'lib', 'vmpooler', 'providers', 'vsphere.rb')
-    ]
-    expect(Vmpooler::Providers.load_all_providers).to match_array(p)
+    expect(Vmpooler::Providers.load_all_providers.join(', ')).to match(%r{#{project_root_dir}/lib/vmpooler/providers/base.rb})
+    expect(Vmpooler::Providers.load_all_providers.join(', ')).to match(%r{#{project_root_dir}/lib/vmpooler/providers/dummy.rb})
   end
 
   it '#installed_providers' do
@@ -30,21 +26,18 @@ describe 'providers' do
   end
 
   it '#load_by_name' do
-    expect(Vmpooler::Providers.load_by_name('vsphere')).to eq([File.join(project_root_dir, 'lib', 'vmpooler', 'providers', 'vsphere.rb')])
+    expect(Vmpooler::Providers.load_by_name('dummy').join(', ')).to match(%r{#{project_root_dir}/lib/vmpooler/providers/dummy.rb})
+    expect(Vmpooler::Providers.load_by_name('dummy').join(', ')).to_not match(%r{,})
   end
 
-  it '#load only vpshere' do
-    expect(providers.load_from_gems('vsphere')).to eq([File.join(project_root_dir, 'lib', 'vmpooler', 'providers', 'vsphere.rb')])
+  it '#load only dummy' do
+    expect(providers.load_from_gems('dummy').join(', ')).to match(%r{#{project_root_dir}/lib/vmpooler/providers/dummy.rb})
+    expect(providers.load_from_gems('dummy').join(', ')).to_not match(%r{,})
   end
 
   it '#load all providers from gems' do
-    p = [
-        File.join(project_root_dir, 'lib', 'vmpooler', 'providers', 'base.rb'),
-        File.join(project_root_dir, 'lib', 'vmpooler', 'providers', 'dummy.rb'),
-        File.join(project_root_dir, 'lib', 'vmpooler', 'providers', 'vsphere.rb')
-    ]
-    expect(providers.load_from_gems).to match_array(p)
-
+    expect(providers.load_from_gems.join(', ')).to match(%r{#{project_root_dir}/lib/vmpooler/providers/base.rb})
+    expect(providers.load_from_gems.join(', ')).to match(%r{#{project_root_dir}/lib/vmpooler/providers/dummy.rb})
   end
 
 

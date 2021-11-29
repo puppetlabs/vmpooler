@@ -7,7 +7,6 @@ module Vmpooler
   require 'net/ldap'
   require 'open-uri'
   require 'pickup'
-  require 'rbvmomi'
   require 'redis'
   require 'set'
   require 'sinatra/base'

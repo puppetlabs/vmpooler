@@ -628,7 +628,7 @@ module Vmpooler
     end
 
     # @return [Array] - a list of used providers from the config file, defaults to the default providers
-    # ie. ["vsphere", "dummy"]
+    # ie. ["dummy"]
     def used_providers
       pools = config[:pools] || []
       @used_providers ||= (pools.map { |pool| pool[:provider] || pool['provider'] }.compact + default_providers).uniq
@@ -638,7 +638,7 @@ module Vmpooler
     # note: vsphere is the default if user does not specify although this should not be
     # if vsphere is to no longer be loaded by default please remove
     def default_providers
-      @default_providers ||= %w[vsphere dummy]
+      @default_providers ||= %w[dummy]
     end
 
     def get_pool_name_for_vm(vm_name, redis)
@@ -1561,8 +1561,8 @@ module Vmpooler
       # Set default provider for all pools that do not have one defined
       $config[:pools].each do |pool|
         if pool['provider'].nil?
-          $logger.log('d', "[!] Setting provider for pool '#{pool['name']}' to 'vsphere' as default")
-          pool['provider'] = 'vsphere'
+          $logger.log('d', "[!] Setting provider for pool '#{pool['name']}' to 'dummy' as default")
+          pool['provider'] = 'dummy'
         end
       end
 
