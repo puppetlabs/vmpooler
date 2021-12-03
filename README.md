@@ -1,4 +1,4 @@
-![VMPooler](https://raw.github.com/sschneid/vmpooler/master/lib/vmpooler/public/img/logo.gif)
+![VMPooler](https://raw.github.com/puppetlabs/vmpooler/master/lib/vmpooler/public/img/logo.png)
 
 # VMPooler
 
