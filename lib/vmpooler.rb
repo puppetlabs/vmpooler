@@ -87,6 +87,14 @@ module Vmpooler
     parsed_config[:config]['create_template_delta_disks']        = ENV['CREATE_TEMPLATE_DELTA_DISKS'] if ENV['CREATE_TEMPLATE_DELTA_DISKS']
     set_linked_clone(parsed_config)
 
+    parsed_config[:config][:default_pool_providers] = if ENV['DEFAULT_POOL_PROVIDERS']
+                                                         ENV['DEFAULT_POOL_PROVIDERS'].split(',')
+                                                       elsif parsed_config[:config][:default_pool_providers]
+                                                         parsed_config[:config][:default_pool_providers]
+                                                       else
+                                                         %w[dummy]
+                                                       end
+
     parsed_config[:redis]                            = parsed_config[:redis] || {}
     parsed_config[:redis]['server']                  = ENV['REDIS_SERVER'] || parsed_config[:redis]['server'] || 'localhost'
     parsed_config[:redis]['port']                    = string_to_int(ENV['REDIS_PORT']) if ENV['REDIS_PORT']

@@ -635,10 +635,10 @@ module Vmpooler
     end
 
     # @return [Array] - returns a list of providers that should always be loaded
-    # note: vsphere is the default if user does not specify although this should not be
-    # if vsphere is to no longer be loaded by default please remove
     def default_providers
-      @default_providers ||= %w[dummy]
+      default_pool_providers = config[:config][:default_pool_providers]
+      $logger.log('i', "[+] [default_providers] The default providers are: #{default_pool_providers}")
+      @default_providers ||= default_pool_providers
     end
 
     def get_pool_name_for_vm(vm_name, redis)
