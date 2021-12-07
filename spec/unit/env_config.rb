@@ -28,7 +28,7 @@ describe 'Vmpooler' do
         ['create_template_delta_disks', test_bool, nil],
         ['create_linked_clones', test_bool, nil],
         ['experimental_features', test_bool, nil],
-        ['purge_unconfigured_folders', test_bool, nil],
+        ['purge_unconfigured_resources', test_bool, nil],
         ['usage_stats', test_bool, nil],
         ['request_logger', test_bool, nil],
         ['extra_config', test_string, nil],

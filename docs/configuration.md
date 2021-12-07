@@ -169,10 +169,12 @@ This can also be set per pool.
 (optional; default: true)
 
 ### PURGE\_UNCONFIGURED\_FOLDERS
+Deprecated, see PURGE\_UNCONFIGURED\_RESOURCES
 
-Enable purging of VMs and folders detected within the base folder path that are not configured for the provider
-Only a single layer of folders and their child VMs are evaluated from detected base folder paths
-A base folder path for 'vmpooler/redhat-7' would be 'vmpooler'
+### PURGE\_UNCONFIGURED\_RESOURCES
+
+Enable purging of VMs (and other resources) detected within the provider that are not explicitly configured.
+Implementation is provider-dependent
 When enabled in the global configuration then purging is enabled for all providers
 Expects a boolean value
 (optional; default: false)

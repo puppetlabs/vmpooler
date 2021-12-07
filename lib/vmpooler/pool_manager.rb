@@ -478,15 +478,15 @@ module Vmpooler
       dereference_mutex(vm)
     end
 
-    def purge_unused_vms_and_folders
-      global_purge = $config[:config]['purge_unconfigured_folders']
+    def purge_unused_vms_and_resources
+      global_purge = $config[:config]['purge_unconfigured_resources']
       providers = $config[:providers].keys
       providers.each do |provider_key|
-        provider_purge = $config[:providers][provider_key]['purge_unconfigured_folders'] || global_purge
+        provider_purge = $config[:providers][provider_key]['purge_unconfigured_resources'] || global_purge
         if provider_purge
           Thread.new do
             begin
-              purge_vms_and_folders(provider_key)
+              purge_vms_and_resources(provider_key)
             rescue StandardError => e
               $logger.log('s', "[!] failed while purging provider #{provider_key} VMs and folders with an error: #{e}")
             end
@@ -496,33 +496,16 @@ module Vmpooler
       nil
     end
 
-    # Return a list of pool folders
-    def pool_folders(provider_name)
-      folders = {}
-      $config[:pools].each do |pool|
-        next unless pool['provider'] == provider_name.to_s
-
-        folder_parts = pool['folder'].split('/')
-        datacenter = $providers[provider_name.to_s].get_target_datacenter_from_config(pool['name'])
-        folders[folder_parts.pop] = "#{datacenter}/vm/#{folder_parts.join('/')}"
-      end
-      folders
-    end
-
-    def get_base_folders(folders)
-      base = []
-      folders.each do |_key, value|
-        base << value
-      end
-      base.uniq
-    end
-
-    def purge_vms_and_folders(provider_name)
+    def purge_vms_and_resources(provider_name)
       provider = $providers[provider_name.to_s]
-      configured_folders = pool_folders(provider_name)
-      base_folders = get_base_folders(configured_folders)
-      whitelist = provider.provider_config['folder_whitelist']
-      provider.purge_unconfigured_folders(base_folders, configured_folders, whitelist)
+      # Deprecated, will be removed in version 3
+      if provider.provider_config['folder_whitelist']
+        $logger.log('d', "[!] [deprecation] rename configuration 'folder_whitelist' to 'resources_allowlist' for provider #{provider_name}")
+        allowlist = provider.provider_config['folder_whitelist']
+      else
+        allowlist = provider.provider_config['resources_allowlist']
+      end
+      provider.purge_unconfigured_resources(allowlist)
     end
 
     def create_vm_disk(pool_name, vm, disk_size, provider)
@@ -1606,7 +1589,7 @@ module Vmpooler
         end
       end
 
-      purge_unused_vms_and_folders
+      purge_unused_vms_and_resources
 
       loop_count = 1
       loop do
