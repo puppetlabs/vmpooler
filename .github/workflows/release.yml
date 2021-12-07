@@ -1,0 +1,32 @@
+name: Release
+
+on: workflow_dispatch
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    if: github.repository == 'puppetlabs/vmpooler'
+    steps:
+      - uses: actions/checkout@v2
+      - name: Get Version
+        id: gv
+        run: |
+          echo "::set-output name=ver::$(grep VERSION lib/vmpooler/version.rb |rev |cut -d "'" -f2 |rev)"
+      - name: Tag Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ steps.gv.outputs.ver }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          draft: false
+          prerelease: false
+          generateReleaseNotes: true
+      - name: Install Ruby 2.5.8
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '2.5.8'
+      - name: Build gem
+        run: gem build *.gemspec
+      - name: Publish gem
+        run: gem push *.gem
+        env:
+          GEM_HOST_API_KEY: '${{ secrets.RUBYGEMS_AUTH_TOKEN }}'
