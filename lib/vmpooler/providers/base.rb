@@ -237,7 +237,7 @@ module Vmpooler
           raise("#{self.class.name} does not implement get_target_datacenter_from_config")
         end
 
-        def purge_unconfigured_resources(_whitelist)
+        def purge_unconfigured_resources(_allowlist)
           raise("#{self.class.name} does not implement purge_unconfigured_resources")
         end
 
