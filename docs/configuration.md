@@ -169,6 +169,7 @@ This can also be set per pool.
 (optional; default: true)
 
 ### PURGE\_UNCONFIGURED\_FOLDERS
+
 Deprecated, see PURGE\_UNCONFIGURED\_RESOURCES
 
 ### PURGE\_UNCONFIGURED\_RESOURCES
