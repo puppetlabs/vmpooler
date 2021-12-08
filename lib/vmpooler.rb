@@ -81,16 +81,13 @@ module Vmpooler
     parsed_config[:config]['retry_factor']                       = string_to_int(ENV['RETRY_FACTOR']) if ENV['RETRY_FACTOR']
     parsed_config[:config]['create_folders']                     = true?(ENV['CREATE_FOLDERS']) if ENV['CREATE_FOLDERS']
     parsed_config[:config]['experimental_features']              = ENV['EXPERIMENTAL_FEATURES'] if ENV['EXPERIMENTAL_FEATURES']
-    parsed_config[:config]['purge_unconfigured_resources']       = ENV['PURGE_UNCONFIGURED_RESOURCES'] if ENV['PURGE_UNCONFIGURED_RESOURCES']
-    # ENV PURGE_UNCONFIGURED_FOLDERS deprecated, will be removed in version 3
-    if ENV['PURGE_UNCONFIGURED_FOLDERS']
-      puts '[!] [deprecation] rename ENV var \'PURGE_UNCONFIGURED_FOLDERS\' to \'PURGE_UNCONFIGURED_RESOURCES\''
-      # backwards compatibility
-      parsed_config[:config]['purge_unconfigured_resources']     = ENV['PURGE_UNCONFIGURED_FOLDERS']
-    end
     parsed_config[:config]['usage_stats']                        = ENV['USAGE_STATS'] if ENV['USAGE_STATS']
     parsed_config[:config]['request_logger']                     = ENV['REQUEST_LOGGER'] if ENV['REQUEST_LOGGER']
     parsed_config[:config]['create_template_delta_disks']        = ENV['CREATE_TEMPLATE_DELTA_DISKS'] if ENV['CREATE_TEMPLATE_DELTA_DISKS']
+    parsed_config[:config]['purge_unconfigured_resources']       = ENV['PURGE_UNCONFIGURED_RESOURCES'] if ENV['PURGE_UNCONFIGURED_RESOURCES']
+    parsed_config[:config]['purge_unconfigured_resources']       = ENV['PURGE_UNCONFIGURED_FOLDERS'] if ENV['PURGE_UNCONFIGURED_FOLDERS']
+    # ENV PURGE_UNCONFIGURED_FOLDERS deprecated, will be removed in version 3
+    puts '[!] [deprecation] rename ENV var \'PURGE_UNCONFIGURED_FOLDERS\' to \'PURGE_UNCONFIGURED_RESOURCES\'' if ENV['PURGE_UNCONFIGURED_FOLDERS']
     set_linked_clone(parsed_config)
 
     parsed_config[:redis]                            = parsed_config[:redis] || {}

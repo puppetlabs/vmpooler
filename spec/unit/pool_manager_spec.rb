@@ -1144,14 +1144,14 @@ EOT
 
       it 'should run purge_unconfigured_resources' do
         expect(provider).to receive(:purge_unconfigured_resources).with(allowlist)
-        expect(provider).to receive(:provider_config).and_return({})
+        expect(provider).to receive(:provider_config).and_return({}).twice
 
         subject.purge_vms_and_resources(provider_name)
       end
 
       it 'should raise any errors' do
         expect(provider).to receive(:purge_unconfigured_resources).with(allowlist).and_raise('mockerror')
-        expect(provider).to receive(:provider_config).and_return({})
+        expect(provider).to receive(:provider_config).and_return({}).twice
 
         expect{ subject.purge_vms_and_resources(provider_name) }.to raise_error(RuntimeError, 'mockerror')
       end

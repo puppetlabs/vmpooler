@@ -243,9 +243,9 @@ module Vmpooler
 
         # DEPRECATED if a provider does not implement the new method, it will hit this base class method
         # and return a deprecation message
-        def purge_unconfigured_folders(_deprecated, _deprecated2, whitelist)
+        def purge_unconfigured_folders(_deprecated, _deprecated2, allowlist)
           logger.log('s', '[!] purge_unconfigured_folders was renamed to purge_unconfigured_resources, please update your provider implementation')
-          purge_unconfigured_resources(whitelist)
+          purge_unconfigured_resources(allowlist)
         end
       end
     end
