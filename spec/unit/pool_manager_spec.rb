@@ -683,6 +683,25 @@ EOT
           expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
         end
       end
+
+      it 'should try to tag if it has not been done' do
+        redis_connection_pool.with do |redis|
+          expect(provider).to receive(:vm_ready?).and_return(true)
+          redis.hset("vmpooler__active__#{pool}", vm,(Time.now - timeout*60*60).to_s)
+          expect(provider).to receive(:tag_vm_user)
+          subject._check_running_vm(vm, pool, 0, provider)
+        end
+      end
+
+      it 'should not try to tag if it has been done' do
+        redis_connection_pool.with do |redis|
+          expect(provider).to receive(:vm_ready?).and_return(true)
+          redis.hset("vmpooler__active__#{pool}", vm,(Time.now - timeout*60*60).to_s)
+          redis.hset("vmpooler__vm__#{vm}", 'user_tagged', 'true')
+          expect(provider).not_to receive(:tag_vm_user)
+          subject._check_running_vm(vm, pool, 0, provider)
+        end
+      end
     end
 
     context 'with a locked vm mutex' do

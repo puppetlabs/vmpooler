@@ -294,6 +294,12 @@ module Vmpooler
               move_vm_queue(pool, vm, 'running', 'completed', redis, 'is listed as running, but has no checkouttime data. Removing from running')
             end
 
+            # tag VM if not tagged yet, this ensures the method is only called once
+            unless redis.hget("vmpooler__vm__#{vm}", 'user_tagged')
+              success = provider.tag_vm_user(pool, vm)
+              redis.hset("vmpooler__vm__#{vm}", 'user_tagged', 'true') if success
+            end
+
             throw :stop_checking if provider.vm_ready?(pool, vm)
 
             throw :stop_checking if provider.get_vm(pool, vm)

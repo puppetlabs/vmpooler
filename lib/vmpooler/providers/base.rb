@@ -212,6 +212,22 @@ module Vmpooler
           raise("#{self.class.name} does not implement vm_ready?")
         end
 
+        # tag_vm_user This method is called once we know who is using the VM (it is running). This method enables seeing
+        # who is using what in the provider pools.
+        # This method should be implemented in the providers, if it is not implemented, this base method will be called
+        # and should be a noop. The implementation should check if the vm has a user (as per redis) and add a new tag
+        # with the information.
+        # inputs
+        #   [String] pool_name : Name of the pool
+        #   [String] vm_name   : Name of the VM to check if ready
+        # returns
+        #   [Boolean] : true if successful, false if an error occurred and it should retry
+        def tag_vm_user(_pool_name, _vm_name)
+          # noop by design. If the provider does not implement this method, this base method is called (because inherited)
+          # and should basically do nothing.
+          true
+        end
+
         # inputs
         #   [String] pool_name : Name of the pool
         #   [String] vm_name   : Name of the VM to check if it exists
