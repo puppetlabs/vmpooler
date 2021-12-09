@@ -237,8 +237,15 @@ module Vmpooler
           raise("#{self.class.name} does not implement get_target_datacenter_from_config")
         end
 
-        def purge_unconfigured_folders(_base_folders, _configured_folders, _whitelist)
-          raise("#{self.class.name} does not implement purge_unconfigured_folders")
+        def purge_unconfigured_resources(_allowlist)
+          raise("#{self.class.name} does not implement purge_unconfigured_resources")
+        end
+
+        # DEPRECATED if a provider does not implement the new method, it will hit this base class method
+        # and return a deprecation message
+        def purge_unconfigured_folders(_deprecated, _deprecated2, allowlist)
+          logger.log('s', '[!] purge_unconfigured_folders was renamed to purge_unconfigured_resources, please update your provider implementation')
+          purge_unconfigured_resources(allowlist)
         end
       end
     end
