@@ -75,6 +75,84 @@ EOT
     end
   end
 
+  describe '#used_providers' do
+    context 'with no named providers' do
+      let(:config) { YAML.load(<<-EOT
+---
+:config:
+:pools:
+  - name: '#{pool}'
+    size: 1
+    provider: 'spoof'
+    EOT
+      )
+      }
+      it do
+        result = ["dummy"]
+        expect(subject.used_providers).to eq(result)
+      end
+    end
+    context 'with one named provider without a provider_class key' do
+      let(:config) { YAML.load(<<-EOT
+---
+:config:
+:providers:
+  :mock:
+:pools:
+  - name: '#{pool}'
+    size: 1
+    provider: 'spoof'
+    EOT
+      )
+      }
+      it do
+        result = ["mock", "dummy"]
+        expect(subject.used_providers).to eq(result)
+      end
+    end
+
+    context 'with one named provider with a provider_class key' do
+      let(:config) { YAML.load(<<-EOT
+---
+:config:
+:providers:
+  :mock:
+    provider_class: 'mock_mock'
+:pools:
+  - name: '#{pool}'
+    size: 1
+    provider: 'spoof'
+    EOT
+      )
+      }
+      it do
+        result = ["mock_mock", "dummy"]
+        expect(subject.used_providers).to eq(result)
+      end
+    end
+
+    context 'with one named provider with a provider_class key and one without' do
+      let(:config) { YAML.load(<<-EOT
+---
+:config:
+:providers:
+  :mock:
+    provider_class: 'mock_mock'
+  :foo:
+:pools:
+  - name: '#{pool}'
+    size: 1
+    provider: 'spoof'
+    EOT
+      )
+      }
+      it do
+        result = ["mock_mock", "foo", "dummy"]
+        expect(subject.used_providers).to eq(result)
+      end
+    end
+  end
+
   it '#default_providers' do
     expect(subject.default_providers).to eq(['dummy'])
   end

@@ -619,8 +619,21 @@ module Vmpooler
     # @return [Array] - a list of used providers from the config file, defaults to the default providers
     # ie. ["dummy"]
     def used_providers
-      pools = config[:pools] || []
-      @used_providers ||= (pools.map { |pool| pool[:provider] || pool['provider'] }.compact + default_providers).uniq
+      # create an array of provider classes based on the config
+      if config[:providers]
+        config_provider_names = config[:providers].keys
+        config_providers = config_provider_names.map do |config_provider_name|
+          if config[:providers][config_provider_name] && config[:providers][config_provider_name]['provider_class']
+            config[:providers][config_provider_name]['provider_class'].to_s
+          else
+            config_provider_name.to_s
+          end
+        end.compact.uniq
+      else
+        config_providers = []
+      end
+      # return the unique array of providers from the config and VMPooler defaults
+      @used_providers ||= (config_providers + default_providers).uniq
     end
 
     # @return [Array] - returns a list of providers that should always be loaded
