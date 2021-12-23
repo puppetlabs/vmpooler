@@ -242,7 +242,7 @@ module Vmpooler
         # returns
         #   nil when successful. Raises error when encountered
         def create_template_delta_disks(_pool)
-          raise("#{self.class.name} does not implement create_template_delta_disks")
+          puts("#{self.class.name} does not implement create_template_delta_disks")
         end
 
         # inputs
