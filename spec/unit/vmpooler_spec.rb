@@ -45,9 +45,29 @@ describe 'Vmpooler' do
     end
 
     context 'when config file is set' do
-      it 'should use the file' do
+      before(:each) do
         ENV['VMPOOLER_CONFIG_FILE'] = config_file
+      end
+      it 'should use the file' do
         expect(Vmpooler.config[:pools]).to eq(config[:pools])
+      end
+      it 'merges one extra file, results in two providers' do
+        ENV['EXTRA_CONFIG'] = File.join(fixtures_dir, 'extra_config1.yaml')
+        expect(Vmpooler.config[:providers].keys).to include(:dummy)
+        expect(Vmpooler.config[:providers].keys).to include(:alice)
+      end
+      it 'merges two extra file, results in three providers and an extra pool' do
+        extra1 = File.join(fixtures_dir, 'extra_config1.yaml')
+        extra2 = File.join(fixtures_dir, 'extra_config2.yaml')
+        ENV['EXTRA_CONFIG'] = "#{extra1},#{extra2}"
+        expect(Vmpooler.config[:providers].keys).to include(:dummy)
+        expect(Vmpooler.config[:providers].keys).to include(:alice)
+        expect(Vmpooler.config[:providers].keys).to include(:bob)
+        merged_pools = [{"name"=>"pool03", "provider"=>"dummy", "ready_ttl"=>5, "size"=>5},
+                        {"name"=>"pool04", "provider"=>"dummy", "ready_ttl"=>5, "size"=>5},
+                        {"name"=>"pool05", "provider"=>"dummy", "ready_ttl"=>5, "size"=>5}]
+        expect(Vmpooler.config[:pools]).to eq(merged_pools)
+        expect(Vmpooler.config[:config]).not_to be_nil #merge does not deleted existing keys
       end
     end
   end

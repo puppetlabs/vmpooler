@@ -19,6 +19,7 @@ Gem::Specification.new do |s|
   s.require_paths = ["lib"]
   s.add_dependency 'concurrent-ruby', '~> 1.1'
   s.add_dependency 'connection_pool', '~> 2.2'
+  s.add_dependency 'deep_merge', '~> 1.2'
   s.add_dependency 'net-ldap', '~> 0.16'
   s.add_dependency 'nokogiri', '~> 1.10'
   s.add_dependency 'opentelemetry-exporter-jaeger', '= 0.20.1'

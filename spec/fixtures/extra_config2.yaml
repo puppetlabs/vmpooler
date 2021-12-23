@@ -1,0 +1,11 @@
+---
+:providers:
+  :bob:
+    foo: "foo_bob"
+    bar: "bar"
+
+:pools:
+  - name: 'pool05'
+    size: 5
+    provider: dummy
+    ready_ttl: 5
