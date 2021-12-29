@@ -3,6 +3,7 @@
 module Vmpooler
   require 'concurrent'
   require 'date'
+  require 'deep_merge'
   require 'json'
   require 'net/ldap'
   require 'open-uri'
@@ -42,7 +43,7 @@ module Vmpooler
         extra_configs = parsed_config[:config]['extra_config'].split(',')
         extra_configs.each do |config|
           extra_config = YAML.load_file(config)
-          parsed_config.merge!(extra_config)
+          parsed_config.deep_merge(extra_config)
         end
       end
     end
