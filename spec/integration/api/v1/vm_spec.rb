@@ -67,6 +67,54 @@ describe Vmpooler::API::V1 do
     end
 
     describe 'POST /vm' do
+      context 'has a gce provider config' do
+        it 'get the dsn_zone as domain when gce provider' do
+          create_ready_vm 'pool1', vmname, redis
+          # change running config
+          app.settings.set :config, providers: { 'gce' => { 'dns_zone' => 'example.com' } }
+          expect_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).with(vmname, "example.com")
+          post "#{prefix}/vm", '{"pool1":"1"}'
+        end
+
+        it 'get the dsn_zone as domain when foo provider has provider_class set to gce' do
+          create_ready_vm 'pool1', vmname, redis
+          # change running config
+          app.settings.set :config, providers: { 'foo' => { 'dns_zone' => 'example.com', 'provider_class' => 'gce' } }
+          app.settings.set :config, pools: [ {'name' => 'pool1', 'size' => 5, 'provider' => 'foo'} ]
+          expect_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).with(vmname, "example.com")
+          post "#{prefix}/vm", '{"pool1":"1"}'
+        end
+
+        it 'skips when dsn_zone is not available' do
+          create_ready_vm 'pool1', vmname, redis
+          # change running config
+          app.settings.set :config, providers: { 'foo' => { 'dns_zone' => 'example.com', 'provider_class' => 'gce' },
+                                                        'bar' => { 'provider_class' => 'gce' } }
+          app.settings.set :config, pools: [ {'name' => 'pool1', 'size' => 5, 'provider' => 'bar'} ]
+          expect_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).with(vmname, nil)
+          post "#{prefix}/vm", '{"pool1":"1"}'
+        end
+
+        it 'skips when it is another provider that does not exist' do
+          create_ready_vm 'pool1', vmname, redis
+          # change running config
+          app.settings.set :config, providers: { 'foo' => { 'dns_zone' => 'example.com', 'provider_class' => 'gce' },
+                                                 'bar' => { 'provider_class' => 'another' } }
+          app.settings.set :config, pools: [ {'name' => 'pool1', 'size' => 5, 'provider' => 'not_set'} ]
+          expect_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).with(vmname, nil)
+          post "#{prefix}/vm", '{"pool1":"1"}'
+        end
+
+        it 'skips when it is another provider' do
+          create_ready_vm 'pool1', vmname, redis
+          # change running config
+          app.settings.set :config, providers: { 'foo' => { 'dns_zone' => 'example.com', 'provider_class' => 'gce' },
+                                                 'bar' => { 'provider_class' => 'another' } }
+          app.settings.set :config, pools: [ {'name' => 'pool1', 'size' => 5, 'provider' => 'bar'} ]
+          expect_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).with(vmname, nil)
+          post "#{prefix}/vm", '{"pool1":"1"}'
+        end
+      end
 
       let(:socket) { double('socket') }
       it 'returns a single VM' do

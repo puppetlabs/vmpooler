@@ -36,6 +36,23 @@ module Vmpooler
       Vmpooler::API.settings.config[:pool_names].include?(template)
     end
 
+    def provider_exists?(provider_name)
+      return false if Vmpooler::API.settings.config[:providers].nil?
+      return true if Vmpooler::API.settings.config[:providers]&.key?(provider_name)
+      Vmpooler::API.settings.config[:providers].each_key { |k| return true if Vmpooler::API.settings.config[:providers][k]['provider_class'] == provider_name }
+      false
+    end
+
+    def provider_config(provider_name, pool_name)
+      return Vmpooler::API.settings.config[:providers][provider_name] if Vmpooler::API.settings.config[:providers][provider_name]
+      pools.each do |pool|
+        if pool['name'] == pool_name
+          return Vmpooler::API.settings.config[:providers][pool['provider']] if Vmpooler::API.settings.config[:providers][pool['provider']]
+        end
+      end
+      return nil
+    end
+
     def need_auth!
       validate_auth(backend)
     end
@@ -150,7 +167,13 @@ module Vmpooler
             next if vms.empty?
 
             vms.reverse.each do |vm|
-              ready = vm_ready?(vm, config['domain'])
+              # do one last check that the VM is reachable before handing it over. Unfortunately the provider context does
+              # not exist here, so it needs to infer the domain here
+              if provider_exists?('gce')
+                domain = provider_config('gce', template_backend)['dns_zone'] if provider_config('gce', template_backend) && provider_config('gce', template_backend)['dns_zone']
+              end
+
+              ready = vm_ready?(vm, domain || config['domain'])
               if ready
                 smoved = backend.smove("vmpooler__ready__#{template_backend}", "vmpooler__running__#{template_backend}", vm)
                 if smoved
