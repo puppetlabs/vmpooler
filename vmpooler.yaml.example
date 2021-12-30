@@ -440,7 +440,10 @@
 #     If set, restricts tags to those specified in this array.
 #
 #   - domain
-#     If set, returns a top-level 'domain' JSON key in POST requests
+#     If set, returns a top-level 'domain' JSON key in POST requests. Note that domains can now be set per-pool
+#     and at the provider level. The domain key in the JSON response will correspond the last vm added to the
+#     response and should not be relied upon as the hostnames of the returned vms now include the domain. The
+#     domain key is only retained now for backwards compatibility and will be removed in the future.
 #
 #   - prefix
 #     If set, prefixes all created VMs with this string.  This should include
