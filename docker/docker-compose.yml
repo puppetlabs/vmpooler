@@ -4,7 +4,7 @@ services:
   vmpooler-api:
     build:
       context: ../
-      dockerfile: docker/Dockerfile_local
+      dockerfile: docker/Dockerfile
     volumes:
       - type: bind
         source: ${PWD}/vmpooler.yaml
@@ -28,7 +28,7 @@ services:
   vmpooler-manager:
     build:
       context: ../
-      dockerfile: docker/Dockerfile_local
+      dockerfile: docker/Dockerfile
     volumes:
       - type: bind
         source: ${PWD}/vmpooler.yaml
@@ -57,6 +57,19 @@ services:
       - "6379:6379"
     networks:
       - redis-net
+  redis-commander:
+    container_name: redis-commander
+    hostname: redis-commander
+    image: rediscommander/redis-commander:latest
+    restart: always
+    environment:
+    - REDIS_HOSTS=local:redislocal:6379
+    ports:
+    - "8079:8081"
+    networks:
+      - redis-net
+    depends_on:
+      - redislocal
   jaeger-aio:
     image: jaegertracing/all-in-one:1.18
     ports:

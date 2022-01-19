@@ -20,10 +20,10 @@ jobs:
           draft: false
           prerelease: false
           generateReleaseNotes: true
-      - name: Install Ruby 2.5.8
+      - name: Install Ruby jruby-9.2.12.0
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '2.5.8'
+          ruby-version: 'jruby-9.2.12.0'
       - name: Build gem
         run: gem build *.gemspec
       - name: Publish gem

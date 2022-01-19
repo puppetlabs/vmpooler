@@ -2,6 +2,8 @@
 Vagrant.configure("2") do |config|
   config.vm.box = "genebean/centos-7-rvm-multi"
   config.vm.network "forwarded_port", guest: 4567, host: 4567 # for when not running docker-compose
+  config.vm.network "forwarded_port", guest: 6379, host: 6379 # Redis
+  config.vm.network "forwarded_port", guest: 8079, host: 8079 # Redis Commander
   config.vm.network "forwarded_port", guest: 8080, host: 8080 # VMPooler api in docker-compose
   config.vm.network "forwarded_port", guest: 8081, host: 8081 # VMPooler manager in docker-compose
   config.vm.network "forwarded_port", guest: 8082, host: 8082 # Jaeger in docker-compose

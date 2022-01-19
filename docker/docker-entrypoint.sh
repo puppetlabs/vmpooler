@@ -1,6 +1,6 @@
 #!/bin/sh
 set -e
 
-set -- vmpooler "$@"
+set -- bundle exec vmpooler "$@"
 
 exec "$@"
