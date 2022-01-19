@@ -3,7 +3,6 @@
 **/*.md
 **/*example
 **/Dockerfile*
-Gemfile.lock
 Rakefile
 Vagrantfile
 coverage
