@@ -17,6 +17,7 @@ module Vmpooler
 
   # Dependencies for tracing
   require 'opentelemetry-instrumentation-concurrent_ruby'
+  require 'opentelemetry-instrumentation-http_client'
   require 'opentelemetry-instrumentation-redis'
   require 'opentelemetry-instrumentation-sinatra'
   require 'opentelemetry-sdk'
@@ -265,6 +266,7 @@ module Vmpooler
     OpenTelemetry::SDK.configure do |c|
       c.use 'OpenTelemetry::Instrumentation::Sinatra'
       c.use 'OpenTelemetry::Instrumentation::ConcurrentRuby'
+      c.use 'OpenTelemetry::Instrumentation::HttpClient'
       c.use 'OpenTelemetry::Instrumentation::Redis'
 
       c.add_span_processor(span_processor)
