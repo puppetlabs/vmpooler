@@ -1,11 +1,16 @@
 # frozen_string_literal: true
 
 require 'vmpooler/api/v1'
+
 module Vmpooler
   class API
     class V2 < Vmpooler::API::V1
       api_version = '2'
       api_prefix  = "/api/v#{api_version}"
+
+      def full_config
+        Vmpooler::API.settings.config
+      end
 
       def get_template_aliases(template)
         tracer.in_span("Vmpooler::API::V2.#{__method__}") do
@@ -17,11 +22,6 @@ module Vmpooler
           end
           result
         end
-      end
-
-      def get_domain_for_pool(poolname)
-        pool_index = pool_index(pools)
-        pools[pool_index[poolname]]['domain']
       end
 
       # Fetch a single vm from a pool
@@ -73,7 +73,7 @@ module Vmpooler
               next if vms.empty?
 
               vms.reverse.each do |vm|
-                vm_domain = get_domain_for_pool(template_backend)
+                vm_domain = Parsing.get_domain_for_pool(full_config, template_backend)
                 ready = vm_ready?(vm, vm_domain)
                 if ready
                   smoved = backend.smove("vmpooler__ready__#{template_backend}", "vmpooler__running__#{template_backend}", vm)
@@ -137,12 +137,11 @@ module Vmpooler
           else
             vm_names = []
             vms.each do |(vmpool, vmname, vmtemplate)|
-              vmdomain = get_domain_for_pool(vmpool)
+              vmdomain = Parsing.get_domain_for_pool(full_config, vmpool)
               if vmdomain
                 vmfqdn = "#{vmname}.#{vmdomain}"
                 update_result_hosts(result, vmtemplate, vmfqdn)
                 vm_names.append(vmfqdn)
-                result['domain'] = vmdomain
               else
                 update_result_hosts(result, vmtemplate, vmname)
                 vm_names.append(vmname)
@@ -197,11 +196,7 @@ module Vmpooler
           platforms_with_aliases = []
           requested_instances.each do |poolname, count|
             selection = evaluate_template_aliases(poolname, count)
-            selection.map do |selected_pool, selected_pool_count|
-              platforms_with_aliases << "#{poolname}:#{selected_pool}:#{selected_pool_count}"
-              pool_domain = get_domain_for_pool(selected_pool)
-              result['domain'] = pool_domain if pool_domain
-            end
+            selection.map { |selected_pool, selected_pool_count| platforms_with_aliases << "#{poolname}:#{selected_pool}:#{selected_pool_count}" }
           end
           platforms_string = platforms_with_aliases.join(',')
 

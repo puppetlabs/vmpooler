@@ -60,7 +60,7 @@ module Vmpooler
             to_set[k] = pool[k]
           end
           to_set['alias'] = pool['alias'].join(',') if to_set.key?('alias')
-          to_set['domain'] = get_domain_for_pool(pool['name'])
+          to_set['domain'] = Parsing.get_domain_for_pool(config, pool['name'])
           redis.hmset("vmpooler__pool__#{pool['name']}", to_set.to_a.flatten) unless to_set.empty?
         end
         previously_configured_pools.each do |pool|
@@ -362,7 +362,7 @@ module Vmpooler
       max_hostname_retries = 3
       while hostname_retries < max_hostname_retries
         hostname, hostname_available = generate_and_check_hostname
-        domain = get_domain_for_pool(pool_name)
+        domain = Parsing.get_domain_for_pool(config, pool_name)
         if domain
           fqdn = "#{hostname}.#{domain}"
         else
@@ -384,7 +384,7 @@ module Vmpooler
 
       raise "Unable to generate a unique hostname after #{hostname_retries} attempts. The last hostname checked was #{fqdn}" unless hostname_available && dns_available
 
-      fqdn
+      hostname
     end
 
     # Query the DNS for the name we want to create and if it already exists, mark it unavailable
@@ -402,7 +402,7 @@ module Vmpooler
 
     def _clone_vm(pool_name, provider, request_id = nil, pool_alias = nil)
       new_vmname = find_unique_hostname(pool_name)
-      pool_domain = get_domain_for_pool(pool_name)
+      pool_domain = Parsing.get_domain_for_pool(config, pool_name)
       mutex = vm_mutex(new_vmname)
       mutex.synchronize do
         @redis.with_metrics do |redis|
@@ -663,27 +663,6 @@ module Vmpooler
 
       provider_name = pool.fetch('provider', nil)
       $providers[provider_name]
-    end
-
-    # @param pool_name [String] - the name of the pool
-    # @return [String] - domain name for pool, if set
-    def get_domain_for_pool(pool_name)
-      pool = $config[:pools].find { |p| p['name'] == pool_name }
-      return nil unless pool
-
-      provider_name = pool.fetch('provider', nil)
-      return nil unless provider_name
-
-      $logger.log('d', "[*] [get_domain_for_pool] #{pool_name}'s provider is #{provider_name}")
-      if config[:providers] && config[:providers][provider_name.to_sym] && config[:providers][provider_name.to_sym]['domain']
-        domain = config[:providers][provider_name.to_sym]['domain']
-      elsif config[:config] && config[:config]['domain']
-        domain = config[:config]['domain']
-      else
-        domain = nil
-      end
-
-      domain
     end
 
     def check_disk_queue(maxloop = 0, loop_delay = 5)

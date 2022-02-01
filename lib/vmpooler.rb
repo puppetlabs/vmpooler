@@ -43,6 +43,7 @@ module Vmpooler
       if parsed_config[:config]['extra_config']
         extra_configs = parsed_config[:config]['extra_config'].split(',')
         extra_configs.each do |config|
+          puts "loading extra_config file #{config}"
           extra_config = YAML.load_file(config)
           parsed_config.deep_merge(extra_config)
         end
@@ -133,6 +134,7 @@ module Vmpooler
     # Create an index of pool aliases
     parsed_config[:pool_names] = Set.new
     unless parsed_config[:pools]
+      puts 'loading pools configuration from redis, since the config[:pools] is empty'
       redis = new_redis(parsed_config[:redis]['server'], parsed_config[:redis]['port'], parsed_config[:redis]['password'])
       parsed_config[:pools] = load_pools_from_redis(redis)
     end
