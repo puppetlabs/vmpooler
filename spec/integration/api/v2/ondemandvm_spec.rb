@@ -125,7 +125,6 @@ describe Vmpooler::API::V2 do
               expected = {
                 "ok": true,
                 "request_id": uuid,
-                "domain": domain
               }
               expect(last_response.body).to eq(JSON.pretty_generate(expected))
             end

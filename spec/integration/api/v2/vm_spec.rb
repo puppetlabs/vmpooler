@@ -24,10 +24,15 @@ describe Vmpooler::API::V2 do
           'site_name' => 'test pooler',
           'vm_lifetime_auth' => 2
         },
+        providers: {
+          vsphere: {'domain' => 'one.example.com'},
+          gce: {'domain' => 'two.example.com'},
+          foo: {'domain' => 'three.example.com'}
+        },
         pools: [
-          {'name' => 'pool1', 'size' => 5, 'domain' => 'one.example.com'},
-          {'name' => 'pool2', 'size' => 10, 'domain' => 'two.example.com'},
-          {'name' => 'pool3', 'size' => 10, 'domain' => 'three.example.com'}
+          {'name' => 'pool1', 'size' => 5, 'provider' => 'vsphere'},
+          {'name' => 'pool2', 'size' => 10, 'provider' => 'gce'},
+          {'name' => 'pool3', 'size' => 10, 'provider' => 'foo'}
         ],
         statsd: { 'prefix' => 'stats_prefix'},
         alias: { 'poolone' => ['pool1'] },
@@ -80,8 +85,7 @@ describe Vmpooler::API::V2 do
           ok: true,
           pool1: {
             hostname: "#{vmname}.one.example.com"
-          },
-          domain: 'one.example.com'
+          }
         }
 
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
@@ -99,8 +103,7 @@ describe Vmpooler::API::V2 do
           ok: true,
           poolone: {
             hostname: "#{vmname}.one.example.com"
-          },
-          domain: 'one.example.com'
+          }
         }
 
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
@@ -150,7 +153,6 @@ describe Vmpooler::API::V2 do
           pool1: {
             hostname: "#{vmname}.one.example.com"
           },
-          domain: 'two.example.com',
           pool2: {
             hostname: 'qrstuvwxyz012345.two.example.com'
           }
@@ -253,8 +255,7 @@ describe Vmpooler::API::V2 do
           ok: true,
           "pool1": {
             "hostname": "1abcdefghijklmnop.one.example.com"
-          },
-          domain: 'one.example.com'
+          }
         }
 
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
@@ -355,8 +356,7 @@ describe Vmpooler::API::V2 do
           ok: true,
           pool1: {
             hostname: "2#{vmname}.one.example.com"
-          },
-          domain: 'one.example.com'
+          }
         }
 
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
@@ -381,8 +381,7 @@ describe Vmpooler::API::V2 do
             ok: true,
             pool1: {
               hostname: 'abcdefghijklmnop.one.example.com'
-            },
-            domain: 'one.example.com'
+            }
           }
           expect(last_response.body).to eq(JSON.pretty_generate(expected))
 
@@ -408,8 +407,7 @@ describe Vmpooler::API::V2 do
             ok: true,
             pool1: {
               hostname: 'abcdefghijklmnop.one.example.com'
-            },
-            domain: 'one.example.com'
+            }
           }
           expect(last_response.body).to eq(JSON.pretty_generate(expected))
 
@@ -430,8 +428,7 @@ describe Vmpooler::API::V2 do
             ok: true,
             pool1: {
               hostname: 'abcdefghijklmnop.one.example.com'
-            },
-            domain: 'one.example.com'
+            }
           }
           expect(last_response.body).to eq(JSON.pretty_generate(expected))
 

@@ -368,7 +368,15 @@ module Vmpooler
         else
           fqdn = hostname
         end
-        dns_ip, dns_available = check_dns_available(fqdn)
+
+        # skip dns check if the provider is set to skip_dns_check_before_creating_vm
+        provider = get_provider_for_pool(pool_name)
+        if config[:providers] && config[:providers][provider.name.to_sym] && config[:providers][provider.name.to_sym]['skip_dns_check_before_creating_vm']
+          dns_available = true
+        else
+          dns_ip, dns_available = check_dns_available(fqdn)
+        end
+
         break if hostname_available && dns_available
 
         hostname_retries += 1
