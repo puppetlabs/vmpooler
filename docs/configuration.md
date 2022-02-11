@@ -21,10 +21,7 @@ Path to a the file to use when loading the vmpooler configuration. This is only 
 
 ### DOMAIN
 
-If set, returns a top-level 'domain' JSON key in POST requests. Note that domains can now be set per-pool
-and at the provider level. The domain key in the JSON response will correspond the last vm added to the
-response and should not be relied upon as the hostnames of the returned vms now include the domain. The
-domain key is only retained now for backwards compatibility and will be removed in the future.
+This environment variable is to set the configuration config.domain
 (optional)
 
 ### REDIS\_SERVER

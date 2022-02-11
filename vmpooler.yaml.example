@@ -28,6 +28,12 @@
 #     Expects an array of strings specifying the allowed items by name
 #     (optional; default: nil)
 #
+#   - skip_dns_check_before_creating_vm
+#     Setting this configuration parameter in a provider will make vmpooler skip the check it normally does for a DNS
+#     record. The normal behavior is to check DNS and if a record already exists (conflict) to re-generate a new hostname.
+#     By using this configuration parameter, it will skip the check and continue with the same conflicting name. This is
+#     useful for providers that can handle that case, for instance by replacing the existing DNS record with a new one.
+#
 # If you want to support more than one provider with different parameters (server, username or passwords) you have to specify the
 # backing service in the provider_class configuration parameter for example 'vsphere' or 'dummy'. Each pool can specify
 # the provider to use.
@@ -440,10 +446,10 @@
 #     If set, restricts tags to those specified in this array.
 #
 #   - domain
-#     If set, returns a top-level 'domain' JSON key in POST requests. Note that domains can now be set per-pool
-#     and at the provider level. The domain key in the JSON response will correspond the last vm added to the
-#     response and should not be relied upon as the hostnames of the returned vms now include the domain. The
-#     domain key is only retained now for backwards compatibility and will be removed in the future.
+#     If set, returns a top-level 'domain' JSON key in POST requests (v1).
+#     in the v2 API, it concatenates the hostname to include the domain, either set here or at the provider level
+#     With the introduction of vmpooler-provider-gce, domains can now be set at the provider level. The
+#     domain key is only retained in v1 for backwards compatibility and will be removed in the future.
 #
 #   - prefix
 #     If set, prefixes all created VMs with this string.  This should include

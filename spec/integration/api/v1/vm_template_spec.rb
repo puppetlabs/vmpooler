@@ -24,6 +24,7 @@ describe Vmpooler::API::V1 do
           'site_name' => 'test pooler',
           'vm_lifetime_auth' => 2,
         },
+        providers: { vsphere: {} },
         pools: [
           {'name' => 'pool1', 'size' => 5},
           {'name' => 'pool2', 'size' => 10},
