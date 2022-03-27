@@ -3319,7 +3319,7 @@ EOT
         redis_connection_pool.with do |redis|
           expect(redis).to receive(:set).with('vmpooler__tasks__clone', 0).and_raise(Redis::CannotConnectError)
         end
-        expect(logger).to receive(:log).with('s', 'Cannot connect to the redis server: Redis::CannotConnectError')
+        expect(logger).to receive(:log).with('s', 'Cannot connect to the redis server, Exiting!!!: Redis::CannotConnectError')
 
         expect{subject.execute!(maxloop,0)}.to raise_error Redis::CannotConnectError
       end

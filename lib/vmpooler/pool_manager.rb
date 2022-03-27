@@ -1657,8 +1657,9 @@ module Vmpooler
         end
       end
     rescue Redis::CannotConnectError => e
-      $logger.log('s', "Cannot connect to the redis server: #{e}")
+      $logger.log('s', "Cannot connect to the redis server, Exiting!!!: #{e}")
       raise
+      exit 1
     end
   end
 end
