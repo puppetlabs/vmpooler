@@ -73,19 +73,12 @@ module Vmpooler
               next if vms.empty?
 
               vms.reverse.each do |vm|
-                vm_domain = Parsing.get_domain_for_pool(full_config, template_backend)
-                ready = vm_ready?(vm, vm_domain)
-                if ready
-                  smoved = backend.smove("vmpooler__ready__#{template_backend}", "vmpooler__running__#{template_backend}", vm)
-                  if smoved
-                    return [vm, template_backend, template]
-                  else
-                    metrics.increment("checkout.smove.failed.#{template_backend}")
-                    return [nil, nil, nil]
-                  end
+                smoved = backend.smove("vmpooler__ready__#{template_backend}", "vmpooler__running__#{template_backend}", vm)
+                if smoved
+                  return [vm, template_backend, template]
                 else
-                  backend.smove("vmpooler__ready__#{template_backend}", "vmpooler__completed__#{template_backend}", vm)
-                  metrics.increment("checkout.nonresponsive.#{template_backend}")
+                  metrics.increment("checkout.smove.failed.#{template_backend}")
+                  return [nil, nil, nil]
                 end
               end
             end

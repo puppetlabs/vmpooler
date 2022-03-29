@@ -129,8 +129,7 @@ describe Vmpooler::API::V2 do
       end
 
       it 'returns 503 for empty pool referenced by alias' do
-        create_ready_vm 'pool1', vmname, redis
-        post "#{prefix}/vm/poolone"
+        create_ready_vm 'pool2', vmname, redis
         post "#{prefix}/vm/poolone"
 
         expected = { ok: false }
@@ -340,28 +339,6 @@ describe Vmpooler::API::V2 do
 
         expect(pool_has_ready_vm?('pool1', '1abcdefghijklmnop', redis)).to eq(true)
         expect(pool_has_ready_vm?('pool1', '2abcdefghijklmnop', redis)).to eq(true)
-      end
-
-      it 'returns the second VM when the first fails to respond' do
-        create_ready_vm 'pool1', vmname, redis
-        create_ready_vm 'pool1', "2#{vmname}", redis
-
-        allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).with(vmname, 'one.example.com').and_raise('mockerror')
-        allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).with("2#{vmname}", 'one.example.com').and_return(socket)
-
-        post "#{prefix}/vm", '{"pool1":"1"}'
-        expect_json(ok = true, http = 200)
-
-        expected = {
-          ok: true,
-          pool1: {
-            hostname: "2#{vmname}.one.example.com"
-          }
-        }
-
-        expect(last_response.body).to eq(JSON.pretty_generate(expected))
-
-        expect(pool_has_ready_vm?('pool1', vmname, redis)).to be false
       end
 
       context '(auth not configured)' do

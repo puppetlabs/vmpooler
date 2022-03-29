@@ -28,7 +28,7 @@ describe Vmpooler::API::V2 do
         pools: [
           {'name' => 'pool1', 'size' => 5},
           {'name' => 'pool2', 'size' => 10},
-          {'name' => 'poolone', 'size' => 0}
+          {'name' => 'poolone', 'size' => 1}
         ],
         statsd: { 'prefix' => 'stats_prefix'},
         alias: { 'poolone' => 'pool1' },
@@ -105,7 +105,7 @@ describe Vmpooler::API::V2 do
       end
 
       it 'returns 503 for empty pool referenced by alias' do
-        create_ready_vm 'pool1', 'abcdefghijklmnop', redis
+        create_ready_vm 'pool2', 'abcdefghijklmnop', redis
         post "#{prefix}/vm/poolone"
 
         expected = { ok: false }
