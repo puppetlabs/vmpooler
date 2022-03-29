@@ -329,6 +329,78 @@ module Vmpooler
         JSON.pretty_generate(result)
       end
 
+      get "#{api_prefix}/ondemandvm/:requestid/?" do
+        content_type :json
+        metrics.increment('http_requests_vm_total.get.ondemand.request')
+
+        status 404
+        result = check_ondemand_request(params[:requestid])
+
+        JSON.pretty_generate(result)
+      end
+
+      def check_ondemand_request(request_id)
+        tracer.in_span("Vmpooler::API::V2.#{__method__}") do |span|
+          span.set_attribute('vmpooler.request_id', request_id)
+          result = { 'ok' => false }
+          request_hash = backend.hgetall("vmpooler__odrequest__#{request_id}")
+          if request_hash.empty?
+            e_message = "no request found for request_id '#{request_id}'"
+            result['message'] = e_message
+            span.add_event('error', attributes: {
+              'error.type' => 'Vmpooler::API::V2.check_ondemand_request',
+              'error.message' => e_message
+            })
+            return result
+          end
+
+          result['request_id'] = request_id
+          result['ready'] = false
+          result['ok'] = true
+          status 202
+
+          case request_hash['status']
+          when 'ready'
+            result['ready'] = true
+            Parsing.get_platform_pool_count(request_hash['requested']) do |platform_alias, pool, _count|
+              instances = backend.smembers("vmpooler__#{request_id}__#{platform_alias}__#{pool}")
+              domain = Parsing.get_domain_for_pool(full_config, pool)
+              instances.map!{ |instance| instance.concat(".#{domain}") } if domain
+
+              if result.key?(platform_alias)
+                result[platform_alias][:hostname] = result[platform_alias][:hostname] + instances
+              else
+                result[platform_alias] = { 'hostname': instances }
+              end
+            end
+            status 200
+          when 'failed'
+            result['message'] = "The request failed to provision instances within the configured ondemand_request_ttl '#{config['ondemand_request_ttl']}'"
+            status 200
+          when 'deleted'
+            result['message'] = 'The request has been deleted'
+            status 200
+          else
+            Parsing.get_platform_pool_count(request_hash['requested']) do |platform_alias, pool, count|
+              instance_count = backend.scard("vmpooler__#{request_id}__#{platform_alias}__#{pool}")
+              instances_pending = count.to_i - instance_count.to_i
+
+              if result.key?(platform_alias) && result[platform_alias].key?(:ready)
+                result[platform_alias][:ready] = (result[platform_alias][:ready].to_i + instance_count).to_s
+                result[platform_alias][:pending] = (result[platform_alias][:pending].to_i + instances_pending).to_s
+              else
+                result[platform_alias] = {
+                  'ready': instance_count.to_s,
+                  'pending': instances_pending.to_s
+                }
+              end
+            end
+          end
+
+          result
+        end
+      end
+
       # Endpoints that only use bits from the V1 api are called here
       # Note that traces will be named based on the route used in the V1 api
       # but the http.url trace attribute will still have the actual requested url in it
