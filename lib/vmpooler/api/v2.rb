@@ -71,15 +71,10 @@ module Vmpooler
             template_backends.each do |template_backend|
               vms = backend.smembers("vmpooler__ready__#{template_backend}")
               next if vms.empty?
-
-              vms.reverse.each do |vm|
-                smoved = backend.smove("vmpooler__ready__#{template_backend}", "vmpooler__running__#{template_backend}", vm)
-                if smoved
-                  return [vm, template_backend, template]
-                else
-                  metrics.increment("checkout.smove.failed.#{template_backend}")
-                  return [nil, nil, nil]
-                end
+              vm = vms.pop
+              smoved = backend.smove("vmpooler__ready__#{template_backend}", "vmpooler__running__#{template_backend}", vm)
+              if smoved
+                return [vm, template_backend, template]
               end
             end
             [nil, nil, nil]
@@ -365,7 +360,7 @@ module Vmpooler
             Parsing.get_platform_pool_count(request_hash['requested']) do |platform_alias, pool, _count|
               instances = backend.smembers("vmpooler__#{request_id}__#{platform_alias}__#{pool}")
               domain = Parsing.get_domain_for_pool(full_config, pool)
-              instances.map!{ |instance| instance.concat(".#{domain}") } if domain
+              instances.map! { |instance| instance.concat(".#{domain}") } if domain
 
               if result.key?(platform_alias)
                 result[platform_alias][:hostname] = result[platform_alias][:hostname] + instances
