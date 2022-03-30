@@ -71,6 +71,7 @@ module Vmpooler
             template_backends.each do |template_backend|
               vms = backend.smembers("vmpooler__ready__#{template_backend}")
               next if vms.empty?
+              
               vm = vms.pop
               smoved = backend.smove("vmpooler__ready__#{template_backend}", "vmpooler__running__#{template_backend}", vm)
               if smoved
