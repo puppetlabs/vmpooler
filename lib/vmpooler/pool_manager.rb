@@ -148,15 +148,15 @@ module Vmpooler
         end
         pool_alias = redis.hget("vmpooler__vm__#{vm}", 'pool_alias')
 
-        redis.pipelined do
-          redis.hset("vmpooler__active__#{pool}", vm, Time.now)
-          redis.hset("vmpooler__vm__#{vm}", 'checkout', Time.now)
+        redis.pipelined do |pipeline|
+          pipeline.hset("vmpooler__active__#{pool}", vm, Time.now)
+          pipeline.hset("vmpooler__vm__#{vm}", 'checkout', Time.now)
           if ondemandrequest_hash['token:token']
-            redis.hset("vmpooler__vm__#{vm}", 'token:token', ondemandrequest_hash['token:token'])
-            redis.hset("vmpooler__vm__#{vm}", 'token:user', ondemandrequest_hash['token:user'])
-            redis.hset("vmpooler__vm__#{vm}", 'lifetime', $config[:config]['vm_lifetime_auth'].to_i)
+            pipeline.hset("vmpooler__vm__#{vm}", 'token:token', ondemandrequest_hash['token:token'])
+            pipeline.hset("vmpooler__vm__#{vm}", 'token:user', ondemandrequest_hash['token:user'])
+            pipeline.hset("vmpooler__vm__#{vm}", 'lifetime', $config[:config]['vm_lifetime_auth'].to_i)
           end
-          redis.sadd("vmpooler__#{request_id}__#{pool_alias}__#{pool}", vm)
+          pipeline.sadd("vmpooler__#{request_id}__#{pool_alias}__#{pool}", vm)
         end
         move_vm_queue(pool, vm, 'pending', 'running', redis)
         check_ondemand_request_ready(request_id, redis)
@@ -164,12 +164,12 @@ module Vmpooler
         redis.smove("vmpooler__pending__#{pool}", "vmpooler__ready__#{pool}", vm)
       end
 
-      redis.pipelined do
-        redis.hset("vmpooler__boot__#{Date.today}", "#{pool}:#{vm}", finish) # maybe remove as this is never used by vmpooler itself?
-        redis.hset("vmpooler__vm__#{vm}", 'ready', Time.now)
+      redis.pipelined do |pipeline|
+        pipeline.hset("vmpooler__boot__#{Date.today}", "#{pool}:#{vm}", finish) # maybe remove as this is never used by vmpooler itself?
+        pipeline.hset("vmpooler__vm__#{vm}", 'ready', Time.now)
 
         # last boot time is displayed in API, and used by alarming script
-        redis.hset('vmpooler__lastboot', pool, Time.now)
+        pipeline.hset('vmpooler__lastboot', pool, Time.now)
       end
 
       $metrics.timing("time_to_ready_state.#{pool}", finish)
@@ -418,9 +418,9 @@ module Vmpooler
           finish = format('%<time>.2f', time: Time.now - start)
 
           @redis.with_metrics do |redis|
-            redis.pipelined do
-              redis.hset("vmpooler__clone__#{Date.today}", "#{pool_name}:#{new_vmname}", finish)
-              redis.hset("vmpooler__vm__#{new_vmname}", 'clone_time', finish)
+            redis.pipelined do |pipeline|
+              pipeline.hset("vmpooler__clone__#{Date.today}", "#{pool_name}:#{new_vmname}", finish)
+              pipeline.hset("vmpooler__vm__#{new_vmname}", 'clone_time', finish)
             end
           end
           $logger.log('s', "[+] [#{pool_name}] '#{new_vmname}' cloned in #{finish} seconds")
@@ -428,10 +428,10 @@ module Vmpooler
           $metrics.timing("clone.#{pool_name}", finish)
         rescue StandardError
           @redis.with_metrics do |redis|
-            redis.pipelined do
-              redis.srem("vmpooler__pending__#{pool_name}", new_vmname)
+            redis.pipelined do |pipeline|
+              pipeline.srem("vmpooler__pending__#{pool_name}", new_vmname)
               expiration_ttl = $config[:redis]['data_ttl'].to_i * 60 * 60
-              redis.expire("vmpooler__vm__#{new_vmname}", expiration_ttl)
+              pipeline.expire("vmpooler__vm__#{new_vmname}", expiration_ttl)
             end
           end
           raise
@@ -462,12 +462,12 @@ module Vmpooler
 
       mutex.synchronize do
         @redis.with_metrics do |redis|
-          redis.pipelined do
-            redis.hdel("vmpooler__active__#{pool}", vm)
-            redis.hset("vmpooler__vm__#{vm}", 'destroy', Time.now)
+          redis.pipelined do |pipeline|
+            pipeline.hdel("vmpooler__active__#{pool}", vm)
+            pipeline.hset("vmpooler__vm__#{vm}", 'destroy', Time.now)
 
             # Auto-expire metadata key
-            redis.expire("vmpooler__vm__#{vm}", ($config[:redis]['data_ttl'].to_i * 60 * 60))
+            pipeline.expire("vmpooler__vm__#{vm}", ($config[:redis]['data_ttl'].to_i * 60 * 60))
           end
 
           start = Time.now
@@ -1204,19 +1204,19 @@ module Vmpooler
               pool_check_response[:destroyed_vms] += 1
               destroy_vm(vm, pool_name, provider)
             rescue StandardError => e
-              redis.pipelined do
-                redis.srem("vmpooler__completed__#{pool_name}", vm)
-                redis.hdel("vmpooler__active__#{pool_name}", vm)
-                redis.del("vmpooler__vm__#{vm}")
+              redis.pipelined do |pipeline|
+                pipeline.srem("vmpooler__completed__#{pool_name}", vm)
+                pipeline.hdel("vmpooler__active__#{pool_name}", vm)
+                pipeline.del("vmpooler__vm__#{vm}")
               end
               $logger.log('d', "[!] [#{pool_name}] _check_pool failed with an error while evaluating completed VMs: #{e}")
             end
           else
             $logger.log('s', "[!] [#{pool_name}] '#{vm}' not found in inventory, removed from 'completed' queue")
-            redis.pipelined do
-              redis.srem("vmpooler__completed__#{pool_name}", vm)
-              redis.hdel("vmpooler__active__#{pool_name}", vm)
-              redis.del("vmpooler__vm__#{vm}")
+            redis.pipelined do |pipeline|
+              pipeline.srem("vmpooler__completed__#{pool_name}", vm)
+              pipeline.hdel("vmpooler__active__#{pool_name}", vm)
+              pipeline.del("vmpooler__vm__#{vm}")
             end
           end
         end
@@ -1432,12 +1432,12 @@ module Vmpooler
       score = redis.zscore('vmpooler__provisioning__request', request_id)
       requested = requested.split(',')
 
-      redis.pipelined do
+      redis.pipelined do |pipeline|
         requested.each do |request|
-          redis.zadd('vmpooler__odcreate__task', Time.now.to_i, "#{request}:#{request_id}")
+          pipeline.zadd('vmpooler__odcreate__task', Time.now.to_i, "#{request}:#{request_id}")
         end
-        redis.zrem('vmpooler__provisioning__request', request_id)
-        redis.zadd('vmpooler__provisioning__processing', score, request_id)
+        pipeline.zrem('vmpooler__provisioning__request', request_id)
+        pipeline.zadd('vmpooler__provisioning__processing', score, request_id)
       end
     end
 
@@ -1467,9 +1467,9 @@ module Vmpooler
             redis.incr('vmpooler__tasks__ondemandclone')
             clone_vm(pool, provider, request_id, pool_alias)
           end
-          redis.pipelined do
-            redis.zrem(queue_key, request)
-            redis.zadd(queue_key, score, "#{pool_alias}:#{pool}:#{remaining_count}:#{request_id}")
+          redis.pipelined do |pipeline|
+            pipeline.zrem(queue_key, request)
+            pipeline.zadd(queue_key, score, "#{pool_alias}:#{pool}:#{remaining_count}:#{request_id}")
           end
         end
       end
@@ -1520,10 +1520,10 @@ module Vmpooler
 
       $logger.log('s', "Ondemand request for '#{request_id}' failed to provision all instances within the configured ttl '#{ondemand_request_ttl}'")
       expiration_ttl = $config[:redis]['data_ttl'].to_i * 60 * 60
-      redis.pipelined do
-        redis.zrem('vmpooler__provisioning__processing', request_id)
-        redis.hset("vmpooler__odrequest__#{request_id}", 'status', 'failed')
-        redis.expire("vmpooler__odrequest__#{request_id}", expiration_ttl)
+      redis.pipelined do |pipeline|
+        pipeline.zrem('vmpooler__provisioning__processing', request_id)
+        pipeline.hset("vmpooler__odrequest__#{request_id}", 'status', 'failed')
+        pipeline.expire("vmpooler__odrequest__#{request_id}", expiration_ttl)
       end
       remove_vms_for_failed_request(request_id, expiration_ttl, redis)
       true
@@ -1533,11 +1533,11 @@ module Vmpooler
       request_hash = redis.hgetall("vmpooler__odrequest__#{request_id}")
       Parsing.get_platform_pool_count(request_hash['requested']) do |platform_alias, pool, _count|
         pools_filled = redis.smembers("vmpooler__#{request_id}__#{platform_alias}__#{pool}")
-        redis.pipelined do
+        redis.pipelined do |pipeline|
           pools_filled&.each do |vm|
-            move_vm_queue(pool, vm, 'running', 'completed', redis, "moved to completed queue. '#{request_id}' could not be filled in time")
+            move_vm_queue(pool, vm, 'running', 'completed', pipeline, "moved to completed queue. '#{request_id}' could not be filled in time")
           end
-          redis.expire("vmpooler__#{request_id}__#{platform_alias}__#{pool}", expiration_ttl)
+          pipeline.expire("vmpooler__#{request_id}__#{platform_alias}__#{pool}", expiration_ttl)
         end
       end
     end
