@@ -478,10 +478,10 @@ EOT
         it 'should specify auth data on the vm' do
           redis_connection_pool.with do |redis|
             allow(redis).to receive(:hset)
-            expect(redis).to receive(:hset).with("vmpooler__vm__#{vm}", 'token:token', token)
-            expect(redis).to receive(:hset).with("vmpooler__vm__#{vm}", 'token:user', user)
 
             subject.move_pending_vm_to_ready(vm, pool, redis, request_id)
+            expect(redis.hget("vmpooler__vm__#{vm}", 'token:token')).to eq(token)
+            expect(redis.hget("vmpooler__vm__#{vm}", 'token:user')).to eq(user)
           end
         end
       end
@@ -970,7 +970,9 @@ EOT
 
       it 'should expire the vm metadata' do
         redis_connection_pool.with do |redis|
-          expect(redis).to receive(:expire)
+          redis.pipelined do |pipe|
+            expect(pipe).to receive(:expire)
+          end
           expect{subject._clone_vm(pool,provider)}.to raise_error(/MockError/)
         end
       end
@@ -1074,7 +1076,9 @@ EOT
 
       it 'should call redis expire with 0' do
         redis_connection_pool.with do |redis|
-          expect(redis).to receive(:expire).with("vmpooler__vm__#{vm}", 0)
+          redis.pipelined do |pipe|
+            expect(pipe).to receive(:expire).with("vmpooler__vm__#{vm}", 0)
+          end
           subject._destroy_vm(vm,pool,provider)
         end
       end
@@ -4648,16 +4652,20 @@ EOT
 
       it 'creates tasks for instances to be provisioned' do
         redis_connection_pool.with do |redis|
-          allow(redis).to receive(:zadd)
-          expect(redis).to receive(:zadd).with('vmpooler__odcreate__task', current_time.to_i, "#{request_string}:#{request_id}")
+          redis.pipelined do |pipe|
+            allow(pipe).to receive(:zadd)
+            expect(pipe).to receive(:zadd).with('vmpooler__odcreate__task', current_time.to_i, "#{request_string}:#{request_id}")
+          end
           subject.create_ondemand_vms(request_id, redis)
         end
       end
 
       it 'adds a member to provisioning__processing' do
         redis_connection_pool.with do |redis|
-          allow(redis).to receive(:zadd)
-          expect(redis).to receive(:zadd).with('vmpooler__provisioning__processing', current_time.to_i, request_id)
+          redis.pipelined do |pipe|
+            allow(pipe).to receive(:zadd)
+            expect(pipe).to receive(:zadd).with('vmpooler__provisioning__processing', current_time.to_i, request_id)
+          end
           subject.create_ondemand_vms(request_id, redis)
         end
       end
@@ -4712,7 +4720,9 @@ EOT
 
       it 'should add the remaining number back as a new create task with the same score' do
         redis_connection_pool.with do |redis|
-          expect(redis).to receive(:zadd).with('vmpooler__odcreate__task', current_time.to_i, "#{request_string_remaining}:#{request_id}")
+          redis.pipelined do |pipe|
+            expect(pipe).to receive(:zadd).with('vmpooler__odcreate__task', current_time.to_i, "#{request_string_remaining}:#{request_id}")
+          end
           subject.process_ondemand_vms(redis)
         end
       end
@@ -4922,21 +4932,27 @@ EOT
 
       it 'removes the request from processing requests' do
         redis_connection_pool.with do |redis|
-          expect(redis).to receive(:zrem).with('vmpooler__provisioning__processing', request_id)
+          redis.pipelined do |pipe|
+            expect(pipe).to receive(:zrem).with('vmpooler__provisioning__processing', request_id)
+          end
           subject.request_expired?(request_id, expired_time, redis)
         end
       end
 
       it 'sets the status as failed on the request hash' do
         redis_connection_pool.with do |redis|
-          expect(redis).to receive(:hset).with("vmpooler__odrequest__#{request_id}", 'status', 'failed')
+          redis.pipelined do |pipe|
+            expect(pipe).to receive(:hset).with("vmpooler__odrequest__#{request_id}", 'status', 'failed')
+          end
           subject.request_expired?(request_id, expired_time, redis)
         end
       end
 
       it 'marks the request hash for expiration' do
         redis_connection_pool.with do |redis|
-          expect(redis).to receive(:expire).with("vmpooler__odrequest__#{request_id}", expiration_ttl * 60 * 60)
+          redis.pipelined do |pipe|
+            expect(pipe).to receive(:expire).with("vmpooler__odrequest__#{request_id}", expiration_ttl * 60 * 60)
+          end
           subject.request_expired?(request_id, expired_time, redis)
         end
       end
@@ -4975,14 +4991,18 @@ EOT
 
       it 'should remove the associated vms' do
         redis_connection_pool.with do |redis|
-          expect(subject).to receive(:move_vm_queue).with(pool, String, 'running', 'completed', redis, "moved to completed queue. '#{request_id}' could not be filled in time").twice
+          redis.pipelined do |pipe|
+            expect(subject).to receive(:move_vm_queue).with(pool, String, 'running', 'completed', pipe, "moved to completed queue. '#{request_id}' could not be filled in time").twice
+          end
           subject.remove_vms_for_failed_request(request_id, expiration_ttl, redis)
         end
       end
 
       it 'should mark the ready set for expiration' do
         redis_connection_pool.with do |redis|
-          expect(redis).to receive(:expire).with("vmpooler__#{request_id}__#{platform_alias}__#{pool}", expiration_ttl)
+          redis.pipelined do |pipe|
+            expect(pipe).to receive(:expire).with("vmpooler__#{request_id}__#{platform_alias}__#{pool}", expiration_ttl)
+          end
           subject.remove_vms_for_failed_request(request_id, expiration_ttl, redis)
         end
       end

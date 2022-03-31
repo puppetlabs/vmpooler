@@ -147,12 +147,12 @@ module Vmpooler
 
       def export_tags(backend, hostname, tags)
         tracer.in_span("Vmpooler::API::Helpers.#{__method__}") do
-          backend.pipelined do
+          backend.pipelined do |pipeline|
             tags.each_pair do |tag, value|
               next if value.nil? or value.empty?
 
-              backend.hset("vmpooler__vm__#{hostname}", "tag:#{tag}", value)
-              backend.hset("vmpooler__tag__#{Date.today}", "#{hostname}:#{tag}", value)
+              pipeline.hset("vmpooler__vm__#{hostname}", "tag:#{tag}", value)
+              pipeline.hset("vmpooler__tag__#{Date.today}", "#{hostname}:#{tag}", value)
             end
           end
         end
@@ -201,9 +201,9 @@ module Vmpooler
         tracer.in_span("Vmpooler::API::Helpers.#{__method__}") do
           # using pipelined is much faster than querying each of the pools and adding them
           # as we get the result.
-          res = backend.pipelined do
+          res = backend.pipelined do |pipeline|
             pools.each do |pool|
-              backend.scard(key + pool['name'])
+              pipeline.scard(key + pool['name'])
             end
           end
           res.inject(0) { |m, x| m + x }.to_i
@@ -217,9 +217,9 @@ module Vmpooler
           # using pipelined is much faster than querying each of the pools and adding them
           # as we get the result.
           temp_hash = {}
-          res = backend.pipelined do
+          res = backend.pipelined do |pipeline|
             pools.each do |pool|
-              backend.scard(key + pool['name'])
+              pipeline.scard(key + pool['name'])
             end
           end
           pools.each_with_index do |pool, i|
@@ -236,9 +236,9 @@ module Vmpooler
           # using pipelined is much faster than querying each of the pools and adding them
           # as we get the result.
           temp_hash = {}
-          res = backend.pipelined do
+          res = backend.pipelined do |pipeline|
             pools.each do |pool|
-              backend.hget(key, pool['name'])
+              pipeline.hget(key, pool['name'])
             end
           end
           pools.each_with_index do |pool, i|
