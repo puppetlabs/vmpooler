@@ -12,6 +12,21 @@
 
 vmpooler provides a REST API for VM management.  The following examples use `curl` for communication.
 
+## Major change in V2 versus V1
+
+The api/v2 endpoint removes a separate "domain" key returned in some of the operations like getting a VM, etc. If there is a "domain" configured in the top level configuration or for a specific provider,
+the hostname now returns an FQDN including that domain. That is to say, we can now have multiple, different domains for each provider instead of only one.
+
+Clients using some of the direct API paths (without specifying api/v1 or api/v2) will still be redirected to v1, but this behavior is notw deprecated and will be changed to v2 in the next major version.
+
+### updavig clients from v1 to v2
+
+Clients need to update their paths to using api/v2 instead of api/v1. Please note the API responses that used to return a "domain" key, will no longer have a separate "domain" key and now return
+the FQDN (includes the domain in the hostname).
+
+One way to support both v1 and v2 in the client logic is to look for a "domain" and append it to the hostname if it exists (existing v1 behavior). If the "domain" key does not exist, you can use the hostname 
+as is since it is a FQDN (v2 behavor).
+
 #### Token operations <a name="token"></a>
 
 Token-based authentication can be used when requesting or modifying VMs.  The `/token` route can be used to create, query, or delete tokens.  See the provided YAML configuration example, [vmpooler.yaml.example](vmpooler.yaml.example), for information on configuring an authentication store to use when performing token operations.
@@ -149,8 +164,7 @@ $ curl -d '{"debian-7-i386":"2","debian-7-x86_64":"1"}' --url vmpooler.example.c
   },
   "debian-7-x86_64": {
     "hostname": "y91qbrpbfj6d13q.example.com"
-  },
-  "domain": "example.com"
+  }
 }
 ```
 
@@ -173,8 +187,7 @@ $ curl -d --url vmpooler.example.com/api/v2/vm/debian-7-i386
   "ok": true,
   "debian-7-i386": {
     "hostname": "fq6qlpjlsskycq6.example.com"
-  },
-  "domain": "example.com"
+  }
 }
 ```
 
@@ -195,8 +208,7 @@ $ curl -d --url vmpooler.example.com/api/v2/vm/debian-7-i386+debian-7-i386+debia
   },
   "debian-7-x86_64": {
     "hostname": "zb91y9qbrbf6d3q.example.com"
-  },
-  "domain": "example.com"
+  }
 }
 ```
 
@@ -227,7 +239,6 @@ $ curl --url vmpooler.example.com/api/v2/vm/pxpmtoonx7fiqg6
       "user": "jdoe"
     },
     "ip": "192.168.0.1",
-    "domain": "example.com",
     "host": "host1.example.com",
     "migrated": "true"
   }
@@ -329,8 +340,7 @@ $ curl --url vmpooler.example.com/api/v2/vm/fq6qlpjlsskycq6
     "state": "running",
     "disk": [
       "+8gb"
-    ],
-    "domain": "delivery.puppetlabs.net"
+    ]
   }
 }
 
@@ -374,8 +384,7 @@ $ curl --url vmpooler.example.com/api/v2/vm/fq6qlpjlsskycq6
     "state": "running",
     "snapshots": [
       "n4eb4kdtp7rwv4x158366vd9jhac8btq"
-    ],
-    "domain": "delivery.puppetlabs.net"
+    ]
   }
 }
 ````
