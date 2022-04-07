@@ -869,6 +869,58 @@ EOT
     end
   end
 
+  describe '#find_unique_hostname' do
+    # it should return the hostname
+    before do
+      allow(subject).to receive(:generate_and_check_hostname).and_return(["spicy-proton", true])
+      allow(subject).to receive(:get_provider_for_pool).and_return(provider)
+    end
+
+    context 'with a setting to skip dns check' do
+      let(:config) {
+        YAML.load(<<-EOT
+---
+:providers:
+  :mock_provider:
+    skip_dns_check_before_creating_vm: true
+:pools:
+  - name: '#{pool}'
+    size: 1
+        EOT
+        )
+      }
+      it 'should skip the dns check' do
+        #method is skipped
+        expect(subject).not_to receive(:check_dns_available)
+        expect(subject.find_unique_hostname(pool)).to eq("spicy-proton")
+      end
+    end
+    context 'without the setting to skip dns check' do
+      let(:config) {
+        YAML.load(<<-EOT
+---
+:providers:
+  :mock_provider:
+:pools:
+  - name: '#{pool}'
+    size: 1
+        EOT
+        )
+      }
+      it 'should run the dns check and pass' do
+        #method is skipped
+        expect(subject).to receive(:check_dns_available).and_return(["1.1.1.1",true])
+        expect(subject.find_unique_hostname(pool)).to eq("spicy-proton")
+      end
+
+      it 'should run the dns check and fail' do
+        #method is skipped
+        allow(subject).to receive(:check_dns_available).and_return(["1.1.1.1",false]).exactly(3).times
+        expect{subject.find_unique_hostname(pool)}.to raise_error(RuntimeError)
+      end
+    end
+  end
+
   describe '#_clone_vm' do
     let (:pool_object) { { 'name' => pool } }
     let (:redis_ttl) { 1 }
@@ -2708,6 +2760,7 @@ EOT
       allow(subject).to receive(:check_snapshot_queue)
       allow(subject).to receive(:check_pool)
       allow(subject).to receive(:check_ondemand_requests)
+      allow(subject).to receive(:get_domain_for_pool).and_return('example.com')
 
       allow(logger).to receive(:log)
     end

@@ -184,6 +184,8 @@ module Vmpooler
       def hostname_shorten(hostname, domain=nil)
         if domain && hostname =~ /^[\w-]+\.#{domain}$/
           hostname = hostname[/[^.]+/]
+        elsif hostname =~ /^[\w-]+\..+$/
+          hostname = hostname[/[^.]+/]
         end
 
         hostname

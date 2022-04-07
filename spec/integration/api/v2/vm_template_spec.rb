@@ -1,7 +1,7 @@
 require 'spec_helper'
 require 'rack/test'
 
-describe Vmpooler::API::V1 do
+describe Vmpooler::API::V2 do
   include Rack::Test::Methods
 
   def app()
@@ -16,7 +16,7 @@ describe Vmpooler::API::V1 do
   end
 
   describe '/vm/:template' do
-    let(:prefix) { '/api/v1' }
+    let(:prefix) { '/api/v2' }
     let(:metrics) { Vmpooler::Metrics::DummyStatsd.new }
     let(:config) {
       {
@@ -28,7 +28,7 @@ describe Vmpooler::API::V1 do
         pools: [
           {'name' => 'pool1', 'size' => 5},
           {'name' => 'pool2', 'size' => 10},
-          {'name' => 'poolone', 'size' => 0}
+          {'name' => 'poolone', 'size' => 1}
         ],
         statsd: { 'prefix' => 'stats_prefix'},
         alias: { 'poolone' => 'pool1' },
@@ -105,7 +105,7 @@ describe Vmpooler::API::V1 do
       end
 
       it 'returns 503 for empty pool referenced by alias' do
-        create_ready_vm 'pool1', 'abcdefghijklmnop', redis
+        create_ready_vm 'pool2', 'abcdefghijklmnop', redis
         post "#{prefix}/vm/poolone"
 
         expected = { ok: false }

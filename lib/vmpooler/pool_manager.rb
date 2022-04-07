@@ -60,6 +60,7 @@ module Vmpooler
             to_set[k] = pool[k]
           end
           to_set['alias'] = pool['alias'].join(',') if to_set.key?('alias')
+          to_set['domain'] = Parsing.get_domain_for_pool(config, pool['name'])
           redis.hmset("vmpooler__pool__#{pool['name']}", to_set.to_a.flatten) unless to_set.empty?
         end
         previously_configured_pools.each do |pool|
@@ -361,35 +362,47 @@ module Vmpooler
       max_hostname_retries = 3
       while hostname_retries < max_hostname_retries
         hostname, hostname_available = generate_and_check_hostname
-        domain = $config[:config]['domain']
-        dns_ip, dns_available = check_dns_available(hostname, domain)
+        domain = Parsing.get_domain_for_pool(config, pool_name)
+        if domain
+          fqdn = "#{hostname}.#{domain}"
+        else
+          fqdn = hostname
+        end
+
+        # skip dns check if the provider is set to skip_dns_check_before_creating_vm
+        provider = get_provider_for_pool(pool_name)
+        if provider && provider.provider_config['skip_dns_check_before_creating_vm']
+          dns_available = true
+        else
+          dns_ip, dns_available = check_dns_available(fqdn)
+        end
+
         break if hostname_available && dns_available
 
         hostname_retries += 1
 
         if !hostname_available
           $metrics.increment("errors.duplicatehostname.#{pool_name}")
-          $logger.log('s', "[!] [#{pool_name}] Generated hostname #{hostname} was not unique (attempt \##{hostname_retries} of #{max_hostname_retries})")
+          $logger.log('s', "[!] [#{pool_name}] Generated hostname #{fqdn} was not unique (attempt \##{hostname_retries} of #{max_hostname_retries})")
         elsif !dns_available
           $metrics.increment("errors.staledns.#{pool_name}")
-          $logger.log('s', "[!] [#{pool_name}] Generated hostname #{hostname} already exists in DNS records (#{dns_ip}), stale DNS")
+          $logger.log('s', "[!] [#{pool_name}] Generated hostname #{fqdn} already exists in DNS records (#{dns_ip}), stale DNS")
         end
       end
 
-      raise "Unable to generate a unique hostname after #{hostname_retries} attempts. The last hostname checked was #{hostname}" unless hostname_available && dns_available
+      raise "Unable to generate a unique hostname after #{hostname_retries} attempts. The last hostname checked was #{fqdn}" unless hostname_available && dns_available
 
       hostname
     end
 
-    def check_dns_available(vm_name, domain = nil)
-      # Query the DNS for the name we want to create and if it already exists, mark it unavailable
-      # This protects against stale DNS records
-      vm_name = "#{vm_name}.#{domain}" if domain
+    # Query the DNS for the name we want to create and if it already exists, mark it unavailable
+    # This protects against stale DNS records
+    def check_dns_available(vm_name)
       begin
         dns_ip = Resolv.getaddress(vm_name)
       rescue Resolv::ResolvError
         # this is the expected case, swallow the error
-        # eg "no address for blah-daisy"
+        # eg "no address for blah-daisy.example.com"
         return ['', true]
       end
       [dns_ip, false]
@@ -397,6 +410,7 @@ module Vmpooler
 
     def _clone_vm(pool_name, provider, request_id = nil, pool_alias = nil)
       new_vmname = find_unique_hostname(pool_name)
+      pool_domain = Parsing.get_domain_for_pool(config, pool_name)
       mutex = vm_mutex(new_vmname)
       mutex.synchronize do
         @redis.with_metrics do |redis|
@@ -406,6 +420,7 @@ module Vmpooler
           redis.hset("vmpooler__vm__#{new_vmname}", 'clone', Time.now)
           redis.hset("vmpooler__vm__#{new_vmname}", 'template', pool_name) # This value is used to represent the pool.
           redis.hset("vmpooler__vm__#{new_vmname}", 'pool', pool_name)
+          redis.hset("vmpooler__vm__#{new_vmname}", 'domain', pool_domain) if pool_domain
           redis.hset("vmpooler__vm__#{new_vmname}", 'request_id', request_id) if request_id
           redis.hset("vmpooler__vm__#{new_vmname}", 'pool_alias', pool_alias) if pool_alias
           redis.exec
@@ -879,7 +894,7 @@ module Vmpooler
           loop_count = 1
           loop_delay = loop_delay_min
           provider = get_provider_for_pool(pool['name'])
-          raise("Could not find provider '#{pool['provider']}") if provider.nil?
+          raise("Could not find provider '#{pool['provider']}'") if provider.nil?
 
           sync_pool_template(pool)
           loop do
@@ -1366,7 +1381,7 @@ module Vmpooler
 
         return provider_klass.const_get(classname).new(config, logger, metrics, redis_connection_pool, provider_name, options)
       end
-      raise("Provider '#{provider_class}' is unknown for pool with provider name '#{provider_name}'") if provider.nil?
+      raise("Provider '#{provider_class}' is unknown for pool with provider name '#{provider_name}'") if provider_klass.nil?
     end
 
     def check_ondemand_requests(maxloop = 0,

@@ -16,12 +16,12 @@ describe Vmpooler::API::Helpers do
 
   describe '#hostname_shorten' do
     [
-        ['example.com', 'not-example.com', 'example.com'],
-        ['example.com', 'example.com', 'example.com'],
+        ['example.com', 'not-example.com', 'example'],
+        ['example.com', 'example.com', 'example'],
         ['sub.example.com', 'example.com', 'sub'],
         ['adjective-noun.example.com', 'example.com', 'adjective-noun'],
         ['abc123.example.com', 'example.com', 'abc123'],
-        ['example.com', nil, 'example.com']
+        ['example.com', nil, 'example']
     ].each do |hostname, domain, expected|
       it { expect(subject.hostname_shorten(hostname, domain)).to eq expected }
     end

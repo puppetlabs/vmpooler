@@ -21,7 +21,7 @@ Path to a the file to use when loading the vmpooler configuration. This is only 
 
 ### DOMAIN
 
-If set, returns a top-level 'domain' JSON key in POST requests
+This environment variable is to set the configuration config.domain
 (optional)
 
 ### REDIS\_SERVER
