@@ -258,6 +258,82 @@ module Vmpooler
         JSON.pretty_generate(result)
       end
 
+      get "#{api_prefix}/vm/:hostname/?" do
+        content_type :json
+        metrics.increment('http_requests_vm_total.get.vm.hostname')
+
+        result = {}
+
+        status 404
+        result['ok'] = false
+
+        params[:hostname] = hostname_shorten(params[:hostname], nil)
+
+        rdata = backend.hgetall("vmpooler__vm__#{params[:hostname]}")
+        unless rdata.empty?
+          status 200
+          result['ok'] = true
+
+          result[params[:hostname]] = {}
+
+          result[params[:hostname]]['template'] = rdata['template']
+          result[params[:hostname]]['lifetime'] = (rdata['lifetime'] || config['vm_lifetime']).to_i
+
+          if rdata['destroy']
+            result[params[:hostname]]['running'] = ((Time.parse(rdata['destroy']) - Time.parse(rdata['checkout'])) / 60 / 60).round(2) if rdata['checkout']
+            result[params[:hostname]]['state'] = 'destroyed'
+          elsif rdata['checkout']
+            result[params[:hostname]]['running'] = ((Time.now - Time.parse(rdata['checkout'])) / 60 / 60).round(2)
+            result[params[:hostname]]['remaining'] = ((Time.parse(rdata['checkout']) + rdata['lifetime'].to_i*60*60 - Time.now) / 60 / 60).round(2)
+            result[params[:hostname]]['start_time'] = Time.parse(rdata['checkout']).to_datetime.rfc3339
+            result[params[:hostname]]['end_time'] = (Time.parse(rdata['checkout']) + rdata['lifetime'].to_i*60*60).to_datetime.rfc3339
+            result[params[:hostname]]['state'] = 'running'
+          elsif rdata['check']
+            result[params[:hostname]]['state'] = 'ready'
+          else
+            result[params[:hostname]]['state'] = 'pending'
+          end
+
+          rdata.keys.each do |key|
+            if key.match('^tag\:(.+?)$')
+              result[params[:hostname]]['tags'] ||= {}
+              result[params[:hostname]]['tags'][$1] = rdata[key]
+            end
+
+            if key.match('^snapshot\:(.+?)$')
+              result[params[:hostname]]['snapshots'] ||= []
+              result[params[:hostname]]['snapshots'].push($1)
+            end
+          end
+
+          if rdata['disk']
+            result[params[:hostname]]['disk'] = rdata['disk'].split(':')
+          end
+
+          # Look up IP address of the hostname
+          begin
+            ipAddress = TCPSocket.gethostbyname(params[:hostname])[3]
+          rescue StandardError
+            ipAddress = ""
+          end
+
+          result[params[:hostname]]['ip'] = ipAddress
+
+          if rdata['pool']
+            vmdomain = Parsing.get_domain_for_pool(full_config, rdata['pool'])
+            if vmdomain
+              result[params[:hostname]]['fqdn'] = "#{params[:hostname]}.#{vmdomain}"
+            end
+          end
+
+          result[params[:hostname]]['host'] = rdata['host'] if rdata['host']
+          result[params[:hostname]]['migrated'] = rdata['migrated'] if rdata['migrated']
+
+        end
+
+        JSON.pretty_generate(result)
+      end
+
       post "#{api_prefix}/ondemandvm/?" do
         content_type :json
         metrics.increment('http_requests_vm_total.post.ondemand.requestid')
