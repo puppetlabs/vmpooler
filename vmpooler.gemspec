@@ -24,7 +24,7 @@ Gem::Specification.new do |s|
   s.add_dependency 'nokogiri', '~> 1.10'
   s.add_dependency 'opentelemetry-exporter-jaeger', '= 0.20.1'
   s.add_dependency 'opentelemetry-instrumentation-concurrent_ruby', '= 0.19.2'
-  s.add_dependency 'opentelemetry-instrumentation-http_client', '= 0.19.3'
+  s.add_dependency 'opentelemetry-instrumentation-http_client', '= 0.19.4'
   s.add_dependency 'opentelemetry-instrumentation-redis', '= 0.21.2'
   s.add_dependency 'opentelemetry-instrumentation-sinatra', '= 0.19.3'
   s.add_dependency 'opentelemetry-resource_detectors', '= 0.19.1'
