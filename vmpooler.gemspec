@@ -11,7 +11,6 @@ Gem::Specification.new do |s|
   s.summary       = 'vmpooler provides configurable pools of instantly-available (running) virtual machines'
   s.homepage      = 'https://github.com/puppetlabs/vmpooler'
   s.license       = 'Apache-2.0'
-  s.required_ruby_version = Gem::Requirement.new('>= 2.3.0')
 
   s.files         = Dir[ "bin/*", "lib/**/*" ]
   s.bindir        = 'bin'
@@ -21,7 +20,6 @@ Gem::Specification.new do |s|
   s.add_dependency 'connection_pool', '~> 2.2'
   s.add_dependency 'deep_merge', '~> 1.2'
   s.add_dependency 'net-ldap', '~> 0.16'
-  s.add_dependency 'nokogiri', '~> 1.10'
   s.add_dependency 'opentelemetry-exporter-jaeger', '= 0.20.1'
   s.add_dependency 'opentelemetry-instrumentation-concurrent_ruby', '= 0.19.2'
   s.add_dependency 'opentelemetry-instrumentation-http_client', '= 0.19.4'
