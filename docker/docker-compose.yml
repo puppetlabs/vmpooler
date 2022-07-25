@@ -18,7 +18,6 @@ services:
       - VMPOOLER_CONFIG_FILE=/etc/vmpooler/vmpooler.yaml
       - REDIS_SERVER=redislocal
       - LOGFILE=/dev/null
-      - JRUBY_OPTS=-Xinvokedynamic.yield=false
       - VMPOOLER_TRACING_ENABLED=true
       - VMPOOLER_TRACING_JAEGER_HOST=http://jaeger-aio:14268/api/traces
     image: vmpooler-local

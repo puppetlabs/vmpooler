@@ -30,10 +30,6 @@ VMPooler itself and the dev environment talked about below require additional Ru
 
 Configuration for VMPooler may be provided via environment variables, or a configuration file.
 
-### Note on JRuby 9.2.11.x
-
-We have found when running VMPooler on JRuby 9.2.11.x we occasionally encounter a stack overflow error that causes the pool\_manager application component to fail and stop doing work. To address this issue on JRuby 9.2.11.x we recommend setting the JRuby option `invokedynamic.yield=false`. To set this with JRuby 9.2.11.1 you can specify the environment variable `JRUBY_OPTS` with the value `-Xinvokedynamic.yield=false`.
-
 The provided configuration defaults are reasonable for  small VMPooler instances with a few pools. If you plan to run a large VMPooler instance it is important to consider configuration values appropriate for the instance of your size in order to avoid starving the provider, or Redis, of connections.
 
 VMPooler uses a connection pool for Redis to improve efficiency and ensure thread safe usage. At Puppet, we run an instance with about 100 pools at any given time. We have to provide it with 200 Redis connections to the Redis connection pool, and a timeout for connections of 40 seconds, to avoid timeouts. Because metrics are generated for connection available and waited, your metrics provider will need to be able to cope with this volume. Prometheus or StatsD is recommended to ensure metrics get delivered reliably.
