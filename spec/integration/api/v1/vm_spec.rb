@@ -124,8 +124,7 @@ describe Vmpooler::API::V1 do
       end
 
       it 'returns 503 for empty pool referenced by alias' do
-        create_ready_vm 'pool1', vmname, redis
-        post "#{prefix}/vm/poolone"
+        create_ready_vm 'pool2', vmname, redis
         post "#{prefix}/vm/poolone"
 
         expected = { ok: false }

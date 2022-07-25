@@ -24,6 +24,10 @@ module Vmpooler
       Vmpooler::API.settings.config[:config]
     end
 
+    def full_config
+      Vmpooler::API.settings.config
+    end
+
     def pools
       Vmpooler::API.settings.config[:pools]
     end
@@ -1515,7 +1519,7 @@ module Vmpooler
 
     post "#{api_prefix}/vm/:hostname/snapshot/:snapshot/?" do
       content_type :json
-      metrics.increment('http_requests_vm_total.post.vm.disksize')
+      metrics.increment('http_requests_vm_total.post.vm.snapshot')
 
       need_token! if Vmpooler::API.settings.config[:auth]
 
@@ -1732,6 +1736,20 @@ module Vmpooler
 
         status 200
       end
+      JSON.pretty_generate(result)
+    end
+
+    get "#{api_prefix}/full_config/?" do
+      content_type :json
+
+      result = {
+        full_config: full_config,
+        status: {
+          ok: true
+        }
+      }
+
+      status 200
       JSON.pretty_generate(result)
     end
   end
