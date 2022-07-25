@@ -181,14 +181,9 @@ module Vmpooler
         /^\d{4}-\d{2}-\d{2}$/ === date_str
       end
 
+      # NOTE: domain is not needed here, so we should update the callers of this method
       def hostname_shorten(hostname, domain=nil)
-        if domain && hostname =~ /^[\w-]+\.#{domain}$/
-          hostname = hostname[/[^.]+/]
-        elsif hostname =~ /^[\w-]+\..+$/
-          hostname = hostname[/[^.]+/]
-        end
-
-        hostname
+        hostname[/[^.]+/]
       end
 
       def get_task_times(backend, task, date_str)

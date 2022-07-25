@@ -1519,7 +1519,7 @@ module Vmpooler
 
     post "#{api_prefix}/vm/:hostname/snapshot/:snapshot/?" do
       content_type :json
-      metrics.increment('http_requests_vm_total.post.vm.disksize')
+      metrics.increment('http_requests_vm_total.post.vm.snapshot')
 
       need_token! if Vmpooler::API.settings.config[:auth]
 
