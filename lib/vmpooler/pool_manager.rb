@@ -1596,19 +1596,19 @@ module Vmpooler
       $config[:pools].each do |pool|
         provider_name = pool['provider']
         # The provider_class parameter can be defined in the provider's data eg
-        #:providers:
-        # :vsphere:
-        #  provider_class: 'vsphere'
-        # :another-vsphere:
-        #  provider_class: 'vsphere'
+        # :providers:
+        #   :vsphere:
+        #     provider_class: 'vsphere'
+        #   :another-vsphere:
+        #     provider_class: 'vsphere'
         # the above would create two providers/vsphere.rb class objects named 'vsphere' and 'another-vsphere'
         # each pools would then define which provider definition to use: vsphere or another-vsphere
         #
         # if provider_class is not defined it will try to use the provider_name as the class, this is to be
         # backwards compatible for example when there is only one provider listed
         # :providers:
-        #  :dummy:
-        #   filename: 'db.txs'
+        #   :dummy:
+        #     filename: 'db.txs'
         # the above example would create an object based on the class providers/dummy.rb
         if $config[:providers].nil? || $config[:providers][provider_name.to_sym].nil? || $config[:providers][provider_name.to_sym]['provider_class'].nil?
           provider_class = provider_name
