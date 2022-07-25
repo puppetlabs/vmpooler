@@ -119,7 +119,13 @@ module Vmpooler
           pool_alias = redis.hget("vmpooler__vm__#{vm}", 'pool_alias') if request_id
           redis.multi
           redis.smove("vmpooler__pending__#{pool}", "vmpooler__completed__#{pool}", vm)
-          redis.zadd('vmpooler__odcreate__task', 1, "#{pool_alias}:#{pool}:1:#{request_id}") if request_id
+          if request_id
+            ondemandrequest_hash = redis.hgetall("vmpooler__odrequest__#{request_id}")
+            if ondemandrequest_hash && ondemandrequest_hash['status'] != 'failed' && ondemandrequest_hash['status'] != 'deleted'
+              # will retry a VM that did not come up as vm_ready? only if it has not been market failed or deleted
+              redis.zadd('vmpooler__odcreate__task', 1, "#{pool_alias}:#{pool}:1:#{request_id}")
+            end
+          end
           redis.exec
           $metrics.increment("errors.markedasfailed.#{pool}")
           $logger.log('d', "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes")
