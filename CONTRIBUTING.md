@@ -64,7 +64,7 @@ the new documentation or comments added.
 * Submit a pull request to the repository in the puppetlabs organization.
 * Update your Jira ticket to mark that you have submitted code and are ready for it to be reviewed (Status: Ready for Merge).
   * Include a link to the pull request in the ticket.
-* The Puppet DIO team looks at Pull Requests on a regular basis.
+* The Puppet Release Engineering team looks at Pull Requests on a regular basis.
 * After feedback has been given we expect responses within two weeks. After two weeks we may close the pull request if it isn't showing any activity.
 
 ## Additional Resources
