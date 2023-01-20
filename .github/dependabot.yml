@@ -3,12 +3,10 @@ updates:
 - package-ecosystem: bundler
   directory: "/"
   schedule:
-    interval: daily
-    time: "13:00"
+    interval: weekly
   open-pull-requests-limit: 10
 - package-ecosystem: bundler
   directory: "/docker/"
   schedule:
-    interval: daily
-    time: "13:00"
+    interval: weekly
   open-pull-requests-limit: 10
