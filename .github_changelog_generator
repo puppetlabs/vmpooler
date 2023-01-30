@@ -1,0 +1,3 @@
+project=vmpooler
+user=puppetlabs
+exclude_labels=maintenance

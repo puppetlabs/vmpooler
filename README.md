@@ -2,6 +2,28 @@
 
 # VMPooler
 
+- [VMPooler](#vmpooler)
+  - [Usage](#usage)
+    - [v2.0.0 note](#v200-note)
+  - [Installation](#installation)
+    - [Dependencies](#dependencies)
+      - [Redis](#redis)
+      - [Other gems](#other-gems)
+  - [Configuration](#configuration)
+  - [Components](#components)
+    - [API](#api)
+    - [Dashboard](#dashboard)
+  - [Related tools and resources](#related-tools-and-resources)
+    - [Command-line Utility](#command-line-utility)
+    - [Vagrant plugin](#vagrant-plugin)
+  - [Development](#development)
+    - [docker-compose](#docker-compose)
+    - [Running docker-compose inside Vagrant](#running-docker-compose-inside-vagrant)
+    - [URLs when using docker-compose](#urls-when-using-docker-compose)
+  - [Update the Gemfile Lock](#update-the-gemfile-lock)
+  - [Releasing](#releasing)
+  - [License](#license)
+
 VMPooler provides configurable 'pools' of instantly-available (pre-provisioned) and/or on-demand (provisioned on request) virtual machines.
 
 ## Usage
@@ -136,6 +158,22 @@ For more information about setting up a development instance of VMPooler or othe
 | Jaeger            | [http://localhost:8082](http://localhost:8082)                        |
 
 Additionally, the Redis instance can be accessed at `localhost:6379`.
+
+## Update the Gemfile Lock
+
+To update the `Gemfile.lock` run `./update-gemfile-lock`.
+
+Verify, and update if needed, that the docker tag in the script and GitHub action workflows matches what is used in the [vmpooler-deployment Dockerfile](https://github.com/puppetlabs/vmpooler-deployment/blob/main/docker/Dockerfile).
+
+## Releasing
+
+Follow these steps to publish a new GitHub release, and build and push the gem to <https://rubygems.org>.
+
+1. Bump the "VERSION" in `lib/vmpooler/version.rb` appropriately based on changes in `CHANGELOG.md` since the last release.
+2. Run `./update-gemfile-lock` to update `Gemfile.lock`.
+3. Run `./update-changelog` to update `CHANGELOG.md`.
+4. Commit and push changes to a new branch, then open a pull request against `main` and be sure to add the "maintenance" label.
+5. After the pull request is approved and merged, then navigate to Actions --> Release Gem --> run workflow --> Branch: main --> Run workflow.
 
 ## License
 
