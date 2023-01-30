@@ -1,4 +1,4 @@
-name: Release
+name: Release Gem
 
 on: workflow_dispatch
 
@@ -7,25 +7,77 @@ jobs:
     runs-on: ubuntu-latest
     if: github.repository == 'puppetlabs/vmpooler'
     steps:
-      - uses: actions/checkout@v2
-      - name: Get Version
-        id: gv
+      - uses: actions/checkout@v3
+
+      - name: Get Current Version
+        uses: actions/github-script@v6
+        id: cv
+        with:
+          script: |
+            const { data: response } = await github.rest.repos.getLatestRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            })
+            console.log(`The latest release is ${response.tag_name}`)
+            return response.tag_name
+          result-encoding: string
+
+      - name: Get Next Version
+        id: nv
         run: |
-          echo "::set-output name=ver::$(grep VERSION lib/vmpooler/version.rb |rev |cut -d "'" -f2 |rev)"
+          version=$(grep VERSION lib/vmpooler/version.rb |rev |cut -d "'" -f2 |rev)
+          echo "version=$version" >> $GITHUB_OUTPUT
+          echo "Found version $version from lib/vmpooler/version.rb"
+
+      - name: Generate Changelog
+        uses: docker://githubchangeloggenerator/github-changelog-generator:1.16.2
+        with:
+          args: >-
+            --future-release ${{ steps.nv.outputs.version }}
+        env:
+          CHANGELOG_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate Changelog
+        run : |
+          set -e
+          if [[ -n $(git status --porcelain) ]]; then
+            echo "Here is the current git status:"
+            git status
+            echo
+            echo "The following changes were detected:"
+            git --no-pager diff
+            echo "Uncommitted PRs found in the changelog. Please submit a release prep PR of changes after running `./update-changelog`"
+            exit 1
+          fi
+
+      - name: Generate Release Notes
+        uses: docker://githubchangeloggenerator/github-changelog-generator:1.16.2
+        with:
+          args: >-
+            --since-tag ${{ steps.cv.outputs.result }}
+            --future-release ${{ steps.nv.outputs.version }}
+            --output release-notes.md
+        env:
+          CHANGELOG_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Tag Release
         uses: ncipollo/release-action@v1
         with:
-          tag: ${{ steps.gv.outputs.ver }}
+          tag: ${{ steps.nv.outputs.version }}
           token: ${{ secrets.GITHUB_TOKEN }}
+          bodyfile: release-notes.md
           draft: false
           prerelease: false
-          generateReleaseNotes: true
+
+      # This step should closely match what is used in `docker/Dockerfile` in vmpooler-deployment
       - name: Install Ruby jruby-9.3.6.0
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: 'jruby-9.3.6.0'
+
       - name: Build gem
         run: gem build *.gemspec
+
       - name: Publish gem
         run: |
           mkdir -p $HOME/.gem
