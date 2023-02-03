@@ -75,6 +75,27 @@ EOT
     end
   end
 
+  describe '#load_used_dns_plugins' do
+    let(:config) { YAML.load(<<-EOT
+---
+:config:
+:dns_configs:
+  :base:
+:pools:
+  - name: '#{pool}'
+    size: 1
+    provider: 'spoof'
+    EOT
+    )
+    }
+    it do
+      files = ['vmpooler/dns/base']
+      expect(subject.load_used_dns_plugins).to eq(files)
+    end
+
+
+  end
+
   describe '#used_providers' do
     context 'with no named providers' do
       let(:config) { YAML.load(<<-EOT
@@ -1724,6 +1745,51 @@ EOT
     end
   end
 
+  describe '#get_dns_plugin_class_name_for_pool' do
+    let(:config) { YAML.load(<<-EOT
+---
+:dns_configs:
+  :mock:
+    dns_class: base
+:pools:
+  - name: #{pool}
+    dns_plugin: 'mock'
+EOT
+
+    )}
+    before(:each) do
+      allow(Vmpooler::Dns).to receive(:load_used_dns_plugins).and_return('vmpooler/dns/mock')
+    end
+
+    it 'calls Vmpooler::Dns.get_dns_plugin_class_by_name' do
+      expect(Vmpooler::Dns).to receive(:get_dns_plugin_class_by_name).with(config, 'mock')
+
+      subject.get_dns_plugin_class_name_for_pool(pool)
+    end
+  end
+
+  describe '#get_dns_plugin_domain_for_pool' do
+    let(:config) { YAML.load(<<-EOT
+---
+:dns_configs:
+  :mock:
+    dns_class: base
+:pools:
+  - name: #{pool}
+    dns_plugin: 'mock'
+EOT
+  )}
+    before(:each) do
+      allow(Vmpooler::Dns).to receive(:load_used_dns_plugins).and_return('vmpooler/dns/mock')
+    end
+
+    it 'calls Vmpooler::Dns.get_dns_plugin_domain_for_pool' do
+      expect(Vmpooler::Dns).to receive(:get_dns_plugin_domain_by_name).with(config, 'mock')
+
+      subject.get_dns_plugin_domain_for_pool(pool)
+    end
+  end
+
   describe '#check_disk_queue' do
     let(:threads) {[]}
 
@@ -2815,6 +2881,46 @@ EOT
         expect(subject).to receive(:check_ondemand_requests)
 
         subject.execute!(1,0)
+      end
+
+      context 'creating Dns plugins' do
+        let(:mock_dns_plugin) { double('mock_dns_plugin') }
+        let(:config) {
+        YAML.load(<<-EOT
+---
+:dns_configs:
+  :mock:
+    dns_class: base
+:pools:
+  - name: #{pool}
+    dns_plugin: 'mock'
+  - name: 'dummy'
+    dns_plugin: 'mock'
+  - name: 'dummy2'
+    dns_plugin: 'mock'
+EOT
+        )}
+
+        it 'should call create_dns_object idempotently' do
+          # Even though there are two pools using the mock dns plugin, it should only
+          # create the dns object once.
+          expect(subject).to receive(:create_dns_object).and_return(mock_dns_plugin)
+
+          subject.execute!(1,0)
+        end
+
+        it 'should raise an error if the dns plugin cannot be created' do
+          expect(subject).to receive(:create_dns_object).and_raise(RuntimeError, "MockError")
+
+          expect{ subject.execute!(1,0) }.to raise_error(/MockError/)
+        end
+
+        it 'should log a message if the dns plugin cannot be created' do
+          expect(subject).to receive(:create_dns_object).and_raise(RuntimeError, "MockError")
+          expect(logger).to receive(:log).with('s',"Error while creating dns plugin for pool #{pool}: MockError")
+
+          expect{ subject.execute!(1,0) }.to raise_error(/MockError/)
+        end
       end
 
       context 'creating Providers' do
