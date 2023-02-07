@@ -34,6 +34,18 @@ module Vmpooler
           nil
         end
 
+        # Returns this dns plugin's configuration
+        #
+        # @returns [Hashtable] This dns plugins's configuration from the config file.  Returns nil if the dns plugin config does not exist
+        def dns_config
+          @config[:dns_configs].each do |dns|
+            # Convert the symbol from the config into a string for comparison
+            return (dns[1].nil? ? {} : dns[1]) if dns[0].to_s == @dns_plugin_name
+          end
+
+          nil
+        end
+
         def global_config
           # This entire VM Pooler config
           @config

@@ -34,10 +34,6 @@ module Vmpooler
 
         # Helper Methods
 
-        def get_dns_plugin_for_pool(pool_name)
-
-        end
-
         # inputs
         #  [String] pool_name : Name of the pool to get the configuration
         # returns
