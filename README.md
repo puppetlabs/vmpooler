@@ -4,6 +4,7 @@
 
 - [VMPooler](#vmpooler)
   - [Usage](#usage)
+    - [Migrating to v3](#migrating-to-v3)
     - [v2.0.0 note](#v200-note)
   - [Installation](#installation)
     - [Dependencies](#dependencies)
@@ -29,6 +30,38 @@ VMPooler provides configurable 'pools' of instantly-available (pre-provisioned) 
 ## Usage
 
 At [Puppet, Inc.](http://puppet.com) we run acceptance tests on thousands of disposable VMs every day. VMPooler manages the life cycle of these VMs from request through deletion, with options available to pool ready instances, and provision on demand.
+
+### Migrating to v3
+
+Starting with the v3.x release, management of DNS records is implemented as DNS plugins, similar to compute providers. This means each pool configuration should be pointing to a configuration object in `:dns_config` to determine it's method of record management.
+
+For those using the global `DOMAIN` environment variable or global `:config.domain` key, this means records were not previously being managed by VMPooler (presumably managed via dynamic dns), so it's value should be moved to `:dns_configs:<INSERT_YOUR_OWN_SYMBOL>:domain` with the value for `dns_class` for the config set to `dynamic-dns`.
+
+For example, the following < v3.x configuration:
+
+```yaml
+:config:
+  domain: 'example.com'
+```
+
+becomes:
+
+```yaml
+:dns_configs:
+  :example:
+    dns_class: dynamic-dns
+    domain: 'example.com'
+```
+
+Then any pools that should have records created via the dns config above should now reference the named dns config in the `dns_plugin` key:
+
+```yaml
+:pools:
+  - name: 'debian-8-x86_64'
+    dns_plugin: 'example'
+```
+
+For those using the GCE provider, [vmpooler-provider-gce](https://github.com/puppetlabs/vmpooler-provider-gce), as of version 1.x the DNS management has been decoupled. See <https://github.com/puppetlabs/vmpooler-provider-gce#migrating-to-v1>
 
 ### v2.0.0 note
 
