@@ -113,6 +113,10 @@ module Vmpooler
 
     def remove_nonexistent_vm(vm, pool, redis)
       redis.srem("vmpooler__pending__#{pool}", vm)
+      dns_plugin = get_dns_plugin_class_for_pool(pool)
+      domain = get_dns_plugin_domain_for_pool(pool)
+      fqdn = vm + '.' + domain
+      dns_plugin.delete_record(fqdn)
       $logger.log('d', "[!] [#{pool}] '#{vm}' no longer exists. Removing from pending.")
     end
 
@@ -475,10 +479,10 @@ module Vmpooler
     end
 
     # Destroy a VM
-    def destroy_vm(vm, pool, provider)
+    def destroy_vm(vm, pool, provider, dns_plugin)
       Thread.new do
         begin
-          _destroy_vm(vm, pool, provider)
+          _destroy_vm(vm, pool, provider, dns_plugin)
         rescue StandardError => e
           $logger.log('d', "[!] [#{pool}] '#{vm}' failed while destroying the VM with an error: #{e}")
           raise
@@ -486,7 +490,7 @@ module Vmpooler
       end
     end
 
-    def _destroy_vm(vm, pool, provider)
+    def _destroy_vm(vm, pool, provider, dns_plugin)
       mutex = vm_mutex(vm)
       return if mutex.locked?
 
@@ -503,6 +507,9 @@ module Vmpooler
           start = Time.now
 
           provider.destroy_vm(pool, vm)
+          domain = get_dns_plugin_domain_for_pool(pool)
+          fqdn = vm + '.' + domain
+          dns_plugin.delete_record(fqdn)
 
           redis.srem("vmpooler__completed__#{pool}", vm)
 
@@ -701,6 +708,15 @@ module Vmpooler
       plugin_name = pool.fetch('dns_plugin')
       plugin_class = Vmpooler::Dns.get_dns_plugin_class_by_name(config, plugin_name)
       $dns_plugins[plugin_class]
+    end
+
+    def get_dns_plugin_domain_for_pool(pool_name)
+      pool = $config[:pools].find { |p| p['name'] == pool_name }
+      return nil unless pool
+
+      plugin_name = pool.fetch('dns_plugin')
+      plugin_domain = Vmpooler::Dns.get_dns_plugin_domain_by_name(config, plugin_name)
+      plugin_domain
     end
 
     def check_disk_queue(maxloop = 0, loop_delay = 5)
@@ -1247,7 +1263,8 @@ module Vmpooler
           if inventory[vm]
             begin
               pool_check_response[:destroyed_vms] += 1
-              destroy_vm(vm, pool_name, provider)
+              dns_plugin = get_dns_plugin_class_for_pool(pool_name)
+              destroy_vm(vm, pool_name, provider, dns_plugin)
             rescue StandardError => e
               redis.pipelined do |pipeline|
                 pipeline.srem("vmpooler__completed__#{pool_name}", vm)

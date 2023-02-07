@@ -63,6 +63,10 @@ module Vmpooler
         def create_or_replace_record(hostname)
           raise("#{self.class.name} does not implement create_or_replace_record")
         end
+
+        def delete_record(hostname)
+          raise("#{self.class.name} does not implement delete_record")
+        end
       end
     end
   end
