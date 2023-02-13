@@ -29,7 +29,7 @@ Gem::Specification.new do |s|
   s.add_dependency 'opentelemetry-sdk', '~> 1.0', '>= 1.0.2'
   s.add_dependency 'pickup', '~> 0.0.11'
   s.add_dependency 'prometheus-client', '~> 2.0'
-  s.add_dependency 'puma', '~> 5.0', '>= 5.0.4'
+  s.add_dependency 'puma', '>= 5.0.4', '< 7'
   s.add_dependency 'rack', '~> 2.2'
   s.add_dependency 'rake', '~> 13.0'
   s.add_dependency 'redis', '~> 4.1'
