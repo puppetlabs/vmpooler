@@ -58,6 +58,10 @@ module Vmpooler
           nil
         end
 
+        def dns_config(dns_config_name)
+          return Vmpooler::Dns.get_dns_plugin_domain_by_name(@config, dns_config_name)
+        end
+
         # returns
         #   [Hashtable] : The entire VMPooler configuration
         def global_config
