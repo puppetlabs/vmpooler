@@ -114,9 +114,10 @@ module Vmpooler
     def remove_nonexistent_vm(vm, pool, redis)
       redis.srem("vmpooler__pending__#{pool}", vm)
       dns_plugin = get_dns_plugin_class_for_pool(pool)
+      dns_plugin_class_name = get_dns_plugin_class_name_for_pool(pool)
       domain = get_dns_plugin_domain_for_pool(pool)
       fqdn = vm + '.' + domain
-      dns_plugin.delete_record(fqdn)
+      dns_plugin.delete_record(fqdn) unless dns_plugin_class_name == 'dynamic-dns'
       $logger.log('d', "[!] [#{pool}] '#{vm}' no longer exists. Removing from pending.")
     end
 
@@ -459,7 +460,8 @@ module Vmpooler
 
           $metrics.timing("clone.#{pool_name}", finish)
 
-          dns_plugin.create_or_replace_record(new_vmname)
+          dns_plugin_class_name = get_dns_plugin_class_name_for_pool(pool_name)
+          dns_plugin.create_or_replace_record(new_vmname) unless dns_plugin_class_name == 'dynamic-dns'
         rescue StandardError
           @redis.with_metrics do |redis|
             redis.pipelined do |pipeline|
@@ -509,7 +511,9 @@ module Vmpooler
           provider.destroy_vm(pool, vm)
           domain = get_dns_plugin_domain_for_pool(pool)
           fqdn = vm + '.' + domain
-          dns_plugin.delete_record(fqdn)
+          
+          dns_plugin_class_name = get_dns_plugin_class_name_for_pool(pool)
+          dns_plugin.delete_record(fqdn) unless dns_plugin_class_name == 'dynamic-dns'
 
           redis.srem("vmpooler__completed__#{pool}", vm)
 
@@ -699,6 +703,15 @@ module Vmpooler
 
       provider_name = pool.fetch('provider', nil)
       $providers[provider_name]
+    end
+
+    def get_dns_plugin_class_name_for_pool(pool_name)
+      pool = $config[:pools].find { |p| p['name'] == pool_name }
+      return nil unless pool
+
+      plugin_name = pool.fetch('dns_plugin')
+      plugin_class = Vmpooler::Dns.get_dns_plugin_class_by_name(config, plugin_name)
+      plugin_class
     end
 
     def get_dns_plugin_class_for_pool(pool_name)
