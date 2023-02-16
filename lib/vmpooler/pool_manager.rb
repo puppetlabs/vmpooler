@@ -67,7 +67,7 @@ module Vmpooler
             to_set[k] = pool[k]
           end
           to_set['alias'] = pool['alias'].join(',') if to_set.key?('alias')
-          to_set['domain'] = Parsing.get_domain_for_pool(config, pool['name'])
+          to_set['domain'] = Vmpooler::Dns.get_domain_for_pool(config, pool['name'])
           redis.hmset("vmpooler__pool__#{pool['name']}", to_set.to_a.flatten) unless to_set.empty?
         end
         previously_configured_pools.each do |pool|
@@ -380,12 +380,8 @@ module Vmpooler
       max_hostname_retries = 3
       while hostname_retries < max_hostname_retries
         hostname, hostname_available = generate_and_check_hostname
-        domain = Parsing.get_domain_for_pool(config, pool_name)
-        if domain
-          fqdn = "#{hostname}.#{domain}"
-        else
-          fqdn = hostname
-        end
+        domain = Vmpooler::Dns.get_domain_for_pool(config, pool_name)
+        fqdn = "#{hostname}.#{domain}"
 
         # skip dns check if the provider is set to skip_dns_check_before_creating_vm
         provider = get_provider_for_pool(pool_name)
@@ -428,7 +424,7 @@ module Vmpooler
 
     def _clone_vm(pool_name, provider, dns_plugin, request_id = nil, pool_alias = nil)
       new_vmname = find_unique_hostname(pool_name)
-      pool_domain = Parsing.get_domain_for_pool(config, pool_name)
+      pool_domain = Vmpooler::Dns.get_domain_for_pool(config, pool_name)
       mutex = vm_mutex(new_vmname)
       mutex.synchronize do
         @redis.with_metrics do |redis|
@@ -438,7 +434,7 @@ module Vmpooler
           redis.hset("vmpooler__vm__#{new_vmname}", 'clone', Time.now)
           redis.hset("vmpooler__vm__#{new_vmname}", 'template', pool_name) # This value is used to represent the pool.
           redis.hset("vmpooler__vm__#{new_vmname}", 'pool', pool_name)
-          redis.hset("vmpooler__vm__#{new_vmname}", 'domain', pool_domain) if pool_domain
+          redis.hset("vmpooler__vm__#{new_vmname}", 'domain', pool_domain)
           redis.hset("vmpooler__vm__#{new_vmname}", 'request_id', request_id) if request_id
           redis.hset("vmpooler__vm__#{new_vmname}", 'pool_alias', pool_alias) if pool_alias
           redis.exec

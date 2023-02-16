@@ -30,6 +30,26 @@ module Vmpooler
       plugin_class
     end
 
+    # Returns the domain for the specified pool
+    #
+    # @param config [String] - the full config structure
+    # @param pool_name [String] - the name of the pool
+    # @return [String] - domain name for pool, which is set via reference to the dns_configs block
+    def self.get_domain_for_pool(config, pool_name)
+      pool = config[:pools].find { |p| p['name'] == pool_name }
+      pool_dns_config = pool['dns_plugin']
+      dns_configs = config[:dns_configs].keys
+      pool_domain = ''
+
+      dns_configs.map do |dns_config_name|
+        if dns_config_name.to_s == pool_dns_config
+          pool_domain = config[:dns_configs][dns_config_name]['domain']
+        end
+      end
+
+      pool_domain
+    end
+
     # Returns the plugin domain for the specified dns config by name
     #
     # @param config [Object] The entire VMPooler config object
