@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
-require 'vmpooler/api/v1'
+require 'vmpooler/util/parsing'
+require 'vmpooler/dns'
 
 module Vmpooler
   class API
@@ -87,9 +88,7 @@ module Vmpooler
       # last vm added. The part of the response is only being retained for
       # backwards compatibility as the hostnames are now fqdn's instead of bare
       # hostnames. This change is a result of now being able to specify a domain
-      # per pool. If no vm's in the result had a domain sepcified then the
-      # domain key will be omitted similar to how it was previously omitted if
-      # the global option domain wasn't specified.
+      # per pool.
       def atomically_allocate_vms(payload)
         tracer.in_span("Vmpooler::API::V2.#{__method__}") do |span|
           result = { 'ok' => false }
@@ -126,15 +125,10 @@ module Vmpooler
           else
             vm_names = []
             vms.each do |(vmpool, vmname, vmtemplate)|
-              vmdomain = Parsing.get_domain_for_pool(full_config, vmpool)
-              if vmdomain
-                vmfqdn = "#{vmname}.#{vmdomain}"
-                update_result_hosts(result, vmtemplate, vmfqdn)
-                vm_names.append(vmfqdn)
-              else
-                update_result_hosts(result, vmtemplate, vmname)
-                vm_names.append(vmname)
-              end
+              vmdomain = Dns.get_domain_for_pool(full_config, vmpool)
+              vmfqdn = "#{vmname}.#{vmdomain}"
+              update_result_hosts(result, vmtemplate, vmfqdn)
+              vm_names.append(vmfqdn)
             end
 
             span.set_attribute('vmpooler.vm_names', vm_names.join(',')) unless vm_names.empty?
@@ -320,7 +314,7 @@ module Vmpooler
           result[params[:hostname]]['ip'] = ipAddress
 
           if rdata['pool']
-            vmdomain = Parsing.get_domain_for_pool(full_config, rdata['pool'])
+            vmdomain = Dns.get_domain_for_pool(full_config, rdata['pool'])
             if vmdomain
               result[params[:hostname]]['fqdn'] = "#{params[:hostname]}.#{vmdomain}"
             end
@@ -436,8 +430,8 @@ module Vmpooler
             result['ready'] = true
             Parsing.get_platform_pool_count(request_hash['requested']) do |platform_alias, pool, _count|
               instances = backend.smembers("vmpooler__#{request_id}__#{platform_alias}__#{pool}")
-              domain = Parsing.get_domain_for_pool(full_config, pool)
-              instances.map! { |instance| instance.concat(".#{domain}") } if domain
+              domain = Dns.get_domain_for_pool(full_config, pool)
+              instances.map! { |instance| instance.concat(".#{domain}") }
 
               if result.key?(platform_alias)
                 result[platform_alias][:hostname] = result[platform_alias][:hostname] + instances

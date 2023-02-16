@@ -76,7 +76,6 @@ module Vmpooler
     parsed_config[:config]['prefix']                             = ENV['PREFIX'] || parsed_config[:config]['prefix'] || ''
     parsed_config[:config]['logfile']                            = ENV['LOGFILE'] if ENV['LOGFILE']
     parsed_config[:config]['site_name']                          = ENV['SITE_NAME'] if ENV['SITE_NAME']
-    parsed_config[:config]['domain']                             = ENV['DOMAIN'] if ENV['DOMAIN']
     parsed_config[:config]['clone_target']                       = ENV['CLONE_TARGET'] if ENV['CLONE_TARGET']
     parsed_config[:config]['timeout']                            = string_to_int(ENV['TIMEOUT']) if ENV['TIMEOUT']
     parsed_config[:config]['vm_lifetime_auth']                   = string_to_int(ENV['VM_LIFETIME_AUTH']) if ENV['VM_LIFETIME_AUTH']
