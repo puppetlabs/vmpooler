@@ -181,8 +181,7 @@ module Vmpooler
         /^\d{4}-\d{2}-\d{2}$/ === date_str
       end
 
-      # NOTE: domain is not needed here, so we should update the callers of this method
-      def hostname_shorten(hostname, domain=nil)
+      def hostname_shorten(hostname)
         hostname[/[^.]+/]
       end
 

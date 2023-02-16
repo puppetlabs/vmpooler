@@ -261,7 +261,7 @@ module Vmpooler
         status 404
         result['ok'] = false
 
-        params[:hostname] = hostname_shorten(params[:hostname], nil)
+        params[:hostname] = hostname_shorten(params[:hostname])
 
         rdata = backend.hgetall("vmpooler__vm__#{params[:hostname]}")
         unless rdata.empty?
@@ -467,32 +467,395 @@ module Vmpooler
         end
       end
 
-      # Endpoints that only use bits from the V1 api are called here
-      # Note that traces will be named based on the route used in the V1 api
-      # but the http.url trace attribute will still have the actual requested url in it
-
-      delete "#{api_prefix}/*" do
-        versionless_path_info = request.path_info.delete_prefix("#{api_prefix}/")
-        request.path_info = "/api/v1/#{versionless_path_info}"
-        call env
+      delete "#{api_prefix}/vm/:hostname/?" do
+        content_type :json
+        metrics.increment('http_requests_vm_total.delete.vm.hostname')
+  
+        result = {}
+  
+        status 404
+        result['ok'] = false
+  
+        params[:hostname] = hostname_shorten(params[:hostname])
+  
+        rdata = backend.hgetall("vmpooler__vm__#{params[:hostname]}")
+        unless rdata.empty?
+          need_token! if rdata['token:token']
+  
+          if backend.srem("vmpooler__running__#{rdata['template']}", params[:hostname])
+            backend.sadd("vmpooler__completed__#{rdata['template']}", params[:hostname])
+  
+            status 200
+            result['ok'] = true
+            metrics.increment('delete.success')
+            update_user_metrics('destroy', params[:hostname]) if Vmpooler::API.settings.config[:config]['usage_stats']
+          else
+            metrics.increment('delete.failed')
+          end
+        end
+  
+        JSON.pretty_generate(result)
       end
-
-      get "#{api_prefix}/*" do
-        versionless_path_info = request.path_info.delete_prefix("#{api_prefix}/")
-        request.path_info = "/api/v1/#{versionless_path_info}"
-        call env
+  
+      put "#{api_prefix}/vm/:hostname/?" do
+        content_type :json
+        metrics.increment('http_requests_vm_total.put.vm.modify')
+  
+        status 404
+        result = { 'ok' => false }
+  
+        failure = []
+  
+        params[:hostname] = hostname_shorten(params[:hostname])
+  
+        if backend.exists?("vmpooler__vm__#{params[:hostname]}")
+          begin
+            jdata = JSON.parse(request.body.read)
+          rescue StandardError => e
+            span = OpenTelemetry::Trace.current_span
+            span.record_exception(e)
+            span.status = OpenTelemetry::Trace::Status.error(e.to_s)
+            halt 400, JSON.pretty_generate(result)
+          end
+  
+          # Validate data payload
+          jdata.each do |param, arg|
+            case param
+              when 'lifetime'
+                need_token! if Vmpooler::API.settings.config[:auth]
+  
+                # in hours, defaults to one week
+                max_lifetime_upper_limit = config['max_lifetime_upper_limit']
+                if max_lifetime_upper_limit
+                  max_lifetime_upper_limit = max_lifetime_upper_limit.to_i
+                  if arg.to_i >= max_lifetime_upper_limit
+                    failure.push("You provided a lifetime (#{arg}) that exceeds the configured maximum of #{max_lifetime_upper_limit}.")
+                  end
+                end
+  
+                # validate lifetime is within boundaries
+                unless arg.to_i > 0
+                  failure.push("You provided a lifetime (#{arg}) but you must provide a positive number.")
+                end
+  
+              when 'tags'
+                failure.push("You provided tags (#{arg}) as something other than a hash.") unless arg.is_a?(Hash)
+                failure.push("You provided unsuppored tags (#{arg}).") if config['allowed_tags'] && !(arg.keys - config['allowed_tags']).empty?
+              else
+                failure.push("Unknown argument #{arg}.")
+            end
+          end
+  
+          if !failure.empty?
+            status 400
+            result['failure'] = failure
+          else
+            jdata.each do |param, arg|
+              case param
+                when 'lifetime'
+                  need_token! if Vmpooler::API.settings.config[:auth]
+  
+                  arg = arg.to_i
+  
+                  backend.hset("vmpooler__vm__#{params[:hostname]}", param, arg)
+                when 'tags'
+                  filter_tags(arg)
+                  export_tags(backend, params[:hostname], arg)
+              end
+            end
+  
+            status 200
+            result['ok'] = true
+          end
+        end
+  
+        JSON.pretty_generate(result)
       end
-
-      post "#{api_prefix}/*" do
-        versionless_path_info = request.path_info.delete_prefix("#{api_prefix}/")
-        request.path_info = "/api/v1/#{versionless_path_info}"
-        call env
+  
+      post "#{api_prefix}/vm/:hostname/disk/:size/?" do
+        content_type :json
+        metrics.increment('http_requests_vm_total.post.vm.disksize')
+  
+        need_token! if Vmpooler::API.settings.config[:auth]
+  
+        status 404
+        result = { 'ok' => false }
+  
+        params[:hostname] = hostname_shorten(params[:hostname])
+  
+        if ((params[:size].to_i > 0 )and (backend.exists?("vmpooler__vm__#{params[:hostname]}")))
+          result[params[:hostname]] = {}
+          result[params[:hostname]]['disk'] = "+#{params[:size]}gb"
+  
+          backend.sadd('vmpooler__tasks__disk', "#{params[:hostname]}:#{params[:size]}")
+  
+          status 202
+          result['ok'] = true
+        end
+  
+        JSON.pretty_generate(result)
       end
-
-      put "#{api_prefix}/*" do
-        versionless_path_info = request.path_info.delete_prefix("#{api_prefix}/")
-        request.path_info = "/api/v1/#{versionless_path_info}"
-        call env
+  
+      post "#{api_prefix}/vm/:hostname/snapshot/?" do
+        content_type :json
+        metrics.increment('http_requests_vm_total.post.vm.snapshot')
+  
+        need_token! if Vmpooler::API.settings.config[:auth]
+  
+        status 404
+        result = { 'ok' => false }
+  
+        params[:hostname] = hostname_shorten(params[:hostname])
+  
+        if backend.exists?("vmpooler__vm__#{params[:hostname]}")
+          result[params[:hostname]] = {}
+  
+          o = [('a'..'z'), ('0'..'9')].map(&:to_a).flatten
+          result[params[:hostname]]['snapshot'] = o[rand(25)] + (0...31).map { o[rand(o.length)] }.join
+  
+          backend.sadd('vmpooler__tasks__snapshot', "#{params[:hostname]}:#{result[params[:hostname]]['snapshot']}")
+  
+          status 202
+          result['ok'] = true
+        end
+  
+        JSON.pretty_generate(result)
+      end
+  
+      post "#{api_prefix}/vm/:hostname/snapshot/:snapshot/?" do
+        content_type :json
+        metrics.increment('http_requests_vm_total.post.vm.snapshot')
+  
+        need_token! if Vmpooler::API.settings.config[:auth]
+  
+        status 404
+        result = { 'ok' => false }
+  
+        params[:hostname] = hostname_shorten(params[:hostname])
+  
+        unless backend.hget("vmpooler__vm__#{params[:hostname]}", "snapshot:#{params[:snapshot]}").to_i.zero?
+          backend.sadd('vmpooler__tasks__snapshot-revert', "#{params[:hostname]}:#{params[:snapshot]}")
+  
+          status 202
+          result['ok'] = true
+        end
+  
+        JSON.pretty_generate(result)
+      end
+  
+      delete "#{api_prefix}/config/poolsize/:pool/?" do
+        content_type :json
+        result = { 'ok' => false }
+  
+        if config['experimental_features']
+          need_token! if Vmpooler::API.settings.config[:auth]
+  
+          if pool_exists?(params[:pool])
+            result = reset_pool_size(params[:pool])
+          else
+            metrics.increment('config.invalid.unknown')
+            status 404
+          end
+        else
+          status 405
+        end
+  
+        JSON.pretty_generate(result)
+      end
+  
+      post "#{api_prefix}/config/poolsize/?" do
+        content_type :json
+        result = { 'ok' => false }
+  
+        if config['experimental_features']
+          need_token! if Vmpooler::API.settings.config[:auth]
+  
+          payload = JSON.parse(request.body.read)
+  
+          if payload
+            invalid = invalid_template_or_size(payload)
+            if invalid.empty?
+              result = update_pool_size(payload)
+            else
+              invalid.each do |bad_template|
+                metrics.increment("config.invalid.#{bad_template}")
+              end
+              result[:not_configured] = invalid
+              status 400
+            end
+          else
+            metrics.increment('config.invalid.unknown')
+            status 404
+          end
+        else
+          status 405
+        end
+  
+        JSON.pretty_generate(result)
+      end
+  
+      delete "#{api_prefix}/config/pooltemplate/:pool/?" do
+        content_type :json
+        result = { 'ok' => false }
+  
+        if config['experimental_features']
+          need_token! if Vmpooler::API.settings.config[:auth]
+  
+          if pool_exists?(params[:pool])
+            result = reset_pool_template(params[:pool])
+          else
+            metrics.increment('config.invalid.unknown')
+            status 404
+          end
+        else
+          status 405
+        end
+  
+        JSON.pretty_generate(result)
+      end
+  
+      post "#{api_prefix}/config/pooltemplate/?" do
+        content_type :json
+        result = { 'ok' => false }
+  
+        if config['experimental_features']
+          need_token! if Vmpooler::API.settings.config[:auth]
+  
+          payload = JSON.parse(request.body.read)
+  
+          if payload
+            invalid = invalid_template_or_path(payload)
+            if invalid.empty?
+              result = update_pool_template(payload)
+            else
+              invalid.each do |bad_template|
+                metrics.increment("config.invalid.#{bad_template}")
+              end
+              result[:bad_templates] = invalid
+              status 400
+            end
+          else
+            metrics.increment('config.invalid.unknown')
+            status 404
+          end
+        else
+          status 405
+        end
+  
+        JSON.pretty_generate(result)
+      end
+  
+      post "#{api_prefix}/poolreset/?" do
+        content_type :json
+        result = { 'ok' => false }
+  
+        if config['experimental_features']
+          need_token! if Vmpooler::API.settings.config[:auth]
+  
+          begin
+            payload = JSON.parse(request.body.read)
+            if payload
+              invalid = invalid_templates(payload)
+              if invalid.empty?
+                result = reset_pool(payload)
+              else
+                invalid.each do |bad_pool|
+                  metrics.increment("poolreset.invalid.#{bad_pool}")
+                end
+                result[:bad_pools] = invalid
+                status 400
+              end
+            else
+              metrics.increment('poolreset.invalid.unknown')
+              status 404
+            end
+          rescue JSON::ParserError
+            span = OpenTelemetry::Trace.current_span
+            span.record_exception(e)
+            span.status = OpenTelemetry::Trace::Status.error('JSON payload could not be parsed')
+            status 400
+            result = {
+              'ok' => false,
+              'message' => 'JSON payload could not be parsed'
+            }
+          end
+        else
+          status 405
+        end
+  
+        JSON.pretty_generate(result)
+      end
+  
+      post "#{api_prefix}/config/clonetarget/?" do
+        content_type :json
+        result = { 'ok' => false }
+  
+        if config['experimental_features']
+          need_token! if Vmpooler::API.settings.config[:auth]
+  
+          payload = JSON.parse(request.body.read)
+  
+          if payload
+            invalid = invalid_pool(payload)
+            if invalid.empty?
+              result = update_clone_target(payload)
+            else
+              invalid.each do |bad_template|
+                metrics.increment("config.invalid.#{bad_template}")
+              end
+              result[:bad_templates] = invalid
+              status 400
+            end
+          else
+            metrics.increment('config.invalid.unknown')
+            status 404
+          end
+        else
+          status 405
+        end
+  
+        JSON.pretty_generate(result)
+      end
+  
+      get "#{api_prefix}/config/?" do
+        content_type :json
+        result = { 'ok' => false }
+        status 404
+  
+        if pools
+          sync_pool_sizes
+          sync_pool_templates
+  
+          pool_configuration = []
+          pools.each do |pool|
+            pool['template_ready'] = template_ready?(pool, backend)
+            pool_configuration << pool
+          end
+  
+          result = {
+            pool_configuration: pool_configuration,
+            status: {
+              ok: true
+            }
+          }
+  
+          status 200
+        end
+        JSON.pretty_generate(result)
+      end
+  
+      get "#{api_prefix}/full_config/?" do
+        content_type :json
+  
+        result = {
+          full_config: full_config,
+          status: {
+            ok: true
+          }
+        }
+  
+        status 200
+        JSON.pretty_generate(result)
       end
     end
   end
