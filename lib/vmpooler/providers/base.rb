@@ -261,6 +261,10 @@ module Vmpooler
           raise("#{self.class.name} does not implement purge_unconfigured_resources")
         end
 
+        def get_vm_ip_address(vm_name, pool_name)
+          raise("#{self.class.name} does not implement get_vm_ip_address")
+        end
+
         # DEPRECATED if a provider does not implement the new method, it will hit this base class method
         # and return a deprecation message
         def purge_unconfigured_folders(_deprecated, _deprecated2, allowlist)

@@ -445,16 +445,22 @@ module Vmpooler
           start = Time.now
           provider.create_vm(pool_name, new_vmname)
           finish = format('%<time>.2f', time: Time.now - start)
+          $logger.log('s', "[+] [#{pool_name}] '#{new_vmname}' cloned in #{finish} seconds")
+          $metrics.timing("clone.#{pool_name}", finish)
+
+          $logger.log('d', "[ ] [#{pool_name}] Obtaining IP for '#{new_vmname}'")
+          ip_start = Time.now
+          ip = provider.get_vm_ip_address(new_vmname, pool_name)
+          ip_finish = format('%<time>.2f', time: Time.now - ip_start)
+          $logger.log('s', "[+] [#{pool_name}] Obtained IP for '#{new_vmname}' in #{ip_finish} seconds")
 
           @redis.with_metrics do |redis|
             redis.pipelined do |pipeline|
               pipeline.hset("vmpooler__clone__#{Date.today}", "#{pool_name}:#{new_vmname}", finish)
               pipeline.hset("vmpooler__vm__#{new_vmname}", 'clone_time', finish)
+              pipeline.hset("vmpooler__vm__#{new_vmname}", 'ip', ip)
             end
-          end
-          $logger.log('s', "[+] [#{pool_name}] '#{new_vmname}' cloned in #{finish} seconds")
-
-          $metrics.timing("clone.#{pool_name}", finish)
+          end        
 
           dns_plugin_class_name = get_dns_plugin_class_name_for_pool(pool_name)
           dns_plugin.create_or_replace_record(new_vmname) unless dns_plugin_class_name == 'dynamic-dns'
