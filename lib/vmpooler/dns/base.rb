@@ -1,8 +1,10 @@
+# frozen_string_literal: true
+
 module Vmpooler
   class PoolManager
     class Dns
       class Base
-         # These defs must be overidden in child classes
+        # These defs must be overidden in child classes
 
         # Helper Methods
         # Global Logger object
@@ -22,7 +24,6 @@ module Vmpooler
           @dns_options = options
 
           logger.log('s', "[!] Creating dns plugin '#{name}'")
-          # Your code goes here...
         end
 
         def pool_config(pool_name)
@@ -57,27 +58,22 @@ module Vmpooler
 
         def get_ip(vm_name)
           @redis.with_metrics do |redis|
-            ip = redis.hget("vmpooler__vm__#{vm_name}", 'ip')
-            return ip
+            redis.hget("vmpooler__vm__#{vm_name}", 'ip')
           end
         end
 
         # returns
         #   Array[String] : Array of pool names this provider services
         def provided_pools
-          list = []
-          @config[:pools].each do |pool|
-            list << pool['name'] if pool['dns_config'] == name
-          end
-          list
+          @config[:pools].select { |pool| pool['dns_config'] == name }.map { |pool| pool['name'] }
         end
 
         def create_or_replace_record(hostname)
-          raise("#{self.class.name} does not implement create_or_replace_record")
+          raise("#{self.class.name} does not implement create_or_replace_record #{hostname}")
         end
 
         def delete_record(hostname)
-          raise("#{self.class.name} does not implement delete_record")
+          raise("#{self.class.name} does not implement delete_record for #{hostname}")
         end
       end
     end

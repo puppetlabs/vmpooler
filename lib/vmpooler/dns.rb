@@ -1,8 +1,9 @@
+# frozen_string_literal: true
+
 require 'pathname'
 
 module Vmpooler
   class Dns
-
     # Load one or more VMPooler DNS plugin gems by name
     #
     # @param names [Array<String>] The list of gem names to load
@@ -22,9 +23,7 @@ module Vmpooler
       plugin_class = ''
 
       dns_configs.map do |dns_config_name|
-        if dns_config_name.to_s == name
-          plugin_class = config[:dns_configs][dns_config_name]['dns_class']
-        end
+        plugin_class = config[:dns_configs][dns_config_name]['dns_class'] if dns_config_name.to_s == name
       end
 
       plugin_class
@@ -42,9 +41,7 @@ module Vmpooler
       pool_domain = ''
 
       dns_configs.map do |dns_config_name|
-        if dns_config_name.to_s == pool_dns_config
-          pool_domain = config[:dns_configs][dns_config_name]['domain']
-        end
+        pool_domain = config[:dns_configs][dns_config_name]['domain'] if dns_config_name.to_s == pool_dns_config
       end
 
       pool_domain
@@ -60,9 +57,7 @@ module Vmpooler
       plugin_domain = ''
 
       dns_configs.map do |dns_config_name|
-        if dns_config_name.to_s == name
-          plugin_domain = config[:dns_configs][dns_config_name]['domain']
-        end
+        plugin_domain = config[:dns_configs][dns_config_name]['domain'] if dns_config_name.to_s == name
       end
 
       plugin_domain
@@ -82,7 +77,7 @@ module Vmpooler
             dns_config_name.to_s
           end
         end.compact.uniq
-        
+
         # dynamic-dns is not actually a class, it's just used as a value to denote
         # that dynamic dns is used so no loading or record management is needed
         dns_plugins.delete('dynamic-dns')
@@ -96,7 +91,7 @@ module Vmpooler
     # @param name [String] The name of the DNS plugin gem to load
     # @return [String] The full require path to the specified gem
     def load_from_gems(name = nil)
-      require_path = 'vmpooler/dns/' + name.gsub('-', '/')
+      require_path = "vmpooler/dns/#{name.gsub('-', '/')}"
       require require_path
       $logger.log('d', "[*] [dns_manager] Loading DNS plugins from dns_configs: #{name}")
       require_path

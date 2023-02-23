@@ -116,7 +116,7 @@ module Vmpooler
       dns_plugin = get_dns_plugin_class_for_pool(pool)
       dns_plugin_class_name = get_dns_plugin_class_name_for_pool(pool)
       domain = get_dns_plugin_domain_for_pool(pool)
-      fqdn = vm + '.' + domain
+      fqdn = "#{vm}.#{domain}"
       dns_plugin.delete_record(fqdn) unless dns_plugin_class_name == 'dynamic-dns'
       $logger.log('d', "[!] [#{pool}] '#{vm}' no longer exists. Removing from pending.")
     end
@@ -460,7 +460,7 @@ module Vmpooler
               pipeline.hset("vmpooler__vm__#{new_vmname}", 'clone_time', finish)
               pipeline.hset("vmpooler__vm__#{new_vmname}", 'ip', ip)
             end
-          end        
+          end
 
           dns_plugin_class_name = get_dns_plugin_class_name_for_pool(pool_name)
           dns_plugin.create_or_replace_record(new_vmname) unless dns_plugin_class_name == 'dynamic-dns'
@@ -512,8 +512,8 @@ module Vmpooler
 
           provider.destroy_vm(pool, vm)
           domain = get_dns_plugin_domain_for_pool(pool)
-          fqdn = vm + '.' + domain
-          
+          fqdn = "#{vm}.#{domain}"
+
           dns_plugin_class_name = get_dns_plugin_class_name_for_pool(pool)
           dns_plugin.delete_record(fqdn) unless dns_plugin_class_name == 'dynamic-dns'
 
@@ -712,8 +712,7 @@ module Vmpooler
       return nil unless pool
 
       plugin_name = pool.fetch('dns_plugin')
-      plugin_class = Vmpooler::Dns.get_dns_plugin_class_by_name(config, plugin_name)
-      plugin_class
+      Vmpooler::Dns.get_dns_plugin_class_by_name(config, plugin_name)
     end
 
     def get_dns_plugin_class_for_pool(pool_name)
@@ -730,8 +729,7 @@ module Vmpooler
       return nil unless pool
 
       plugin_name = pool.fetch('dns_plugin')
-      plugin_domain = Vmpooler::Dns.get_dns_plugin_domain_by_name(config, plugin_name)
-      plugin_domain
+      Vmpooler::Dns.get_dns_plugin_domain_by_name(config, plugin_name)
     end
 
     def check_disk_queue(maxloop = 0, loop_delay = 5)

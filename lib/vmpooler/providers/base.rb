@@ -59,7 +59,7 @@ module Vmpooler
         end
 
         def dns_config(dns_config_name)
-          return Vmpooler::Dns.get_dns_plugin_domain_by_name(@config, dns_config_name)
+          Vmpooler::Dns.get_dns_plugin_domain_by_name(@config, dns_config_name)
         end
 
         # returns
@@ -262,7 +262,7 @@ module Vmpooler
         end
 
         def get_vm_ip_address(vm_name, pool_name)
-          raise("#{self.class.name} does not implement get_vm_ip_address")
+          raise("#{self.class.name} does not implement get_vm_ip_address for vm #{vm_name} in pool #{pool_name}")
         end
 
         # DEPRECATED if a provider does not implement the new method, it will hit this base class method
