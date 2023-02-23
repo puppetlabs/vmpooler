@@ -38,13 +38,9 @@ module Vmpooler
       pool = config[:pools].find { |p| p['name'] == pool_name }
       pool_dns_config = pool['dns_plugin']
       dns_configs = config[:dns_configs].keys
-      pool_domain = ''
-
       dns_configs.map do |dns_config_name|
-        pool_domain = config[:dns_configs][dns_config_name]['domain'] if dns_config_name.to_s == pool_dns_config
+        return config[:dns_configs][dns_config_name]['domain'] if dns_config_name.to_s == pool_dns_config
       end
-
-      pool_domain
     end
 
     # Returns the plugin domain for the specified dns config by name
@@ -54,34 +50,30 @@ module Vmpooler
     # @return [String] The domain for the specifid dns config
     def self.get_dns_plugin_domain_by_name(config, name)
       dns_configs = config[:dns_configs].keys
-      plugin_domain = ''
-
       dns_configs.map do |dns_config_name|
-        plugin_domain = config[:dns_configs][dns_config_name]['domain'] if dns_config_name.to_s == name
+        return config[:dns_configs][dns_config_name]['domain'] if dns_config_name.to_s == name
       end
-
-      plugin_domain
     end
 
     # Returns a list of DNS plugin classes specified in the vmpooler configuration
     #
     # @param config [Object] The entire VMPooler config object
-    # @return [Array<String] A list of DNS plugin classes
+    # @return nil || [Array<String>] A list of DNS plugin classes
     def self.get_dns_plugin_config_classes(config)
-      if config[:dns_configs]
-        dns_configs = config[:dns_configs].keys
-        dns_plugins = dns_configs.map do |dns_config_name|
-          if config[:dns_configs][dns_config_name] && config[:dns_configs][dns_config_name]['dns_class']
-            config[:dns_configs][dns_config_name]['dns_class'].to_s
-          else
-            dns_config_name.to_s
-          end
-        end.compact.uniq
+      return nil unless config[:dns_configs]
 
-        # dynamic-dns is not actually a class, it's just used as a value to denote
-        # that dynamic dns is used so no loading or record management is needed
-        dns_plugins.delete('dynamic-dns')
-      end
+      dns_configs = config[:dns_configs].keys
+      dns_plugins = dns_configs.map do |dns_config_name|
+        if config[:dns_configs][dns_config_name] && config[:dns_configs][dns_config_name]['dns_class']
+          config[:dns_configs][dns_config_name]['dns_class'].to_s
+        else
+          dns_config_name.to_s
+        end
+      end.compact.uniq
+
+      # dynamic-dns is not actually a class, it's just used as a value to denote
+      # that dynamic dns is used so no loading or record management is needed
+      dns_plugins.delete('dynamic-dns')
 
       dns_plugins
     end
@@ -93,7 +85,6 @@ module Vmpooler
     def load_from_gems(name = nil)
       require_path = "vmpooler/dns/#{name.gsub('-', '/')}"
       require require_path
-      $logger.log('d', "[*] [dns_manager] Loading DNS plugins from dns_configs: #{name}")
       require_path
     end
   end
