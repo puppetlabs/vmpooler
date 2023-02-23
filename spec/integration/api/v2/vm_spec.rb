@@ -341,6 +341,28 @@ describe Vmpooler::API::V2 do
         expect(pool_has_ready_vm?('pool1', '2abcdefghijklmnop', redis)).to eq(true)
       end
 
+      it 'returns the second VM when the first fails to respond' do
+        create_ready_vm 'pool1', vmname, redis
+        create_ready_vm 'pool1', "2#{vmname}", redis
+
+        allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).with(vmname, nil).and_raise('mockerror')
+        allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).with("2#{vmname}", nil).and_return(socket)
+
+        post "#{prefix}/vm", '{"pool1":"1"}'
+        expect_json(ok = true, http = 200)
+
+        expected = {
+          ok: true,
+          pool1: {
+            hostname: "2#{vmname}"
+          }
+        }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+
+        expect(pool_has_ready_vm?('pool1', vmname, redis)).to be false
+      end
+
       context '(auth not configured)' do
         it 'does not extend VM lifetime if auth token is provided' do
           app.settings.set :config, auth: false
