@@ -22,7 +22,6 @@ describe 'Vmpooler' do
         ['prefix', test_string, ""],
         ['logfile', test_string, nil],
         ['site_name', test_string, nil],
-        ['domain', test_string, nil],
         ['clone_target', test_string, nil],
         ['create_folders', test_bool, nil],
         ['create_template_delta_disks', test_bool, nil],

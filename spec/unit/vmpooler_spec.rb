@@ -63,9 +63,9 @@ describe 'Vmpooler' do
         expect(Vmpooler.config[:providers].keys).to include(:dummy)
         expect(Vmpooler.config[:providers].keys).to include(:alice)
         expect(Vmpooler.config[:providers].keys).to include(:bob)
-        merged_pools = [{"name"=>"pool03", "provider"=>"dummy", "ready_ttl"=>5, "size"=>5},
-                        {"name"=>"pool04", "provider"=>"dummy", "ready_ttl"=>5, "size"=>5},
-                        {"name"=>"pool05", "provider"=>"dummy", "ready_ttl"=>5, "size"=>5}]
+        merged_pools = [{"name"=>"pool03", "provider"=>"dummy", "dns_plugin"=>"example", "ready_ttl"=>5, "size"=>5},
+                        {"name"=>"pool04", "provider"=>"dummy", "dns_plugin"=>"example", "ready_ttl"=>5, "size"=>5},
+                        {"name"=>"pool05", "provider"=>"dummy", "dns_plugin"=>"example", "ready_ttl"=>5, "size"=>5}]
         expect(Vmpooler.config[:pools]).to eq(merged_pools)
         expect(Vmpooler.config[:config]).not_to be_nil #merge does not deleted existing keys
       end

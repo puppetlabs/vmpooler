@@ -8,4 +8,5 @@
   - name: 'pool05'
     size: 5
     provider: dummy
+    dns_plugin: 'example'
     ready_ttl: 5

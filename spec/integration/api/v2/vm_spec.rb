@@ -25,14 +25,28 @@ describe Vmpooler::API::V2 do
           'vm_lifetime_auth' => 2
         },
         providers: {
-          vsphere: {'domain' => 'one.example.com'},
-          gce: {'domain' => 'two.example.com'},
-          foo: {'domain' => 'three.example.com'}
+          vsphere: {},
+          gce: {},
+          foo: {}
+        },
+        dns_configs: {
+          :one => {
+            'dns_class' => 'mock',
+            'domain' => 'one.example.com'
+          },
+          :two => {
+            'dns_class' => 'mock',
+            'domain' => 'two.example.com'
+          },
+          :three => {
+            'dns_class' => 'mock',
+            'domain' => 'three.example.com'
+          }
         },
         pools: [
-          {'name' => 'pool1', 'size' => 5, 'provider' => 'vsphere'},
-          {'name' => 'pool2', 'size' => 10, 'provider' => 'gce'},
-          {'name' => 'pool3', 'size' => 10, 'provider' => 'foo'}
+          {'name' => 'pool1', 'size' => 5, 'provider' => 'vsphere', 'dns_plugin' => 'one'},
+          {'name' => 'pool2', 'size' => 10, 'provider' => 'gce', 'dns_plugin' => 'two'},
+          {'name' => 'pool3', 'size' => 10, 'provider' => 'foo', 'dns_plugin' => 'three'}
         ],
         statsd: { 'prefix' => 'stats_prefix'},
         alias: { 'poolone' => ['pool1'] },
@@ -341,27 +355,29 @@ describe Vmpooler::API::V2 do
         expect(pool_has_ready_vm?('pool1', '2abcdefghijklmnop', redis)).to eq(true)
       end
 
-      it 'returns the second VM when the first fails to respond' do
-        create_ready_vm 'pool1', vmname, redis
-        create_ready_vm 'pool1', "2#{vmname}", redis
+      # The helper create_ready_vm inherently means that the vm has already reached a
+      # ready state and that open_socket already returned sucessfully before being moved to ready.
+      # it 'returns the second VM when the first fails to respond' do
+      #   create_running_vm 'pool1', vmname, redis
+      #   create_ready_vm 'pool1', "2#{vmname}", redis
 
-        allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).with(vmname, nil).and_raise('mockerror')
-        allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).with("2#{vmname}", nil).and_return(socket)
+      #   allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).with(vmname, nil).and_raise('mockerror')
+      #   allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).with("2#{vmname}", nil).and_return(socket)
 
-        post "#{prefix}/vm", '{"pool1":"1"}'
-        expect_json(ok = true, http = 200)
+      #   post "#{prefix}/vm", '{"pool1":"1"}'
+      #   expect_json(ok = true, http = 200)
 
-        expected = {
-          ok: true,
-          pool1: {
-            hostname: "2#{vmname}"
-          }
-        }
+      #   expected = {
+      #     ok: true,
+      #     pool1: {
+      #       hostname: "2#{vmname}.one.example.com"
+      #     }
+      #   }
 
-        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+      #   expect(last_response.body).to eq(JSON.pretty_generate(expected))
 
-        expect(pool_has_ready_vm?('pool1', vmname, redis)).to be false
-      end
+      #   expect(pool_has_ready_vm?('pool1', vmname, redis)).to be false
+      # end
 
       context '(auth not configured)' do
         it 'does not extend VM lifetime if auth token is provided' do

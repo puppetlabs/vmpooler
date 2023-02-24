@@ -24,11 +24,17 @@ describe Vmpooler::API::V2 do
           'site_name' => 'test pooler',
           'vm_lifetime_auth' => 2,
         },
+        dns_configs: {
+          :example => {
+            'dns_class' => 'mock',
+            'domain' => 'example.com'
+          }
+        },
         providers: { vsphere: {} },
         pools: [
-          {'name' => 'pool1', 'size' => 5},
-          {'name' => 'pool2', 'size' => 10},
-          {'name' => 'poolone', 'size' => 1}
+          {'name' => 'pool1', 'size' => 5, 'provider' => 'vsphere', 'dns_plugin' => 'example'},
+          {'name' => 'pool2', 'size' => 10, 'provider' => 'vsphere', 'dns_plugin' => 'example'},
+          {'name' => 'poolone', 'size' => 1, 'provider' => 'vsphere', 'dns_plugin' => 'example'}
         ],
         statsd: { 'prefix' => 'stats_prefix'},
         alias: { 'poolone' => 'pool1' },
@@ -60,7 +66,7 @@ describe Vmpooler::API::V2 do
         expected = {
           ok: true,
           pool1: {
-            hostname: 'abcdefghijklmnop'
+            hostname: 'abcdefghijklmnop.example.com'
           }
         }
 
@@ -77,7 +83,7 @@ describe Vmpooler::API::V2 do
         expected = {
           ok: true,
           poolone: {
-            hostname: 'abcdefghijklmnop'
+            hostname: 'abcdefghijklmnop.example.com'
           }
         }
         expect_json(ok = true, http = 200)
@@ -126,10 +132,10 @@ describe Vmpooler::API::V2 do
         expected = {
           ok: true,
           pool1: {
-            hostname: 'abcdefghijklmnop'
+            hostname: 'abcdefghijklmnop.example.com'
           },
           pool2: {
-            hostname: 'qrstuvwxyz012345'
+            hostname: 'qrstuvwxyz012345.example.com'
           }
         }
 
@@ -151,17 +157,17 @@ describe Vmpooler::API::V2 do
         expected = {
           ok: true,
           pool1: {
-            hostname: [ '1abcdefghijklmnop', '2abcdefghijklmnop' ]
+            hostname: [ '1abcdefghijklmnop.example.com', '2abcdefghijklmnop.example.com' ]
           },
           pool2: {
-            hostname: [ '1qrstuvwxyz012345', '2qrstuvwxyz012345', '3qrstuvwxyz012345' ]
+            hostname: [ '1qrstuvwxyz012345.example.com', '2qrstuvwxyz012345.example.com', '3qrstuvwxyz012345.example.com' ]
           }
         }
 
         result = JSON.parse(last_response.body)
         expect(result['ok']).to eq(true)
-        expect(result['pool1']['hostname']).to include('1abcdefghijklmnop', '2abcdefghijklmnop')
-        expect(result['pool2']['hostname']).to include('1qrstuvwxyz012345', '2qrstuvwxyz012345', '3qrstuvwxyz012345')
+        expect(result['pool1']['hostname']).to include('1abcdefghijklmnop.example.com', '2abcdefghijklmnop.example.com')
+        expect(result['pool2']['hostname']).to include('1qrstuvwxyz012345.example.com', '2qrstuvwxyz012345.example.com', '3qrstuvwxyz012345.example.com')
         expect_json(ok = true, http = 200)
       end
 
@@ -265,7 +271,7 @@ describe Vmpooler::API::V2 do
           expected = {
             ok: true,
             pool1: {
-              hostname: 'abcdefghijklmnop'
+              hostname: 'abcdefghijklmnop.example.com'
             }
           }
 
@@ -291,7 +297,7 @@ describe Vmpooler::API::V2 do
           expected = {
             ok: true,
             pool1: {
-              hostname: 'abcdefghijklmnop'
+              hostname: 'abcdefghijklmnop.example.com'
             }
           }
           expect(last_response.body).to eq(JSON.pretty_generate(expected))
@@ -311,7 +317,7 @@ describe Vmpooler::API::V2 do
           expected = {
             ok: true,
             pool1: {
-              hostname: 'abcdefghijklmnop'
+              hostname: 'abcdefghijklmnop.example.com'
             }
           }
           expect_json(ok = true, http = 200)
