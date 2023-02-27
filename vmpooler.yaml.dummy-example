@@ -3,6 +3,12 @@
   :dummy:
     filename: '/tmp/dummy-backing.yaml'
 
+:dns_configs:
+  :example:
+    dns_class: dynamic-dns
+    #domain: 'localhost' # Flip these out for local requests
+    domain: 'example.com'
+
 :redis:
   server: 'localhost'
 
@@ -23,8 +29,6 @@
   allowed_tags:
     - 'created_by'
     - 'project'
-  domain: 'example.com'
-  #domain: 'localhost' # Flip these out for local requests
   prefix: 'poolvm-'
 
 :pools:
@@ -37,6 +41,7 @@
     timeout: 15
     ready_ttl: 1440
     provider: dummy
+    dns_plugin: 'example'
   - name: 'debian-7-x86_64'
     alias: [ 'debian-7-64', 'debian-7-amd64' ]
     template: 'Templates/debian-7-x86_64'
@@ -46,4 +51,4 @@
     timeout: 15
     ready_ttl: 1440
     provider: dummy
-
+    dns_plugin: 'example'

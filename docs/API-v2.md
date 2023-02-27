@@ -12,6 +12,15 @@
 
 vmpooler provides a REST API for VM management.  The following examples use `curl` for communication.
 
+## Major change in V3 versus V2
+
+The deprecated api/v1 has been removed.
+
+The api/v2 endpoint removes the deprecated "domain" key returned in some of the operations like getting a VM, etc. If there is a "domain" configured in the top level configuration or for a specific provider,
+the hostname now returns an FQDN including that domain. That is to say, we can now have multiple, different domains for each pool instead of only a single domain for all pools, or a domain restricted to a particular provider.
+
+Clients using some of the direct API paths (without specifying api/v1 or api/v2) will now be redirected to v2.
+
 ## Major change in V2 versus V1
 
 The api/v2 endpoint removes a separate "domain" key returned in some of the operations like getting a VM, etc. If there is a "domain" configured in the top level configuration or for a specific provider,
