@@ -4,4 +4,4 @@
 docker run -it --rm \
   -v $(pwd):/app \
   jruby:9.4.1.0-jdk8 \
-  /bin/bash -c 'apt-get update -qq && apt-get install -y --no-install-recommends make git && cd /app && gem install bundler && bundle install --jobs 3 && bundle update; echo "LOCK_FILE_UPDATE_EXIT_CODE=$?"'
+  /bin/bash -c 'apt-get update -qq && apt-get install -y --no-install-recommends git make netbase && cd /app && gem install bundler && bundle install --jobs 3 && bundle update; echo "LOCK_FILE_UPDATE_EXIT_CODE=$?"'
