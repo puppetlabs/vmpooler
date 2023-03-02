@@ -34,7 +34,7 @@ module Vmpooler
       config_string = ENV['VMPOOLER_CONFIG']
       # Parse the YAML config into a Hash
       # Allow the Symbol class
-      parsed_config = YAML.safe_load(config_string, [Symbol])
+      parsed_config = YAML.safe_load(config_string, permitted_classes: [Symbol])
     else
       # Take the name of the config file either from an ENV variable or from the filepath argument
       config_file = ENV['VMPOOLER_CONFIG_FILE'] || filepath
