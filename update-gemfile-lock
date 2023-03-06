@@ -3,5 +3,5 @@
 # The container tag should closely match what is used in `docker/Dockerfile` in vmpooler-deployment
 docker run -it --rm \
   -v $(pwd):/app \
-  jruby:9.3.6-jdk \
-  /bin/bash -c 'apt-get update -qq && apt-get install -y --no-install-recommends make git && cd /app && gem install bundler && bundle install --jobs 3 && bundle update; echo "LOCK_FILE_UPDATE_EXIT_CODE=$?"'
+  jruby:9.4.1.0-jdk11 \
+  /bin/bash -c 'apt-get update -qq && apt-get install -y --no-install-recommends git make netbase && cd /app && gem install bundler && bundle install --jobs 3 && bundle update; echo "LOCK_FILE_UPDATE_EXIT_CODE=$?"'

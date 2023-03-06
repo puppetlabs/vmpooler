@@ -540,17 +540,15 @@ module Vmpooler
           },
           kind: :client
         ) do
-          Timeout.timeout(timeout) do
-            target_host = host
-            target_host = "#{host}.#{domain}" if domain
-            span = OpenTelemetry::Trace.current_span
-            span.set_attribute('net.peer.name', target_host)
-            sock = TCPSocket.new target_host, port
-            begin
-              yield sock if block_given?
-            ensure
-              sock.close
-            end
+          target_host = host
+          target_host = "#{host}.#{domain}" if domain
+          span = OpenTelemetry::Trace.current_span
+          span.set_attribute('net.peer.name', target_host)
+          sock = TCPSocket.new(target_host, port, connect_timeout: timeout)
+          begin
+            yield sock if block_given?
+          ensure
+            sock.close
           end
         end
       end
