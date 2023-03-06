@@ -1,11 +1,16 @@
 # Changelog
 
-## [Unreleased](https://github.com/puppetlabs/vmpooler/tree/HEAD)
+## [2.5.0](https://github.com/puppetlabs/vmpooler/tree/2.5.0) (2023-03-06)
 
-[Full Changelog](https://github.com/puppetlabs/vmpooler/compare/2.4.0...HEAD)
+[Full Changelog](https://github.com/puppetlabs/vmpooler/compare/2.4.0...2.5.0)
+
+**Implemented enhancements:**
+
+- \(RE-15161\) Use timeout builtin to TCPSocket when opening sockets. [\#555](https://github.com/puppetlabs/vmpooler/pull/555) ([isaac-hammes](https://github.com/isaac-hammes))
 
 **Merged pull requests:**
 
+- Add docs and update actions [\#550](https://github.com/puppetlabs/vmpooler/pull/550) ([yachub](https://github.com/yachub))
 - \(RE-15111\) Migrate Snyk to Mend Scanning [\#546](https://github.com/puppetlabs/vmpooler/pull/546) ([yachub](https://github.com/yachub))
 - \(RE-14811\) Remove DIO as codeowners [\#517](https://github.com/puppetlabs/vmpooler/pull/517) ([yachub](https://github.com/yachub))
 - Add Snyk action and Move to RE org [\#511](https://github.com/puppetlabs/vmpooler/pull/511) ([yachub](https://github.com/yachub))

@@ -170,10 +170,9 @@ Verify, and update if needed, that the docker tag in the script and GitHub actio
 Follow these steps to publish a new GitHub release, and build and push the gem to <https://rubygems.org>.
 
 1. Bump the "VERSION" in `lib/vmpooler/version.rb` appropriately based on changes in `CHANGELOG.md` since the last release.
-2. Run `./update-gemfile-lock` to update `Gemfile.lock`.
-3. Run `./update-changelog` to update `CHANGELOG.md`.
-4. Commit and push changes to a new branch, then open a pull request against `main` and be sure to add the "maintenance" label.
-5. After the pull request is approved and merged, then navigate to Actions --> Release Gem --> run workflow --> Branch: main --> Run workflow.
+2. Run `./release-prep` to update `Gemfile.lock` and `CHANGELOG.md`.
+3. Commit and push changes to a new branch, then open a pull request against `main` and be sure to add the "maintenance" label.
+4. After the pull request is approved and merged, then navigate to Actions --> Release Gem --> run workflow --> Branch: main --> Run workflow.
 
 ## License
 
