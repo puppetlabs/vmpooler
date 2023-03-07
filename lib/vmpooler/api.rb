@@ -3,7 +3,7 @@
 module Vmpooler
   class API < Sinatra::Base
     # Load API components
-    %w[helpers dashboard reroute v3 request_logger healthcheck].each do |lib|
+    %w[helpers dashboard v3 request_logger healthcheck].each do |lib|
       require "vmpooler/api/#{lib}"
     end
     # Load dashboard components
@@ -52,7 +52,6 @@ module Vmpooler
 
         use Vmpooler::Dashboard
         use Vmpooler::API::Dashboard
-        use Vmpooler::API::Reroute
         use Vmpooler::API::V3
       end
 
