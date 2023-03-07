@@ -1,7 +1,7 @@
 require 'spec_helper'
 require 'rack/test'
 
-describe Vmpooler::API::V2 do
+describe Vmpooler::API::V3 do
   include Rack::Test::Methods
 
   def app()
@@ -15,7 +15,7 @@ describe Vmpooler::API::V2 do
   end
 
   describe '/ondemandvm' do
-    let(:prefix) { '/api/v2' }
+    let(:prefix) { '/api/v3' }
     let(:metrics) { Vmpooler::Metrics::DummyStatsd.new }
     let(:config) {
       {
@@ -120,24 +120,6 @@ describe Vmpooler::API::V2 do
             expect(redis).to receive(:hset).with("vmpooler__odrequest__#{uuid}", 'requested', 'pool2:pool1:1')
             post "#{prefix}/ondemandvm", '{"pool2":"1"}'
           end
-
-        # Domain is always included in reply now
-        #   context 'with domain set in the config' do
-        #     let(:domain) { 'example.com' }
-        #     before(:each) do
-        #       config[:config]['domain'] = domain
-        #     end
-
-        #     it 'should include domain in the return reply' do
-        #       post "#{prefix}/ondemandvm", '{"poolone":"1"}'
-        #       expect_json(true, 201)
-        #       expected = {
-        #         "ok": true,
-        #         "request_id": uuid,
-        #       }
-        #       expect(last_response.body).to eq(JSON.pretty_generate(expected))
-        #     end
-        #   end
         end
 
         context 'with a resource request that exceeds the specified limit' do

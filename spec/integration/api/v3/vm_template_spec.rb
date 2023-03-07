@@ -1,7 +1,7 @@
 require 'spec_helper'
 require 'rack/test'
 
-describe Vmpooler::API::V2 do
+describe Vmpooler::API::V3 do
   include Rack::Test::Methods
 
   def app()
@@ -16,7 +16,7 @@ describe Vmpooler::API::V2 do
   end
 
   describe '/vm/:template' do
-    let(:prefix) { '/api/v2' }
+    let(:prefix) { '/api/v3' }
     let(:metrics) { Vmpooler::Metrics::DummyStatsd.new }
     let(:config) {
       {

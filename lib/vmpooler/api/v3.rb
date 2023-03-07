@@ -5,8 +5,8 @@ require 'vmpooler/dns'
 
 module Vmpooler
   class API
-    class V2 < Vmpooler::API::V1
-      api_version = '2'
+    class V3 < Sinatra::Base
+      api_version = '3'
       api_prefix  = "/api/v#{api_version}"
 
       helpers do
@@ -54,7 +54,7 @@ module Vmpooler
       end
 
       def get_template_aliases(template)
-        tracer.in_span("Vmpooler::API::V2.#{__method__}") do
+        tracer.in_span("Vmpooler::API::V3.#{__method__}") do
           result = []
           aliases = Vmpooler::API.settings.config[:alias]
           if aliases
@@ -125,7 +125,7 @@ module Vmpooler
       #   what template was used, if successful. Otherwise the tuple contains.
       #   nil values.
       def fetch_single_vm(template)
-        tracer.in_span("Vmpooler::API::V2.#{__method__}") do
+        tracer.in_span("Vmpooler::API::V3.#{__method__}") do
           template_backends = [template]
           aliases = Vmpooler::API.settings.config[:alias]
           if aliases
@@ -175,7 +175,7 @@ module Vmpooler
       end
 
       def return_vm_to_ready_state(template, vm)
-        tracer.in_span("Vmpooler::API::V2.#{__method__}") do
+        tracer.in_span("Vmpooler::API::V3.#{__method__}") do
           backend.srem("vmpooler__migrating__#{template}", vm)
           backend.hdel("vmpooler__active__#{template}", vm)
           backend.hdel("vmpooler__vm__#{vm}", 'checkout', 'token:token', 'token:user')
@@ -184,7 +184,7 @@ module Vmpooler
       end
 
       def account_for_starting_vm(template, vm)
-        tracer.in_span("Vmpooler::API::V2.#{__method__}") do |span|
+        tracer.in_span("Vmpooler::API::V3.#{__method__}") do |span|
           user = backend.hget("vmpooler__token__#{request.env['HTTP_X_AUTH_TOKEN']}", 'user')
           span.set_attribute('enduser.id', user)
           has_token_result = has_token?
@@ -204,7 +204,7 @@ module Vmpooler
       end
 
       def update_result_hosts(result, template, vm)
-        tracer.in_span("Vmpooler::API::V2.#{__method__}") do
+        tracer.in_span("Vmpooler::API::V3.#{__method__}") do
           result[template] ||= {}
           if result[template]['hostname']
             result[template]['hostname'] = Array(result[template]['hostname'])
@@ -215,13 +215,8 @@ module Vmpooler
         end
       end
 
-      # The domain in the result body will be set to the one associated with the
-      # last vm added. The part of the response is only being retained for
-      # backwards compatibility as the hostnames are now fqdn's instead of bare
-      # hostnames. This change is a result of now being able to specify a domain
-      # per pool.
       def atomically_allocate_vms(payload)
-        tracer.in_span("Vmpooler::API::V2.#{__method__}") do |span|
+        tracer.in_span("Vmpooler::API::V3.#{__method__}") do |span|
           result = { 'ok' => false }
           failed = false
           vms = [] # vmpool, vmname, vmtemplate
@@ -249,7 +244,7 @@ module Vmpooler
               return_vm_to_ready_state(vmpool, vmname)
             end
             span.add_event('error', attributes: {
-              'error.type' => 'Vmpooler::API::V2.atomically_allocate_vms',
+              'error.type' => 'Vmpooler::API::V3.atomically_allocate_vms',
               'error.message' => '503 due to failing to allocate one or more vms'
             })
             status 503
@@ -272,7 +267,7 @@ module Vmpooler
       end
 
       def component_to_test(match, labels_string)
-        tracer.in_span("Vmpooler::API::V2.#{__method__}") do
+        tracer.in_span("Vmpooler::API::V3.#{__method__}") do
           return if labels_string.nil?
 
           labels_string_parts = labels_string.split(',')
@@ -286,7 +281,7 @@ module Vmpooler
       end
 
       def update_user_metrics(operation, vmname)
-        tracer.in_span("Vmpooler::API::V2.#{__method__}") do |span|
+        tracer.in_span("Vmpooler::API::V3.#{__method__}") do |span|
           begin
             backend.multi
             backend.hget("vmpooler__vm__#{vmname}", 'tag:jenkins_build_url')
@@ -336,7 +331,7 @@ module Vmpooler
       end
 
       def reset_pool_size(poolname)
-        tracer.in_span("Vmpooler::API::V2.#{__method__}") do
+        tracer.in_span("Vmpooler::API::V3.#{__method__}") do
           result = { 'ok' => false }
 
           pool_index = pool_index(pools)
@@ -364,7 +359,7 @@ module Vmpooler
       end
 
       def update_pool_size(payload)
-        tracer.in_span("Vmpooler::API::V2.#{__method__}") do
+        tracer.in_span("Vmpooler::API::V3.#{__method__}") do
           result = { 'ok' => false }
 
           pool_index = pool_index(pools)
@@ -386,7 +381,7 @@ module Vmpooler
       end
 
       def reset_pool_template(poolname)
-        tracer.in_span("Vmpooler::API::V2.#{__method__}") do
+        tracer.in_span("Vmpooler::API::V3.#{__method__}") do
           result = { 'ok' => false }
 
           pool_index_live = pool_index(pools)
@@ -415,7 +410,7 @@ module Vmpooler
       end
 
       def update_pool_template(payload)
-        tracer.in_span("Vmpooler::API::V2.#{__method__}") do
+        tracer.in_span("Vmpooler::API::V3.#{__method__}") do
           result = { 'ok' => false }
 
           pool_index = pool_index(pools)
@@ -437,7 +432,7 @@ module Vmpooler
       end
 
       def reset_pool(payload)
-        tracer.in_span("Vmpooler::API::V2.#{__method__}") do
+        tracer.in_span("Vmpooler::API::V3.#{__method__}") do
           result = { 'ok' => false }
 
           payload.each do |poolname, _count|
@@ -450,7 +445,7 @@ module Vmpooler
       end
 
       def update_clone_target(payload)
-        tracer.in_span("Vmpooler::API::V2.#{__method__}") do
+        tracer.in_span("Vmpooler::API::V3.#{__method__}") do
           result = { 'ok' => false }
 
           pool_index = pool_index(pools)
@@ -472,7 +467,7 @@ module Vmpooler
       end
 
       def sync_pool_templates
-        tracer.in_span("Vmpooler::API::V2.#{__method__}") do
+        tracer.in_span("Vmpooler::API::V3.#{__method__}") do
           pool_index = pool_index(pools)
           template_configs = backend.hgetall('vmpooler__config__template')
           template_configs&.each do |poolname, template|
@@ -484,7 +479,7 @@ module Vmpooler
       end
 
       def sync_pool_sizes
-        tracer.in_span("Vmpooler::API::V2.#{__method__}") do
+        tracer.in_span("Vmpooler::API::V3.#{__method__}") do
           pool_index = pool_index(pools)
           poolsize_configs = backend.hgetall('vmpooler__config__poolsize')
           poolsize_configs&.each do |poolname, size|
@@ -496,7 +491,7 @@ module Vmpooler
       end
 
       def sync_clone_targets
-        tracer.in_span("Vmpooler::API::V2.#{__method__}") do
+        tracer.in_span("Vmpooler::API::V3.#{__method__}") do
           pool_index = pool_index(pools)
           clone_target_configs = backend.hgetall('vmpooler__config__clone_target')
           clone_target_configs&.each do |poolname, clone_target|
@@ -508,7 +503,7 @@ module Vmpooler
       end
 
       def too_many_requested?(payload)
-        tracer.in_span("Vmpooler::API::V2.#{__method__}") do
+        tracer.in_span("Vmpooler::API::V3.#{__method__}") do
           payload&.each do |poolname, count|
             next unless count.to_i > config['max_ondemand_instances_per_request']
 
@@ -520,7 +515,7 @@ module Vmpooler
       end
 
       def generate_ondemand_request(payload)
-        tracer.in_span("Vmpooler::API::V2.#{__method__}") do |span|
+        tracer.in_span("Vmpooler::API::V3.#{__method__}") do |span|
           result = { 'ok': false }
 
           requested_instances = payload.reject { |k, _v| k == 'request_id' }
@@ -529,7 +524,7 @@ module Vmpooler
             result['message'] = e_message
             status 403
             span.add_event('error', attributes: {
-              'error.type' => 'Vmpooler::API::V2.generate_ondemand_request',
+              'error.type' => 'Vmpooler::API::V3.generate_ondemand_request',
               'error.message' => "403 due to #{e_message}"
             })
             return result
@@ -546,7 +541,7 @@ module Vmpooler
             result['message'] = e_message
             status 409
             span.add_event('error', attributes: {
-              'error.type' => 'Vmpooler::API::V2.generate_ondemand_request',
+              'error.type' => 'Vmpooler::API::V3.generate_ondemand_request',
               'error.message' => "409 due to #{e_message}"
             })
             metrics.increment('ondemandrequest_generate.duplicaterequests')
@@ -588,6 +583,505 @@ module Vmpooler
         redirect to('/dashboard/')
       end
 
+      # Provide run-time statistics
+      #
+      # Example:
+      #
+      # {
+      #   "boot": {
+      #     "duration": {
+      #       "average": 163.6,
+      #       "min": 65.49,
+      #       "max": 830.07,
+      #       "total": 247744.71000000002
+      #     },
+      #     "count": {
+      #       "total": 1514
+      #     }
+      #   },
+      #   "capacity": {
+      #     "current": 968,
+      #     "total": 975,
+      #     "percent": 99.3
+      #   },
+      #   "clone": {
+      #     "duration": {
+      #       "average": 17.0,
+      #       "min": 4.66,
+      #       "max": 637.96,
+      #       "total": 25634.15
+      #     },
+      #     "count": {
+      #       "total": 1507
+      #     }
+      #   },
+      #   "queue": {
+      #     "pending": 12,
+      #     "cloning": 0,
+      #     "booting": 12,
+      #     "ready": 968,
+      #     "running": 367,
+      #     "completed": 0,
+      #     "total": 1347
+      #   },
+      #   "pools": {
+      #     "ready": 100,
+      #     "running": 120,
+      #     "pending": 5,
+      #     "max": 250,
+      #   }
+      #   "status": {
+      #     "ok": true,
+      #     "message": "Battle station fully armed and operational.",
+      #     "empty": [ # NOTE: would not have 'ok: true' w/ "empty" pools
+      #       "redhat-7-x86_64",
+      #       "ubuntu-1404-i386"
+      #     ],
+      #     "uptime": 179585.9
+      # }
+      #
+      # If the query parameter 'view' is provided, it will be used to select which top level
+      # element to compute and return. Select them by specifying them in a comma separated list.
+      # For example /status?view=capacity,boot
+      # would return only the "capacity" and "boot" statistics. "status" is always returned
+
+      get "#{api_prefix}/status/?" do
+        content_type :json
+
+        if params[:view]
+          views = params[:view].split(",")
+        end
+
+        result = {
+          status: {
+            ok: true,
+            message: 'Battle station fully armed and operational.'
+          }
+        }
+
+        sync_pool_sizes
+
+        result[:capacity] = get_capacity_metrics(pools, backend) unless views and not views.include?("capacity")
+        result[:queue] = get_queue_metrics(pools, backend) unless views and not views.include?("queue")
+        result[:clone] = get_task_metrics(backend, 'clone', Date.today.to_s) unless views and not views.include?("clone")
+        result[:boot] = get_task_metrics(backend, 'boot', Date.today.to_s) unless views and not views.include?("boot")
+
+        # Check for empty pools
+        result[:pools] = {} unless views and not views.include?("pools")
+        ready_hash = get_list_across_pools_redis_scard(pools, 'vmpooler__ready__', backend)
+        running_hash = get_list_across_pools_redis_scard(pools, 'vmpooler__running__', backend)
+        pending_hash = get_list_across_pools_redis_scard(pools, 'vmpooler__pending__', backend)
+        lastBoot_hash = get_list_across_pools_redis_hget(pools, 'vmpooler__lastboot', backend)
+
+        unless views and not views.include?("pools")
+          pools.each do |pool|
+            # REMIND: move this out of the API and into the back-end
+            ready    = ready_hash[pool['name']]
+            running  = running_hash[pool['name']]
+            pending  = pending_hash[pool['name']]
+            max      = pool['size']
+            lastBoot = lastBoot_hash[pool['name']]
+            aka      = pool['alias']
+
+            result[:pools][pool['name']] = {
+              ready: ready,
+              running: running,
+              pending: pending,
+              max: max,
+              lastBoot: lastBoot
+            }
+
+            if aka
+              result[:pools][pool['name']][:alias] = aka
+            end
+
+            # for backwards compatibility, include separate "empty" stats in "status" block
+            if ready == 0 && max != 0
+              result[:status][:empty] ||= []
+              result[:status][:empty].push(pool['name'])
+
+              result[:status][:ok] = false
+              result[:status][:message] = "Found #{result[:status][:empty].length} empty pools."
+            end
+          end
+        end
+
+        result[:status][:uptime] = (Time.now - Vmpooler::API.settings.config[:uptime]).round(1) if Vmpooler::API.settings.config[:uptime]
+
+        JSON.pretty_generate(Hash[result.sort_by { |k, _v| k }])
+      end
+
+      # request statistics for specific pools by passing parameter 'pool'
+      # with a coma separated list of pools we want to query ?pool=ABC,DEF
+      # returns the ready, max numbers and the aliases (if set)
+      get "#{api_prefix}/poolstat/?" do
+        content_type :json
+
+        result = {}
+
+        poolscopy = []
+
+        if params[:pool]
+          subpool = params[:pool].split(",")
+          poolscopy = pools.select do |p|
+            if subpool.include?(p['name'])
+              true
+            elsif !p['alias'].nil?
+              if p['alias'].instance_of?(Array)
+                (p['alias'] & subpool).any?
+              elsif p['alias'].instance_of?(String)
+                subpool.include?(p['alias'])
+              end
+            end
+          end
+        end
+
+        result[:pools] = {}
+
+        poolscopy.each do |pool|
+          result[:pools][pool['name']] = {}
+
+          max      = pool['size']
+          aka      = pool['alias']
+
+          result[:pools][pool['name']][:max] = max
+
+          if aka
+            result[:pools][pool['name']][:alias] = aka
+          end
+        end
+
+        ready_hash = get_list_across_pools_redis_scard(poolscopy, 'vmpooler__ready__', backend)
+
+        ready_hash.each { |k, v| result[:pools][k][:ready] = v }
+
+        JSON.pretty_generate(Hash[result.sort_by { |k, _v| k }])
+      end
+
+      # requests the total number of running VMs
+      get "#{api_prefix}/totalrunning/?" do
+        content_type :json
+        queue = {
+            running: 0
+        }
+
+        queue[:running] = get_total_across_pools_redis_scard(pools, 'vmpooler__running__', backend)
+
+        JSON.pretty_generate(queue)
+      end
+
+      get "#{api_prefix}/summary/?" do
+        content_type :json
+
+        result = {
+          daily: []
+        }
+
+        from_param = params[:from] || Date.today.to_s
+        to_param   = params[:to]   || Date.today.to_s
+
+        # Validate date formats
+        [from_param, to_param].each do |param|
+          if !validate_date_str(param.to_s)
+            halt 400, "Invalid date format '#{param}', must match YYYY-MM-DD."
+          end
+        end
+
+        from_date, to_date = Date.parse(from_param), Date.parse(to_param)
+
+        if to_date < from_date
+          halt 400, 'Date range is invalid, \'to\' cannot come before \'from\'.'
+        elsif from_date > Date.today
+          halt 400, 'Date range is invalid, \'from\' must be in the past.'
+        end
+
+        boot = get_task_summary(backend, 'boot', from_date, to_date, :bypool => true)
+        clone = get_task_summary(backend, 'clone', from_date, to_date, :bypool => true)
+        tag = get_tag_summary(backend, from_date, to_date)
+
+        result[:boot] = boot[:boot]
+        result[:clone] = clone[:clone]
+        result[:tag] = tag[:tag]
+
+        daily = {}
+
+        boot[:daily].each do |day|
+          daily[day[:date]] ||= {}
+          daily[day[:date]][:boot] = day[:boot]
+        end
+
+        clone[:daily].each do |day|
+          daily[day[:date]] ||= {}
+          daily[day[:date]][:clone] = day[:clone]
+        end
+
+        tag[:daily].each do |day|
+          daily[day[:date]] ||= {}
+          daily[day[:date]][:tag] = day[:tag]
+        end
+
+        daily.each_key do |day|
+          result[:daily].push({
+            date: day,
+            boot: daily[day][:boot],
+            clone: daily[day][:clone],
+            tag: daily[day][:tag]
+          })
+        end
+
+        JSON.pretty_generate(result)
+      end
+
+      get "#{api_prefix}/summary/:route/?:key?/?" do
+        content_type :json
+
+        result = {}
+
+        from_param = params[:from] || Date.today.to_s
+        to_param   = params[:to]   || Date.today.to_s
+
+        # Validate date formats
+        [from_param, to_param].each do |param|
+          if !validate_date_str(param.to_s)
+            halt 400, "Invalid date format '#{param}', must match YYYY-MM-DD."
+          end
+        end
+
+        from_date, to_date = Date.parse(from_param), Date.parse(to_param)
+
+        if to_date < from_date
+          halt 400, 'Date range is invalid, \'to\' cannot come before \'from\'.'
+        elsif from_date > Date.today
+          halt 400, 'Date range is invalid, \'from\' must be in the past.'
+        end
+
+        case params[:route]
+          when 'boot'
+            result = get_task_summary(backend, 'boot', from_date, to_date, :bypool => true, :only => params[:key])
+          when 'clone'
+            result = get_task_summary(backend, 'clone', from_date, to_date, :bypool => true, :only => params[:key])
+          when 'tag'
+            result = get_tag_summary(backend, from_date, to_date, :only => params[:key])
+          else
+            halt 404, JSON.pretty_generate({ 'ok' => false })
+        end
+
+        JSON.pretty_generate(result)
+      end
+
+      get "#{api_prefix}/token/?" do
+        content_type :json
+
+        status 404
+        result = { 'ok' => false }
+
+        if Vmpooler::API.settings.config[:auth]
+          status 401
+
+          need_auth!
+
+          backend.keys('vmpooler__token__*').each do |key|
+            data = backend.hgetall(key)
+
+            if data['user'] == Rack::Auth::Basic::Request.new(request.env).username
+              span = OpenTelemetry::Trace.current_span
+              span.set_attribute('enduser.id', data['user'])
+              token = key.split('__').last
+
+              result[token] ||= {}
+
+              result[token]['created'] = data['created']
+              result[token]['last'] = data['last'] || 'never'
+
+              result['ok'] = true
+            end
+          end
+
+          if result['ok']
+            status 200
+          else
+            status 404
+          end
+        end
+
+        JSON.pretty_generate(result)
+      end
+
+      get "#{api_prefix}/token/:token/?" do
+        content_type :json
+
+        status 404
+        result = { 'ok' => false }
+
+        if Vmpooler::API.settings.config[:auth]
+          token = backend.hgetall("vmpooler__token__#{params[:token]}")
+
+          if not token.nil? and not token.empty?
+            status 200
+
+            pools.each do |pool|
+              backend.smembers("vmpooler__running__#{pool['name']}").each do |vm|
+                if backend.hget("vmpooler__vm__#{vm}", 'token:token') == params[:token]
+                  token['vms'] ||= {}
+                  token['vms']['running'] ||= []
+                  token['vms']['running'].push(vm)
+                end
+              end
+            end
+
+            result = { 'ok' => true, params[:token] => token }
+          end
+        end
+
+        JSON.pretty_generate(result)
+      end
+
+      delete "#{api_prefix}/token/:token/?" do
+        content_type :json
+
+        status 404
+        result = { 'ok' => false }
+
+        if Vmpooler::API.settings.config[:auth]
+          status 401
+
+          need_auth!
+
+          if backend.del("vmpooler__token__#{params[:token]}").to_i > 0
+            status 200
+            result['ok'] = true
+          end
+        end
+
+        JSON.pretty_generate(result)
+      end
+
+      post "#{api_prefix}/token" do
+        content_type :json
+
+        status 404
+        result = { 'ok' => false }
+
+        if Vmpooler::API.settings.config[:auth]
+          status 401
+
+          need_auth!
+
+          o = [('a'..'z'), ('0'..'9')].map(&:to_a).flatten
+          result['token'] = o[rand(25)] + (0...31).map { o[rand(o.length)] }.join
+
+          backend.hset("vmpooler__token__#{result['token']}", 'user', @auth.username)
+          backend.hset("vmpooler__token__#{result['token']}", 'created', Time.now)
+          span = OpenTelemetry::Trace.current_span
+          span.set_attribute('enduser.id', @auth.username)
+
+          status 200
+          result['ok'] = true
+        end
+
+        JSON.pretty_generate(result)
+      end
+
+      get "#{api_prefix}/vm/?" do
+        content_type :json
+
+        result = []
+
+        pools.each do |pool|
+          result.push(pool['name'])
+        end
+
+        JSON.pretty_generate(result)
+      end
+
+      post "#{api_prefix}/ondemandvm/?" do
+        content_type :json
+        metrics.increment('http_requests_vm_total.post.ondemand.requestid')
+
+        need_token! if Vmpooler::API.settings.config[:auth]
+
+        result = { 'ok' => false }
+
+        begin
+          payload = JSON.parse(request.body.read)
+
+          if payload
+            invalid = invalid_templates(payload.reject { |k, _v| k == 'request_id' })
+            if invalid.empty?
+              result = generate_ondemand_request(payload)
+            else
+              result[:bad_templates] = invalid
+              invalid.each do |bad_template|
+                metrics.increment("ondemandrequest_fail.invalid.#{bad_template}")
+              end
+              status 404
+            end
+          else
+            metrics.increment('ondemandrequest_fail.invalid.unknown')
+            status 404
+          end
+        rescue JSON::ParserError
+          span = OpenTelemetry::Trace.current_span
+          span.status = OpenTelemetry::Trace::Status.error('JSON payload could not be parsed')
+          status 400
+          result = {
+            'ok' => false,
+            'message' => 'JSON payload could not be parsed'
+          }
+        end
+
+        JSON.pretty_generate(result)
+      end
+
+      post "#{api_prefix}/ondemandvm/:template/?" do
+        content_type :json
+        result = { 'ok' => false }
+        metrics.increment('http_requests_vm_total.delete.ondemand.template')
+
+        need_token! if Vmpooler::API.settings.config[:auth]
+
+        payload = extract_templates_from_query_params(params[:template])
+
+        if payload
+          invalid = invalid_templates(payload.reject { |k, _v| k == 'request_id' })
+          if invalid.empty?
+            result = generate_ondemand_request(payload)
+          else
+            result[:bad_templates] = invalid
+            invalid.each do |bad_template|
+              metrics.increment("ondemandrequest_fail.invalid.#{bad_template}")
+            end
+            status 404
+          end
+        else
+          metrics.increment('ondemandrequest_fail.invalid.unknown')
+          status 404
+        end
+
+        JSON.pretty_generate(result)
+      end
+
+      get "#{api_prefix}/ondemandvm/:requestid/?" do
+        content_type :json
+        metrics.increment('http_requests_vm_total.get.ondemand.request')
+
+        status 404
+        result = check_ondemand_request(params[:requestid])
+
+        JSON.pretty_generate(result)
+      end
+
+      delete "#{api_prefix}/ondemandvm/:requestid/?" do
+        content_type :json
+        need_token! if Vmpooler::API.settings.config[:auth]
+        metrics.increment('http_requests_vm_total.delete.ondemand.request')
+
+        status 404
+        result = delete_ondemand_request(params[:requestid])
+
+        JSON.pretty_generate(result)
+      end
+
       post "#{api_prefix}/vm/?" do
         content_type :json
         result = { 'ok' => false }
@@ -614,7 +1108,7 @@ module Vmpooler
       end
 
       def extract_templates_from_query_params(params)
-        tracer.in_span("Vmpooler::API::V2.#{__method__}") do
+        tracer.in_span("Vmpooler::API::V3.#{__method__}") do
           payload = {}
 
           params.split('+').each do |template|
@@ -627,7 +1121,7 @@ module Vmpooler
       end
 
       def invalid_templates(payload)
-        tracer.in_span("Vmpooler::API::V2.#{__method__}") do
+        tracer.in_span("Vmpooler::API::V3.#{__method__}") do
           invalid = []
           payload.keys.each do |template|
             invalid << template unless pool_exists?(template)
@@ -637,7 +1131,7 @@ module Vmpooler
       end
 
       def invalid_template_or_size(payload)
-        tracer.in_span("Vmpooler::API::V2.#{__method__}") do
+        tracer.in_span("Vmpooler::API::V3.#{__method__}") do
           invalid = []
           payload.each do |pool, size|
             invalid << pool unless pool_exists?(pool)
@@ -652,7 +1146,7 @@ module Vmpooler
       end
 
       def invalid_template_or_path(payload)
-        tracer.in_span("Vmpooler::API::V2.#{__method__}") do
+        tracer.in_span("Vmpooler::API::V3.#{__method__}") do
           invalid = []
           payload.each do |pool, template|
             invalid << pool unless pool_exists?(pool)
@@ -665,7 +1159,7 @@ module Vmpooler
       end
 
       def invalid_pool(payload)
-        tracer.in_span("Vmpooler::API::V2.#{__method__}") do
+        tracer.in_span("Vmpooler::API::V3.#{__method__}") do
           invalid = []
           payload.each do |pool, _clone_target|
             invalid << pool unless pool_exists?(pool)
@@ -675,7 +1169,7 @@ module Vmpooler
       end
 
       def delete_ondemand_request(request_id)
-        tracer.in_span("Vmpooler::API::V2.#{__method__}") do |span|
+        tracer.in_span("Vmpooler::API::V3.#{__method__}") do |span|
           span.set_attribute('vmpooler.request_id', request_id)
           result = { 'ok' => false }
 
@@ -684,7 +1178,7 @@ module Vmpooler
             e_message = "no request found for request_id '#{request_id}'"
             result['message'] = e_message
             span.add_event('error', attributes: {
-              'error.type' => 'Vmpooler::API::V2.delete_ondemand_request',
+              'error.type' => 'Vmpooler::API::V3.delete_ondemand_request',
               'error.message' => e_message
             })
             return result
@@ -810,85 +1304,8 @@ module Vmpooler
         JSON.pretty_generate(result)
       end
 
-      post "#{api_prefix}/ondemandvm/?" do
-        content_type :json
-        metrics.increment('http_requests_vm_total.post.ondemand.requestid')
-
-        need_token! if Vmpooler::API.settings.config[:auth]
-
-        result = { 'ok' => false }
-
-        begin
-          payload = JSON.parse(request.body.read)
-
-          if payload
-            invalid = invalid_templates(payload.reject { |k, _v| k == 'request_id' })
-            if invalid.empty?
-              result = generate_ondemand_request(payload)
-            else
-              result[:bad_templates] = invalid
-              invalid.each do |bad_template|
-                metrics.increment("ondemandrequest_fail.invalid.#{bad_template}")
-              end
-              status 404
-            end
-          else
-            metrics.increment('ondemandrequest_fail.invalid.unknown')
-            status 404
-          end
-        rescue JSON::ParserError
-          span = OpenTelemetry::Trace.current_span
-          span.status = OpenTelemetry::Trace::Status.error('JSON payload could not be parsed')
-          status 400
-          result = {
-            'ok' => false,
-            'message' => 'JSON payload could not be parsed'
-          }
-        end
-
-        JSON.pretty_generate(result)
-      end
-
-      post "#{api_prefix}/ondemandvm/:template/?" do
-        content_type :json
-        result = { 'ok' => false }
-        metrics.increment('http_requests_vm_total.delete.ondemand.template')
-
-        need_token! if Vmpooler::API.settings.config[:auth]
-
-        payload = extract_templates_from_query_params(params[:template])
-
-        if payload
-          invalid = invalid_templates(payload.reject { |k, _v| k == 'request_id' })
-          if invalid.empty?
-            result = generate_ondemand_request(payload)
-          else
-            result[:bad_templates] = invalid
-            invalid.each do |bad_template|
-              metrics.increment("ondemandrequest_fail.invalid.#{bad_template}")
-            end
-            status 404
-          end
-        else
-          metrics.increment('ondemandrequest_fail.invalid.unknown')
-          status 404
-        end
-
-        JSON.pretty_generate(result)
-      end
-
-      get "#{api_prefix}/ondemandvm/:requestid/?" do
-        content_type :json
-        metrics.increment('http_requests_vm_total.get.ondemand.request')
-
-        status 404
-        result = check_ondemand_request(params[:requestid])
-
-        JSON.pretty_generate(result)
-      end
-
       def check_ondemand_request(request_id)
-        tracer.in_span("Vmpooler::API::V2.#{__method__}") do |span|
+        tracer.in_span("Vmpooler::API::V3.#{__method__}") do |span|
           span.set_attribute('vmpooler.request_id', request_id)
           result = { 'ok' => false }
           request_hash = backend.hgetall("vmpooler__odrequest__#{request_id}")
@@ -896,7 +1313,7 @@ module Vmpooler
             e_message = "no request found for request_id '#{request_id}'"
             result['message'] = e_message
             span.add_event('error', attributes: {
-              'error.type' => 'Vmpooler::API::V2.check_ondemand_request',
+              'error.type' => 'Vmpooler::API::V3.check_ondemand_request',
               'error.message' => e_message
             })
             return result
