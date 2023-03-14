@@ -70,5 +70,30 @@ describe 'Vmpooler' do
         expect(Vmpooler.config[:config]).not_to be_nil #merge does not deleted existing keys
       end
     end
+
+    context 'when domain' do
+      context 'is set as a variable' do
+        before(:each) do
+          ENV['VMPOOLER_CONFIG_FILE'] = config_file
+          ENV['DOMAIN'] = 'example.com'
+        end
+
+        it 'should exit' do
+          expect { Vmpooler.config }.to raise_error(SystemExit)
+        end
+      end
+
+      context 'is set in a config file' do
+        let(:config_file) { File.join(fixtures_dir, 'vmpooler_domain.yaml') }
+
+        before(:each) do
+          ENV['VMPOOLER_CONFIG_FILE'] = config_file
+        end
+
+        it 'should exit' do
+          expect { Vmpooler.config }.to raise_error(SystemExit)
+        end
+      end
+    end
   end
 end

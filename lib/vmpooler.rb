@@ -76,6 +76,10 @@ module Vmpooler
     parsed_config[:config]['prefix']                             = ENV['PREFIX'] || parsed_config[:config]['prefix'] || ''
     parsed_config[:config]['logfile']                            = ENV['LOGFILE'] if ENV['LOGFILE']
     parsed_config[:config]['site_name']                          = ENV['SITE_NAME'] if ENV['SITE_NAME']
+    if !parsed_config[:config]['domain'].nil? || !ENV['DOMAIN'].nil?
+      puts '[!] [error] The "domain" config setting has been removed in v3. Please see the docs for migrating the domain config to use a dns plugin at https://github.com/puppetlabs/vmpooler/blob/main/README.md#migrating-to-v3'
+      exit 1
+    end
     parsed_config[:config]['clone_target']                       = ENV['CLONE_TARGET'] if ENV['CLONE_TARGET']
     parsed_config[:config]['timeout']                            = string_to_int(ENV['TIMEOUT']) if ENV['TIMEOUT']
     parsed_config[:config]['vm_lifetime_auth']                   = string_to_int(ENV['VM_LIFETIME_AUTH']) if ENV['VM_LIFETIME_AUTH']
