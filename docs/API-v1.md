@@ -1,16 +1,40 @@
 # Table of contents
-1. [API](#API)
-2. [Token operations](#token)
-3. [VM operations](#vmops)
-4. [Add disks](#adddisks)
-5. [VM snapshots](#vmsnapshots)
-6. [Status and metrics](#statusmetrics)
-7. [Pool configuration](#poolconfig)
-8. [Ondemand VM provisioning](#ondemandvm)
+1. [API](#API) 
+2. [Postman collection](#postman)
+3. [Token operations](#token)
+4. [VM operations](#vmops)
+5. [Add disks](#adddisks)
+6. [VM snapshots](#vmsnapshots)
+7. [Status and metrics](#statusmetrics)
+8. [Pool configuration](#poolconfig)
+9. [Ondemand VM provisioning](#ondemandvm)
 
 ### API <a name="API"></a>
 
 vmpooler provides a REST API for VM management.  The following examples use `curl` for communication.
+
+### Postman collection <a name="postman"></a>
+
+An example postman collection can be imported by [downloading it](postman/vmpooler FULL API.postman_collection.json) and the [generic environment file](postman/vmpooler generic.postman_environment.json)
+You will have to set the values in the environment file as per your local setup. The full API is modeled and some queries should be run in order, because we use the post-test script to save important returned values that are required by the other APIs.
+
+![postman](postman/postman_screenshot.png)
+
+You can string API requests in a specific order to run use cases for example:
+
+folder "create vm"/"ondemand" you can run
+
+Step 1) **ondemand vm** will use the _url, api_prefix, token and ondemand_pool_name_ from the env file and as a post-test script save the returned "request_id" in a collection variable
+
+Step 2) **check ondemand** will use the collection variable from Step 1) to query the API, and a post-test script will save the returned "hostname" in a collection variable, to be used in other APIs like 'Add additional disk' or 'Create a snapshot'
+
+folder "other vm requests"
+
+Step 2) **Create a snapshot** will use the "hostname" from the previous request
+
+folder "create vm"/"ondemand" you can finally run
+
+Step 3) **delete ondemand** will use the collection variable from Step 1) to delete the VM via the "request_id"
 
 #### Token operations <a name="token"></a>
 
