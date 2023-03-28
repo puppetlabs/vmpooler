@@ -25,7 +25,7 @@ Gem::Specification.new do |s|
   s.add_dependency 'opentelemetry-instrumentation-http_client', '= 0.19.4'
   s.add_dependency 'opentelemetry-instrumentation-redis', '= 0.21.3'
   s.add_dependency 'opentelemetry-instrumentation-sinatra', '= 0.19.3'
-  s.add_dependency 'opentelemetry-resource_detectors', '= 0.19.1'
+  s.add_dependency 'opentelemetry-resource_detectors', '= 0.22.0'
   s.add_dependency 'opentelemetry-sdk', '~> 1.0', '>= 1.0.2'
   s.add_dependency 'pickup', '~> 0.0.11'
   s.add_dependency 'prometheus-client', '~> 2.0'
