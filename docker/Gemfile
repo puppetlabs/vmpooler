@@ -1,5 +1,0 @@
-source ENV['GEM_SOURCE'] || 'https://rubygems.org'
-
-gem 'vmpooler',                    path: './vmpooler-source'
-gem 'vmpooler-provider-gce',       git: 'https://github.com/puppetlabs/vmpooler-provider-gce.git'
-gem 'vmpooler-provider-vsphere',   git: 'https://github.com/puppetlabs/vmpooler-provider-vsphere.git'
