@@ -12,8 +12,7 @@
 # SupportedStyles: with_first_parameter, with_fixed_indentation
 Layout/ParameterAlignment:
   Exclude:
-    - 'lib/vmpooler/api/v1.rb'
-    - 'lib/vmpooler/api/v2.rb'
+    - 'lib/vmpooler/api/v3.rb'
 
 # Offense count: 9
 # Cop supports --auto-correct.
@@ -22,15 +21,13 @@ Layout/ParameterAlignment:
 Layout/CaseIndentation:
   Exclude:
     - 'lib/vmpooler/api/helpers.rb'
-    - 'lib/vmpooler/api/v1.rb'
-    - 'lib/vmpooler/api/v2.rb'
+    - 'lib/vmpooler/api/v3.rb'
 
 # Offense count: 1
 # Cop supports --auto-correct.
 Layout/ClosingParenthesisIndentation:
   Exclude:
-    - 'lib/vmpooler/api/v1.rb'
-    - 'lib/vmpooler/api/v2.rb'
+    - 'lib/vmpooler/api/v3.rb'
 
 # Offense count: 1
 # Cop supports --auto-correct.
@@ -61,16 +58,14 @@ Layout/EmptyLinesAroundModuleBody:
 Layout/FirstHashElementIndentation:
   Exclude:
     - 'lib/vmpooler/api/helpers.rb'
-    - 'lib/vmpooler/api/v1.rb'
-    - 'lib/vmpooler/api/v2.rb'
+    - 'lib/vmpooler/api/v3.rb'
 
 # Offense count: 1
 # Cop supports --auto-correct.
 # Configuration parameters: Width, IgnoredPatterns.
 Layout/IndentationWidth:
   Exclude:
-    - 'lib/vmpooler/api/v1.rb'
-    - 'lib/vmpooler/api/v2.rb'
+    - 'lib/vmpooler/api/v3.rb'
 
 # Offense count: 1
 # Cop supports --auto-correct.
@@ -78,8 +73,7 @@ Layout/IndentationWidth:
 # SupportedStyles: symmetrical, new_line, same_line
 Layout/MultilineMethodCallBraceLayout:
   Exclude:
-    - 'lib/vmpooler/api/v1.rb'
-    - 'lib/vmpooler/api/v2.rb'
+    - 'lib/vmpooler/api/v3.rb'
 
 # Offense count: 1
 # Cop supports --auto-correct.
@@ -93,16 +87,14 @@ Layout/SpaceAroundEqualsInParameterDefault:
 # Cop supports --auto-correct.
 Layout/SpaceAroundKeyword:
   Exclude:
-    - 'lib/vmpooler/api/v1.rb'
-    - 'lib/vmpooler/api/v2.rb'
+    - 'lib/vmpooler/api/v3.rb'
 
 # Offense count: 1
 # Cop supports --auto-correct.
 # Configuration parameters: AllowForAlignment.
 Layout/SpaceAroundOperators:
   Exclude:
-    - 'lib/vmpooler/api/v1.rb'
-    - 'lib/vmpooler/api/v2.rb'
+    - 'lib/vmpooler/api/v3.rb'
 
 # Offense count: 8
 # Cop supports --auto-correct.
@@ -117,16 +109,14 @@ Layout/SpaceInsideHashLiteralBraces:
 # Cop supports --auto-correct.
 Layout/SpaceInsideParens:
   Exclude:
-    - 'lib/vmpooler/api/v1.rb'
-    - 'lib/vmpooler/api/v2.rb'
+    - 'lib/vmpooler/api/v3.rb'
 
 # Offense count: 2
 # Configuration parameters: AllowSafeAssignment.
 Lint/AssignmentInCondition:
   Exclude:
     - 'lib/vmpooler/api/helpers.rb'
-    - 'lib/vmpooler/api/v1.rb'
-    - 'lib/vmpooler/api/v2.rb'
+    - 'lib/vmpooler/api/v3.rb'
 
 # Offense count: 2
 Lint/SuppressedException:
@@ -158,8 +148,7 @@ Lint/UselessAssignment:
 Style/AndOr:
   Exclude:
     - 'lib/vmpooler/api/helpers.rb'
-    - 'lib/vmpooler/api/v1.rb'
-    - 'lib/vmpooler/api/v2.rb'
+    - 'lib/vmpooler/api/v3.rb'
 
 # Offense count: 1
 Style/CaseEquality:
@@ -180,8 +169,7 @@ Style/For:
 Style/HashSyntax:
   Exclude:
     - 'lib/vmpooler/api/helpers.rb'
-    - 'lib/vmpooler/api/v1.rb'
-    - 'lib/vmpooler/api/v2.rb'
+    - 'lib/vmpooler/api/v3.rb'
 
 # Offense count: 4
 # Cop supports --auto-correct.
@@ -189,8 +177,7 @@ Style/HashSyntax:
 Style/IfUnlessModifier:
   Exclude:
     - 'lib/vmpooler/api/helpers.rb'
-    - 'lib/vmpooler/api/v1.rb'
-    - 'lib/vmpooler/api/v2.rb'
+    - 'lib/vmpooler/api/v3.rb'
 
 # Offense count: 3
 # Cop supports --auto-correct.
@@ -198,15 +185,13 @@ Style/IfUnlessModifier:
 # SupportedStyles: both, prefix, postfix
 Style/NegatedIf:
   Exclude:
-    - 'lib/vmpooler/api/v1.rb'
-    - 'lib/vmpooler/api/v2.rb'
+    - 'lib/vmpooler/api/v3.rb'
 
 # Offense count: 3
 # Cop supports --auto-correct.
 Style/Not:
   Exclude:
-    - 'lib/vmpooler/api/v1.rb'
-    - 'lib/vmpooler/api/v2.rb'
+    - 'lib/vmpooler/api/v3.rb'
 
 # Offense count: 1
 # Cop supports --auto-correct.
@@ -215,30 +200,26 @@ Style/Not:
 Style/NumericPredicate:
   Exclude:
     - 'spec/**/*'
-    - 'lib/vmpooler/api/v1.rb'
-    - 'lib/vmpooler/api/v2.rb'
+    - 'lib/vmpooler/api/v3.rb'
 
 # Offense count: 2
 # Cop supports --auto-correct.
 Style/ParallelAssignment:
   Exclude:
-    - 'lib/vmpooler/api/v1.rb'
-    - 'lib/vmpooler/api/v2.rb'
+    - 'lib/vmpooler/api/v3.rb'
 
 # Offense count: 1
 # Cop supports --auto-correct.
 # Configuration parameters: AllowSafeAssignment.
 Style/ParenthesesAroundCondition:
   Exclude:
-    - 'lib/vmpooler/api/v1.rb'
-    - 'lib/vmpooler/api/v2.rb'
+    - 'lib/vmpooler/api/v3.rb'
 
 # Offense count: 2
 # Cop supports --auto-correct.
 Style/PerlBackrefs:
   Exclude:
-    - 'lib/vmpooler/api/v1.rb'
-    - 'lib/vmpooler/api/v2.rb'
+    - 'lib/vmpooler/api/v3.rb'
 
 # Offense count: 1
 # Configuration parameters: NamePrefix, NamePrefixBlacklist, NameWhitelist.
@@ -254,8 +235,7 @@ Naming/PredicateName:
 # Cop supports --auto-correct.
 Style/RedundantParentheses:
   Exclude:
-    - 'lib/vmpooler/api/v1.rb'
-    - 'lib/vmpooler/api/v2.rb'
+    - 'lib/vmpooler/api/v3.rb'
 
 # Offense count: 2
 # Cop supports --auto-correct.
@@ -276,8 +256,7 @@ Style/RedundantSelf:
 # SupportedStyles: single_quotes, double_quotes
 Style/StringLiterals:
   Exclude:
-    - 'lib/vmpooler/api/v1.rb'
-    - 'lib/vmpooler/api/v2.rb'
+    - 'lib/vmpooler/api/v3.rb'
 
 # Offense count: 1
 # Cop supports --auto-correct.
@@ -292,8 +271,7 @@ Style/TernaryParentheses:
 # SupportedStyles: snake_case, camelCase
 Naming/VariableName:
   Exclude:
-    - 'lib/vmpooler/api/v1.rb'
-    - 'lib/vmpooler/api/v2.rb'
+    - 'lib/vmpooler/api/v3.rb'
 
 # Offense count: 1
 # Cop supports --auto-correct.

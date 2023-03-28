@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'vmpooler/dns'
 require 'vmpooler/providers'
 require 'vmpooler/util/parsing'
 require 'spicy-proton'
@@ -26,6 +27,9 @@ module Vmpooler
       # VM Provider objects
       $providers = Concurrent::Hash.new
 
+      # VM DNS objects
+      $dns_plugins = Concurrent::Hash.new
+
       # Our thread-tracker object
       $threads = Concurrent::Hash.new
 
@@ -39,6 +43,9 @@ module Vmpooler
 
       # load specified providers from config file
       load_used_providers
+
+      # load specified dns plugins from config file
+      load_used_dns_plugins
     end
 
     def config
@@ -60,7 +67,7 @@ module Vmpooler
             to_set[k] = pool[k]
           end
           to_set['alias'] = pool['alias'].join(',') if to_set.key?('alias')
-          to_set['domain'] = Parsing.get_domain_for_pool(config, pool['name'])
+          to_set['domain'] = Vmpooler::Dns.get_domain_for_pool(config, pool['name'])
           redis.hmset("vmpooler__pool__#{pool['name']}", to_set.to_a.flatten) unless to_set.empty?
         end
         previously_configured_pools.each do |pool|
@@ -106,6 +113,11 @@ module Vmpooler
 
     def remove_nonexistent_vm(vm, pool, redis)
       redis.srem("vmpooler__pending__#{pool}", vm)
+      dns_plugin = get_dns_plugin_class_for_pool(pool)
+      dns_plugin_class_name = get_dns_plugin_class_name_for_pool(pool)
+      domain = get_dns_plugin_domain_for_pool(pool)
+      fqdn = "#{vm}.#{domain}"
+      dns_plugin.delete_record(fqdn) unless dns_plugin_class_name == 'dynamic-dns'
       $logger.log('d', "[!] [#{pool}] '#{vm}' no longer exists. Removing from pending.")
     end
 
@@ -323,10 +335,10 @@ module Vmpooler
     end
 
     # Clone a VM
-    def clone_vm(pool_name, provider, request_id = nil, pool_alias = nil)
+    def clone_vm(pool_name, provider, dns_plugin, request_id = nil, pool_alias = nil)
       Thread.new do
         begin
-          _clone_vm(pool_name, provider, request_id, pool_alias)
+          _clone_vm(pool_name, provider, dns_plugin, request_id, pool_alias)
         rescue StandardError => e
           if request_id
             $logger.log('s', "[!] [#{pool_name}] failed while cloning VM for request #{request_id} with an error: #{e}")
@@ -368,12 +380,8 @@ module Vmpooler
       max_hostname_retries = 3
       while hostname_retries < max_hostname_retries
         hostname, hostname_available = generate_and_check_hostname
-        domain = Parsing.get_domain_for_pool(config, pool_name)
-        if domain
-          fqdn = "#{hostname}.#{domain}"
-        else
-          fqdn = hostname
-        end
+        domain = Vmpooler::Dns.get_domain_for_pool(config, pool_name)
+        fqdn = "#{hostname}.#{domain}"
 
         # skip dns check if the provider is set to skip_dns_check_before_creating_vm
         provider = get_provider_for_pool(pool_name)
@@ -414,9 +422,9 @@ module Vmpooler
       [dns_ip, false]
     end
 
-    def _clone_vm(pool_name, provider, request_id = nil, pool_alias = nil)
+    def _clone_vm(pool_name, provider, dns_plugin, request_id = nil, pool_alias = nil)
       new_vmname = find_unique_hostname(pool_name)
-      pool_domain = Parsing.get_domain_for_pool(config, pool_name)
+      pool_domain = Vmpooler::Dns.get_domain_for_pool(config, pool_name)
       mutex = vm_mutex(new_vmname)
       mutex.synchronize do
         @redis.with_metrics do |redis|
@@ -426,7 +434,7 @@ module Vmpooler
           redis.hset("vmpooler__vm__#{new_vmname}", 'clone', Time.now)
           redis.hset("vmpooler__vm__#{new_vmname}", 'template', pool_name) # This value is used to represent the pool.
           redis.hset("vmpooler__vm__#{new_vmname}", 'pool', pool_name)
-          redis.hset("vmpooler__vm__#{new_vmname}", 'domain', pool_domain) if pool_domain
+          redis.hset("vmpooler__vm__#{new_vmname}", 'domain', pool_domain)
           redis.hset("vmpooler__vm__#{new_vmname}", 'request_id', request_id) if request_id
           redis.hset("vmpooler__vm__#{new_vmname}", 'pool_alias', pool_alias) if pool_alias
           redis.exec
@@ -437,16 +445,25 @@ module Vmpooler
           start = Time.now
           provider.create_vm(pool_name, new_vmname)
           finish = format('%<time>.2f', time: Time.now - start)
+          $logger.log('s', "[+] [#{pool_name}] '#{new_vmname}' cloned in #{finish} seconds")
+          $metrics.timing("clone.#{pool_name}", finish)
+
+          $logger.log('d', "[ ] [#{pool_name}] Obtaining IP for '#{new_vmname}'")
+          ip_start = Time.now
+          ip = provider.get_vm_ip_address(new_vmname, pool_name)
+          ip_finish = format('%<time>.2f', time: Time.now - ip_start)
+          $logger.log('s', "[+] [#{pool_name}] Obtained IP for '#{new_vmname}' in #{ip_finish} seconds")
 
           @redis.with_metrics do |redis|
             redis.pipelined do |pipeline|
               pipeline.hset("vmpooler__clone__#{Date.today}", "#{pool_name}:#{new_vmname}", finish)
               pipeline.hset("vmpooler__vm__#{new_vmname}", 'clone_time', finish)
+              pipeline.hset("vmpooler__vm__#{new_vmname}", 'ip', ip)
             end
           end
-          $logger.log('s', "[+] [#{pool_name}] '#{new_vmname}' cloned in #{finish} seconds")
 
-          $metrics.timing("clone.#{pool_name}", finish)
+          dns_plugin_class_name = get_dns_plugin_class_name_for_pool(pool_name)
+          dns_plugin.create_or_replace_record(new_vmname) unless dns_plugin_class_name == 'dynamic-dns'
         rescue StandardError
           @redis.with_metrics do |redis|
             redis.pipelined do |pipeline|
@@ -466,10 +483,10 @@ module Vmpooler
     end
 
     # Destroy a VM
-    def destroy_vm(vm, pool, provider)
+    def destroy_vm(vm, pool, provider, dns_plugin)
       Thread.new do
         begin
-          _destroy_vm(vm, pool, provider)
+          _destroy_vm(vm, pool, provider, dns_plugin)
         rescue StandardError => e
           $logger.log('d', "[!] [#{pool}] '#{vm}' failed while destroying the VM with an error: #{e}")
           raise
@@ -477,7 +494,7 @@ module Vmpooler
       end
     end
 
-    def _destroy_vm(vm, pool, provider)
+    def _destroy_vm(vm, pool, provider, dns_plugin)
       mutex = vm_mutex(vm)
       return if mutex.locked?
 
@@ -494,6 +511,11 @@ module Vmpooler
           start = Time.now
 
           provider.destroy_vm(pool, vm)
+          domain = get_dns_plugin_domain_for_pool(pool)
+          fqdn = "#{vm}.#{domain}"
+
+          dns_plugin_class_name = get_dns_plugin_class_name_for_pool(pool)
+          dns_plugin.delete_record(fqdn) unless dns_plugin_class_name == 'dynamic-dns'
 
           redis.srem("vmpooler__completed__#{pool}", vm)
 
@@ -632,6 +654,12 @@ module Vmpooler
       result
     end
 
+    # load only dns plugins used in config file
+    def load_used_dns_plugins
+      dns_plugins = Vmpooler::Dns.get_dns_plugin_config_classes(config)
+      Vmpooler::Dns.load_by_name(dns_plugins)
+    end
+
     # load only providers used in config file
     def load_used_providers
       Vmpooler::Providers.load_by_name(used_providers)
@@ -677,6 +705,31 @@ module Vmpooler
 
       provider_name = pool.fetch('provider', nil)
       $providers[provider_name]
+    end
+
+    def get_dns_plugin_class_name_for_pool(pool_name)
+      pool = $config[:pools].find { |p| p['name'] == pool_name }
+      return nil unless pool
+
+      plugin_name = pool.fetch('dns_plugin')
+      Vmpooler::Dns.get_dns_plugin_class_by_name(config, plugin_name)
+    end
+
+    def get_dns_plugin_class_for_pool(pool_name)
+      pool = $config[:pools].find { |p| p['name'] == pool_name }
+      return nil unless pool
+
+      plugin_name = pool.fetch('dns_plugin')
+      plugin_class = Vmpooler::Dns.get_dns_plugin_class_by_name(config, plugin_name)
+      $dns_plugins[plugin_class]
+    end
+
+    def get_dns_plugin_domain_for_pool(pool_name)
+      pool = $config[:pools].find { |p| p['name'] == pool_name }
+      return nil unless pool
+
+      plugin_name = pool.fetch('dns_plugin')
+      Vmpooler::Dns.get_dns_plugin_domain_by_name(config, plugin_name)
     end
 
     def check_disk_queue(maxloop = 0, loop_delay = 5)
@@ -1223,7 +1276,8 @@ module Vmpooler
           if inventory[vm]
             begin
               pool_check_response[:destroyed_vms] += 1
-              destroy_vm(vm, pool_name, provider)
+              dns_plugin = get_dns_plugin_class_for_pool(pool_name)
+              destroy_vm(vm, pool_name, provider, dns_plugin)
             rescue StandardError => e
               redis.pipelined do |pipeline|
                 pipeline.srem("vmpooler__completed__#{pool_name}", vm)
@@ -1290,6 +1344,8 @@ module Vmpooler
         $metrics.gauge("ready.#{pool_name}", ready)
         $metrics.gauge("running.#{pool_name}", running)
 
+        dns_plugin = get_dns_plugin_class_for_pool(pool_name)
+
         unless pool_size == 0
           if redis.get("vmpooler__empty__#{pool_name}")
             redis.del("vmpooler__empty__#{pool_name}") unless ready == 0
@@ -1304,7 +1360,7 @@ module Vmpooler
             begin
               redis.incr('vmpooler__tasks__clone')
               pool_check_response[:cloned_vms] += 1
-              clone_vm(pool_name, provider)
+              clone_vm(pool_name, provider, dns_plugin)
             rescue StandardError => e
               $logger.log('s', "[!] [#{pool_name}] clone failed during check_pool with an error: #{e}")
               redis.decr('vmpooler__tasks__clone')
@@ -1390,6 +1446,16 @@ module Vmpooler
       raise("Provider '#{provider_class}' is unknown for pool with provider name '#{provider_name}'") if provider_klass.nil?
     end
 
+    def create_dns_object(config, logger, metrics, redis_connection_pool, dns_class, dns_name, options)
+      dns_klass = Vmpooler::PoolManager::Dns
+      dns_klass.constants.each do |classname|
+        next unless classname.to_s.casecmp(dns_class) == 0
+
+        return dns_klass.const_get(classname).new(config, logger, metrics, redis_connection_pool, dns_name, options)
+      end
+      raise("DNS '#{dns_class}' is unknown for pool with dns name '#{dns_name}'") if dns_klass.nil?
+    end
+
     def check_ondemand_requests(maxloop = 0,
                                 loop_delay_min = CHECK_LOOP_DELAY_MIN_DEFAULT,
                                 loop_delay_max = CHECK_LOOP_DELAY_MAX_DEFAULT,
@@ -1473,20 +1539,21 @@ module Vmpooler
         pool_alias, pool, count, request_id = request.split(':')
         count = count.to_i
         provider = get_provider_for_pool(pool)
+        dns_plugin = get_dns_plugin_class_for_pool(pool)
         slots = ondemand_clone_limit - clone_count
         break if slots == 0
 
         if slots >= count
           count.times do
             redis.incr('vmpooler__tasks__ondemandclone')
-            clone_vm(pool, provider, request_id, pool_alias)
+            clone_vm(pool, provider, dns_plugin, request_id, pool_alias)
           end
           redis.zrem(queue_key, request)
         else
           remaining_count = count - slots
           slots.times do
             redis.incr('vmpooler__tasks__ondemandclone')
-            clone_vm(pool, provider, request_id, pool_alias)
+            clone_vm(pool, provider, dns_plugin, request_id, pool_alias)
           end
           redis.pipelined do |pipeline|
             pipeline.zrem(queue_key, request)
@@ -1601,6 +1668,7 @@ module Vmpooler
       # Create the providers
       $config[:pools].each do |pool|
         provider_name = pool['provider']
+        dns_plugin_name = pool['dns_plugin']
         # The provider_class parameter can be defined in the provider's data eg
         # :providers:
         #   :vsphere:
@@ -1621,10 +1689,20 @@ module Vmpooler
         else
           provider_class = $config[:providers][provider_name.to_sym]['provider_class']
         end
+
         begin
           $providers[provider_name] = create_provider_object($config, $logger, $metrics, @redis, provider_class, provider_name, {}) if $providers[provider_name].nil?
         rescue StandardError => e
           $logger.log('s', "Error while creating provider for pool #{pool['name']}: #{e}")
+          raise
+        end
+
+        dns_plugin_class = $config[:dns_configs][dns_plugin_name.to_sym]['dns_class']
+
+        begin
+          $dns_plugins[dns_plugin_class] = create_dns_object($config, $logger, $metrics, @redis, dns_plugin_class, dns_plugin_name, {}) if $dns_plugins[dns_plugin_class].nil?
+        rescue StandardError => e
+          $logger.log('s', "Error while creating dns plugin for pool #{pool['name']}: #{e}")
           raise
         end
       end

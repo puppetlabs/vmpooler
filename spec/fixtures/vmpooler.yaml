@@ -23,8 +23,12 @@
   allowed_tags:
     - 'created_by'
     - 'project'
-  domain: 'example.com'
   prefix: 'poolvm-'
+
+:dns_configs:
+  :example:
+    dns_class: dynamic-dns
+    domain: 'example.com'
 
 # Uncomment the lines below to suppress metrics to STDOUT
 # :statsd:
@@ -36,8 +40,10 @@
   - name: 'pool01'
     size: 5
     provider: dummy
+    dns_plugin: 'example'
     ready_ttl: 5
   - name: 'pool02'
     size: 5
     provider: dummy
+    dns_plugin: 'example'
     ready_ttl: 5

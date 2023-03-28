@@ -1,7 +1,7 @@
 require 'spec_helper'
 require 'rack/test'
 
-describe Vmpooler::API::V2 do
+describe Vmpooler::API::V3 do
   include Rack::Test::Methods
 
   def app()
@@ -15,7 +15,7 @@ describe Vmpooler::API::V2 do
   end
 
   describe '/ondemandvm' do
-    let(:prefix) { '/api/v2' }
+    let(:prefix) { '/api/v3' }
     let(:metrics) { Vmpooler::Metrics::DummyStatsd.new }
     let(:config) {
       {
@@ -28,10 +28,16 @@ describe Vmpooler::API::V2 do
             'compute2' => 0
           }
         },
+        dns_configs: {
+          :mock => {
+            'dns_class' => 'mock',
+            'domain' => 'example.com'
+          }
+        },
         pools: [
-          {'name' => 'pool1', 'size' => 0, 'clone_target' => 'compute1'},
-          {'name' => 'pool2', 'size' => 0, 'clone_target' => 'compute2'},
-          {'name' => 'pool3', 'size' => 0, 'clone_target' => 'compute1'}
+          {'name' => 'pool1', 'size' => 0, 'clone_target' => 'compute1', 'dns_plugin' => 'mock'},
+          {'name' => 'pool2', 'size' => 0, 'clone_target' => 'compute2', 'dns_plugin' => 'mock'},
+          {'name' => 'pool3', 'size' => 0, 'clone_target' => 'compute1', 'dns_plugin' => 'mock'}
         ],
         alias: {
           'poolone' => ['pool1'],
@@ -39,9 +45,7 @@ describe Vmpooler::API::V2 do
         },
         pool_names: [ 'pool1', 'pool2', 'pool3', 'poolone' ],
         providers: {
-          :dummy => {
-            'domain' => 'dummy.com'
-          }
+          :dummy => {},
         }
       }
     }
@@ -115,23 +119,6 @@ describe Vmpooler::API::V2 do
           it 'sets the platform string in redis for the request to indicate the selected platforms using weight' do
             expect(redis).to receive(:hset).with("vmpooler__odrequest__#{uuid}", 'requested', 'pool2:pool1:1')
             post "#{prefix}/ondemandvm", '{"pool2":"1"}'
-          end
-
-          context 'with domain set in the config' do
-            let(:domain) { 'example.com' }
-            before(:each) do
-              config[:config]['domain'] = domain
-            end
-
-            it 'should include domain in the return reply' do
-              post "#{prefix}/ondemandvm", '{"poolone":"1"}'
-              expect_json(true, 201)
-              expected = {
-                "ok": true,
-                "request_id": uuid,
-              }
-              expect(last_response.body).to eq(JSON.pretty_generate(expected))
-            end
           end
         end
 
@@ -266,55 +253,11 @@ describe Vmpooler::API::V2 do
               "ready": true,
               "pool1": {
                 "hostname": [
-                  vmname
+                  "#{vmname}.example.com"
                 ]
               }
             }
             expect(last_response.body).to eq(JSON.pretty_generate(expected))
-          end
-
-          context 'with domain set' do
-            let(:domain) { 'example.com' }
-            before(:each) do
-              config[:config]['domain'] = domain
-            end
-
-            it 'should include the domain in the hostname as fqdn, not a separate key unlike in v1' do
-              get "#{prefix}/ondemandvm/#{uuid}"
-              expected = {
-                "ok": true,
-                "request_id": uuid,
-                "ready": true,
-                "pool1": {
-                  "hostname": [
-                    "#{vmname}.#{domain}"
-                  ]
-                }
-              }
-              expect(last_response.body).to eq(JSON.pretty_generate(expected))
-            end
-          end
-
-          context 'with domain set in the provider' do
-            let(:domain) { 'dummy.com' }
-            before(:each) do
-              config[:pools][0]['provider'] = 'dummy'
-            end
-
-            it 'should include the domain in the hostname as fqdn, not a separate key unlike in v1' do
-              get "#{prefix}/ondemandvm/#{uuid}"
-              expected = {
-                "ok": true,
-                "request_id": uuid,
-                "ready": true,
-                "pool1": {
-                  "hostname": [
-                    "#{vmname}.#{domain}"
-                  ]
-                }
-              }
-              expect(last_response.body).to eq(JSON.pretty_generate(expected))
-            end
           end
         end
 

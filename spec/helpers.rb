@@ -14,6 +14,16 @@ class MockLogger
   end
 end
 
+class MockPoolManagerDnsBase
+  def delete_record(hostname)
+
+  end
+
+  def create_or_replace_record(hostname)
+
+  end
+end
+
 def expect_json(ok = true, http = 200)
   expect(last_response.header['Content-Type']).to eq('application/json')
 

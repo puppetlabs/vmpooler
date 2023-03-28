@@ -1,7 +1,7 @@
 require 'spec_helper'
 require 'rack/test'
 
-describe Vmpooler::API::V1 do
+describe Vmpooler::API::V3 do
   include Rack::Test::Methods
 
   def app()
@@ -16,7 +16,7 @@ describe Vmpooler::API::V1 do
   end
 
   describe '/vm' do
-    let(:prefix) { '/api/v1' }
+    let(:prefix) { '/api/v3' }
     let(:metrics) { Vmpooler::Metrics::DummyStatsd.new }
     let(:config) {
       {
@@ -24,10 +24,29 @@ describe Vmpooler::API::V1 do
           'site_name' => 'test pooler',
           'vm_lifetime_auth' => 2
         },
+        providers: {
+          vsphere: {},
+          gce: {},
+          foo: {}
+        },
+        dns_configs: {
+          :one => {
+            'dns_class' => 'mock',
+            'domain' => 'one.example.com'
+          },
+          :two => {
+            'dns_class' => 'mock',
+            'domain' => 'two.example.com'
+          },
+          :three => {
+            'dns_class' => 'mock',
+            'domain' => 'three.example.com'
+          }
+        },
         pools: [
-          {'name' => 'pool1', 'size' => 5},
-          {'name' => 'pool2', 'size' => 10},
-          {'name' => 'pool3', 'size' => 10}
+          {'name' => 'pool1', 'size' => 5, 'provider' => 'vsphere', 'dns_plugin' => 'one'},
+          {'name' => 'pool2', 'size' => 10, 'provider' => 'gce', 'dns_plugin' => 'two'},
+          {'name' => 'pool3', 'size' => 10, 'provider' => 'foo', 'dns_plugin' => 'three'}
         ],
         statsd: { 'prefix' => 'stats_prefix'},
         alias: { 'poolone' => ['pool1'] },
@@ -79,7 +98,7 @@ describe Vmpooler::API::V1 do
         expected = {
           ok: true,
           pool1: {
-            hostname: vmname
+            hostname: "#{vmname}.one.example.com"
           }
         }
 
@@ -97,7 +116,7 @@ describe Vmpooler::API::V1 do
         expected = {
           ok: true,
           poolone: {
-            hostname: vmname
+            hostname: "#{vmname}.one.example.com"
           }
         }
 
@@ -145,10 +164,10 @@ describe Vmpooler::API::V1 do
         expected = {
           ok: true,
           pool1: {
-            hostname: vmname
+            hostname: "#{vmname}.one.example.com"
           },
           pool2: {
-            hostname: 'qrstuvwxyz012345'
+            hostname: 'qrstuvwxyz012345.two.example.com'
           }
         }
 
@@ -176,8 +195,8 @@ describe Vmpooler::API::V1 do
 
         result = JSON.parse(last_response.body)
         expect(result['ok']).to eq(true)
-        expect(result['pool1']['hostname']).to include('1abcdefghijklmnop', '2abcdefghijklmnop')
-        expect(result['pool2']['hostname']).to eq('qrstuvwxyz012345')
+        expect(result['pool1']['hostname']).to include('1abcdefghijklmnop.one.example.com', '2abcdefghijklmnop.one.example.com')
+        expect(result['pool2']['hostname']).to eq('qrstuvwxyz012345.two.example.com')
 
         expect_json(ok = true, http = 200)
       end
@@ -205,8 +224,8 @@ describe Vmpooler::API::V1 do
 
         result = JSON.parse(last_response.body)
         expect(result['ok']).to eq(true)
-        expect(result['pool1']['hostname']).to include('1abcdefghijklmnop', '2abcdefghijklmnop')
-        expect(result['pool2']['hostname']).to include('1qrstuvwxyz012345', '2qrstuvwxyz012345', '3qrstuvwxyz012345')
+        expect(result['pool1']['hostname']).to include('1abcdefghijklmnop.one.example.com', '2abcdefghijklmnop.one.example.com')
+        expect(result['pool2']['hostname']).to include('1qrstuvwxyz012345.two.example.com', '2qrstuvwxyz012345.two.example.com', '3qrstuvwxyz012345.two.example.com')
 
         expect_json(ok = true, http = 200)
       end
@@ -231,7 +250,7 @@ describe Vmpooler::API::V1 do
 
         result = JSON.parse(last_response.body)
         expect(result['ok']).to eq(true)
-        expect(result['genericpool']['hostname']).to include('1abcdefghijklmnop', '2abcdefghijklmnop', '1qrstuvwxyz012345')
+        expect(result['genericpool']['hostname']).to include('1abcdefghijklmnop.one.example.com', '2abcdefghijklmnop.two.example.com', '1qrstuvwxyz012345.three.example.com')
 
         expect_json(ok = true, http = 200)
       end
@@ -248,7 +267,7 @@ describe Vmpooler::API::V1 do
         expected = {
           ok: true,
           "pool1": {
-            "hostname": "1abcdefghijklmnop"
+            "hostname": "1abcdefghijklmnop.one.example.com"
           }
         }
 
@@ -337,7 +356,7 @@ describe Vmpooler::API::V1 do
       end
 
       it 'returns the second VM when the first fails to respond' do
-        create_ready_vm 'pool1', vmname, redis
+        create_running_vm 'pool1', vmname, redis
         create_ready_vm 'pool1', "2#{vmname}", redis
 
         allow_any_instance_of(Vmpooler::API::Helpers).to receive(:open_socket).with(vmname, nil).and_raise('mockerror')
@@ -349,7 +368,7 @@ describe Vmpooler::API::V1 do
         expected = {
           ok: true,
           pool1: {
-            hostname: "2#{vmname}"
+            hostname: "2#{vmname}.one.example.com"
           }
         }
 
@@ -374,7 +393,7 @@ describe Vmpooler::API::V1 do
           expected = {
             ok: true,
             pool1: {
-              hostname: 'abcdefghijklmnop'
+              hostname: 'abcdefghijklmnop.one.example.com'
             }
           }
           expect(last_response.body).to eq(JSON.pretty_generate(expected))
@@ -400,7 +419,7 @@ describe Vmpooler::API::V1 do
           expected = {
             ok: true,
             pool1: {
-              hostname: 'abcdefghijklmnop'
+              hostname: 'abcdefghijklmnop.one.example.com'
             }
           }
           expect(last_response.body).to eq(JSON.pretty_generate(expected))
@@ -421,7 +440,7 @@ describe Vmpooler::API::V1 do
           expected = {
             ok: true,
             pool1: {
-              hostname: 'abcdefghijklmnop'
+              hostname: 'abcdefghijklmnop.one.example.com'
             }
           }
           expect(last_response.body).to eq(JSON.pretty_generate(expected))

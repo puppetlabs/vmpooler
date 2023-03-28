@@ -23,8 +23,12 @@
   allowed_tags:
     - 'created_by'
     - 'project'
-  domain: 'example.com'
   prefix: 'poolvm-'
+
+:dns_configs:
+  :example:
+    dns_class: dynamic-dns
+    domain: 'example.com'
 
 :pools:
   - name: 'debian-7-i386'
@@ -36,6 +40,7 @@
     timeout: 15
     ready_ttl: 1440
     provider: dummy
+    dns_plugin: 'example'
   - name: 'debian-7-i386-stringalias'
     alias: 'debian-7-32-stringalias'
     template: 'Templates/debian-7-i386'
@@ -45,6 +50,7 @@
     timeout: 15
     ready_ttl: 1440
     provider: dummy
+    dns_plugin: 'example'
   - name: 'debian-7-x86_64'
     alias: [ 'debian-7-64', 'debian-7-amd64' ]
     template: 'Templates/debian-7-x86_64'
@@ -54,6 +60,7 @@
     timeout: 15
     ready_ttl: 1440
     provider: dummy
+    dns_plugin: 'example'
   - name: 'debian-7-i386-noalias'
     template: 'Templates/debian-7-i386'
     folder: 'Pooled VMs/debian-7-i386'
@@ -62,6 +69,7 @@
     timeout: 15
     ready_ttl: 1440
     provider: dummy
+    dns_plugin: 'example'
   - name: 'debian-7-x86_64-alias-otherpool-extended'
     alias: [ 'debian-7-x86_64' ]
     template: 'Templates/debian-7-x86_64'
@@ -71,4 +79,4 @@
     timeout: 15
     ready_ttl: 1440
     provider: dummy
-
+    dns_plugin: 'example'

@@ -445,12 +445,6 @@
 #   - allowed_tags
 #     If set, restricts tags to those specified in this array.
 #
-#   - domain
-#     If set, returns a top-level 'domain' JSON key in POST requests (v1).
-#     in the v2 API, it concatenates the hostname to include the domain, either set here or at the provider level
-#     With the introduction of vmpooler-provider-gce, domains can now be set at the provider level. The
-#     domain key is only retained in v1 for backwards compatibility and will be removed in the future.
-#
 #   - prefix
 #     If set, prefixes all created VMs with this string.  This should include
 #     a separator.
@@ -601,12 +595,34 @@
   allowed_tags:
     - 'created_by'
     - 'project'
-  domain: 'example.com'
   prefix: 'poolvm-'
   experimental_features: true
   backend_weight:
     'backend1': 60
     'backend2': 40
+
+# :dns_configs:
+#
+# This section a list of dns configurations to be referenced by one or more pools.
+#
+# The currently supported backing services are:
+# - dynamic-dns (This assumes that dynamic dns is handling record management and VMPooler does not require interaction)
+# - gcp (Google Cloud DNS https://github.com/puppetlabs/vmpooler-dns-gcp)
+#
+#   - dns_class
+#     Specify one of the supported backing services.
+#
+#   - domain
+#     The domain expected to make up the FQDN when attempting to resolve VM instances.
+#
+# See DNS plugin docs for additional options specific to that class.
+#
+# Example
+
+:dns_configs:
+  :example:
+    dns_class: dynamic-dns
+    domain: 'example.com'
 
 # :pools:
 #
@@ -637,6 +653,12 @@
 #     (required; will default to vsphere for backwards compatibility)
 #     If you have more than one provider, this is where you would choose which
 #     one to use for this pool
+#
+#   - dns_plugin
+#     The name of the DNS plugin to use with this pool in order to determine the
+#     domain and settings specific to a DNS service. This should match
+#     a name in the :dns_configs: section above. e.g. example
+#     (required)
 #
 #   - clone_target
 #     Per-pool option to override the global 'clone_target' cluster.

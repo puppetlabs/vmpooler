@@ -12,6 +12,15 @@
 
 vmpooler provides a REST API for VM management.  The following examples use `curl` for communication.
 
+## Major change in V3 versus V2
+
+The api/v1 and api/v2 endpoints have been removed. Additionally, the generic api endpoint that reroutes to a versioned endpoint has been removed.
+
+The api/v3 endpoint removes the deprecated "domain" key returned in some of the operations like getting a VM, etc. If there is a "domain" configured in the top level configuration or for a specific provider,
+the hostname now returns an FQDN including that domain. That is to say, we can now have multiple, different domains for each pool instead of only a single domain for all pools, or a domain restricted to a particular provider.
+
+Clients using some of the direct API paths (without specifying api/v1 or api/v2) will now now need to specify the versioned endpoint (api/v3).
+
 ## Major change in V2 versus V1
 
 The api/v2 endpoint removes a separate "domain" key returned in some of the operations like getting a VM, etc. If there is a "domain" configured in the top level configuration or for a specific provider,
@@ -41,7 +50,7 @@ Return codes:
 * 404  when config:auth not found or other error
 
 ```
-$ curl -u jdoe --url vmpooler.example.com/api/v2/token
+$ curl -u jdoe --url vmpooler.example.com/api/v3/token
 Enter host password for user 'jdoe':
 ```
 ```json
@@ -63,7 +72,7 @@ Return codes:
 * 404  when config:auth not found
 
 ```
-$ curl -X POST -u jdoe --url vmpooler.example.com/api/v2/token
+$ curl -X POST -u jdoe --url vmpooler.example.com/api/v3/token
 Enter host password for user 'jdoe':
 ```
 ```json
@@ -82,7 +91,7 @@ Return codes:
 * 404  when config:auth or token not found
 
 ```
-$ curl --url vmpooler.example.com/api/v2/token/utpg2i2xswor6h8ttjhu3d47z53yy47y
+$ curl --url vmpooler.example.com/api/v3/token/utpg2i2xswor6h8ttjhu3d47z53yy47y
 ```
 ```json
 {
@@ -111,7 +120,7 @@ Return codes:
 * 404  when config:auth not found
 
 ```
-$ curl -X DELETE -u jdoe --url vmpooler.example.com/api/v2/token/utpg2i2xswor6h8ttjhu3d47z53yy47y
+$ curl -X DELETE -u jdoe --url vmpooler.example.com/api/v3/token/utpg2i2xswor6h8ttjhu3d47z53yy47y
 Enter host password for user 'jdoe':
 ```
 ```json
@@ -130,7 +139,7 @@ Return codes:
 * 200  OK
 
 ```
-$ curl --url vmpooler.example.com/api/v2/vm
+$ curl --url vmpooler.example.com/api/v3/vm
 ```
 ```json
 [
@@ -151,7 +160,7 @@ Return codes:
 * 503  when the vm failed to allocate a vm, or the pool is empty
 
 ```
-$ curl -d '{"debian-7-i386":"2","debian-7-x86_64":"1"}' --url vmpooler.example.com/api/v2/vm
+$ curl -d '{"debian-7-i386":"2","debian-7-x86_64":"1"}' --url vmpooler.example.com/api/v3/vm
 ```
 ```json
 {
@@ -180,7 +189,7 @@ Return codes:
 * 503  when the vm failed to allocate a vm, or the pool is empty
 
 ```
-$ curl -d --url vmpooler.example.com/api/v2/vm/debian-7-i386
+$ curl -d --url vmpooler.example.com/api/v3/vm/debian-7-i386
 ```
 ```json
 {
@@ -194,7 +203,7 @@ $ curl -d --url vmpooler.example.com/api/v2/vm/debian-7-i386
 Multiple VMs can be requested by using multiple query parameters in the URL:
 
 ```
-$ curl -d --url vmpooler.example.com/api/v2/vm/debian-7-i386+debian-7-i386+debian-7-x86_64
+$ curl -d --url vmpooler.example.com/api/v3/vm/debian-7-i386+debian-7-i386+debian-7-x86_64
 ```
 
 ```json
@@ -223,7 +232,7 @@ Return codes:
 * 404  when requesting an invalid VM hostname
 
 ```
-$ curl --url vmpooler.example.com/api/v2/vm/pxpmtoonx7fiqg6
+$ curl --url vmpooler.example.com/api/v3/vm/pxpmtoonx7fiqg6
 ```
 ```json
 {
@@ -267,7 +276,7 @@ Return codes:
 * 400  when supplied PUT parameters fail validation
 
 ```
-$ curl -X PUT -d '{"lifetime":"2"}' --url vmpooler.example.com/api/v2/vm/fq6qlpjlsskycq6
+$ curl -X PUT -d '{"lifetime":"2"}' --url vmpooler.example.com/api/v3/vm/fq6qlpjlsskycq6
 ```
 ```json
 {
@@ -276,7 +285,7 @@ $ curl -X PUT -d '{"lifetime":"2"}' --url vmpooler.example.com/api/v2/vm/fq6qlpj
 ```
 
 ```
-$ curl -X PUT -d '{"tags":{"department":"engineering","user":"jdoe"}}' --url vmpooler.example.com/api/v2/vm/fq6qlpjlsskycq6
+$ curl -X PUT -d '{"tags":{"department":"engineering","user":"jdoe"}}' --url vmpooler.example.com/api/v3/vm/fq6qlpjlsskycq6
 ```
 ```json
 {
@@ -294,7 +303,7 @@ Return codes:
 * 404  when requesting an invalid VM hostname
 
 ```
-$ curl -X DELETE --url vmpooler.example.com/api/v2/vm/fq6qlpjlsskycq6
+$ curl -X DELETE --url vmpooler.example.com/api/v3/vm/fq6qlpjlsskycq6
 ```
 ```json
 {
@@ -314,7 +323,7 @@ Return codes:
 * 404  when requesting an invalid VM hostname or size is not an integer
 
 ````
-$ curl -X POST -H X-AUTH-TOKEN:a9znth9dn01t416hrguu56ze37t790bl --url vmpooler.example.com/api/v2/vm/fq6qlpjlsskycq6/disk/8
+$ curl -X POST -H X-AUTH-TOKEN:a9znth9dn01t416hrguu56ze37t790bl --url vmpooler.example.com/api/v3/vm/fq6qlpjlsskycq6/disk/8
 ````
 ````json
 {
@@ -328,7 +337,7 @@ $ curl -X POST -H X-AUTH-TOKEN:a9znth9dn01t416hrguu56ze37t790bl --url vmpooler.e
 Provisioning and attaching disks can take a moment, but once the task completes it will be reflected in a `GET /vm/<hostname>` query:
 
 ````
-$ curl --url vmpooler.example.com/api/v2/vm/fq6qlpjlsskycq6
+$ curl --url vmpooler.example.com/api/v3/vm/fq6qlpjlsskycq6
 ````
 ````json
 {
@@ -358,7 +367,7 @@ Return codes:
 * 404  when requesting an invalid VM hostname
 
 ````
-$ curl -X POST -H X-AUTH-TOKEN:a9znth9dn01t416hrguu56ze37t790bl --url vmpooler.example.com/api/v2/vm/fq6qlpjlsskycq6/snapshot
+$ curl -X POST -H X-AUTH-TOKEN:a9znth9dn01t416hrguu56ze37t790bl --url vmpooler.example.com/api/v3/vm/fq6qlpjlsskycq6/snapshot
 ````
 ````json
 {
@@ -372,7 +381,7 @@ $ curl -X POST -H X-AUTH-TOKEN:a9znth9dn01t416hrguu56ze37t790bl --url vmpooler.e
 Snapshotting a live VM can take a moment, but once the snapshot task completes it will be reflected in a `GET /vm/<hostname>` query:
 
 ````
-$ curl --url vmpooler.example.com/api/v2/vm/fq6qlpjlsskycq6
+$ curl --url vmpooler.example.com/api/v3/vm/fq6qlpjlsskycq6
 ````
 ````json
 {
@@ -399,7 +408,7 @@ Return codes:
 * 404  when requesting an invalid VM hostname or snapshot is not valid
 
 ````
-$ curl X POST -H X-AUTH-TOKEN:a9znth9dn01t416hrguu56ze37t790bl --url vmpooler.example.com/api/v2/vm/fq6qlpjlsskycq6/snapshot/n4eb4kdtp7rwv4x158366vd9jhac8btq
+$ curl X POST -H X-AUTH-TOKEN:a9znth9dn01t416hrguu56ze37t790bl --url vmpooler.example.com/api/v3/vm/fq6qlpjlsskycq6/snapshot/n4eb4kdtp7rwv4x158366vd9jhac8btq
 ````
 ````json
 {
@@ -414,7 +423,7 @@ $ curl X POST -H X-AUTH-TOKEN:a9znth9dn01t416hrguu56ze37t790bl --url vmpooler.ex
 A "live" status endpoint, representing the current state of the service.
 
 ```
-$ curl --url vmpooler.example.com/api/v2/status
+$ curl --url vmpooler.example.com/api/v3/status
 ```
 ```json
 {
@@ -466,7 +475,7 @@ The top level sections are: "capacity", "queue", "clone", "boot", "pools" and "s
 If the query parameter 'view' is provided, it will be used to select which top level
 element to compute and return. Select them by specifying which one you want in a comma 
 separated list.
-For example `vmpooler.example.com/api/v2/status?view=capacity,boot`
+For example `vmpooler.example.com/api/v3/status?view=capacity,boot`
 
 ##### GET /summary[?from=YYYY-MM-DD[&to=YYYY-MM-DD]]
 
@@ -483,7 +492,7 @@ Return codes:
 
 
 ```
-$ curl --url vmpooler.example.com/api/v2/summary
+$ curl --url vmpooler.example.com/api/v3/summary
 ```
 ```json
 {
@@ -575,7 +584,7 @@ $ curl --url vmpooler.example.com/api/v2/summary
 
 
 ```
-$ curl -G -d 'from=2015-03-10' -d 'to=2015-03-11' --url vmpooler.example.com/api/v2/summary
+$ curl -G -d 'from=2015-03-10' -d 'to=2015-03-11' --url vmpooler.example.com/api/v3/summary
 ```
 ```json
 {
@@ -639,9 +648,9 @@ $ curl -G -d 'from=2015-03-10' -d 'to=2015-03-11' --url vmpooler.example.com/api
 ```
 
 You can also query only the specific top level section you want by including it after `summary/`.
-The valid sections are "boot", "clone" or "tag" eg. `vmpooler.example.com/api/v2/summary/boot/`.
+The valid sections are "boot", "clone" or "tag" eg. `vmpooler.example.com/api/v3/summary/boot/`.
 You can further drill-down the data by specifying the second level parameter to query eg
-`vmpooler.example.com/api/v2/summary/tag/created_by`
+`vmpooler.example.com/api/v3/summary/tag/created_by`
 
 ##### GET /poolstat?pool=FOO
 
@@ -653,7 +662,7 @@ Return codes
 * 200  OK 
 
 ```
-$ curl https://vmpooler.example.com/api/v2/poolstat?pool=centos-6-x86_64
+$ curl https://vmpooler.example.com/api/v3/poolstat?pool=centos-6-x86_64
 ```
 ```json
 {
@@ -678,7 +687,7 @@ Return codes
 * 200  OK 
 
 ```
-$ curl https://vmpooler.example.com/api/v2/totalrunning
+$ curl https://vmpooler.example.com/api/v3/totalrunning
 ```
 
 ```json
@@ -700,7 +709,7 @@ Return codes
 * 400  No configuration found  
 
 ```
-$ curl https://vmpooler.example.com/api/v2/config
+$ curl https://vmpooler.example.com/api/v3/config
 ```
 ```json
 {
@@ -744,7 +753,7 @@ Responses:
 * 404 - An unknown error occurred
 * 405 - The endpoint is disabled because experimental features are disabled
 ```
-$ curl -X POST -H "Content-Type: application/json" -d '{"debian-7-i386":"2","debian-7-x86_64":"1"}' --url https://vmpooler.example.com/api/v2/config/poolsize
+$ curl -X POST -H "Content-Type: application/json" -d '{"debian-7-i386":"2","debian-7-x86_64":"1"}' --url https://vmpooler.example.com/api/v3/config/poolsize
 ```
 ```json
 {
@@ -764,7 +773,7 @@ Return codes:
 * 405 - The endpoint is disabled because experimental features are disabled
 
 ```
-$ curl -X DELETE -u jdoe --url vmpooler.example.com/api/v2/poolsize/almalinux-8-x86_64
+$ curl -X DELETE -u jdoe --url vmpooler.example.com/api/v3/poolsize/almalinux-8-x86_64
 ```
 ```json
 {
@@ -798,7 +807,7 @@ Responses:
 * 404 - An unknown error occurred
 * 405 - The endpoint is disabled because experimental features are disabled
 ```
-$ curl -X POST -H "Content-Type: application/json" -d '{"debian-7-i386":"templates/debian-7-i386"}' --url https://vmpooler.example.com/api/v2/config/pooltemplate
+$ curl -X POST -H "Content-Type: application/json" -d '{"debian-7-i386":"templates/debian-7-i386"}' --url https://vmpooler.example.com/api/v3/config/pooltemplate
 ```
 ```json
 {
@@ -818,7 +827,7 @@ Return codes:
 * 405 - The endpoint is disabled because experimental features are disabled
 
 ```
-$ curl -X DELETE -u jdoe --url vmpooler.example.com/api/v2/pooltemplate/almalinux-8-x86_64
+$ curl -X DELETE -u jdoe --url vmpooler.example.com/api/v3/pooltemplate/almalinux-8-x86_64
 ```
 ```json
 {
@@ -846,7 +855,7 @@ Responses:
 * 404 - An unknown error occurred
 * 405 - The endpoint is disabled because experimental features are disabled
 ```
-$ curl -X POST -H "Content-Type: application/json" -d '{"debian-7-i386":"1"}' --url https://vmpooler.example.com/api/v2/poolreset
+$ curl -X POST -H "Content-Type: application/json" -d '{"debian-7-i386":"1"}' --url https://vmpooler.example.com/api/v3/poolreset
 ```
 ```json
 {
@@ -874,7 +883,7 @@ Responses:
 * 404 - A pool was requested, which is not available in the running configuration, or an unknown error occurred.
 * 409 - A request of the matching ID has already been created
 ```
-$ curl -X POST -H "Content-Type: application/json" -d '{"debian-7-i386":"4"}' --url https://vmpooler.example.com/api/v2/ondemandvm
+$ curl -X POST -H "Content-Type: application/json" -d '{"debian-7-i386":"4"}' --url https://vmpooler.example.com/api/v3/ondemandvm
 ```
 ```json
 {
@@ -896,7 +905,7 @@ Responses:
 * 202 - The request is not ready yet
 * 404 - The request can not be found, or an unknown error occurred
 ```
-$ curl https://vmpooler.example.com/api/v2/ondemandvm/e3ff6271-d201-4f31-a315-d17f4e15863a
+$ curl https://vmpooler.example.com/api/v3/ondemandvm/e3ff6271-d201-4f31-a315-d17f4e15863a
 ```
 ```json
 {
@@ -936,7 +945,7 @@ Responses:
 * 401 - No auth token provided, or provided auth token is not valid, and auth is enabled
 * 404 - The request can not be found, or an unknown error occurred.
 ```
-$ curl -X DELETE https://vmpooler.example.com/api/v2/ondemandvm/e3ff6271-d201-4f31-a315-d17f4e15863a
+$ curl -X DELETE https://vmpooler.example.com/api/v3/ondemandvm/e3ff6271-d201-4f31-a315-d17f4e15863a
 ```
 ```json
 {

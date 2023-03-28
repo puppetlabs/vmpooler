@@ -63,11 +63,36 @@ describe 'Vmpooler' do
         expect(Vmpooler.config[:providers].keys).to include(:dummy)
         expect(Vmpooler.config[:providers].keys).to include(:alice)
         expect(Vmpooler.config[:providers].keys).to include(:bob)
-        merged_pools = [{"name"=>"pool03", "provider"=>"dummy", "ready_ttl"=>5, "size"=>5},
-                        {"name"=>"pool04", "provider"=>"dummy", "ready_ttl"=>5, "size"=>5},
-                        {"name"=>"pool05", "provider"=>"dummy", "ready_ttl"=>5, "size"=>5}]
+        merged_pools = [{"name"=>"pool03", "provider"=>"dummy", "dns_plugin"=>"example", "ready_ttl"=>5, "size"=>5},
+                        {"name"=>"pool04", "provider"=>"dummy", "dns_plugin"=>"example", "ready_ttl"=>5, "size"=>5},
+                        {"name"=>"pool05", "provider"=>"dummy", "dns_plugin"=>"example", "ready_ttl"=>5, "size"=>5}]
         expect(Vmpooler.config[:pools]).to eq(merged_pools)
         expect(Vmpooler.config[:config]).not_to be_nil #merge does not deleted existing keys
+      end
+    end
+
+    context 'when domain' do
+      context 'is set as a variable' do
+        before(:each) do
+          ENV['VMPOOLER_CONFIG_FILE'] = config_file
+          ENV['DOMAIN'] = 'example.com'
+        end
+
+        it 'should exit' do
+          expect { Vmpooler.config }.to raise_error(SystemExit)
+        end
+      end
+
+      context 'is set in a config file' do
+        let(:config_file) { File.join(fixtures_dir, 'vmpooler_domain.yaml') }
+
+        before(:each) do
+          ENV['VMPOOLER_CONFIG_FILE'] = config_file
+        end
+
+        it 'should exit' do
+          expect { Vmpooler.config }.to raise_error(SystemExit)
+        end
       end
     end
   end

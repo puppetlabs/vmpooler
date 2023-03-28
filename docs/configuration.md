@@ -19,11 +19,6 @@ Provide the entire configuration as a blob of yaml. Individual parameters passed
 
 Path to a the file to use when loading the vmpooler configuration. This is only evaluated if `VMPOOLER_CONFIG` has not been specified.
 
-### DOMAIN
-
-This environment variable is to set the configuration config.domain
-(optional)
-
 ### REDIS\_SERVER
 
 The redis server to use for vmpooler.

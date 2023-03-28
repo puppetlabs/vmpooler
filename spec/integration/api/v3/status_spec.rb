@@ -5,7 +5,7 @@ def has_set_tag?(vm, tag, value)
   value == redis.hget("vmpooler__vm__#{vm}", "tag:#{tag}")
 end
 
-describe Vmpooler::API::V1 do
+describe Vmpooler::API::V3 do
   include Rack::Test::Methods
 
   def app()
@@ -20,7 +20,7 @@ describe Vmpooler::API::V1 do
   end
 
   describe 'status and metrics endpoints' do
-    let(:prefix) { '/api/v1' }
+    let(:prefix) { '/api/v3' }
 
     let(:config) {
       {
