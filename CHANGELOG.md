@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.0.0](https://github.com/puppetlabs/vmpooler/tree/3.0.0) (2023-03-28)
+
+[Full Changelog](https://github.com/puppetlabs/vmpooler/compare/2.5.0...3.0.0)
+
+**Breaking changes:**
+
+- Direct Users to vmpooler-deployment [\#568](https://github.com/puppetlabs/vmpooler/pull/568) ([yachub](https://github.com/yachub))
+- \(RE-15124\) Implement DNS Plugins and Remove api v1 and v2 [\#551](https://github.com/puppetlabs/vmpooler/pull/551) ([yachub](https://github.com/yachub))
+
 ## [2.5.0](https://github.com/puppetlabs/vmpooler/tree/2.5.0) (2023-03-06)
 
 [Full Changelog](https://github.com/puppetlabs/vmpooler/compare/2.4.0...2.5.0)
