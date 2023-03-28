@@ -31,6 +31,8 @@ VMPooler provides configurable 'pools' of instantly-available (pre-provisioned) 
 
 At [Puppet, Inc.](http://puppet.com) we run acceptance tests on thousands of disposable VMs every day. VMPooler manages the life cycle of these VMs from request through deletion, with options available to pool ready instances, and provision on demand.
 
+The recommended method for deploying VMPooler is via [https://github.com/puppetlabs/vmpooler-deployment](vmpooler-deployment).
+
 ### Migrating to v3
 
 Starting with the v3.x release, management of DNS records is implemented as DNS plugins, similar to compute providers. This means each pool configuration should be pointing to a configuration object in `:dns_config` to determine it's method of record management.
