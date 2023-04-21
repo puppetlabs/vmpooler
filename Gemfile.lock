@@ -48,7 +48,7 @@ GEM
       ruby2_keywords
     mustermann (3.0.0)
       ruby2_keywords (~> 0.0.1)
-    net-ldap (0.17.1)
+    net-ldap (0.18.0)
     nio4r (2.5.9)
     nio4r (2.5.9-java)
     opentelemetry-api (1.1.0)
