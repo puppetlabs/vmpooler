@@ -302,7 +302,7 @@ module Vmpooler
                 # Very simple filter for Litmus jobs - just count them coming through for the moment.
                 metrics.increment("usage_litmus.#{user}.#{operation}.#{poolname}")
               else
-                url_parts = jenkins_build_url.split('/')[2..-1]
+                url_parts = jenkins_build_url.split('/')[2..]
                 jenkins_instance = url_parts[0].gsub('.', '_')
                 value_stream_parts = url_parts[2].split('_')
                 value_stream_parts = value_stream_parts.map { |s| s.gsub('.', '_') }
