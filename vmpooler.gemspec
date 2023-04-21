@@ -17,7 +17,7 @@ Gem::Specification.new do |s|
   s.executables   = 'vmpooler'
   s.require_paths = ["lib"]
   s.add_dependency 'concurrent-ruby', '~> 1.1'
-  s.add_dependency 'connection_pool', '~> 2.2'
+  s.add_dependency 'connection_pool', '~> 2.4'
   s.add_dependency 'deep_merge', '~> 1.2'
   s.add_dependency 'net-ldap', '~> 0.16'
   s.add_dependency 'opentelemetry-exporter-jaeger', '= 0.22.0'
@@ -32,7 +32,7 @@ Gem::Specification.new do |s|
   s.add_dependency 'puma', '>= 5.0.4', '< 7'
   s.add_dependency 'rack', '>= 2.2', '< 4.0'
   s.add_dependency 'rake', '~> 13.0'
-  s.add_dependency 'redis', '~> 4.1'
+  s.add_dependency 'redis', '~> 5.0'
   s.add_dependency 'sinatra', '>= 2', '< 4'
   s.add_dependency 'spicy-proton', '~> 2.1'
   s.add_dependency 'statsd-ruby', '~> 1.4'

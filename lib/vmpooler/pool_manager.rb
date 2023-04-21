@@ -129,16 +129,16 @@ module Vmpooler
         if exists
           request_id = redis.hget("vmpooler__vm__#{vm}", 'request_id')
           pool_alias = redis.hget("vmpooler__vm__#{vm}", 'pool_alias') if request_id
-          redis.multi
-          redis.smove("vmpooler__pending__#{pool}", "vmpooler__completed__#{pool}", vm)
-          if request_id
-            ondemandrequest_hash = redis.hgetall("vmpooler__odrequest__#{request_id}")
-            if ondemandrequest_hash && ondemandrequest_hash['status'] != 'failed' && ondemandrequest_hash['status'] != 'deleted'
-              # will retry a VM that did not come up as vm_ready? only if it has not been market failed or deleted
-              redis.zadd('vmpooler__odcreate__task', 1, "#{pool_alias}:#{pool}:1:#{request_id}")
+          redis.multi do |transaction|
+            transaction.smove("vmpooler__pending__#{pool}", "vmpooler__completed__#{pool}", vm)
+            if request_id
+              ondemandrequest_hash = transaction.hgetall("vmpooler__odrequest__#{request_id}")
+              if ondemandrequest_hash && ondemandrequest_hash['status'] != 'failed' && ondemandrequest_hash['status'] != 'deleted'
+                # will retry a VM that did not come up as vm_ready? only if it has not been market failed or deleted
+                redis.zadd('vmpooler__odcreate__task', 1, "#{pool_alias}:#{pool}:1:#{request_id}")
+              end
             end
           end
-          redis.exec
           $metrics.increment("errors.markedasfailed.#{pool}")
           $logger.log('d', "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes")
         else
@@ -429,15 +429,15 @@ module Vmpooler
       mutex.synchronize do
         @redis.with_metrics do |redis|
           # Add VM to Redis inventory ('pending' pool)
-          redis.multi
-          redis.sadd("vmpooler__pending__#{pool_name}", new_vmname)
-          redis.hset("vmpooler__vm__#{new_vmname}", 'clone', Time.now)
-          redis.hset("vmpooler__vm__#{new_vmname}", 'template', pool_name) # This value is used to represent the pool.
-          redis.hset("vmpooler__vm__#{new_vmname}", 'pool', pool_name)
-          redis.hset("vmpooler__vm__#{new_vmname}", 'domain', pool_domain)
-          redis.hset("vmpooler__vm__#{new_vmname}", 'request_id', request_id) if request_id
-          redis.hset("vmpooler__vm__#{new_vmname}", 'pool_alias', pool_alias) if pool_alias
-          redis.exec
+          redis.multi do |transaction|
+            transaction.sadd("vmpooler__pending__#{pool_name}", new_vmname)
+            transaction.hset("vmpooler__vm__#{new_vmname}", 'clone', Time.now)
+            transaction.hset("vmpooler__vm__#{new_vmname}", 'template', pool_name) # This value is used to represent the pool.
+            transaction.hset("vmpooler__vm__#{new_vmname}", 'pool', pool_name)
+            transaction.hset("vmpooler__vm__#{new_vmname}", 'domain', pool_domain)
+            transaction.hset("vmpooler__vm__#{new_vmname}", 'request_id', request_id) if request_id
+            transaction.hset("vmpooler__vm__#{new_vmname}", 'pool_alias', pool_alias) if pool_alias
+          end
         end
 
         begin
@@ -870,8 +870,11 @@ module Vmpooler
       wakeup_by = Time.now + wakeup_period
       return if time_passed?(:exit_by, exit_by)
 
-      @redis.with_metrics do |redis|
+      @redis.with do |redis|
+        puts "vmpooler__ready__#{options[:poolname]}"
         initial_ready_size = redis.scard("vmpooler__ready__#{options[:poolname]}") if options[:pool_size_change]
+
+        puts initial_ready_size
 
         initial_clone_target = redis.hget("vmpooler__pool__#{options[:poolname]}", options[:clone_target]) if options[:clone_target_change]
 
@@ -917,11 +920,11 @@ module Vmpooler
             end
 
             if options[:ondemand_request]
-              redis.multi
-              redis.zcard('vmpooler__provisioning__request')
-              redis.zcard('vmpooler__provisioning__processing')
-              redis.zcard('vmpooler__odcreate__task')
-              od_request, od_processing, od_createtask = redis.exec
+              od_request, od_processing, od_createtask = redis.multi do |transaction|
+                transaction.zcard('vmpooler__provisioning__request')
+                transaction.zcard('vmpooler__provisioning__processing')
+                transaction.zcard('vmpooler__odcreate__task')
+              end
               break unless od_request == 0
               break unless od_processing == 0
               break unless od_createtask == 0
@@ -1093,10 +1096,10 @@ module Vmpooler
 
     def remove_excess_vms(pool)
       @redis.with_metrics do |redis|
-        redis.multi
-        redis.scard("vmpooler__ready__#{pool['name']}")
-        redis.scard("vmpooler__pending__#{pool['name']}")
-        ready, pending = redis.exec
+        ready, pending = redis.multi do |transaction|
+          transaction.scard("vmpooler__ready__#{pool['name']}")
+          transaction.scard("vmpooler__pending__#{pool['name']}")
+        end
         total = pending.to_i + ready.to_i
         break if total.nil?
         break if total == 0
@@ -1334,11 +1337,11 @@ module Vmpooler
       return if pool_mutex(pool_name).locked?
 
       @redis.with_metrics do |redis|
-        redis.multi
-        redis.scard("vmpooler__ready__#{pool_name}")
-        redis.scard("vmpooler__pending__#{pool_name}")
-        redis.scard("vmpooler__running__#{pool_name}")
-        ready, pending, running = redis.exec
+        ready, pending, running = redis.multi do |transaction|
+          transaction.scard("vmpooler__ready__#{pool_name}")
+          transaction.scard("vmpooler__pending__#{pool_name}")
+          transaction.scard("vmpooler__running__#{pool_name}")
+        end
         total = pending.to_i + ready.to_i
 
         $metrics.gauge("ready.#{pool_name}", ready)
@@ -1594,11 +1597,11 @@ module Vmpooler
 
       return unless vms_ready?(request_id, redis)
 
-      redis.multi
-      redis.hset(ondemand_hash_key, 'status', 'ready')
-      redis.expire(ondemand_hash_key, default_expiration)
-      redis.zrem(processing_key, request_id)
-      redis.exec
+      redis.multi do |transaction|
+        transaction.hset(ondemand_hash_key, 'status', 'ready')
+        transaction.expire(ondemand_hash_key, default_expiration)
+        transaction.zrem(processing_key, request_id)
+      end
     end
 
     def request_expired?(request_id, score, redis)
@@ -1633,7 +1636,7 @@ module Vmpooler
     def execute!(maxloop = 0, loop_delay = 1)
       $logger.log('d', 'starting vmpooler')
 
-      @redis.with_metrics do |redis|
+      @redis.with do |redis|
         # Clear out the tasks manager, as we don't know about any tasks at this point
         redis.set('vmpooler__tasks__clone', 0)
         redis.set('vmpooler__tasks__ondemandclone', 0)

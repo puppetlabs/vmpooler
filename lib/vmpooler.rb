@@ -103,7 +103,7 @@ module Vmpooler
     parsed_config[:redis]['data_ttl']                = string_to_int(ENV['REDIS_DATA_TTL']) || parsed_config[:redis]['data_ttl'] || 168
     parsed_config[:redis]['connection_pool_size']    = string_to_int(ENV['REDIS_CONNECTION_POOL_SIZE']) || parsed_config[:redis]['connection_pool_size'] || 10
     parsed_config[:redis]['connection_pool_timeout'] = string_to_int(ENV['REDIS_CONNECTION_POOL_TIMEOUT']) || parsed_config[:redis]['connection_pool_timeout'] || 5
-    parsed_config[:redis]['reconnect_attempts']      = string_to_int(ENV['REDIS_RECONNECT_ATTEMPTS']) || parsed_config[:redis]['reconnect_attempts'] || 10
+    parsed_config[:redis]['reconnect_attempts']      = string_array_to_array(ENV['REDIS_RECONNECT_ATTEMPTS']) || parsed_config[:redis]['reconnect_attempts'] || 10
 
     parsed_config[:statsd]           = parsed_config[:statsd] || {} if ENV['STATSD_SERVER']
     parsed_config[:statsd]['server'] = ENV['STATSD_SERVER'] if ENV['STATSD_SERVER']
@@ -209,8 +209,7 @@ module Vmpooler
   end
 
   def self.new_redis(host = 'localhost', port = nil, password = nil, redis_reconnect_attempts = 10)
-    Redis.new(host: host, port: port, password: password, reconnect_attempts: redis_reconnect_attempts, reconnect_delay: 1.5,
-              reconnect_delay_max: 10.0)
+    Redis.new(host: host, port: port, password: password, reconnect_attempts: redis_reconnect_attempts, timeout: 5)
   end
 
   def self.pools(conf)
@@ -233,6 +232,13 @@ module Vmpooler
     return unless s =~ /\d/
 
     Integer(s)
+  end
+
+  def self.string_array_to_array(s)
+    # Returns an array from an array like string
+    return if s.nil?
+
+    JSON.parse(s)
   end
 
   def self.true?(obj)
