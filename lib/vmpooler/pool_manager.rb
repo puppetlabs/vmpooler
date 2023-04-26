@@ -876,7 +876,7 @@ module Vmpooler
 
         puts initial_ready_size
 
-        initial_clone_target = redis.hget("vmpooler__pool__#{options[:poolname]}", options[:clone_target]) if options[:clone_target_change]
+        initial_clone_target = redis.hget("vmpooler__pool__#{options[:poolname]}", "#{options[:clone_target]}") if options[:clone_target_change]
 
         initial_template = redis.hget('vmpooler__template__prepared', options[:poolname]) if options[:pool_template_change]
 
