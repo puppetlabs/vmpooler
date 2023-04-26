@@ -18,7 +18,7 @@ module Vmpooler
   # Dependencies for tracing
   require 'opentelemetry-instrumentation-concurrent_ruby'
   require 'opentelemetry-instrumentation-http_client'
-  require 'opentelemetry-instrumentation-redis'
+  # require 'opentelemetry-instrumentation-redis'
   require 'opentelemetry-instrumentation-sinatra'
   require 'opentelemetry-sdk'
   require 'opentelemetry/exporter/jaeger'
