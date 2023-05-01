@@ -1,5 +1,24 @@
 # Changelog
 
+## [3.1.0](https://github.com/puppetlabs/vmpooler/tree/3.1.0) (2023-04-28)
+
+[Full Changelog](https://github.com/puppetlabs/vmpooler/compare/3.0.0...3.1.0)
+
+**Merged pull requests:**
+
+- Bump rubocop from 1.50.1 to 1.50.2 [\#578](https://github.com/puppetlabs/vmpooler/pull/578) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Update puma requirement from ~\> 5.0, \>= 5.0.4 to \>= 5.0.4, \< 7 [\#577](https://github.com/puppetlabs/vmpooler/pull/577) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Update opentelemetry-resource\_detectors requirement from = 0.19.1 to = 0.23.0 [\#576](https://github.com/puppetlabs/vmpooler/pull/576) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Migrate issue management to Jira [\#575](https://github.com/puppetlabs/vmpooler/pull/575) ([yachub](https://github.com/yachub))
+- Bump jruby to 9.4.2.0 [\#574](https://github.com/puppetlabs/vmpooler/pull/574) ([yachub](https://github.com/yachub))
+- Update rubocop requirement from ~\> 1.28.2 to ~\> 1.50.1 [\#573](https://github.com/puppetlabs/vmpooler/pull/573) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Update sinatra requirement from ~\> 2.0 to \>= 2, \< 4 [\#572](https://github.com/puppetlabs/vmpooler/pull/572) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump net-ldap from 0.17.1 to 0.18.0 [\#571](https://github.com/puppetlabs/vmpooler/pull/571) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Update prometheus-client requirement from ~\> 2.0 to \>= 2, \< 5 [\#566](https://github.com/puppetlabs/vmpooler/pull/566) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump rack-test from 2.0.2 to 2.1.0 [\#564](https://github.com/puppetlabs/vmpooler/pull/564) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Update rack requirement from ~\> 2.2 to \>= 2.2, \< 4.0 [\#562](https://github.com/puppetlabs/vmpooler/pull/562) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Update opentelemetry-exporter-jaeger requirement from = 0.20.1 to = 0.22.0 [\#524](https://github.com/puppetlabs/vmpooler/pull/524) ([dependabot[bot]](https://github.com/apps/dependabot))
+
 ## [3.0.0](https://github.com/puppetlabs/vmpooler/tree/3.0.0) (2023-03-28)
 
 [Full Changelog](https://github.com/puppetlabs/vmpooler/compare/2.5.0...3.0.0)
