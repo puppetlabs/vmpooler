@@ -167,8 +167,8 @@ module Vmpooler
         pool_alias = redis.hget("vmpooler__vm__#{vm}", 'pool_alias')
 
         redis.pipelined do |pipeline|
-          pipeline.hset("vmpooler__active__#{pool}", vm, Time.now)
-          pipeline.hset("vmpooler__vm__#{vm}", 'checkout', Time.now)
+          pipeline.hset("vmpooler__active__#{pool}", vm, Time.now.to_s)
+          pipeline.hset("vmpooler__vm__#{vm}", 'checkout', Time.now.to_s)
           if ondemandrequest_hash['token:token']
             pipeline.hset("vmpooler__vm__#{vm}", 'token:token', ondemandrequest_hash['token:token'])
             pipeline.hset("vmpooler__vm__#{vm}", 'token:user', ondemandrequest_hash['token:user'])
@@ -184,10 +184,10 @@ module Vmpooler
 
       redis.pipelined do |pipeline|
         pipeline.hset("vmpooler__boot__#{Date.today}", "#{pool}:#{vm}", finish) # maybe remove as this is never used by vmpooler itself?
-        pipeline.hset("vmpooler__vm__#{vm}", 'ready', Time.now)
+        pipeline.hset("vmpooler__vm__#{vm}", 'ready', Time.now.to_s)
 
         # last boot time is displayed in API, and used by alarming script
-        pipeline.hset('vmpooler__lastboot', pool, Time.now)
+        pipeline.hset('vmpooler__lastboot', pool, Time.now.to_s)
       end
 
       $metrics.timing("time_to_ready_state.#{pool}", finish)
@@ -226,7 +226,7 @@ module Vmpooler
           last_checked_too_soon = ((Time.now - Time.parse(check_stamp)).to_i < $config[:config]['vm_checktime'] * 60) if check_stamp
           break if check_stamp && last_checked_too_soon
 
-          redis.hset("vmpooler__vm__#{vm}", 'check', Time.now)
+          redis.hset("vmpooler__vm__#{vm}", 'check', Time.now.to_s)
           # Check if the hosts TTL has expired
           # if 'boottime' is nil, set bootime to beginning of unix epoch, forces TTL to be assumed expired
           boottime = redis.hget("vmpooler__vm__#{vm}", 'ready')
@@ -911,7 +911,7 @@ module Vmpooler
             end
 
             if options[:pending_vm]
-               pending_vm_count = redis.scard("vmpooler__pending__#{options[:poolname]}")
+              pending_vm_count = redis.scard("vmpooler__pending__#{options[:poolname]}")
               break unless pending_vm_count == 0
             end
 
@@ -1333,8 +1333,8 @@ module Vmpooler
         ready = redis.scard("vmpooler__ready__#{pool_name}")
         pending = redis.scard("vmpooler__pending__#{pool_name}")
         running = redis.scard("vmpooler__running__#{pool_name}")
-        
-          total = pending.to_i + ready.to_i
+
+        total = pending.to_i + ready.to_i
 
         $metrics.gauge("ready.#{pool_name}", ready)
         $metrics.gauge("running.#{pool_name}", running)

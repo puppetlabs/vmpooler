@@ -41,7 +41,6 @@ Gem::Specification.new do |s|
   s.add_development_dependency 'climate_control', '>= 0.2.0'
   s.add_development_dependency 'mock_redis', '>= 0.17.0'
   s.add_development_dependency 'pry'
-  s.add_development_dependency 'pry-byebug'
   s.add_development_dependency 'rack-test', '>= 0.6'
   s.add_development_dependency 'rspec', '>= 3.2'
   s.add_development_dependency 'rubocop', '~> 1.54.2'

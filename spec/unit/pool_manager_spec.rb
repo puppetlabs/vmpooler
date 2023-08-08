@@ -1,8 +1,6 @@
 require 'spec_helper'
 require 'time'
 require 'mock_redis'
-require 'pry'
-require 'pry-byebug'
 
 # Custom RSpec :Matchers
 
