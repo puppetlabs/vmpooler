@@ -111,7 +111,7 @@ GEM
       nio4r (~> 2.0)
     racc (1.7.1)
     racc (1.7.1-java)
-    rack (2.2.7)
+    rack (2.2.8)
     rack-protection (3.0.6)
       rack
     rack-test (2.1.0)
