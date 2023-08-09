@@ -1447,13 +1447,15 @@ module Vmpooler
     end
 
     def create_dns_object(config, logger, metrics, redis_connection_pool, dns_class, dns_name, options)
-      dns_klass = Vmpooler::PoolManager::Dns
-      dns_klass.constants.each do |classname|
-        next unless classname.to_s.casecmp(dns_class) == 0
+      if defined?(Vmpooler::PoolManager::Dns)
+        dns_klass = Vmpooler::PoolManager::Dns
+        dns_klass.constants.each do |classname|
+          next unless classname.to_s.casecmp(dns_class) == 0
 
-        return dns_klass.const_get(classname).new(config, logger, metrics, redis_connection_pool, dns_name, options)
+          return dns_klass.const_get(classname).new(config, logger, metrics, redis_connection_pool, dns_name, options)
+        end
+        raise("DNS '#{dns_class}' is unknown for pool with dns name '#{dns_name}'") if dns_klass.nil?
       end
-      raise("DNS '#{dns_class}' is unknown for pool with dns name '#{dns_name}'") if dns_klass.nil?
     end
 
     def check_ondemand_requests(maxloop = 0,
