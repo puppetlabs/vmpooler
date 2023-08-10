@@ -1,6 +1,35 @@
 # Changelog
 
-## [3.1.0](https://github.com/puppetlabs/vmpooler/tree/3.1.0) (2023-04-28)
+## [3.2.0](https://github.com/puppetlabs/vmpooler/tree/3.2.0) (2023-08-10)
+
+[Full Changelog](https://github.com/puppetlabs/vmpooler/compare/3.1.0...3.2.0)
+
+**Implemented enhancements:**
+
+- \(maint\) Update opentelemetry gems. [\#606](https://github.com/puppetlabs/vmpooler/pull/606) ([isaac-hammes](https://github.com/isaac-hammes))
+- Bump jruby to 9.4.3.0 and bundle update [\#604](https://github.com/puppetlabs/vmpooler/pull/604) ([yachub](https://github.com/yachub))
+
+**Fixed bugs:**
+
+- \(RE-15692\) Do not attempt loading DNS classes if none are defined [\#602](https://github.com/puppetlabs/vmpooler/pull/602) ([yachub](https://github.com/yachub))
+
+**Closed issues:**
+
+- Fix startup error when not using any dns plugins [\#601](https://github.com/puppetlabs/vmpooler/issues/601)
+
+**Merged pull requests:**
+
+- Bump prometheus-client from 4.1.0 to 4.2.1 [\#599](https://github.com/puppetlabs/vmpooler/pull/599) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Update rubocop requirement from ~\> 1.54.2 to ~\> 1.55.1 [\#597](https://github.com/puppetlabs/vmpooler/pull/597) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump rack from 2.2.7 to 2.2.8 [\#594](https://github.com/puppetlabs/vmpooler/pull/594) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Update rubocop requirement from ~\> 1.51.0 to ~\> 1.54.2 [\#593](https://github.com/puppetlabs/vmpooler/pull/593) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump puma from 6.2.2 to 6.3.0 [\#586](https://github.com/puppetlabs/vmpooler/pull/586) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump connection\_pool from 2.4.0 to 2.4.1 [\#583](https://github.com/puppetlabs/vmpooler/pull/583) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Update rubocop requirement from ~\> 1.50.1 to ~\> 1.51.0 [\#582](https://github.com/puppetlabs/vmpooler/pull/582) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump thor from 1.2.1 to 1.2.2 [\#581](https://github.com/puppetlabs/vmpooler/pull/581) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump rack from 2.2.6.4 to 2.2.7 [\#579](https://github.com/puppetlabs/vmpooler/pull/579) ([dependabot[bot]](https://github.com/apps/dependabot))
+
+## [3.1.0](https://github.com/puppetlabs/vmpooler/tree/3.1.0) (2023-05-01)
 
 [Full Changelog](https://github.com/puppetlabs/vmpooler/compare/3.0.0...3.1.0)
 
