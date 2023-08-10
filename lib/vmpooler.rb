@@ -214,7 +214,7 @@ module Vmpooler
       port: port,
       password: password,
       reconnect_attempts: redis_reconnect_attempts,
-      connect_timeout: 300,
+      connect_timeout: 300
     )
   end
 
