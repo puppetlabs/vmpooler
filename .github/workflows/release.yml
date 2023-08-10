@@ -70,10 +70,10 @@ jobs:
           prerelease: false
 
       # This step should closely match what is used in `docker/Dockerfile` in vmpooler-deployment
-      - name: Install Ruby jruby-9.4.2.0
+      - name: Install Ruby jruby-9.4.3.0
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: 'jruby-9.4.2.0'
+          ruby-version: 'jruby-9.4.3.0'
 
       - name: Build gem
         run: gem build *.gemspec
