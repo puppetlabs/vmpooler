@@ -209,7 +209,13 @@ module Vmpooler
   end
 
   def self.new_redis(host = 'localhost', port = nil, password = nil, redis_reconnect_attempts = 10)
-    Redis.new(host: host, port: port, password: password, reconnect_attempts: redis_reconnect_attempts, timeout: 5)
+    Redis.new(
+      host: host,
+      port: port,
+      password: password,
+      reconnect_attempts: redis_reconnect_attempts,
+      connect_timeout: 300,
+    )
   end
 
   def self.pools(conf)
