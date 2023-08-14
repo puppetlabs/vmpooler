@@ -3594,8 +3594,9 @@ EOT
       it 'should sleep until the provisioning request is detected' do
         redis_connection_pool.with do |redis|
           expect(subject).to receive(:sleep).exactly(3).times
-          expect(redis).to receive(:multi).and_return('OK').exactly(3).times
-          expect(redis).to receive(:exec).and_return([0,0,0],[0,0,0],[1,0,0])
+          expect(redis).to receive(:zcard).with('vmpooler__provisioning__request').and_return(0,0,1)
+          expect(redis).to receive(:zcard).with('vmpooler__provisioning__processing').and_return(0,0,0)
+          expect(redis).to receive(:zcard).with('vmpooler__odcreate__task').and_return(0,0,0)
         end
 
         subject.sleep_with_wakeup_events(loop_delay, wakeup_period, wakeup_option)
@@ -3604,17 +3605,20 @@ EOT
       it 'should sleep until provisioning processing is detected' do
         redis_connection_pool.with do |redis|
           expect(subject).to receive(:sleep).exactly(3).times
-          expect(redis).to receive(:multi).and_return('OK').exactly(3).times
-          expect(redis).to receive(:exec).and_return([0,0,0],[0,0,0],[0,1,0])
+          expect(redis).to receive(:zcard).with('vmpooler__provisioning__request').and_return(0,0,0)
+          expect(redis).to receive(:zcard).with('vmpooler__provisioning__processing').and_return(0,0,1)
+          expect(redis).to receive(:zcard).with('vmpooler__odcreate__task').and_return(0,0,0)
         end
+
         subject.sleep_with_wakeup_events(loop_delay, wakeup_period, wakeup_option)
       end
 
       it 'should sleep until ondemand creation task is detected' do
         redis_connection_pool.with do |redis|
           expect(subject).to receive(:sleep).exactly(3).times
-          expect(redis).to receive(:multi).and_return('OK').exactly(3).times
-          expect(redis).to receive(:exec).and_return([0,0,0],[0,0,0],[0,0,1])
+          expect(redis).to receive(:zcard).with('vmpooler__provisioning__request').and_return(0,0,0)
+          expect(redis).to receive(:zcard).with('vmpooler__provisioning__processing').and_return(0,0,0)
+          expect(redis).to receive(:zcard).with('vmpooler__odcreate__task').and_return(0,0,1)
         end
 
         subject.sleep_with_wakeup_events(loop_delay, wakeup_period, wakeup_option)

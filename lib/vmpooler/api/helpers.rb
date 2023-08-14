@@ -25,7 +25,7 @@ module Vmpooler
       def validate_token(backend)
         tracer.in_span("Vmpooler::API::Helpers.#{__method__}") do
           if valid_token?(backend)
-            backend.hset("vmpooler__token__#{request.env['HTTP_X_AUTH_TOKEN']}", 'last', Time.now)
+            backend.hset("vmpooler__token__#{request.env['HTTP_X_AUTH_TOKEN']}", 'last', Time.now.to_s)
 
             return true
           end
