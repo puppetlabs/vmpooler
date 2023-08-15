@@ -1,5 +1,21 @@
 # Changelog
 
+## [3.3.0](https://github.com/puppetlabs/vmpooler/tree/3.3.0) (2023-08-15)
+
+[Full Changelog](https://github.com/puppetlabs/vmpooler/compare/3.2.0...3.3.0)
+
+**Implemented enhancements:**
+
+- \(RE-15162\) Update Redis gem to version 5.0. [\#561](https://github.com/puppetlabs/vmpooler/pull/561) ([isaac-hammes](https://github.com/isaac-hammes))
+
+**Closed issues:**
+
+- Redis 5.x Deprecations [\#603](https://github.com/puppetlabs/vmpooler/issues/603)
+
+**Merged pull requests:**
+
+- Update rubocop requirement from ~\> 1.55.1 to ~\> 1.56.0 [\#608](https://github.com/puppetlabs/vmpooler/pull/608) ([dependabot[bot]](https://github.com/apps/dependabot))
+
 ## [3.2.0](https://github.com/puppetlabs/vmpooler/tree/3.2.0) (2023-08-10)
 
 [Full Changelog](https://github.com/puppetlabs/vmpooler/compare/3.1.0...3.2.0)
