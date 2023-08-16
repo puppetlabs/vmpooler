@@ -1,12 +1,8 @@
 # Changelog
 
-## [3.3.0](https://github.com/puppetlabs/vmpooler/tree/3.3.0) (2023-08-15)
+## [3.3.0](https://github.com/puppetlabs/vmpooler/tree/3.3.0) (2023-08-16)
 
 [Full Changelog](https://github.com/puppetlabs/vmpooler/compare/3.2.0...3.3.0)
-
-**Implemented enhancements:**
-
-- \(RE-15162\) Update Redis gem to version 5.0. [\#561](https://github.com/puppetlabs/vmpooler/pull/561) ([isaac-hammes](https://github.com/isaac-hammes))
 
 **Closed issues:**
 
