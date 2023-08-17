@@ -203,8 +203,8 @@ EOT
     context 'host is in pool' do
 
       it 'calls move_pending_vm_to_ready if host is ready' do
-        expect(provider).to receive(:vm_ready?).with(pool,vm).and_return(true)
         redis_connection_pool.with do |redis|
+          expect(provider).to receive(:vm_ready?).with(pool, vm, redis).and_return(true)
           expect(subject).to receive(:move_pending_vm_to_ready).with(vm, pool, redis, nil)
         end
 
@@ -212,8 +212,8 @@ EOT
       end
 
       it 'calls fail_pending_vm if host is not ready' do
-        expect(provider).to receive(:vm_ready?).with(pool,vm).and_return(false)
         redis_connection_pool.with do |redis|
+          expect(provider).to receive(:vm_ready?).with(pool, vm, redis).and_return(false)
           expect(subject).to receive(:fail_pending_vm).with(vm, pool, timeout, redis)
         end
 
@@ -298,7 +298,7 @@ EOT
     it 'logs message if VM has exceeded timeout and exists' do
       redis_connection_pool.with do |redis|
         redis.hset("vmpooler__vm__#{vm}", 'clone',Date.new(2001,1,1).to_s)
-        expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes")
+        expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes with error: ")
         expect(subject.fail_pending_vm(vm, pool, timeout, redis, exists: true)).to eq(true)
       end
     end
@@ -628,7 +628,7 @@ EOT
         end
 
         it 'should log messages about being unreachable' do
-          expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' is unreachable, removed from 'ready' queue")
+          expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' removed from 'ready' queue. vm unreachable with error: ")
 
           subject._check_ready_vm(vm, pool, ttl, provider)
         end
