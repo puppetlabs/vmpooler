@@ -446,11 +446,12 @@ module Vmpooler
           $logger.log('s', "[+] [#{pool_name}] '#{new_vmname}' cloned in #{finish} seconds")
           $metrics.timing("clone.#{pool_name}", finish)
 
-          $logger.log('d', "[ ] [#{pool_name}] Obtaining IP for '#{new_vmname}'")
-          ip_start = Time.now
-          ip = provider.get_vm_ip_address(new_vmname, pool_name)
-          ip_finish = format('%<time>.2f', time: Time.now - ip_start)
-          $logger.log('s', "[+] [#{pool_name}] Obtained IP for '#{new_vmname}' in #{ip_finish} seconds")
+          # $logger.log('d', "[ ] [#{pool_name}] Obtaining IP for '#{new_vmname}'")
+          # ip_start = Time.now
+          # ip = provider.get_vm_ip_address(new_vmname, pool_name)
+          ip = '1.1.1.1'
+          # ip_finish = format('%<time>.2f', time: Time.now - ip_start)
+          # $logger.log('s', "[+] [#{pool_name}] Obtained IP for '#{new_vmname}' in #{ip_finish} seconds")
 
           @redis.with_metrics do |redis|
             redis.pipelined do |pipeline|
