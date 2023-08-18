@@ -103,7 +103,7 @@ module Vmpooler
       mutex.synchronize do
         @redis.with_metrics do |redis|
           request_id = redis.hget("vmpooler__vm__#{vm}", 'request_id')
-          if provider.vm_ready?(pool, vm)
+          if provider.vm_ready?(pool, vm, redis)
             move_pending_vm_to_ready(vm, pool, redis, request_id)
           else
             fail_pending_vm(vm, pool, timeout, redis)
@@ -130,6 +130,7 @@ module Vmpooler
         if exists
           request_id = redis.hget("vmpooler__vm__#{vm}", 'request_id')
           pool_alias = redis.hget("vmpooler__vm__#{vm}", 'pool_alias') if request_id
+          open_socket_error = redis.hget("vmpooler__vm__#{vm}", 'open_socket_error')
           redis.smove("vmpooler__pending__#{pool}", "vmpooler__completed__#{pool}", vm)
           if request_id
             ondemandrequest_hash = redis.hgetall("vmpooler__odrequest__#{request_id}")
@@ -139,7 +140,7 @@ module Vmpooler
             end
           end
           $metrics.increment("errors.markedasfailed.#{pool}")
-          $logger.log('d', "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes")
+          $logger.log('d', "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes with error: #{open_socket_error}")
         else
           remove_nonexistent_vm(vm, pool, redis)
         end
@@ -197,11 +198,12 @@ module Vmpooler
 
     def vm_still_ready?(pool_name, vm_name, provider, redis)
       # Check if the VM is still ready/available
-      return true if provider.vm_ready?(pool_name, vm_name)
+      return true if provider.vm_ready?(pool_name, vm_name, redis)
 
       raise("VM #{vm_name} is not ready")
     rescue StandardError
-      move_vm_queue(pool_name, vm_name, 'ready', 'completed', redis, "is unreachable, removed from 'ready' queue")
+      open_socket_error = redis.hget("vmpooler__vm__#{vm_name}", 'open_socket_error')
+      move_vm_queue(pool_name, vm_name, 'ready', 'completed', redis, "removed from 'ready' queue. vm unreachable with error: #{open_socket_error}")
     end
 
     def check_ready_vm(vm, pool_name, ttl, provider)
@@ -318,7 +320,7 @@ module Vmpooler
               redis.hset("vmpooler__vm__#{vm}", 'user_tagged', 'true') if success
             end
 
-            throw :stop_checking if provider.vm_ready?(pool, vm)
+            throw :stop_checking if provider.vm_ready?(pool, vm, redis)
 
             throw :stop_checking if provider.get_vm(pool, vm)
 

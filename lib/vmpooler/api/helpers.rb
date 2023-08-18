@@ -551,18 +551,6 @@ module Vmpooler
           end
         end
       end
-
-      def vm_ready?(vm_name, domain = nil)
-        tracer.in_span("Vmpooler::API::Helpers.#{__method__}") do
-          begin
-            open_socket(vm_name, domain)
-          rescue StandardError => _e
-            return false
-          end
-
-          true
-        end
-      end
     end
   end
 end
