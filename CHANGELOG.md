@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.4.0](https://github.com/puppetlabs/vmpooler/tree/3.4.0) (2023-08-18)
+
+[Full Changelog](https://github.com/puppetlabs/vmpooler/compare/3.3.0...3.4.0)
+
+**Implemented enhancements:**
+
+- \(POD-10\) Log reason for failed VM checks. [\#611](https://github.com/puppetlabs/vmpooler/pull/611) ([isaac-hammes](https://github.com/isaac-hammes))
+
+**Closed issues:**
+
+- Log reason connection on port 22 of a failed VM [\#609](https://github.com/puppetlabs/vmpooler/issues/609)
+
 ## [3.3.0](https://github.com/puppetlabs/vmpooler/tree/3.3.0) (2023-08-16)
 
 [Full Changelog](https://github.com/puppetlabs/vmpooler/compare/3.2.0...3.3.0)
