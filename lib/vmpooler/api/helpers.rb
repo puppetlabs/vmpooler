@@ -68,7 +68,7 @@ module Vmpooler
         end
       end
 
-      def authenticate_ldap(port, host, encryption_hash, user_object, base, username_str, password_str)
+      def authenticate_ldap(port, host, encryption_hash, user_object, base, username_str, password_str, service_account_hash = nil)
         tracer.in_span(
           "Vmpooler::API::Helpers.#{__method__}",
           attributes: {
@@ -79,6 +79,14 @@ module Vmpooler
           },
           kind: :client
         ) do
+          if service_account_hash
+            username = service_account_hash[:user_dn]
+            password = service_account_hash[:password]
+          else
+            username = "#{user_object}=#{username_str},#{base}"
+            password = password_str
+          end
+
           ldap = Net::LDAP.new(
             :host => host,
             :port => port,
@@ -86,12 +94,22 @@ module Vmpooler
             :base => base,
             :auth => {
               :method => :simple,
-              :username => "#{user_object}=#{username_str},#{base}",
-              :password => password_str
+              :username => username,
+              :password => password
             }
           )
 
-          return true if ldap.bind
+          if service_account_hash
+            return true if ldap.bind_as(
+              :base => base,
+              :filter => "(#{user_object}=#{username_str})",
+              :password => password_str
+            )
+          elsif ldap.bind
+            return true
+          else
+            return false
+          end
 
           return false
         end
@@ -116,6 +134,7 @@ module Vmpooler
               :method => :start_tls,
               :tls_options => { :ssl_version => 'TLSv1' }
             }
+            service_account_hash = auth[:ldap]['service_account_hash']
 
             unless ldap_base.is_a? Array
               ldap_base = ldap_base.split
@@ -134,7 +153,8 @@ module Vmpooler
                   search_user_obj,
                   search_base,
                   username_str,
-                  password_str
+                  password_str,
+                  service_account_hash
                 )
                 return true if result
               end

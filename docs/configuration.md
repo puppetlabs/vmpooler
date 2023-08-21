@@ -246,6 +246,18 @@ This can be a string providing a single DN. For multiple DNs please specify the 
 The LDAP object-type used to designate a user object.
 (optional)
 
+### LDAP\_SERVICE_ACCOUNT\_HASH
+
+A hash containing the following parameters for a service account to perform the
+initial bind. After the initial bind, then a search query is performed using the
+'base' and 'user_object', then re-binds as the returned user.
+
+- :user_dn: The full distinguished name (DN) of the service account used to bind.
+
+- :password: The password for the service account used to bind.
+
+(optional)
+
 ### SITE\_NAME
 
 The name of your deployment.

@@ -184,6 +184,7 @@ GEM
       rspec (~> 3)
 
 PLATFORMS
+  arm64-darwin-22
   universal-java-11
   x86_64-linux
 

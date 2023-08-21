@@ -367,6 +367,15 @@
 #   - user_object
 #     The LDAP object-type used to designate a user object.
 #
+#   - service_account_hash
+#     A hash containing the following parameters for a service account to perform the
+#     initial bind. After the initial bind, then a search query is performed using the
+#     'base' and 'user_object', then re-binds as the returned user.
+#     - :user_dn
+#     The full distinguished name (DN) of the service account used to bind.
+#     - :password
+#     The password for the service account used to bind.
+#
 # Example:
 # :auth:
 #   provider: 'ldap'
@@ -375,6 +384,23 @@
 #     port: 389
 #     base: 'ou=users,dc=company,dc=com'
 #     user_object: 'uid'
+#
+# :auth:
+#   provider: 'ldap'
+#   :ldap:
+#     host: 'ldap.example.com'
+#     port: 636
+#     service_account_hash:
+#       :user_dn: 'cn=Service Account,ou=Accounts,dc=ldap,dc=example,dc=com'
+#       :password: 'service-account-password'
+#     encryption:
+#       :method: :simple_tls
+#       :tls_options:
+#         :ssl_version: 'TLSv1_2'
+#     base:
+#       - 'ou=Accounts,dc=company,dc=com'
+#     user_object:
+#       - 'samAccountName'
 
 :auth:
   provider: 'ldap'
