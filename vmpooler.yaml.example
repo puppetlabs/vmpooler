@@ -615,6 +615,7 @@
   logfile: '/var/log/vmpooler.log'
   task_limit: 10
   timeout: 15
+  timeout_notification: 5
   vm_checktime: 1
   vm_lifetime: 12
   vm_lifetime_auth: 24
@@ -737,6 +738,7 @@
     datastore: 'vmstorage'
     size: 5
     timeout: 15
+    timeout_notification: 5
     ready_ttl: 1440
     provider: vsphere
     create_linked_clone: true
@@ -747,6 +749,7 @@
     datastore: 'vmstorage'
     size: 5
     timeout: 15
+    timeout_notification: 5
     ready_ttl: 1440
     provider: vsphere
     create_linked_clone: false

@@ -14,6 +14,7 @@ describe 'Pool Manager' do
   let(:pool) { 'pool1' }
   let(:vm) { 'vm1' }
   let(:timeout) { 5 }
+  let(:timeout_notification) { 2 }
   let(:host) { double('host') }
   let(:token) { 'token1234' }
   let(:request_id) { '1234' }
@@ -189,9 +190,9 @@ EOT
 
     it 'calls _check_pending_vm' do
       expect(Thread).to receive(:new).and_yield
-      expect(subject).to receive(:_check_pending_vm).with(vm,pool,timeout,provider)
+      expect(subject).to receive(:_check_pending_vm).with(vm, pool, timeout, timeout_notification, provider)
 
-      subject.check_pending_vm(vm, pool, timeout, provider)
+      subject.check_pending_vm(vm, pool, timeout, timeout_notification, provider)
     end
   end
 
@@ -208,16 +209,16 @@ EOT
           expect(subject).to receive(:move_pending_vm_to_ready).with(vm, pool, redis, nil)
         end
 
-        subject._check_pending_vm(vm, pool, timeout, provider)
+        subject._check_pending_vm(vm, pool, timeout, timeout_notification, provider)
       end
 
       it 'calls fail_pending_vm if host is not ready' do
         redis_connection_pool.with do |redis|
           expect(provider).to receive(:vm_ready?).with(pool, vm, redis).and_return(false)
-          expect(subject).to receive(:fail_pending_vm).with(vm, pool, timeout, redis)
+          expect(subject).to receive(:fail_pending_vm).with(vm, pool, timeout, timeout_notification, redis)
         end
 
-        subject._check_pending_vm(vm, pool, timeout, provider)
+        subject._check_pending_vm(vm, pool, timeout, timeout_notification, provider)
       end
     end
 
@@ -230,7 +231,7 @@ EOT
       it 'should return' do
         expect(subject).to receive(:vm_mutex).and_return(mutex)
 
-        expect(subject._check_pending_vm(vm, pool, timeout, provider)).to be_nil
+        expect(subject._check_pending_vm(vm, pool, timeout, timeout_notification, provider)).to be_nil
       end
     end
   end
@@ -274,14 +275,14 @@ EOT
 
     it 'takes no action if VM is not cloning' do
       redis_connection_pool.with do |redis|
-        expect(subject.fail_pending_vm(vm, pool, timeout, redis)).to eq(true)
+        expect(subject.fail_pending_vm(vm, pool, timeout, timeout_notification, redis)).to eq(true)
       end
     end
 
     it 'takes no action if VM is within timeout' do
       redis_connection_pool.with do |redis|
         redis.hset("vmpooler__vm__#{vm}", 'clone',Time.now.to_s)
-        expect(subject.fail_pending_vm(vm, pool, timeout, redis)).to eq(true)
+        expect(subject.fail_pending_vm(vm, pool, timeout, timeout_notification, redis)).to eq(true)
         expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(true)
       end
     end
@@ -289,7 +290,7 @@ EOT
     it 'moves VM to completed queue if VM has exceeded timeout and exists' do
       redis_connection_pool.with do |redis|
         redis.hset("vmpooler__vm__#{vm}", 'clone',Date.new(2001,1,1).to_s)
-        expect(subject.fail_pending_vm(vm, pool, timeout, redis, exists: true)).to eq(true)
+        expect(subject.fail_pending_vm(vm, pool, timeout, timeout_notification, redis, exists: true)).to eq(true)
         expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(false)
         expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
       end
@@ -299,7 +300,7 @@ EOT
       redis_connection_pool.with do |redis|
         redis.hset("vmpooler__vm__#{vm}", 'clone',Date.new(2001,1,1).to_s)
         expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes with error: ")
-        expect(subject.fail_pending_vm(vm, pool, timeout, redis, exists: true)).to eq(true)
+        expect(subject.fail_pending_vm(vm, pool, timeout, timeout_notification, redis, exists: true)).to eq(true)
       end
     end
 
@@ -307,14 +308,14 @@ EOT
       redis_connection_pool.with do |redis|
         redis.hset("vmpooler__vm__#{vm}", 'clone',Date.new(2001,1,1).to_s)
         expect(subject).to receive(:remove_nonexistent_vm).with(vm, pool, redis)
-        expect(subject.fail_pending_vm(vm, pool, timeout, redis, exists: false)).to eq(true)
+        expect(subject.fail_pending_vm(vm, pool, timeout, timeout_notification, redis, exists: false)).to eq(true)
       end
     end
 
     it 'swallows error if an error is raised' do
       redis_connection_pool.with do |redis|
         redis.hset("vmpooler__vm__#{vm}", 'clone','iamnotparsable_asdate')
-        expect(subject.fail_pending_vm(vm, pool, timeout, redis, exists: true)).to eq(false)
+        expect(subject.fail_pending_vm(vm, pool, timeout, timeout_notification, redis, exists: true)).to eq(false)
       end
     end
 
@@ -323,7 +324,7 @@ EOT
         redis.hset("vmpooler__vm__#{vm}", 'clone','iamnotparsable_asdate')
         expect(logger).to receive(:log).with('d', String)
 
-        subject.fail_pending_vm(vm, pool, timeout, redis, exists: true)
+        subject.fail_pending_vm(vm, pool, timeout, timeout_notification, redis, exists: true)
       end
     end
 
@@ -334,7 +335,7 @@ EOT
           redis.hset("vmpooler__vm__#{vm}", 'clone',(Time.now - 900).to_s)
           redis.hset("vmpooler__vm__#{vm}", 'pool_alias', pool)
           redis.hset("vmpooler__vm__#{vm}", 'request_id', request_id)
-          subject.fail_pending_vm(vm, pool, timeout, redis, exists: true)
+          subject.fail_pending_vm(vm, pool, timeout, timeout_notification, redis, exists: true)
           expect(redis.zrange('vmpooler__odcreate__task', 0, -1)).to eq(["#{pool}:#{pool}:1:#{request_id}"])
         end
       end
@@ -4125,10 +4126,10 @@ EOT
 
       it 'should call fail_pending_vm' do
         redis_connection_pool.with do |redis|
-          expect(subject).to receive(:fail_pending_vm).with(vm, pool, Integer, redis, exists: false)
+          expect(subject).to receive(:fail_pending_vm).with(vm, pool, Integer, Integer, redis, exists: false)
         end
 
-        subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory, timeout)
+        subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory, timeout, timeout_notification)
       end
     end
 
@@ -4146,7 +4147,7 @@ EOT
 
       it 'should return the number of checked pending VMs' do
         allow(subject).to receive(:check_pending_vm)
-        subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory, timeout)
+        subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory, timeout, timeout_notification)
 
         expect(pool_check_response[:checked_pending_vms]).to be(1)
       end
@@ -4155,31 +4156,31 @@ EOT
         expect(subject).to receive(:check_pending_vm).and_raise(RuntimeError,'MockError')
         expect(logger).to receive(:log).with('d', "[!] [#{pool}] _check_pool failed with an error while evaluating pending VMs: MockError")
 
-        subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory, timeout)
+        subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory, timeout, timeout_notification)
       end
 
       it 'should use the pool timeout if set' do
         big_lifetime = 2000
 
         config[:pools][0]['timeout'] = big_lifetime
-        expect(subject).to receive(:check_pending_vm).with(vm,pool,big_lifetime,provider)
+        expect(subject).to receive(:check_pending_vm).with(vm,pool, big_lifetime, timeout_notification, provider)
 
-        subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory, big_lifetime)
+        subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory, big_lifetime, timeout_notification)
       end
 
       it 'should use the configuration setting if the pool timeout is not set' do
         big_lifetime = 2000
 
         config[:config]['timeout'] = big_lifetime
-        expect(subject).to receive(:check_pending_vm).with(vm,pool,big_lifetime,provider)
+        expect(subject).to receive(:check_pending_vm).with(vm, pool, big_lifetime, timeout_notification, provider)
 
-        subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory, big_lifetime)
+        subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory, big_lifetime, timeout_notification)
       end
 
       it 'should use a pool timeout of 15 if nothing is set' do
-        expect(subject).to receive(:check_pending_vm).with(vm,pool,timeout,provider)
+        expect(subject).to receive(:check_pending_vm).with(vm, pool, timeout, timeout_notification, provider)
 
-        subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory, timeout)
+        subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory, timeout, timeout_notification)
       end
     end
   end
@@ -4841,7 +4842,7 @@ EOT
 
       it 'should call #check_ready_pool_vms' do
         allow(subject).to receive(:create_inventory).and_return({})
-        expect(subject).to receive(:check_pending_pool_vms).with(pool, provider, pool_check_response, {}, pool_object['timeout'])
+        expect(subject).to receive(:check_pending_pool_vms).with(pool, provider, pool_check_response, {}, pool_object['timeout'], pool_object['timeout_notification'])
 
         subject._check_pool(pool_object,provider)
       end

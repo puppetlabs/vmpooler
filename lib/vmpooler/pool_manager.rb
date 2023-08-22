@@ -82,21 +82,21 @@ module Vmpooler
     end
 
     # Check the state of a VM
-    def check_pending_vm(vm, pool, timeout, provider)
+    def check_pending_vm(vm, pool, timeout, timeout_notification, provider)
       Thread.new do
         begin
-          _check_pending_vm(vm, pool, timeout, provider)
+          _check_pending_vm(vm, pool, timeout, timeout_notification, provider)
         rescue StandardError => e
           $logger.log('s', "[!] [#{pool}] '#{vm}' #{timeout} #{provider} errored while checking a pending vm : #{e}")
           @redis.with_metrics do |redis|
-            fail_pending_vm(vm, pool, timeout, redis)
+            fail_pending_vm(vm, pool, timeout, timeout_notification, redis)
           end
           raise
         end
       end
     end
 
-    def _check_pending_vm(vm, pool, timeout, provider)
+    def _check_pending_vm(vm, pool, timeout, timeout_notification, provider)
       mutex = vm_mutex(vm)
       return if mutex.locked?
 
@@ -106,7 +106,7 @@ module Vmpooler
           if provider.vm_ready?(pool, vm, redis)
             move_pending_vm_to_ready(vm, pool, redis, request_id)
           else
-            fail_pending_vm(vm, pool, timeout, redis)
+            fail_pending_vm(vm, pool, timeout, timeout_notification, redis)
           end
         end
       end
@@ -122,33 +122,51 @@ module Vmpooler
       $logger.log('d', "[!] [#{pool}] '#{vm}' no longer exists. Removing from pending.")
     end
 
-    def fail_pending_vm(vm, pool, timeout, redis, exists: true)
+    def fail_pending_vm(vm, pool, timeout, timeout_notification, redis, exists: true)
       clone_stamp = redis.hget("vmpooler__vm__#{vm}", 'clone')
-
       time_since_clone = (Time.now - Time.parse(clone_stamp)) / 60
-      if time_since_clone > timeout
-        if exists
-          request_id = redis.hget("vmpooler__vm__#{vm}", 'request_id')
-          pool_alias = redis.hget("vmpooler__vm__#{vm}", 'pool_alias') if request_id
-          open_socket_error = redis.hget("vmpooler__vm__#{vm}", 'open_socket_error')
-          redis.smove("vmpooler__pending__#{pool}", "vmpooler__completed__#{pool}", vm)
-          if request_id
-            ondemandrequest_hash = redis.hgetall("vmpooler__odrequest__#{request_id}")
-            if ondemandrequest_hash && ondemandrequest_hash['status'] != 'failed' && ondemandrequest_hash['status'] != 'deleted'
-              # will retry a VM that did not come up as vm_ready? only if it has not been market failed or deleted
-              redis.zadd('vmpooler__odcreate__task', 1, "#{pool_alias}:#{pool}:1:#{request_id}")
-            end
-          end
-          $metrics.increment("errors.markedasfailed.#{pool}")
-          $logger.log('d', "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes with error: #{open_socket_error}")
-        else
+
+      already_timed_out = time_since_clone > timeout
+      timing_out_soon = time_since_clone > timeout_notification && !redis.hget("vmpooler__vm__#{vm}", 'timeout_notification')
+
+      if already_timed_out
+        unless exists
           remove_nonexistent_vm(vm, pool, redis)
+          return true
         end
+        open_socket_error = handle_timed_out_vm(vm, pool, redis)
       end
+
+      redis.hset("vmpooler__vm__#{vm}", 'timeout_notification', 1) if timing_out_soon
+
+      nonexist_warning = if already_timed_out
+                           "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes with error: #{open_socket_error}"
+                         elsif timing_out_soon
+                           "[!] [#{pool}] '#{vm}' no longer exists when attempting to send notification of impending failure"
+                         else
+                           "[!] [#{pool}] '#{vm}' This error is wholly unexpected"
+                         end
+      $logger.log('d', nonexist_warning)
       true
     rescue StandardError => e
       $logger.log('d', "Fail pending VM failed with an error: #{e}")
       false
+    end
+
+    def handle_timed_out_vm(vm, pool, redis)
+      request_id = redis.hget("vmpooler__vm__#{vm}", 'request_id')
+      pool_alias = redis.hget("vmpooler__vm__#{vm}", 'pool_alias') if request_id
+      open_socket_error = redis.hget("vmpooler__vm__#{vm}", 'open_socket_error')
+      redis.smove("vmpooler__pending__#{pool}", "vmpooler__completed__#{pool}", vm)
+      if request_id
+        ondemandrequest_hash = redis.hgetall("vmpooler__odrequest__#{request_id}")
+        if ondemandrequest_hash && ondemandrequest_hash['status'] != 'failed' && ondemandrequest_hash['status'] != 'deleted'
+          # will retry a VM that did not come up as vm_ready? only if it has not been market failed or deleted
+          redis.zadd('vmpooler__odcreate__task', 1, "#{pool_alias}:#{pool}:1:#{request_id}")
+        end
+      end
+      $metrics.increment("errors.markedasfailed.#{pool}")
+      open_socket_error
     end
 
     def move_pending_vm_to_ready(vm, pool, redis, request_id = nil)
@@ -1250,19 +1268,20 @@ module Vmpooler
       end
     end
 
-    def check_pending_pool_vms(pool_name, provider, pool_check_response, inventory, pool_timeout)
+    def check_pending_pool_vms(pool_name, provider, pool_check_response, inventory, pool_timeout, pool_timeout_notification)
       pool_timeout ||= $config[:config]['timeout'] || 15
+      pool_timeout_notification ||= $config[:config]['timeout_notification'] || 5
       @redis.with_metrics do |redis|
         redis.smembers("vmpooler__pending__#{pool_name}").reverse.each do |vm|
           if inventory[vm]
             begin
               pool_check_response[:checked_pending_vms] += 1
-              check_pending_vm(vm, pool_name, pool_timeout, provider)
+              check_pending_vm(vm, pool_name, pool_timeout, pool_timeout_notification, provider)
             rescue StandardError => e
               $logger.log('d', "[!] [#{pool_name}] _check_pool failed with an error while evaluating pending VMs: #{e}")
             end
           else
-            fail_pending_vm(vm, pool_name, pool_timeout, redis, exists: false)
+            fail_pending_vm(vm, pool_name, pool_timeout, pool_timeout_notification, redis, exists: false)
           end
         end
       end
@@ -1389,7 +1408,7 @@ module Vmpooler
 
       check_ready_pool_vms(pool['name'], provider, pool_check_response, inventory, pool['ready_ttl'] || $config[:config]['ready_ttl'])
 
-      check_pending_pool_vms(pool['name'], provider, pool_check_response, inventory, pool['timeout'])
+      check_pending_pool_vms(pool['name'], provider, pool_check_response, inventory, pool['timeout'], pool['timeout_notification'])
 
       check_completed_pool_vms(pool['name'], provider, pool_check_response, inventory)
 
