@@ -17,6 +17,7 @@
   logfile: '/Users/samuel/workspace/vmpooler/vmpooler.log'
   task_limit: 10
   timeout: 15
+  timeout_notification: 5
   vm_checktime: 1
   vm_lifetime: 12
   vm_lifetime_auth: 24
@@ -38,6 +39,7 @@
     datastore: 'vmstorage'
     size: 5
     timeout: 15
+    timeout_notification: 5
     ready_ttl: 1440
     provider: dummy
     dns_plugin: 'example'
@@ -48,6 +50,7 @@
     datastore: 'vmstorage'
     size: 5
     timeout: 15
+    timeout_notification: 5
     ready_ttl: 1440
     provider: dummy
     dns_plugin: 'example'
@@ -58,6 +61,7 @@
     datastore: 'vmstorage'
     size: 5
     timeout: 15
+    timeout_notification: 5
     ready_ttl: 1440
     provider: dummy
     dns_plugin: 'example'
@@ -67,6 +71,7 @@
     datastore: 'vmstorage'
     size: 5
     timeout: 15
+    timeout_notification: 5
     ready_ttl: 1440
     provider: dummy
     dns_plugin: 'example'
@@ -77,6 +82,7 @@
     datastore: 'other-vmstorage'
     size: 5
     timeout: 15
+    timeout_notification: 5
     ready_ttl: 1440
     provider: dummy
     dns_plugin: 'example'

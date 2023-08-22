@@ -82,6 +82,7 @@ module Vmpooler
     end
     parsed_config[:config]['clone_target']                       = ENV['CLONE_TARGET'] if ENV['CLONE_TARGET']
     parsed_config[:config]['timeout']                            = string_to_int(ENV['TIMEOUT']) if ENV['TIMEOUT']
+    parsed_config[:config]['timeout_notification']               = string_to_int(ENV['TIMEOUT_NOTIFICATION']) if ENV['TIMEOUT_NOTIFICATION']
     parsed_config[:config]['vm_lifetime_auth']                   = string_to_int(ENV['VM_LIFETIME_AUTH']) if ENV['VM_LIFETIME_AUTH']
     parsed_config[:config]['max_tries']                          = string_to_int(ENV['MAX_TRIES']) if ENV['MAX_TRIES']
     parsed_config[:config]['retry_factor']                       = string_to_int(ENV['RETRY_FACTOR']) if ENV['RETRY_FACTOR']
