@@ -989,7 +989,7 @@ EOT
         allow(metrics).to receive(:timing)
         expect(metrics).to receive(:timing).with(/clone\./,/0/)
         expect(provider).to receive(:create_vm).with(pool, String)
-        allow(provider).to receive(:get_vm_ip_address)
+        allow(provider).to receive(:get_vm_ip_address).and_return(1)
         allow(subject).to receive(:get_domain_for_pool).and_return('example.com')
         allow(subject).to receive(:get_dns_plugin_class_name_for_pool).and_return(dns_plugin)
         allow(logger).to receive(:log)
@@ -1032,6 +1032,17 @@ EOT
         expect(logger).to receive(:log).with('s',/\[\+\] \[#{pool}\] '(.+)' cloned in [0-9.]+ seconds/)
 
         subject._clone_vm(pool,provider,dns_plugin)
+      end
+    end
+
+    context 'with a failure to get ip address after cloning' do
+      it 'should log a message that it completed being cloned' do
+        allow(metrics).to receive(:timing)
+        expect(metrics).to receive(:timing).with(/clone\./,/0/)
+        expect(provider).to receive(:create_vm).with(pool, String)
+        allow(provider).to receive(:get_vm_ip_address).and_return(nil)
+
+        expect{subject._clone_vm(pool,provider,dns_plugin)}.to raise_error(StandardError)
       end
     end
 
@@ -1088,7 +1099,7 @@ EOT
         allow(metrics).to receive(:timing)
         expect(metrics).to receive(:timing).with(/clone\./,/0/)
         expect(provider).to receive(:create_vm).with(pool, String)
-        allow(provider).to receive(:get_vm_ip_address).with(vm,pool)
+        allow(provider).to receive(:get_vm_ip_address).with(vm,pool).and_return(1)
         allow(subject).to receive(:get_dns_plugin_class_name_for_pool).and_return(dns_plugin)
         expect(dns_plugin).to receive(:create_or_replace_record)
         allow(logger).to receive(:log)
