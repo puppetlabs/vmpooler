@@ -1,5 +1,20 @@
 # Changelog
 
+## [3.5.0](https://github.com/puppetlabs/vmpooler/tree/3.5.0) (2023-08-23)
+
+[Full Changelog](https://github.com/puppetlabs/vmpooler/compare/3.4.0...3.5.0)
+
+**Implemented enhancements:**
+
+- Improve LDAP auth [\#616](https://github.com/puppetlabs/vmpooler/issues/616)
+- \(maint\) Raise error when ip address is not given to vm after clone. [\#619](https://github.com/puppetlabs/vmpooler/pull/619) ([isaac-hammes](https://github.com/isaac-hammes))
+- \(POD-8\) Add timeout\_notification config to log warning before vm is destroyed. [\#618](https://github.com/puppetlabs/vmpooler/pull/618) ([isaac-hammes](https://github.com/isaac-hammes))
+- \(RE-15565\) Add ability to use bind\_as with a service account [\#617](https://github.com/puppetlabs/vmpooler/pull/617) ([yachub](https://github.com/yachub))
+
+**Merged pull requests:**
+
+- Bump puma from 6.3.0 to 6.3.1 [\#615](https://github.com/puppetlabs/vmpooler/pull/615) ([dependabot[bot]](https://github.com/apps/dependabot))
+
 ## [3.4.0](https://github.com/puppetlabs/vmpooler/tree/3.4.0) (2023-08-18)
 
 [Full Changelog](https://github.com/puppetlabs/vmpooler/compare/3.3.0...3.4.0)
