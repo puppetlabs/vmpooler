@@ -470,6 +470,9 @@ module Vmpooler
           ip_start = Time.now
           ip = provider.get_vm_ip_address(new_vmname, pool_name)
           ip_finish = format('%<time>.2f', time: Time.now - ip_start)
+
+          raise StandardError, "failed to obtain IP after #{ip_finish} seconds" if ip.nil?
+
           $logger.log('s', "[+] [#{pool_name}] Obtained IP for '#{new_vmname}' in #{ip_finish} seconds")
 
           @redis.with_metrics do |redis|
