@@ -283,11 +283,9 @@ module Vmpooler
       def update_user_metrics(operation, vmname)
         tracer.in_span("Vmpooler::API::V3.#{__method__}") do |span|
           begin
-            backend.multi
-            backend.hget("vmpooler__vm__#{vmname}", 'tag:jenkins_build_url')
-            backend.hget("vmpooler__vm__#{vmname}", 'token:user')
-            backend.hget("vmpooler__vm__#{vmname}", 'template')
-            jenkins_build_url, user, poolname = backend.exec
+            jenkins_build_url = backend.hget("vmpooler__vm__#{vmname}", 'tag:jenkins_build_url')
+            user = backend.hget("vmpooler__vm__#{vmname}", 'token:user')
+            poolname = backend.hget("vmpooler__vm__#{vmname}", 'template')
             poolname = poolname.gsub('.', '_')
 
             if user
