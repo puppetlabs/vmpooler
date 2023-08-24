@@ -129,6 +129,8 @@ module Vmpooler
       already_timed_out = time_since_clone > timeout
       timing_out_soon = time_since_clone > timeout_notification && !redis.hget("vmpooler__vm__#{vm}", 'timeout_notification')
 
+      return true if !already_timed_out && !timing_out_soon
+
       if already_timed_out
         unless exists
           remove_nonexistent_vm(vm, pool, redis)
