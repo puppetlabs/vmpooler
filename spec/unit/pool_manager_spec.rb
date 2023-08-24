@@ -275,6 +275,7 @@ EOT
 
     it 'takes no action if VM is not cloning' do
       redis_connection_pool.with do |redis|
+        expect(logger).to_not receive(:log)
         expect(subject.fail_pending_vm(vm, pool, timeout, timeout_notification, redis)).to eq(true)
       end
     end
@@ -282,6 +283,7 @@ EOT
     it 'takes no action if VM is within timeout' do
       redis_connection_pool.with do |redis|
         redis.hset("vmpooler__vm__#{vm}", 'clone',Time.now.to_s)
+        expect(logger).to_not receive(:log)
         expect(subject.fail_pending_vm(vm, pool, timeout, timeout_notification, redis)).to eq(true)
         expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(true)
       end
@@ -307,6 +309,7 @@ EOT
     it 'calls remove_nonexistent_vm if VM has exceeded timeout and does not exist' do
       redis_connection_pool.with do |redis|
         redis.hset("vmpooler__vm__#{vm}", 'clone',Date.new(2001,1,1).to_s)
+        expect(logger).to_not receive(:log)
         expect(subject).to receive(:remove_nonexistent_vm).with(vm, pool, redis)
         expect(subject.fail_pending_vm(vm, pool, timeout, timeout_notification, redis, exists: false)).to eq(true)
       end
