@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.5.1](https://github.com/puppetlabs/vmpooler/tree/3.5.1) (2023-08-24)
+
+[Full Changelog](https://github.com/puppetlabs/vmpooler/compare/3.5.0...3.5.1)
+
+**Fixed bugs:**
+
+- \(maint\) Fix bugs from redis and timeout notification updates. [\#621](https://github.com/puppetlabs/vmpooler/pull/621) ([isaac-hammes](https://github.com/isaac-hammes))
+
 ## [3.5.0](https://github.com/puppetlabs/vmpooler/tree/3.5.0) (2023-08-23)
 
 [Full Changelog](https://github.com/puppetlabs/vmpooler/compare/3.4.0...3.5.0)
