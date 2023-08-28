@@ -1409,6 +1409,8 @@ module Vmpooler
         return(pool_check_response)
       end
 
+      check_migrating_pool_vms(pool['name'], provider, pool_check_response, inventory)
+
       check_running_pool_vms(pool['name'], provider, pool_check_response, inventory)
 
       check_ready_pool_vms(pool['name'], provider, pool_check_response, inventory, pool['ready_ttl'] || $config[:config]['ready_ttl'])
@@ -1419,7 +1421,6 @@ module Vmpooler
 
       check_discovered_pool_vms(pool['name'])
 
-      check_migrating_pool_vms(pool['name'], provider, pool_check_response, inventory)
 
       # UPDATE TEMPLATE
       # Evaluates a pool template to ensure templates are prepared adequately for the configured provider
