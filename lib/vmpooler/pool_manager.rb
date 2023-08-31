@@ -144,7 +144,8 @@ module Vmpooler
       nonexist_warning = if already_timed_out
                            "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes with error: #{open_socket_error}"
                          elsif timing_out_soon
-                           "[!] [#{pool}] '#{vm}' no longer exists when attempting to send notification of impending failure"
+                           time_remaining = timeout - timeout_notification
+                           "[!] [#{pool}] '#{vm}' will be marked as 'failed' in #{time_remaining} minutes with error: #{open_socket_error}"
                          else
                            "[!] [#{pool}] '#{vm}' This error is wholly unexpected"
                          end
