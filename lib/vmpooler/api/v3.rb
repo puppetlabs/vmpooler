@@ -176,7 +176,6 @@ module Vmpooler
 
       def return_vm_to_ready_state(template, vm)
         tracer.in_span("Vmpooler::API::V3.#{__method__}") do
-          backend.srem("vmpooler__migrating__#{template}", vm)
           backend.hdel("vmpooler__active__#{template}", vm)
           backend.hdel("vmpooler__vm__#{vm}", 'checkout', 'token:token', 'token:user')
           backend.smove("vmpooler__running__#{template}", "vmpooler__ready__#{template}", vm)

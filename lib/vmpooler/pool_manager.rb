@@ -852,16 +852,12 @@ module Vmpooler
 
     def migrate_vm(vm_name, pool_name, provider)
       Thread.new do
-        begin
-          mutex = vm_mutex(vm_name)
-          mutex.synchronize do
-            @redis.with_metrics do |redis|
-              redis.srem("vmpooler__migrating__#{pool_name}", vm_name)
-            end
-            provider.migrate_vm(pool_name, vm_name)
+        mutex = vm_mutex(vm_name)
+        mutex.synchronize do
+          @redis.with_metrics do |redis|
+            redis.srem("vmpooler__migrating__#{pool_name}", vm_name)
           end
-        rescue StandardError => e
-          $logger.log('s', "[x] [#{pool_name}] '#{vm_name}' migration failed with an error: #{e}")
+          provider.migrate_vm(pool_name, vm_name)
         end
       end
     end
