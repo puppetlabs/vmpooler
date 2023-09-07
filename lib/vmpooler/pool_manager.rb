@@ -104,7 +104,7 @@ module Vmpooler
         @redis.with_metrics do |redis|
           request_id = redis.hget("vmpooler__vm__#{vm}", 'request_id')
           if provider.vm_ready?(pool, vm, redis)
-            move_pending_vm_to_ready(vm, pool, redis, request_id)
+            move_pending_vm_to_ready(vm, pool, redis, request_id, provider)
           else
             fail_pending_vm(vm, pool, timeout, timeout_notification, redis)
           end
@@ -172,7 +172,7 @@ module Vmpooler
       open_socket_error
     end
 
-    def move_pending_vm_to_ready(vm, pool, redis, request_id = nil)
+    def move_pending_vm_to_ready(vm, pool, redis, request_id = nil, provider = nil)
       clone_time = redis.hget("vmpooler__vm__#{vm}", 'clone')
       finish = format('%<time>.2f', time: Time.now - Time.parse(clone_time))
 
