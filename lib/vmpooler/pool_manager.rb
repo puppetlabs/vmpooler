@@ -210,8 +210,9 @@ module Vmpooler
 
         # last boot time is displayed in API, and used by alarming script
         pipeline.hset('vmpooler__lastboot', pool, Time.now.to_s)
-        pipeline.sadd("vmpooler__migrating__#{vm}", vm)
       end
+      $logger.log('s', "[>] [#{pool}] '#{vm}' MIGRATING")
+      provider.migrate_vm(pool, vm)
 
       $metrics.timing("time_to_ready_state.#{pool}", finish)
       $logger.log('s', "[>] [#{pool}] '#{vm}' moved from 'pending' to 'ready' queue") unless request_id
