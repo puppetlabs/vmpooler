@@ -89,7 +89,7 @@ module Vmpooler
         rescue StandardError => e
           $logger.log('s', "[!] [#{pool}] '#{vm}' #{timeout} #{provider} errored while checking a pending vm : #{e}")
           @redis.with_metrics do |redis|
-            fail_pending_vm(vm, pool, timeout, timeout_notification, redis)
+            fail_pending_vm(vm, pool, timeout, timeout_notification, redis, provider)
           end
           raise
         end
@@ -106,7 +106,7 @@ module Vmpooler
           if provider.vm_ready?(pool, vm, redis)
             move_pending_vm_to_ready(vm, pool, redis, request_id)
           else
-            fail_pending_vm(vm, pool, timeout, timeout_notification, redis)
+            fail_pending_vm(vm, pool, timeout, timeout_notification, redis, provider)
           end
         end
       end
@@ -122,7 +122,7 @@ module Vmpooler
       $logger.log('d', "[!] [#{pool}] '#{vm}' no longer exists. Removing from pending.")
     end
 
-    def fail_pending_vm(vm, pool, timeout, timeout_notification, redis, exists: true)
+    def fail_pending_vm(vm, pool, timeout, timeout_notification, redis, provider, exists: true)
       clone_stamp = redis.hget("vmpooler__vm__#{vm}", 'clone')
       time_since_clone = (Time.now - Time.parse(clone_stamp)) / 60
 
@@ -150,10 +150,21 @@ module Vmpooler
                            "[!] [#{pool}] '#{vm}' This error is wholly unexpected"
                          end
       $logger.log('d', nonexist_warning)
+      # if vm provisioning failed, we want to see the trace
+      trace = get_provisioning_trace(vm, pool, provider)
+      $logger.log('d', "vm provisioning trace: #{trace}") if trace
       true
     rescue StandardError => e
       $logger.log('d', "Fail pending VM failed with an error: #{e}")
       false
+    end
+
+    def get_provisioning_trace(vm, pool, provider)
+      # only call get_provisioning_trace if the provider supports it
+      return nil unless provider.respond_to?(:get_provisioning_trace)
+      trace = provider.get_provisioning_trace(vm, pool)
+      return nil if trace.nil?
+      trace
     end
 
     def handle_timed_out_vm(vm, pool, redis)
@@ -1287,7 +1298,7 @@ module Vmpooler
               $logger.log('d', "[!] [#{pool_name}] _check_pool failed with an error while evaluating pending VMs: #{e}")
             end
           else
-            fail_pending_vm(vm, pool_name, pool_timeout, pool_timeout_notification, redis, exists: false)
+            fail_pending_vm(vm, pool_name, pool_timeout, pool_timeout_notification, redis, provider, exists: false)
           end
         end
       end
