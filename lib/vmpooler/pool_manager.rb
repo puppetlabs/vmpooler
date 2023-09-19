@@ -162,8 +162,10 @@ module Vmpooler
     def get_provisioning_trace(vm, pool, provider)
       # only call get_provisioning_trace if the provider supports it
       return nil unless provider.respond_to?(:get_provisioning_trace)
+
       trace = provider.get_provisioning_trace(vm, pool)
       return nil if trace.nil?
+
       trace
     end
 
