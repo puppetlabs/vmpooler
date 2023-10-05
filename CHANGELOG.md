@@ -1,5 +1,23 @@
 # Changelog
 
+## [3.6.0](https://github.com/puppetlabs/vmpooler/tree/3.6.0) (2023-10-05)
+
+[Full Changelog](https://github.com/puppetlabs/vmpooler/compare/3.5.1...3.6.0)
+
+**Fixed bugs:**
+
+- \(maint\) Fix message for timeout notification. [\#624](https://github.com/puppetlabs/vmpooler/pull/624) ([isaac-hammes](https://github.com/isaac-hammes))
+
+**Merged pull requests:**
+
+- Bump rubocop from 1.56.3 to 1.56.4 [\#631](https://github.com/puppetlabs/vmpooler/pull/631) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump puma from 6.3.1 to 6.4.0 [\#630](https://github.com/puppetlabs/vmpooler/pull/630) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump rubocop from 1.56.2 to 1.56.3 [\#628](https://github.com/puppetlabs/vmpooler/pull/628) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump actions/checkout from 3 to 4 [\#627](https://github.com/puppetlabs/vmpooler/pull/627) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Update opentelemetry-resource\_detectors requirement from = 0.24.1 to = 0.24.2 [\#626](https://github.com/puppetlabs/vmpooler/pull/626) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump rubocop from 1.56.1 to 1.56.2 [\#625](https://github.com/puppetlabs/vmpooler/pull/625) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump rubocop from 1.56.0 to 1.56.1 [\#623](https://github.com/puppetlabs/vmpooler/pull/623) ([dependabot[bot]](https://github.com/apps/dependabot))
+
 ## [3.5.1](https://github.com/puppetlabs/vmpooler/tree/3.5.1) (2023-08-24)
 
 [Full Changelog](https://github.com/puppetlabs/vmpooler/compare/3.5.0...3.5.1)
