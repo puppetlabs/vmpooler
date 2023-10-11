@@ -145,7 +145,8 @@ module Vmpooler
                            "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes with error: #{open_socket_error}"
                          elsif timing_out_soon
                            time_remaining = timeout - timeout_notification
-                           "[!] [#{pool}] '#{vm}' will be marked as 'failed' in #{time_remaining} minutes with error: #{open_socket_error}"
+                           open_socket_error = redis.hget("vmpooler__vm__#{vm}", 'open_socket_error')
+                           "[!] [#{pool}] '#{vm}' impending failure in #{time_remaining} minutes with error: #{open_socket_error}"
                          else
                            "[!] [#{pool}] '#{vm}' This error is wholly unexpected"
                          end
