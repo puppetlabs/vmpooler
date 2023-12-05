@@ -1,0 +1,8 @@
+name: Ensure label
+
+on: pull_request
+
+jobs:
+  ensure_label:
+    uses: puppetlabs/release-engineering-repo-standards/.github/workflows/ensure_label.yml@v1
+    secrets: inherit

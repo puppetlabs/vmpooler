@@ -1,0 +1,11 @@
+name: Automated release prep
+
+on:
+  workflow_dispatch:
+
+jobs:
+  auto_release_prep:
+    uses: puppetlabs/release-engineering-repo-standards/.github/workflows/auto_release_prep.yml@v1
+    secrets: inherit
+    with:
+      version-file-path: lib/vmpooler/version.rb

@@ -1,0 +1,8 @@
+name: Dependabot auto-merge
+
+on: pull_request
+
+jobs:
+  dependabot_merge:
+    uses: puppetlabs/release-engineering-repo-standards/.github/workflows/dependabot_merge.yml@v1
+    secrets: inherit
