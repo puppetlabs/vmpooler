@@ -21,7 +21,7 @@ Gem::Specification.new do |s|
   s.add_dependency 'deep_merge', '~> 1.2'
   s.add_dependency 'net-ldap', '~> 0.16'
   s.add_dependency 'opentelemetry-exporter-jaeger', '= 0.23.0'
-  s.add_dependency 'opentelemetry-instrumentation-concurrent_ruby', '= 0.21.1'
+  s.add_dependency 'opentelemetry-instrumentation-concurrent_ruby', '= 0.21.2'
   s.add_dependency 'opentelemetry-instrumentation-http_client', '= 0.22.2'
   s.add_dependency 'opentelemetry-instrumentation-redis', '= 0.25.3'
   s.add_dependency 'opentelemetry-instrumentation-sinatra', '= 0.23.2'
