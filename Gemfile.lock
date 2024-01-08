@@ -51,7 +51,7 @@ GEM
     mock_redis (0.41.0)
     mustermann (3.0.0)
       ruby2_keywords (~> 0.0.1)
-    net-ldap (0.18.0)
+    net-ldap (0.19.0)
     nio4r (2.5.9)
     nio4r (2.5.9-java)
     opentelemetry-api (1.2.3)
