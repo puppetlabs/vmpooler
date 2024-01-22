@@ -43,7 +43,7 @@ Gem::Specification.new do |s|
   s.add_development_dependency 'pry'
   s.add_development_dependency 'rack-test', '>= 0.6'
   s.add_development_dependency 'rspec', '>= 3.2'
-  s.add_development_dependency 'rubocop', '~> 1.56.0'
+  s.add_development_dependency 'rubocop', '~> 1.60.1'
   s.add_development_dependency 'simplecov', '>= 0.11.2'
   s.add_development_dependency 'thor', '~> 1.0', '>= 1.0.1'
   s.add_development_dependency 'yarjuf', '>= 2.0'
