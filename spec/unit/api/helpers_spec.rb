@@ -116,7 +116,7 @@ describe Vmpooler::API::Helpers do
       allow(redis).to receive(:pipelined).with(no_args).and_return [0]
       allow(redis).to receive(:get).and_return 0
 
-      expect(subject.get_queue_metrics([], redis)).to eq({pending: 0, cloning: 0, booting: 0, ready: 0, running: 0, completed: 0, total: 0})
+      expect(subject.get_queue_metrics([], redis)).to eq({requested: 0, pending: 0, cloning: 0, booting: 0, ready: 0, running: 0, completed: 0, total: 0})
     end
 
     it 'adds pool queues correctly' do
@@ -128,7 +128,7 @@ describe Vmpooler::API::Helpers do
       allow(redis).to receive(:pipelined).with(no_args).and_return [1,1]
       allow(redis).to receive(:get).and_return(1,0)
 
-      expect(subject.get_queue_metrics(pools, redis)).to eq({pending: 2, cloning: 1, booting: 1, ready: 2, running: 2, completed: 2, total: 8})
+      expect(subject.get_queue_metrics(pools, redis)).to eq({requested: 6, pending: 2, cloning: 1, booting: 1, ready: 2, running: 2, completed: 2, total: 14})
     end
 
     it 'sets booting to 0 when negative calculation' do
@@ -140,7 +140,7 @@ describe Vmpooler::API::Helpers do
       allow(redis).to receive(:pipelined).with(no_args).and_return [1,1]
       allow(redis).to receive(:get).and_return(5,0)
 
-      expect(subject.get_queue_metrics(pools, redis)).to eq({pending: 2, cloning: 5, booting: 0, ready: 2, running: 2, completed: 2, total: 8})
+      expect(subject.get_queue_metrics(pools, redis)).to eq({requested: 6, pending: 2, cloning: 5, booting: 0, ready: 2, running: 2, completed: 2, total: 14})
     end
   end
 

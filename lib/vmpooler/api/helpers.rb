@@ -289,6 +289,7 @@ module Vmpooler
       def get_queue_metrics(pools, backend)
         tracer.in_span("Vmpooler::API::Helpers.#{__method__}") do
           queue = {
+              requested: 0,
               pending: 0,
               cloning: 0,
               booting: 0,
@@ -298,6 +299,8 @@ module Vmpooler
               total: 0
           }
 
+          queue[:requested] = get_total_across_pools_redis_scard(pools, 'vmpooler__provisioning__request', backend) + get_total_across_pools_redis_scard(pools, 'vmpooler__provisioning__processing', backend) + get_total_across_pools_redis_scard(pools, 'vmpooler__odcreate__task', backend)
+
           queue[:pending]   = get_total_across_pools_redis_scard(pools, 'vmpooler__pending__', backend)
           queue[:ready]     = get_total_across_pools_redis_scard(pools, 'vmpooler__ready__', backend)
           queue[:running]   = get_total_across_pools_redis_scard(pools, 'vmpooler__running__', backend)
@@ -306,7 +309,7 @@ module Vmpooler
           queue[:cloning] = backend.get('vmpooler__tasks__clone').to_i + backend.get('vmpooler__tasks__ondemandclone').to_i
           queue[:booting] = queue[:pending].to_i - queue[:cloning].to_i
           queue[:booting] = 0 if queue[:booting] < 0
-          queue[:total]   = queue[:pending].to_i + queue[:ready].to_i + queue[:running].to_i + queue[:completed].to_i
+          queue[:total]   = queue[:requested] + queue[:pending].to_i + queue[:ready].to_i + queue[:running].to_i + queue[:completed].to_i
 
           queue
         end
