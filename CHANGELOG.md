@@ -1,5 +1,47 @@
 # Changelog
 
+## [3.7.0](https://github.com/puppetlabs/vmpooler/tree/3.7.0) (2025-05-20)
+
+[Full Changelog](https://github.com/puppetlabs/vmpooler/compare/3.6.0...3.7.0)
+
+**Implemented enhancements:**
+
+- \(P4DEVOPS-6096\) Include VMs that have been requested but not moved to pending when getting queue metrics [\#681](https://github.com/puppetlabs/vmpooler/pull/681) ([isaac-hammes](https://github.com/isaac-hammes))
+- Bump redis from 5.1.0 to 5.2.0 [\#675](https://github.com/puppetlabs/vmpooler/pull/675) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump rake from 13.1.0 to 13.2.1 [\#673](https://github.com/puppetlabs/vmpooler/pull/673) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump redis from 5.0.8 to 5.1.0 [\#665](https://github.com/puppetlabs/vmpooler/pull/665) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump rspec from 3.12.0 to 3.13.0 [\#664](https://github.com/puppetlabs/vmpooler/pull/664) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump opentelemetry-sdk from 1.3.1 to 1.4.0 [\#663](https://github.com/puppetlabs/vmpooler/pull/663) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump mock\_redis from 0.43.0 to 0.44.0 [\#662](https://github.com/puppetlabs/vmpooler/pull/662) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump mock\_redis from 0.41.0 to 0.43.0 [\#658](https://github.com/puppetlabs/vmpooler/pull/658) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump net-ldap from 0.18.0 to 0.19.0 [\#653](https://github.com/puppetlabs/vmpooler/pull/653) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump sinatra from 3.1.0 to 3.2.0 [\#652](https://github.com/puppetlabs/vmpooler/pull/652) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump mock\_redis from 0.40.0 to 0.41.0 [\#650](https://github.com/puppetlabs/vmpooler/pull/650) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump mock\_redis from 0.37.0 to 0.40.0 [\#643](https://github.com/puppetlabs/vmpooler/pull/643) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump rake from 13.0.6 to 13.1.0 [\#638](https://github.com/puppetlabs/vmpooler/pull/638) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump thor from 1.2.2 to 1.3.0 [\#635](https://github.com/puppetlabs/vmpooler/pull/635) ([dependabot[bot]](https://github.com/apps/dependabot))
+
+**Fixed bugs:**
+
+- Bump opentelemetry-sdk from 1.4.0 to 1.4.1 [\#672](https://github.com/puppetlabs/vmpooler/pull/672) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump rack from 2.2.8.1 to 2.2.9 [\#671](https://github.com/puppetlabs/vmpooler/pull/671) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump thor from 1.3.0 to 1.3.1 [\#668](https://github.com/puppetlabs/vmpooler/pull/668) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump rack from 2.2.8 to 2.2.8.1 [\#666](https://github.com/puppetlabs/vmpooler/pull/666) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump concurrent-ruby from 1.2.2 to 1.2.3 [\#660](https://github.com/puppetlabs/vmpooler/pull/660) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump puma from 6.4.1 to 6.4.2 [\#655](https://github.com/puppetlabs/vmpooler/pull/655) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump puma from 6.4.0 to 6.4.1 [\#654](https://github.com/puppetlabs/vmpooler/pull/654) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Update opentelemetry-instrumentation-http\_client requirement from = 0.22.2 to = 0.22.3 [\#646](https://github.com/puppetlabs/vmpooler/pull/646) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Update opentelemetry-instrumentation-concurrent\_ruby requirement from = 0.21.1 to = 0.21.2 [\#645](https://github.com/puppetlabs/vmpooler/pull/645) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump opentelemetry-sdk from 1.3.0 to 1.3.1 [\#642](https://github.com/puppetlabs/vmpooler/pull/642) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump prometheus-client from 4.2.1 to 4.2.2 [\#641](https://github.com/puppetlabs/vmpooler/pull/641) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump redis from 5.0.7 to 5.0.8 [\#637](https://github.com/puppetlabs/vmpooler/pull/637) ([dependabot[bot]](https://github.com/apps/dependabot))
+- \(RE-15817\) Reword fail warning and get error from redis before generating message [\#633](https://github.com/puppetlabs/vmpooler/pull/633) ([isaac-hammes](https://github.com/isaac-hammes))
+
+**Merged pull requests:**
+
+- Bump actions/setup-java from 3 to 4 [\#648](https://github.com/puppetlabs/vmpooler/pull/648) ([dependabot[bot]](https://github.com/apps/dependabot))
+- Bump actions/github-script from 6 to 7 [\#644](https://github.com/puppetlabs/vmpooler/pull/644) ([dependabot[bot]](https://github.com/apps/dependabot))
+
 ## [3.6.0](https://github.com/puppetlabs/vmpooler/tree/3.6.0) (2023-10-05)
 
 [Full Changelog](https://github.com/puppetlabs/vmpooler/compare/3.5.1...3.6.0)
@@ -239,12 +281,16 @@
 **Merged pull requests:**
 
 - \(POOLER-176\) Add Operation Label to User Metric [\#455](https://github.com/puppetlabs/vmpooler/pull/455) ([yachub](https://github.com/yachub))
-- Update OTel gems to 0.15.0 [\#450](https://github.com/puppetlabs/vmpooler/pull/450) ([genebean](https://github.com/genebean))
-- Migrate testing to GH Actions from Travis [\#446](https://github.com/puppetlabs/vmpooler/pull/446) ([genebean](https://github.com/genebean))
 
 ## [1.1.0-rc.1](https://github.com/puppetlabs/vmpooler/tree/1.1.0-rc.1) (2021-08-11)
 
 [Full Changelog](https://github.com/puppetlabs/vmpooler/compare/1.0.0...1.1.0-rc.1)
+
+**Merged pull requests:**
+
+- \(POOLER-176\) Add Operation Label to User Metric [\#454](https://github.com/puppetlabs/vmpooler/pull/454) ([yachub](https://github.com/yachub))
+- Update OTel gems to 0.15.0 [\#450](https://github.com/puppetlabs/vmpooler/pull/450) ([genebean](https://github.com/genebean))
+- Migrate testing to GH Actions from Travis [\#446](https://github.com/puppetlabs/vmpooler/pull/446) ([genebean](https://github.com/genebean))
 
 ## [1.0.0](https://github.com/puppetlabs/vmpooler/tree/1.0.0) (2021-02-02)
 
@@ -318,16 +364,13 @@
 
 [Full Changelog](https://github.com/puppetlabs/vmpooler/compare/0.15.0...0.16.0)
 
-**Merged pull requests:**
-
-- Update to OTel 0.7.0 [\#416](https://github.com/puppetlabs/vmpooler/pull/416) ([genebean](https://github.com/genebean))
-
 ## [0.15.0](https://github.com/puppetlabs/vmpooler/tree/0.15.0) (2020-09-30)
 
 [Full Changelog](https://github.com/puppetlabs/vmpooler/compare/0.14.9...0.15.0)
 
 **Merged pull requests:**
 
+- Update to OTel 0.7.0 [\#416](https://github.com/puppetlabs/vmpooler/pull/416) ([genebean](https://github.com/genebean))
 - \(maint\) Centralize dependency management in the gemspec [\#407](https://github.com/puppetlabs/vmpooler/pull/407) ([sbeaulie](https://github.com/sbeaulie))
 - \(pooler-180\) Add healthcheck endpoint, spec testing [\#406](https://github.com/puppetlabs/vmpooler/pull/406) ([suckatrash](https://github.com/suckatrash))
 
@@ -754,13 +797,13 @@
 - Do not have a hardcoded list of VM providers [\#230](https://github.com/puppetlabs/vmpooler/issues/230)
 - Use a dynamic check\_pool period [\#226](https://github.com/puppetlabs/vmpooler/issues/226)
 - vmpooler doesn't seem to recognize ready VMs [\#218](https://github.com/puppetlabs/vmpooler/issues/218)
-- `find_vmdks` in `vsphere_helper` should not use `vmdk_datastore._connection` [\#213](https://github.com/puppetlabs/vmpooler/issues/213)
-- `get_base_vm_container_from` in `vsphere_helper` ensures the wrong connection [\#212](https://github.com/puppetlabs/vmpooler/issues/212)
+- `find\_vmdks` in `vsphere\_helper` should not use `vmdk\_datastore.\_connection` [\#213](https://github.com/puppetlabs/vmpooler/issues/213)
+- `get\_base\_vm\_container\_from` in `vsphere\_helper` ensures the wrong connection [\#212](https://github.com/puppetlabs/vmpooler/issues/212)
 - `close` in vsphere\_helper throws an error if a connection was never made [\#211](https://github.com/puppetlabs/vmpooler/issues/211)
-- `find_pool` in vsphere\_helper.rb has subtle errors [\#210](https://github.com/puppetlabs/vmpooler/issues/210)
-- `find_pool` in vsphere\_helper tends to throw instead of returning nil for missing pools [\#209](https://github.com/puppetlabs/vmpooler/issues/209)
+- `find\_pool` in vsphere\_helper.rb has subtle errors [\#210](https://github.com/puppetlabs/vmpooler/issues/210)
+- `find\_pool` in vsphere\_helper tends to throw instead of returning nil for missing pools [\#209](https://github.com/puppetlabs/vmpooler/issues/209)
 - Vsphere connections are always insecure \(Ignore cert errors\) [\#207](https://github.com/puppetlabs/vmpooler/issues/207)
-- `find_folder` in vsphere\_helper.rb has subtle errors [\#204](https://github.com/puppetlabs/vmpooler/issues/204)
+- `find\_folder` in vsphere\_helper.rb has subtle errors [\#204](https://github.com/puppetlabs/vmpooler/issues/204)
 - Should not use `abort` in vsphere\_helper [\#203](https://github.com/puppetlabs/vmpooler/issues/203)
 - No reason why get\_snapshot\_list is defined in vsphere\_helper [\#202](https://github.com/puppetlabs/vmpooler/issues/202)
 - Setting max\_tries in configuration results in vSphereHelper going into infinite loop [\#199](https://github.com/puppetlabs/vmpooler/issues/199)
@@ -822,7 +865,7 @@
 - \(POOLER-93\) Extend API endpoint to provide just what is needed [\#245](https://github.com/puppetlabs/vmpooler/pull/245) ([sbeaulie](https://github.com/sbeaulie))
 - \(POOLER-92\) Add the alias information in the API status page for each… [\#244](https://github.com/puppetlabs/vmpooler/pull/244) ([sbeaulie](https://github.com/sbeaulie))
 - \(QENG-5305\) Improve vmpooler host selection [\#242](https://github.com/puppetlabs/vmpooler/pull/242) ([mattkirby](https://github.com/mattkirby))
-- Allow user to specify a configuration file in VMPOOLER\_CONFIG\_FILE variable [\#241](https://github.com/puppetlabs/vmpooler/pull/241) ([adamdav](https://github.com/adamdav))
+- Allow user to specify a configuration file in VMPOOLER\_CONFIG\_FILE variable [\#241](https://github.com/puppetlabs/vmpooler/pull/241) ([amcdson](https://github.com/amcdson))
 - Fix no implicit conversion to rational from nil [\#239](https://github.com/puppetlabs/vmpooler/pull/239) ([sbeaulie](https://github.com/sbeaulie))
 - Updated Vagrant box and associated docs [\#237](https://github.com/puppetlabs/vmpooler/pull/237) ([genebean](https://github.com/genebean))
 - \(GH-226\) Respond quickly to VMs being consumed [\#236](https://github.com/puppetlabs/vmpooler/pull/236) ([glennsarti](https://github.com/glennsarti))
@@ -856,88 +899,7 @@
 - \(maint\) Add rubocop and allow failures in Travis CI [\#183](https://github.com/puppetlabs/vmpooler/pull/183) ([glennsarti](https://github.com/glennsarti))
 - \(POOLER-73\) Update unit tests prior to refactoring [\#182](https://github.com/puppetlabs/vmpooler/pull/182) ([glennsarti](https://github.com/glennsarti))
 - \(POOLER-71\) Add dummy authentication provider [\#180](https://github.com/puppetlabs/vmpooler/pull/180) ([glennsarti](https://github.com/glennsarti))
-- \(maint\) Remove Ruby 1.9.3 testing from Travis [\#178](https://github.com/puppetlabs/vmpooler/pull/178) ([glennsarti](https://github.com/glennsarti))
 - \(maint\) Enhance VM Pooler developer experience [\#177](https://github.com/puppetlabs/vmpooler/pull/177) ([glennsarti](https://github.com/glennsarti))
-- \(POOLER-47\) Send clone errors up [\#175](https://github.com/puppetlabs/vmpooler/pull/175) ([mattkirby](https://github.com/mattkirby))
-- \(POOLER-48\) Clear migrations at application start time [\#174](https://github.com/puppetlabs/vmpooler/pull/174) ([mattkirby](https://github.com/mattkirby))
-- Add retry logic with a delay for vsphere connections [\#173](https://github.com/puppetlabs/vmpooler/pull/173) ([mattkirby](https://github.com/mattkirby))
-- \(POOLER-44\) Fix vmpooler.migrate reference [\#172](https://github.com/puppetlabs/vmpooler/pull/172) ([mattkirby](https://github.com/mattkirby))
-- Add `puma` as required gem [\#171](https://github.com/puppetlabs/vmpooler/pull/171) ([sschneid](https://github.com/sschneid))
-- Fix JavaScript error on nil `weekly_data` [\#170](https://github.com/puppetlabs/vmpooler/pull/170) ([sschneid](https://github.com/sschneid))
-- Containerize vmpooler [\#169](https://github.com/puppetlabs/vmpooler/pull/169) ([sschneid](https://github.com/sschneid))
-- Add vagrant-vmpooler plugin to readme [\#168](https://github.com/puppetlabs/vmpooler/pull/168) ([briancain](https://github.com/briancain))
-- Improve vmpooler scheduling logic [\#167](https://github.com/puppetlabs/vmpooler/pull/167) ([mattkirby](https://github.com/mattkirby))
-- \[QENG-4181\] Add per-pool stats to `/status` API [\#162](https://github.com/puppetlabs/vmpooler/pull/162) ([rick](https://github.com/rick))
-- Merge CI.next into Master [\#161](https://github.com/puppetlabs/vmpooler/pull/161) ([shermdog](https://github.com/shermdog))
-- \(maint\) update README.md and LICENSE to reflect rebranding [\#157](https://github.com/puppetlabs/vmpooler/pull/157) ([erosa](https://github.com/erosa))
-- Add info about vmfloaty [\#156](https://github.com/puppetlabs/vmpooler/pull/156) ([briancain](https://github.com/briancain))
-- Added IP lookup functionality for /vm/hostname [\#154](https://github.com/puppetlabs/vmpooler/pull/154) ([frozenfoxx](https://github.com/frozenfoxx))
-- Improved tests for vmpooler [\#152](https://github.com/puppetlabs/vmpooler/pull/152) ([rick](https://github.com/rick))
-- Added prefix parameter to the vmpooler configuration [\#149](https://github.com/puppetlabs/vmpooler/pull/149) ([frozenfoxx](https://github.com/frozenfoxx))
-- Update license copyright [\#148](https://github.com/puppetlabs/vmpooler/pull/148) ([sschneid](https://github.com/sschneid))
-- Allow new disks to be added to running VMs via vmpooler API [\#147](https://github.com/puppetlabs/vmpooler/pull/147) ([sschneid](https://github.com/sschneid))
-- Updated YAML config variables in create\_template\_deltas.rb [\#145](https://github.com/puppetlabs/vmpooler/pull/145) ([frozenfoxx](https://github.com/frozenfoxx))
-- \(QA-2036\) Update README for Client Utility [\#143](https://github.com/puppetlabs/vmpooler/pull/143) ([cowofevil](https://github.com/cowofevil))
-- add guestinfo.hostname to VirtualMachineConfigSpecs [\#139](https://github.com/puppetlabs/vmpooler/pull/139) ([heathseals](https://github.com/heathseals))
-- \(QENG-2807\) Allow pool 'alias' names [\#138](https://github.com/puppetlabs/vmpooler/pull/138) ([sschneid](https://github.com/sschneid))
-- \(QENG-2995\) Display associated VMs in GET /token/:token endpoint [\#137](https://github.com/puppetlabs/vmpooler/pull/137) ([sschneid](https://github.com/sschneid))
-- Update API docs to include "domain" key for get vm requests [\#136](https://github.com/puppetlabs/vmpooler/pull/136) ([briancain](https://github.com/briancain))
-- \(MAINT\) Remove Ping Check on Running VMs [\#133](https://github.com/puppetlabs/vmpooler/pull/133) ([colinPL](https://github.com/colinPL))
-- \(maint\) Move VM Only When SSH Check Succeeds [\#131](https://github.com/puppetlabs/vmpooler/pull/131) ([colinPL](https://github.com/colinPL))
-- \(QENG-2952\) Check that SSH is available [\#130](https://github.com/puppetlabs/vmpooler/pull/130) ([sschneid](https://github.com/sschneid))
-- \(maint\) Update license copyright [\#128](https://github.com/puppetlabs/vmpooler/pull/128) ([sschneid](https://github.com/sschneid))
-- \(maint\) Remove duplicate \(nested\) "ok" responses [\#127](https://github.com/puppetlabs/vmpooler/pull/127) ([sschneid](https://github.com/sschneid))
-- \(maint\) Documentation updates [\#126](https://github.com/puppetlabs/vmpooler/pull/126) ([sschneid](https://github.com/sschneid))
-- Track token use times [\#125](https://github.com/puppetlabs/vmpooler/pull/125) ([sschneid](https://github.com/sschneid))
-- Docs update [\#124](https://github.com/puppetlabs/vmpooler/pull/124) ([sschneid](https://github.com/sschneid))
-- User token list [\#123](https://github.com/puppetlabs/vmpooler/pull/123) ([sschneid](https://github.com/sschneid))
-- \(maint\) Additional utility and reporting scripts [\#122](https://github.com/puppetlabs/vmpooler/pull/122) ([sschneid](https://github.com/sschneid))
-- \(maint\) Syntax fixup [\#121](https://github.com/puppetlabs/vmpooler/pull/121) ([sschneid](https://github.com/sschneid))
-- \(MAINT\) Reduce redis Calls in API [\#120](https://github.com/puppetlabs/vmpooler/pull/120) ([colinPL](https://github.com/colinPL))
-- \(maint\) Use expect\_json helper method for determining JSON response status [\#119](https://github.com/puppetlabs/vmpooler/pull/119) ([sschneid](https://github.com/sschneid))
-- \(QENG-1304\) vmpooler should require an auth key for VM destruction [\#118](https://github.com/puppetlabs/vmpooler/pull/118) ([sschneid](https://github.com/sschneid))
-- \(QENG-2636\) Host snapshots [\#117](https://github.com/puppetlabs/vmpooler/pull/117) ([sschneid](https://github.com/sschneid))
-- \(maint\) Use dep caching and containers [\#116](https://github.com/puppetlabs/vmpooler/pull/116) ([sschneid](https://github.com/sschneid))
-- \(maint\) Include travis-ci build status in README [\#115](https://github.com/puppetlabs/vmpooler/pull/115) ([sschneid](https://github.com/sschneid))
-- Show test contexts and names [\#114](https://github.com/puppetlabs/vmpooler/pull/114) ([sschneid](https://github.com/sschneid))
-- \(QENG-2246\) Add Default Rake Task [\#113](https://github.com/puppetlabs/vmpooler/pull/113) ([colinPL](https://github.com/colinPL))
-- Log empty pools [\#112](https://github.com/puppetlabs/vmpooler/pull/112) ([sschneid](https://github.com/sschneid))
-- \(QENG-2246\) Add Travis CI [\#111](https://github.com/puppetlabs/vmpooler/pull/111) ([colinPL](https://github.com/colinPL))
-- \(QENG-2388\) Tagging restrictions [\#110](https://github.com/puppetlabs/vmpooler/pull/110) ([sschneid](https://github.com/sschneid))
-- An updated dashboard [\#109](https://github.com/puppetlabs/vmpooler/pull/109) ([sschneid](https://github.com/sschneid))
-- API summary rework [\#108](https://github.com/puppetlabs/vmpooler/pull/108) ([sschneid](https://github.com/sschneid))
-- Only filter regex matches [\#106](https://github.com/puppetlabs/vmpooler/pull/106) ([sschneid](https://github.com/sschneid))
-- \(QENG-2518\) Tag-filtering [\#105](https://github.com/puppetlabs/vmpooler/pull/105) ([sschneid](https://github.com/sschneid))
-- \(QENG-2360\) check\_running\_vm Spec Tests [\#104](https://github.com/puppetlabs/vmpooler/pull/104) ([colinPL](https://github.com/colinPL))
-- \(QENG-2056\) Create daily tag indexes, report in /summary [\#102](https://github.com/puppetlabs/vmpooler/pull/102) ([sschneid](https://github.com/sschneid))
-- Store token metadata in vmpooler\_\_vm\_\_ Redis hash [\#101](https://github.com/puppetlabs/vmpooler/pull/101) ([sschneid](https://github.com/sschneid))
-- Display VM state in GET /vm/:hostname route [\#100](https://github.com/puppetlabs/vmpooler/pull/100) ([sschneid](https://github.com/sschneid))
-- Add basic auth token functionality [\#98](https://github.com/puppetlabs/vmpooler/pull/98) ([sschneid](https://github.com/sschneid))
-- Add basic HTTP authentication and /token routes [\#97](https://github.com/puppetlabs/vmpooler/pull/97) ([sschneid](https://github.com/sschneid))
-- \(QENG-2208\) Add more helper tests [\#95](https://github.com/puppetlabs/vmpooler/pull/95) ([colinPL](https://github.com/colinPL))
-- \(QENG-2208\) Move Sinatra Helpers to own file [\#94](https://github.com/puppetlabs/vmpooler/pull/94) ([colinPL](https://github.com/colinPL))
-- Fix rspec tests broken in f9de28236b726e37977123cea9b4f3a562bfdcdb [\#93](https://github.com/puppetlabs/vmpooler/pull/93) ([sschneid](https://github.com/sschneid))
-- Redirect / to /dashboard [\#92](https://github.com/puppetlabs/vmpooler/pull/92) ([sschneid](https://github.com/sschneid))
-- Ensure 'lifetime' val returned by GET /vm/:hostname is an int [\#91](https://github.com/puppetlabs/vmpooler/pull/91) ([sschneid](https://github.com/sschneid))
-- running-to-lifetime comparison should be 'greater than or equal to' [\#90](https://github.com/puppetlabs/vmpooler/pull/90) ([sschneid](https://github.com/sschneid))
-- Auto-expire Redis metadata key via Redis EXPIRE [\#89](https://github.com/puppetlabs/vmpooler/pull/89) ([sschneid](https://github.com/sschneid))
-- \(QENG-1906\) Add specs for Dashboard and root API class [\#88](https://github.com/puppetlabs/vmpooler/pull/88) ([colinPL](https://github.com/colinPL))
-- \(maint\) Fix bad redis reference [\#87](https://github.com/puppetlabs/vmpooler/pull/87) ([colinPL](https://github.com/colinPL))
-- \(QENG-1906\) Break apart check\_pending\_vm and add spec tests [\#86](https://github.com/puppetlabs/vmpooler/pull/86) ([colinPL](https://github.com/colinPL))
-- Remove defined? when checking configuration for graphite server. [\#85](https://github.com/puppetlabs/vmpooler/pull/85) ([colinPL](https://github.com/colinPL))
-- \(QENG-1906\) Add spec tests for Janitor [\#78](https://github.com/puppetlabs/vmpooler/pull/78) ([colinPL](https://github.com/colinPL))
-- \(QENG-1906\) Refactor initialize to allow config passing [\#77](https://github.com/puppetlabs/vmpooler/pull/77) ([colinPL](https://github.com/colinPL))
-- Use 'checkout' time to calculate 'running' time [\#75](https://github.com/puppetlabs/vmpooler/pull/75) ([sschneid](https://github.com/sschneid))
-- Catch improperly-formatted data payloads [\#73](https://github.com/puppetlabs/vmpooler/pull/73) ([sschneid](https://github.com/sschneid))
-- \(QENG-1905\) Adding VM-tagging support via PUT /vm/:hostname endpoint [\#72](https://github.com/puppetlabs/vmpooler/pull/72) ([sschneid](https://github.com/sschneid))
-- \(QENG-2057\) Historic Redis VM metadata [\#71](https://github.com/puppetlabs/vmpooler/pull/71) ([sschneid](https://github.com/sschneid))
-- \(QENG-1899\) Add documentation for /summary [\#67](https://github.com/puppetlabs/vmpooler/pull/67) ([colinPL](https://github.com/colinPL))
-- Use $redis.hgetall rather than hget in a loop [\#66](https://github.com/puppetlabs/vmpooler/pull/66) ([sschneid](https://github.com/sschneid))
-- /summary per-pool metrics [\#65](https://github.com/puppetlabs/vmpooler/pull/65) ([sschneid](https://github.com/sschneid))
-- Show boot metrics in /status and /summary endpoints [\#64](https://github.com/puppetlabs/vmpooler/pull/64) ([sschneid](https://github.com/sschneid))
-- \(maint\) Fixing spacing [\#63](https://github.com/puppetlabs/vmpooler/pull/63) ([sschneid](https://github.com/sschneid))
-- Metric calc via helpers [\#62](https://github.com/puppetlabs/vmpooler/pull/62) ([sschneid](https://github.com/sschneid))
-- More granular metrics [\#61](https://github.com/puppetlabs/vmpooler/pull/61) ([sschneid](https://github.com/sschneid))
 
 
 
