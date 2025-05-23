@@ -34,18 +34,29 @@ else
   exit(2) if torun.empty?
 end
 
+tracer = OpenTelemetry.tracer_provider.tracer('vmpooler', Vmpooler::VERSION)
 if torun.include?(:api)
-  api = Thread.new do
-    redis = Vmpooler.new_redis(redis_host, redis_port, redis_password)
-    Vmpooler::API.execute(torun, config, redis, metrics, logger)
+  tracer.in_span("vmpooler-api") do
+    parent_ctx = OpenTelemetry::Context.current
+    api = Thread.new do
+      OpenTelemetry::Context.with_current(parent_ctx) do
+        redis = Vmpooler.new_redis(redis_host, redis_port, redis_password)
+        Vmpooler::API.execute(torun, config, redis, metrics, logger)
+      end
+    end
+    torun_threads << api
   end
-  torun_threads << api
 elsif metrics.respond_to?(:setup_prometheus_metrics)
-  # Run the cut down API - Prometheus Metrics only.
-  prometheus_only_api = Thread.new do
-    Vmpooler::API.execute(torun, config, nil, metrics, logger)
+  tracer.in_span("vmpooler-prometheus-api") do
+    parent_ctx = OpenTelemetry::Context.current
+    # Run the cut down API - Prometheus Metrics only.
+    prometheus_only_api = Thread.new do
+      OpenTelemetry::Context.with_current(parent_ctx) do
+        Vmpooler::API.execute(torun, config, nil, metrics, logger)
+      end
+    end
+    torun_threads << prometheus_only_api
   end
-  torun_threads << prometheus_only_api
 end
 
 if torun.include?(:manager)
