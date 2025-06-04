@@ -23,10 +23,11 @@ Gem::Specification.new do |s|
   s.add_dependency 'opentelemetry-exporter-jaeger', '= 0.23.0'
   s.add_dependency 'opentelemetry-instrumentation-concurrent_ruby', '= 0.21.1'
   s.add_dependency 'opentelemetry-instrumentation-http_client', '= 0.22.2'
+  s.add_dependency 'opentelemetry-instrumentation-rack', '= 0.23.4'
   s.add_dependency 'opentelemetry-instrumentation-redis', '= 0.25.3'
   s.add_dependency 'opentelemetry-instrumentation-sinatra', '= 0.23.2'
   s.add_dependency 'opentelemetry-resource_detectors', '= 0.24.2'
-  s.add_dependency 'opentelemetry-sdk', '~> 1.3', '>= 1.3.0'
+  s.add_dependency 'opentelemetry-sdk', '~> 1.8'
   s.add_dependency 'pickup', '~> 0.0.11'
   s.add_dependency 'prometheus-client', '>= 2', '< 5'
   s.add_dependency 'puma', '>= 5.0.4', '< 7'
@@ -39,7 +40,7 @@ Gem::Specification.new do |s|
 
   # Testing dependencies
   s.add_development_dependency 'climate_control', '>= 0.2.0'
-  s.add_development_dependency 'mock_redis', '>= 0.17.0'
+  s.add_development_dependency 'mock_redis', '= 0.37.0'
   s.add_development_dependency 'pry'
   s.add_development_dependency 'rack-test', '>= 0.6'
   s.add_development_dependency 'rspec', '>= 3.2'

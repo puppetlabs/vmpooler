@@ -29,37 +29,6 @@ jobs:
           echo "version=$version" >> $GITHUB_OUTPUT
           echo "Found version $version from lib/vmpooler/version.rb"
 
-      - name: Generate Changelog
-        uses: docker://githubchangeloggenerator/github-changelog-generator:1.16.2
-        with:
-          args: >-
-            --future-release ${{ steps.nv.outputs.version }}
-        env:
-          CHANGELOG_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Validate Changelog
-        run : |
-          set -e
-          if [[ -n $(git status --porcelain) ]]; then
-            echo "Here is the current git status:"
-            git status
-            echo
-            echo "The following changes were detected:"
-            git --no-pager diff
-            echo "Uncommitted PRs found in the changelog. Please submit a release prep PR of changes after running `./update-changelog`"
-            exit 1
-          fi
-
-      - name: Generate Release Notes
-        uses: docker://githubchangeloggenerator/github-changelog-generator:1.16.2
-        with:
-          args: >-
-            --since-tag ${{ steps.cv.outputs.result }}
-            --future-release ${{ steps.nv.outputs.version }}
-            --output release-notes.md
-        env:
-          CHANGELOG_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Tag Release
         uses: ncipollo/release-action@v1
         with:
