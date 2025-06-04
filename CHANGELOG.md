@@ -1,6 +1,6 @@
 # Changelog
 
-## [3.7.0](https://github.com/puppetlabs/vmpooler/tree/3.7.0) (2025-05-20)
+## [3.7.0](https://github.com/puppetlabs/vmpooler/tree/3.7.0) (2025-06-04)
 
 [Full Changelog](https://github.com/puppetlabs/vmpooler/compare/3.6.0...3.7.0)
 
@@ -39,6 +39,8 @@
 
 **Merged pull requests:**
 
+- \(P4DEVOPS-6096\) Fix gems to prevent warnings in logs [\#685](https://github.com/puppetlabs/vmpooler/pull/685) ([isaac-hammes](https://github.com/isaac-hammes))
+- \(maint\) Revert gems to last release [\#683](https://github.com/puppetlabs/vmpooler/pull/683) ([isaac-hammes](https://github.com/isaac-hammes))
 - Bump actions/setup-java from 3 to 4 [\#648](https://github.com/puppetlabs/vmpooler/pull/648) ([dependabot[bot]](https://github.com/apps/dependabot))
 - Bump actions/github-script from 6 to 7 [\#644](https://github.com/puppetlabs/vmpooler/pull/644) ([dependabot[bot]](https://github.com/apps/dependabot))
 
@@ -228,6 +230,7 @@
 - \(maint\) Adding a provider method tag\_vm\_user [\#469](https://github.com/puppetlabs/vmpooler/pull/469) ([sbeaulie](https://github.com/sbeaulie))
 - Update testing.yml [\#468](https://github.com/puppetlabs/vmpooler/pull/468) ([sbeaulie](https://github.com/sbeaulie))
 - Move vsphere specific methods out of vmpooler [\#467](https://github.com/puppetlabs/vmpooler/pull/467) ([sbeaulie](https://github.com/sbeaulie))
+- Release prep for v2.0.0 [\#465](https://github.com/puppetlabs/vmpooler/pull/465) ([genebean](https://github.com/genebean))
 
 ## [2.0.0](https://github.com/puppetlabs/vmpooler/tree/2.0.0) (2021-12-08)
 
@@ -236,7 +239,6 @@
 **Merged pull requests:**
 
 - Use credentials file for Rubygems auth [\#466](https://github.com/puppetlabs/vmpooler/pull/466) ([genebean](https://github.com/genebean))
-- Release prep for v2.0.0 [\#465](https://github.com/puppetlabs/vmpooler/pull/465) ([genebean](https://github.com/genebean))
 - Add Gem release workflow [\#464](https://github.com/puppetlabs/vmpooler/pull/464) ([genebean](https://github.com/genebean))
 - Update icon in the readme to reference this repo [\#463](https://github.com/puppetlabs/vmpooler/pull/463) ([genebean](https://github.com/genebean))
 - \(DIO-2769\) Move vsphere provider to its own gem [\#462](https://github.com/puppetlabs/vmpooler/pull/462) ([genebean](https://github.com/genebean))
@@ -364,13 +366,16 @@
 
 [Full Changelog](https://github.com/puppetlabs/vmpooler/compare/0.15.0...0.16.0)
 
+**Merged pull requests:**
+
+- Update to OTel 0.7.0 [\#416](https://github.com/puppetlabs/vmpooler/pull/416) ([genebean](https://github.com/genebean))
+
 ## [0.15.0](https://github.com/puppetlabs/vmpooler/tree/0.15.0) (2020-09-30)
 
 [Full Changelog](https://github.com/puppetlabs/vmpooler/compare/0.14.9...0.15.0)
 
 **Merged pull requests:**
 
-- Update to OTel 0.7.0 [\#416](https://github.com/puppetlabs/vmpooler/pull/416) ([genebean](https://github.com/genebean))
 - \(maint\) Centralize dependency management in the gemspec [\#407](https://github.com/puppetlabs/vmpooler/pull/407) ([sbeaulie](https://github.com/sbeaulie))
 - \(pooler-180\) Add healthcheck endpoint, spec testing [\#406](https://github.com/puppetlabs/vmpooler/pull/406) ([suckatrash](https://github.com/suckatrash))
 
