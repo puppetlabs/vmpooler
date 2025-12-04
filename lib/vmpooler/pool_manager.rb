@@ -164,17 +164,17 @@ module Vmpooler
       clone_error = redis.hget("vmpooler__vm__#{vm}", 'clone_error')
       clone_error_class = redis.hget("vmpooler__vm__#{vm}", 'clone_error_class')
       redis.smove("vmpooler__pending__#{pool}", "vmpooler__completed__#{pool}", vm)
-      
+
       if request_id
         ondemandrequest_hash = redis.hgetall("vmpooler__odrequest__#{request_id}")
         if ondemandrequest_hash && ondemandrequest_hash['status'] != 'failed' && ondemandrequest_hash['status'] != 'deleted'
           # Check retry count and max retry limit before retrying
           retry_count = (redis.hget("vmpooler__odrequest__#{request_id}", 'retry_count') || '0').to_i
           max_retries = $config[:config]['max_vm_retries'] || 3
-          
+
           # Determine if error is likely permanent (configuration issues)
-          permanent_error = is_permanent_error?(clone_error, clone_error_class)
-          
+          permanent_error = permanent_error?(clone_error, clone_error_class)
+
           if retry_count < max_retries && !permanent_error
             # Increment retry count and retry VM creation
             redis.hset("vmpooler__odrequest__#{request_id}", 'retry_count', retry_count + 1)
@@ -199,9 +199,9 @@ module Vmpooler
     end
 
     # Determine if an error is likely permanent (configuration issue) vs transient
-    def is_permanent_error?(error_message, error_class)
+    def permanent_error?(error_message, error_class)
       return false if error_message.nil? || error_class.nil?
-      
+
       permanent_error_patterns = [
         /template.*not found/i,
         /template.*does not exist/i,
@@ -214,17 +214,17 @@ module Vmpooler
         /invalid.*credentials/i,
         /configuration.*error/i
       ]
-      
+
       permanent_error_classes = [
         'ArgumentError',
         'NoMethodError',
         'NameError'
       ]
-      
+
       # Check error message patterns
       permanent_error_patterns.any? { |pattern| error_message.match?(pattern) } ||
-      # Check error class types
-      permanent_error_classes.include?(error_class)
+        # Check error class types
+        permanent_error_classes.include?(error_class)
     end
 
     def move_pending_vm_to_ready(vm, pool, redis, request_id = nil)
