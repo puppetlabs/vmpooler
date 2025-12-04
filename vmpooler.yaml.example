@@ -456,6 +456,12 @@
 #     How long (in minutes) before marking a clone in 'pending' queues as 'failed' and retrying.
 #     (default: 15)
 #
+#   - max_vm_retries
+#     Maximum number of times to retry VM creation for a failed request before marking it as permanently failed.
+#     This helps prevent infinite retry loops when there are configuration issues like invalid template paths.
+#     Permanent errors (like invalid template paths) are detected and will not be retried.
+#     (default: 3)
+#
 #   - vm_checktime
 #     How often (in minutes) to check the sanity of VMs in 'ready' queues.
 #     (default: 1)
@@ -619,6 +625,7 @@
   vm_checktime: 1
   vm_lifetime: 12
   vm_lifetime_auth: 24
+  max_vm_retries: 3
   allowed_tags:
     - 'created_by'
     - 'project'

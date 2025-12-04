@@ -161,16 +161,70 @@ module Vmpooler
       request_id = redis.hget("vmpooler__vm__#{vm}", 'request_id')
       pool_alias = redis.hget("vmpooler__vm__#{vm}", 'pool_alias') if request_id
       open_socket_error = redis.hget("vmpooler__vm__#{vm}", 'open_socket_error')
+      clone_error = redis.hget("vmpooler__vm__#{vm}", 'clone_error')
+      clone_error_class = redis.hget("vmpooler__vm__#{vm}", 'clone_error_class')
       redis.smove("vmpooler__pending__#{pool}", "vmpooler__completed__#{pool}", vm)
+      
       if request_id
         ondemandrequest_hash = redis.hgetall("vmpooler__odrequest__#{request_id}")
         if ondemandrequest_hash && ondemandrequest_hash['status'] != 'failed' && ondemandrequest_hash['status'] != 'deleted'
-          # will retry a VM that did not come up as vm_ready? only if it has not been market failed or deleted
-          redis.zadd('vmpooler__odcreate__task', 1, "#{pool_alias}:#{pool}:1:#{request_id}")
+          # Check retry count and max retry limit before retrying
+          retry_count = (redis.hget("vmpooler__odrequest__#{request_id}", 'retry_count') || '0').to_i
+          max_retries = $config[:config]['max_vm_retries'] || 3
+          
+          # Determine if error is likely permanent (configuration issues)
+          permanent_error = is_permanent_error?(clone_error, clone_error_class)
+          
+          if retry_count < max_retries && !permanent_error
+            # Increment retry count and retry VM creation
+            redis.hset("vmpooler__odrequest__#{request_id}", 'retry_count', retry_count + 1)
+            redis.zadd('vmpooler__odcreate__task', 1, "#{pool_alias}:#{pool}:1:#{request_id}")
+            $logger.log('s', "[!] [#{pool}] '#{vm}' failed, retrying (attempt #{retry_count + 1}/#{max_retries})")
+          else
+            # Max retries exceeded or permanent error, mark request as permanently failed
+            failure_reason = if permanent_error
+                               "Configuration error: #{clone_error}"
+                             else
+                               'Max retry attempts exceeded'
+                             end
+            redis.hset("vmpooler__odrequest__#{request_id}", 'status', 'failed')
+            redis.hset("vmpooler__odrequest__#{request_id}", 'failure_reason', failure_reason)
+            $logger.log('s', "[!] [#{pool}] '#{vm}' permanently failed: #{failure_reason}")
+            $metrics.increment("errors.permanently_failed.#{pool}")
+          end
         end
       end
       $metrics.increment("errors.markedasfailed.#{pool}")
-      open_socket_error
+      open_socket_error || clone_error
+    end
+
+    # Determine if an error is likely permanent (configuration issue) vs transient
+    def is_permanent_error?(error_message, error_class)
+      return false if error_message.nil? || error_class.nil?
+      
+      permanent_error_patterns = [
+        /template.*not found/i,
+        /template.*does not exist/i,
+        /invalid.*path/i,
+        /folder.*not found/i,
+        /datastore.*not found/i,
+        /resource pool.*not found/i,
+        /permission.*denied/i,
+        /authentication.*failed/i,
+        /invalid.*credentials/i,
+        /configuration.*error/i
+      ]
+      
+      permanent_error_classes = [
+        'ArgumentError',
+        'NoMethodError',
+        'NameError'
+      ]
+      
+      # Check error message patterns
+      permanent_error_patterns.any? { |pattern| error_message.match?(pattern) } ||
+      # Check error class types
+      permanent_error_classes.include?(error_class)
     end
 
     def move_pending_vm_to_ready(vm, pool, redis, request_id = nil)
@@ -489,14 +543,18 @@ module Vmpooler
 
           dns_plugin_class_name = get_dns_plugin_class_name_for_pool(pool_name)
           dns_plugin.create_or_replace_record(new_vmname) unless dns_plugin_class_name == 'dynamic-dns'
-        rescue StandardError
+        rescue StandardError => e
+          # Store error details for retry decision making
           @redis.with_metrics do |redis|
             redis.pipelined do |pipeline|
               pipeline.srem("vmpooler__pending__#{pool_name}", new_vmname)
+              pipeline.hset("vmpooler__vm__#{new_vmname}", 'clone_error', e.message)
+              pipeline.hset("vmpooler__vm__#{new_vmname}", 'clone_error_class', e.class.name)
               expiration_ttl = $config[:redis]['data_ttl'].to_i * 60 * 60
               pipeline.expire("vmpooler__vm__#{new_vmname}", expiration_ttl)
             end
           end
+          $logger.log('s', "[!] [#{pool_name}] '#{new_vmname}' clone failed: #{e.class}: #{e.message}")
           raise
         ensure
           @redis.with_metrics do |redis|
