@@ -426,39 +426,39 @@ EOT
     end
   end
 
-  describe '#is_permanent_error?' do
+  describe '#permanent_error?' do
     before do
       expect(subject).not_to be_nil
     end
 
     it 'identifies template not found errors as permanent' do
-      expect(subject.is_permanent_error?('template not found', 'RuntimeError')).to be(true)
+      expect(subject.permanent_error?('template not found', 'RuntimeError')).to be(true)
     end
 
     it 'identifies invalid path errors as permanent' do
-      expect(subject.is_permanent_error?('invalid path specified', 'ArgumentError')).to be(true)
+      expect(subject.permanent_error?('invalid path specified', 'ArgumentError')).to be(true)
     end
 
     it 'identifies permission denied errors as permanent' do
-      expect(subject.is_permanent_error?('permission denied', 'SecurityError')).to be(true)
+      expect(subject.permanent_error?('permission denied', 'SecurityError')).to be(true)
     end
 
     it 'identifies ArgumentError class as permanent' do
-      expect(subject.is_permanent_error?('some argument error', 'ArgumentError')).to be(true)
+      expect(subject.permanent_error?('some argument error', 'ArgumentError')).to be(true)
     end
 
     it 'identifies network errors as transient' do
-      expect(subject.is_permanent_error?('connection timeout', 'Timeout::Error')).to be(false)
+      expect(subject.permanent_error?('connection timeout', 'Timeout::Error')).to be(false)
     end
 
     it 'identifies socket errors as transient' do
-      expect(subject.is_permanent_error?('connection refused', 'Errno::ECONNREFUSED')).to be(false)
+      expect(subject.permanent_error?('connection refused', 'Errno::ECONNREFUSED')).to be(false)
     end
 
     it 'returns false for nil inputs' do
-      expect(subject.is_permanent_error?(nil, nil)).to be(false)
-      expect(subject.is_permanent_error?('error', nil)).to be(false)
-      expect(subject.is_permanent_error?(nil, 'Error')).to be(false)
+      expect(subject.permanent_error?(nil, nil)).to be(false)
+      expect(subject.permanent_error?('error', nil)).to be(false)
+      expect(subject.permanent_error?(nil, 'Error')).to be(false)
     end
   end
 
