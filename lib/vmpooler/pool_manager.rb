@@ -172,8 +172,11 @@ module Vmpooler
           retry_count = (redis.hget("vmpooler__odrequest__#{request_id}", 'retry_count') || '0').to_i
           max_retries = $config[:config]['max_vm_retries'] || 3
 
+          $logger.log('s', "[!] [#{pool}] '#{vm}' checking retry logic: error='#{clone_error}', error_class='#{clone_error_class}', retry_count=#{retry_count}, max_retries=#{max_retries}")
+
           # Determine if error is likely permanent (configuration issues)
           permanent_error = permanent_error?(clone_error, clone_error_class)
+          $logger.log('s', "[!] [#{pool}] '#{vm}' permanent_error check result: #{permanent_error}")
 
           if retry_count < max_retries && !permanent_error
             # Increment retry count and retry VM creation
