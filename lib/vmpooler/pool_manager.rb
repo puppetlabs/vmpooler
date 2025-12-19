@@ -556,6 +556,27 @@ module Vmpooler
               expiration_ttl = $config[:redis]['data_ttl'].to_i * 60 * 60
               pipeline.expire("vmpooler__vm__#{new_vmname}", expiration_ttl)
             end
+
+            # Handle retry logic for on-demand requests
+            if request_id
+              retry_count = (redis.hget("vmpooler__odrequest__#{request_id}", 'retry_count') || '0').to_i
+              max_retries = $config[:config]['max_vm_retries'] || 3
+              is_permanent = permanent_error?(e.message, e.class.name)
+
+              $logger.log('s', "[!] [#{pool_name}] '#{new_vmname}' checking immediate failure retry: error='#{e.message}', error_class='#{e.class.name}', retry_count=#{retry_count}, max_retries=#{max_retries}, permanent_error=#{is_permanent}")
+
+              if is_permanent || retry_count >= max_retries
+                reason = is_permanent ? 'permanent error detected' : 'max retries exceeded'
+                $logger.log('s', "[!] [#{pool_name}] Cancelling request #{request_id} due to #{reason}")
+                redis.hset("vmpooler__odrequest__#{request_id}", 'status', 'failed')
+                redis.zadd('vmpooler__odcreate__task', 0, "#{pool_alias}:#{pool_name}:0:#{request_id}")
+              else
+                # Increment retry count and re-queue for retry
+                redis.hincrby("vmpooler__odrequest__#{request_id}", 'retry_count', 1)
+                $logger.log('s', "[+] [#{pool_name}] Request #{request_id} will be retried (attempt #{retry_count + 1}/#{max_retries})")
+                redis.zadd('vmpooler__odcreate__task', 1, "#{pool_alias}:#{pool_name}:1:#{request_id}")
+              end
+            end
           end
           $logger.log('s', "[!] [#{pool_name}] '#{new_vmname}' clone failed: #{e.class}: #{e.message}")
           raise
