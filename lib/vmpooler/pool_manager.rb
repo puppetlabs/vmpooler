@@ -385,7 +385,7 @@ module Vmpooler
       ($config[:config] && $config[:config]['dlq_max_entries']) || 10000
     end
 
-    def move_to_dlq(vm, pool, queue_type, error_class, error_message, redis, request_id: nil, pool_alias: nil, retry_count: 0)
+    def move_to_dlq(vm, pool, queue_type, error_class, error_message, redis, request_id: nil, pool_alias: nil, retry_count: 0, skip_metrics: false)
       return unless dlq_enabled?
 
       dlq_key = "vmpooler__dlq__#{queue_type}"
@@ -420,7 +420,7 @@ module Vmpooler
       ttl_seconds = dlq_ttl * 3600
       redis.expire(dlq_key, ttl_seconds)
 
-      $metrics.increment("dlq.#{queue_type}.count")
+      $metrics.increment("dlq.#{queue_type}.count") unless skip_metrics
       $logger.log('d', "[!] [dlq] Moved '#{vm}' from '#{queue_type}' queue to DLQ: #{error_message}")
     rescue StandardError => e
       $logger.log('s', "[!] [dlq] Failed to move '#{vm}' to DLQ: #{e}")
@@ -747,22 +747,27 @@ module Vmpooler
             request_id = redis.hget("vmpooler__vm__#{vm}", 'request_id')
             pool_alias = redis.hget("vmpooler__vm__#{vm}", 'pool_alias')
             
+            purged_count += 1
+            
             if purge_dry_run?
               $logger.log('d', "[*] [purge][dry-run] Would purge stale pending VM '#{vm}' (age: #{age.round(0)}s, max: #{max_pending_age}s)")
             else
-              # Move to DLQ before removing
+              # Move to DLQ before removing (skip DLQ metric since we're tracking purge metric)
               move_to_dlq(vm, pool_name, 'pending', 'Purge', 
                           "Stale pending VM (age: #{age.round(0)}s > max: #{max_pending_age}s)",
-                          redis, request_id: request_id, pool_alias: pool_alias)
+                          redis, request_id: request_id, pool_alias: pool_alias, skip_metrics: true)
               
               redis.srem(queue_key, vm)
-              expiration_ttl = $config[:redis]['data_ttl'].to_i * 60 * 60
-              redis.expire("vmpooler__vm__#{vm}", expiration_ttl)
+              
+              # Set expiration on VM metadata if data_ttl is configured
+              if $config[:redis] && $config[:redis]['data_ttl']
+                expiration_ttl = $config[:redis]['data_ttl'].to_i * 60 * 60
+                redis.expire("vmpooler__vm__#{vm}", expiration_ttl)
+              end
               
               $logger.log('d', "[!] [purge] Purged stale pending VM '#{vm}' from '#{pool_name}' (age: #{age.round(0)}s)")
               $metrics.increment("purge.pending.#{pool_name}.count")
             end
-            purged_count += 1
           end
         rescue StandardError => e
           $logger.log('d', "[!] [purge] Error checking pending VM '#{vm}': #{e}")
@@ -1129,11 +1134,7 @@ module Vmpooler
     end
 
     def push_health_metrics(metrics, status)
-      # Push status as numeric metric (0=healthy, 1=degraded, 2=unhealthy)
-      status_value = { 'healthy' => 0, 'degraded' => 1, 'unhealthy' => 2 }[status] || 2
-      $metrics.gauge('health.status', status_value)
-      
-      # Push error metrics
+      # Push error metrics first
       $metrics.gauge('health.dlq.total_size', metrics['errors']['dlq_total_size'])
       $metrics.gauge('health.stuck_vms.count', metrics['errors']['stuck_vm_count'])
       $metrics.gauge('health.orphaned_metadata.count', metrics['errors']['orphaned_metadata_count'])
@@ -1163,6 +1164,10 @@ module Vmpooler
       $metrics.gauge('health.tasks.clone.active', metrics['tasks']['clone']['active'])
       $metrics.gauge('health.tasks.ondemand.active', metrics['tasks']['ondemand']['active'])
       $metrics.gauge('health.tasks.ondemand.pending', metrics['tasks']['ondemand']['pending'])
+      
+      # Push status last (0=healthy, 1=degraded, 2=unhealthy)
+      status_value = { 'healthy' => 0, 'degraded' => 1, 'unhealthy' => 2 }[status] || 2
+      $metrics.gauge('health.status', status_value)
     end
 
     def create_vm_disk(pool_name, vm, disk_size, provider)

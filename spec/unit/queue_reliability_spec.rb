@@ -459,12 +459,14 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
       end
 
       it 'pushes status metric' do
+        allow(metrics).to receive(:gauge)
         expect(metrics).to receive(:gauge).with('health.status', 0)
         
         subject.push_health_metrics(metrics_data, 'healthy')
       end
 
       it 'pushes error metrics' do
+        allow(metrics).to receive(:gauge)
         expect(metrics).to receive(:gauge).with('health.dlq.total_size', 25)
         expect(metrics).to receive(:gauge).with('health.stuck_vms.count', 2)
         expect(metrics).to receive(:gauge).with('health.orphaned_metadata.count', 3)
@@ -473,6 +475,7 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
       end
 
       it 'pushes per-pool queue metrics' do
+        allow(metrics).to receive(:gauge)
         expect(metrics).to receive(:gauge).with('health.queue.test-pool.pending.size', 10)
         expect(metrics).to receive(:gauge).with('health.queue.test-pool.pending.oldest_age', 3600)
         expect(metrics).to receive(:gauge).with('health.queue.test-pool.pending.stuck_count', 2)
@@ -482,6 +485,7 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
       end
 
       it 'pushes task metrics' do
+        allow(metrics).to receive(:gauge)
         expect(metrics).to receive(:gauge).with('health.tasks.clone.active', 3)
         expect(metrics).to receive(:gauge).with('health.tasks.ondemand.active', 2)
         expect(metrics).to receive(:gauge).with('health.tasks.ondemand.pending', 5)
