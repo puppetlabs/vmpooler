@@ -200,11 +200,11 @@ module Vmpooler
             redis.hset("vmpooler__odrequest__#{request_id}", 'status', 'failed')
             redis.hset("vmpooler__odrequest__#{request_id}", 'failure_reason', failure_reason)
             $logger.log('s', "[!] [#{pool}] '#{vm}' permanently failed: #{failure_reason}")
-            $metrics.increment("errors.permanently_failed.#{pool}")
+            $metrics.increment("vmpooler_errors.permanently_failed.#{pool}")
           end
         end
       end
-      $metrics.increment("errors.markedasfailed.#{pool}")
+      $metrics.increment("vmpooler_errors.markedasfailed.#{pool}")
       open_socket_error || clone_error
     end
 
@@ -477,7 +477,7 @@ module Vmpooler
       ttl_seconds = dlq_ttl * 3600
       redis.expire(dlq_key, ttl_seconds)
 
-      $metrics.increment("dlq.#{queue_type}.count") unless skip_metrics
+      $metrics.increment("vmpooler_dlq.#{queue_type}.count") unless skip_metrics
       $logger.log('d', "[!] [dlq] Moved '#{vm}' from '#{queue_type}' queue to DLQ: #{error_message}")
     rescue StandardError => e
       $logger.log('s', "[!] [dlq] Failed to move '#{vm}' to DLQ: #{e}")
@@ -551,10 +551,10 @@ module Vmpooler
         hostname_retries += 1
 
         if !hostname_available
-          $metrics.increment("errors.duplicatehostname.#{pool_name}")
+          $metrics.increment("vmpooler_errors.duplicatehostname.#{pool_name}")
           $logger.log('s', "[!] [#{pool_name}] Generated hostname #{fqdn} was not unique (attempt \##{hostname_retries} of #{max_hostname_retries})")
         elsif !dns_available
-          $metrics.increment("errors.staledns.#{pool_name}")
+          $metrics.increment("vmpooler_errors.staledns.#{pool_name}")
           $logger.log('s', "[!] [#{pool_name}] Generated hostname #{fqdn} already exists in DNS records (#{dns_ip}), stale DNS")
         end
       end
@@ -600,7 +600,7 @@ module Vmpooler
           provider.create_vm(pool_name, new_vmname)
           finish = format('%<time>.2f', time: Time.now - start)
           $logger.log('s', "[+] [#{pool_name}] '#{new_vmname}' cloned in #{finish} seconds")
-          $metrics.timing("clone.#{pool_name}", finish)
+          $metrics.gauge("vmpooler_clone.#{pool_name}", finish)
 
           $logger.log('d', "[ ] [#{pool_name}] Obtaining IP for '#{new_vmname}'")
           ip_start = Time.now
@@ -714,7 +714,7 @@ module Vmpooler
 
           finish = format('%<time>.2f', time: Time.now - start)
           $logger.log('s', "[-] [#{pool}] '#{vm}' destroyed in #{finish} seconds")
-          $metrics.timing("destroy.#{pool}", finish)
+          $metrics.gauge("vmpooler_destroy.#{pool}", finish)
         end
       end
       dereference_mutex(vm)
@@ -809,8 +809,8 @@ module Vmpooler
 
             purge_duration = Time.now - purge_start
             $logger.log('s', "[*] [purge] Completed purge cycle in #{purge_duration.round(2)}s: #{total_purged} entries purged")
-            $metrics.timing('purge.cycle.duration', purge_duration)
-            $metrics.gauge('purge.total.count', total_purged)
+            $metrics.gauge('vmpooler_purge.cycle.duration', purge_duration)
+            $metrics.gauge('vmpooler_purge.total.count', total_purged)
           end
         rescue StandardError => e
           $logger.log('s', "[!] [purge] Failed during purge cycle: #{e}")
@@ -854,7 +854,7 @@ module Vmpooler
               end
 
               $logger.log('d', "[!] [purge] Purged stale pending VM '#{vm}' from '#{pool_name}' (age: #{age.round(0)}s)")
-              $metrics.increment("purge.pending.#{pool_name}.count")
+              $metrics.increment("vmpooler_purge.pending.#{pool_name}.count")
             end
           end
         rescue StandardError => e
@@ -884,7 +884,7 @@ module Vmpooler
             else
               redis.smove(queue_key, "vmpooler__completed__#{pool_name}", vm)
               $logger.log('d', "[!] [purge] Moved stale ready VM '#{vm}' from '#{pool_name}' to completed (age: #{age.round(0)}s)")
-              $metrics.increment("purge.ready.#{pool_name}.count")
+              $metrics.increment("vmpooler_purge.ready.#{pool_name}.count")
             end
             purged_count += 1
           end
@@ -920,7 +920,7 @@ module Vmpooler
             else
               redis.srem(queue_key, vm)
               $logger.log('d', "[!] [purge] Removed stale completed VM '#{vm}' from '#{pool_name}' (age: #{age.round(0)}s)")
-              $metrics.increment("purge.completed.#{pool_name}.count")
+              $metrics.increment("vmpooler_purge.completed.#{pool_name}.count")
             end
             purged_count += 1
           end
@@ -968,7 +968,7 @@ module Vmpooler
                 expiration_ttl = 3600 # 1 hour
                 redis.expire(vm_key, expiration_ttl)
                 $logger.log('d', "[!] [purge] Set expiration on orphaned metadata for '#{vm}' (age: #{age.round(0)}s)")
-                $metrics.increment('purge.orphaned.count')
+                $metrics.increment('vmpooler_purge.orphaned.count')
               end
               purged_count += 1
             end
@@ -1017,7 +1017,9 @@ module Vmpooler
             health_status = determine_health_status(health_metrics)
 
             # Store health metrics in Redis for API consumption
-            redis.hmset('vmpooler__health', *health_metrics.to_a.flatten)
+            # Convert nested hash to JSON for storage
+            require 'json'
+            redis.hset('vmpooler__health', 'metrics', health_metrics.to_json)
             redis.hset('vmpooler__health', 'status', health_status)
             redis.hset('vmpooler__health', 'last_check', Time.now.iso8601)
             redis.expire('vmpooler__health', 3600) # Expire after 1 hour
@@ -1029,7 +1031,7 @@ module Vmpooler
             push_health_metrics(health_metrics, health_status)
 
             health_duration = Time.now - health_start
-            $metrics.timing('health.check.duration', health_duration)
+            $metrics.gauge('vmpooler_health.check.duration', health_duration)
           end
         rescue StandardError => e
           $logger.log('s', "[!] [health] Failed during health check: #{e}")
@@ -1252,37 +1254,37 @@ module Vmpooler
 
     def push_health_metrics(metrics, status)
       # Push error metrics first
-      $metrics.gauge('health.dlq.total_size', metrics['errors']['dlq_total_size'])
-      $metrics.gauge('health.stuck_vms.count', metrics['errors']['stuck_vm_count'])
-      $metrics.gauge('health.orphaned_metadata.count', metrics['errors']['orphaned_metadata_count'])
+      $metrics.gauge('vmpooler_health.dlq.total_size', metrics['errors']['dlq_total_size'])
+      $metrics.gauge('vmpooler_health.stuck_vms.count', metrics['errors']['stuck_vm_count'])
+      $metrics.gauge('vmpooler_health.orphaned_metadata.count', metrics['errors']['orphaned_metadata_count'])
 
       # Push per-pool queue metrics
       metrics['queues'].each do |pool_name, queues|
         next if pool_name == 'dlq'
 
-        $metrics.gauge("health.queue.#{pool_name}.pending.size", queues['pending']['size'])
-        $metrics.gauge("health.queue.#{pool_name}.pending.oldest_age", queues['pending']['oldest_age'])
-        $metrics.gauge("health.queue.#{pool_name}.pending.stuck_count", queues['pending']['stuck_count'])
+        $metrics.gauge("vmpooler_health.queue.#{pool_name}.pending.size", queues['pending']['size'])
+        $metrics.gauge("vmpooler_health.queue.#{pool_name}.pending.oldest_age", queues['pending']['oldest_age'])
+        $metrics.gauge("vmpooler_health.queue.#{pool_name}.pending.stuck_count", queues['pending']['stuck_count'])
 
-        $metrics.gauge("health.queue.#{pool_name}.ready.size", queues['ready']['size'])
-        $metrics.gauge("health.queue.#{pool_name}.ready.oldest_age", queues['ready']['oldest_age'])
+        $metrics.gauge("vmpooler_health.queue.#{pool_name}.ready.size", queues['ready']['size'])
+        $metrics.gauge("vmpooler_health.queue.#{pool_name}.ready.oldest_age", queues['ready']['oldest_age'])
 
-        $metrics.gauge("health.queue.#{pool_name}.completed.size", queues['completed']['size'])
+        $metrics.gauge("vmpooler_health.queue.#{pool_name}.completed.size", queues['completed']['size'])
       end
 
       # Push DLQ metrics
       metrics['queues']['dlq']&.each do |queue_type, dlq_metrics|
-        $metrics.gauge("health.dlq.#{queue_type}.size", dlq_metrics['size'])
+        $metrics.gauge("vmpooler_health.dlq.#{queue_type}.size", dlq_metrics['size'])
       end
 
       # Push task metrics
-      $metrics.gauge('health.tasks.clone.active', metrics['tasks']['clone']['active'])
-      $metrics.gauge('health.tasks.ondemand.active', metrics['tasks']['ondemand']['active'])
-      $metrics.gauge('health.tasks.ondemand.pending', metrics['tasks']['ondemand']['pending'])
+      $metrics.gauge('vmpooler_health.tasks.clone.active', metrics['tasks']['clone']['active'])
+      $metrics.gauge('vmpooler_health.tasks.ondemand.active', metrics['tasks']['ondemand']['active'])
+      $metrics.gauge('vmpooler_health.tasks.ondemand.pending', metrics['tasks']['ondemand']['pending'])
 
       # Push status last (0=healthy, 1=degraded, 2=unhealthy)
       status_value = { 'healthy' => 0, 'degraded' => 1, 'unhealthy' => 2 }[status] || 2
-      $metrics.gauge('health.status', status_value)
+      $metrics.gauge('vmpooler_health.status', status_value)
     end
 
     def create_vm_disk(pool_name, vm, disk_size, provider)
@@ -2244,6 +2246,15 @@ module Vmpooler
         redis.zrem('vmpooler__provisioning__request', request_id)
         return
       end
+
+      # Check if request was already marked as failed (e.g., by delete endpoint)
+      request_status = redis.hget("vmpooler__odrequest__#{request_id}", 'status')
+      if request_status == 'failed'
+        $logger.log('s', "Request '#{request_id}' already marked as failed, skipping VM creation")
+        redis.zrem('vmpooler__provisioning__request', request_id)
+        return
+      end
+
       score = redis.zscore('vmpooler__provisioning__request', request_id)
       requested = requested.split(',')
 

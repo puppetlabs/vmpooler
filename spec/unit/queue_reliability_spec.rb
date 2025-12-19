@@ -119,7 +119,7 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
 
         it 'increments DLQ metrics' do
           redis_connection_pool.with do |redis_connection|
-            expect(metrics).to receive(:increment).with('dlq.pending.count')
+            expect(metrics).to receive(:increment).with('vmpooler_dlq.pending.count')
             
             subject.move_to_dlq(vm, pool, 'pending', error_class, error_message, redis_connection)
           end
@@ -223,7 +223,7 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
 
         it 'increments purge metrics' do
           redis_connection_pool.with do |redis_connection|
-            expect(metrics).to receive(:increment).with("purge.pending.#{pool}.count")
+            expect(metrics).to receive(:increment).with("vmpooler_purge.pending.#{pool}.count")
             
             subject.purge_pending_queue(pool, redis_connection)
           end
@@ -460,35 +460,35 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
 
       it 'pushes status metric' do
         allow(metrics).to receive(:gauge)
-        expect(metrics).to receive(:gauge).with('health.status', 0)
+        expect(metrics).to receive(:gauge).with('vmpooler_health.status', 0)
         
         subject.push_health_metrics(metrics_data, 'healthy')
       end
 
       it 'pushes error metrics' do
         allow(metrics).to receive(:gauge)
-        expect(metrics).to receive(:gauge).with('health.dlq.total_size', 25)
-        expect(metrics).to receive(:gauge).with('health.stuck_vms.count', 2)
-        expect(metrics).to receive(:gauge).with('health.orphaned_metadata.count', 3)
+        expect(metrics).to receive(:gauge).with('vmpooler_health.dlq.total_size', 25)
+        expect(metrics).to receive(:gauge).with('vmpooler_health.stuck_vms.count', 2)
+        expect(metrics).to receive(:gauge).with('vmpooler_health.orphaned_metadata.count', 3)
         
         subject.push_health_metrics(metrics_data, 'healthy')
       end
 
       it 'pushes per-pool queue metrics' do
         allow(metrics).to receive(:gauge)
-        expect(metrics).to receive(:gauge).with('health.queue.test-pool.pending.size', 10)
-        expect(metrics).to receive(:gauge).with('health.queue.test-pool.pending.oldest_age', 3600)
-        expect(metrics).to receive(:gauge).with('health.queue.test-pool.pending.stuck_count', 2)
-        expect(metrics).to receive(:gauge).with('health.queue.test-pool.ready.size', 50)
+        expect(metrics).to receive(:gauge).with('vmpooler_health.queue.test-pool.pending.size', 10)
+        expect(metrics).to receive(:gauge).with('vmpooler_health.queue.test-pool.pending.oldest_age', 3600)
+        expect(metrics).to receive(:gauge).with('vmpooler_health.queue.test-pool.pending.stuck_count', 2)
+        expect(metrics).to receive(:gauge).with('vmpooler_health.queue.test-pool.ready.size', 50)
         
         subject.push_health_metrics(metrics_data, 'healthy')
       end
 
       it 'pushes task metrics' do
         allow(metrics).to receive(:gauge)
-        expect(metrics).to receive(:gauge).with('health.tasks.clone.active', 3)
-        expect(metrics).to receive(:gauge).with('health.tasks.ondemand.active', 2)
-        expect(metrics).to receive(:gauge).with('health.tasks.ondemand.pending', 5)
+        expect(metrics).to receive(:gauge).with('vmpooler_health.tasks.clone.active', 3)
+        expect(metrics).to receive(:gauge).with('vmpooler_health.tasks.ondemand.active', 2)
+        expect(metrics).to receive(:gauge).with('vmpooler_health.tasks.ondemand.pending', 5)
         
         subject.push_health_metrics(metrics_data, 'healthy')
       end
