@@ -345,6 +345,123 @@ EOT
     end
   end
 
+  describe '#handle_timed_out_vm' do
+    before do
+      expect(subject).not_to be_nil
+    end
+
+    before(:each) do
+      redis_connection_pool.with do |redis|
+        create_pending_vm(pool, vm, redis)
+        config[:config]['max_vm_retries'] = 3
+      end
+    end
+
+    context 'without request_id' do
+      it 'moves VM to completed queue and returns error' do
+        redis_connection_pool.with do |redis|
+          redis.hset("vmpooler__vm__#{vm}", 'open_socket_error', 'connection failed')
+          result = subject.handle_timed_out_vm(vm, pool, redis)
+          
+          expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(false)
+          expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
+          expect(result).to eq('connection failed')
+        end
+      end
+    end
+
+    context 'with request_id and transient error' do
+      before(:each) do
+        redis_connection_pool.with do |redis|
+          redis.hset("vmpooler__vm__#{vm}", 'request_id', request_id)
+          redis.hset("vmpooler__vm__#{vm}", 'pool_alias', pool)
+          redis.hset("vmpooler__odrequest__#{request_id}", 'status', 'pending')
+          redis.hset("vmpooler__vm__#{vm}", 'clone_error', 'network timeout')
+          redis.hset("vmpooler__vm__#{vm}", 'clone_error_class', 'Timeout::Error')
+        end
+      end
+
+      it 'retries on first failure' do
+        redis_connection_pool.with do |redis|
+          subject.handle_timed_out_vm(vm, pool, redis)
+          
+          expect(redis.hget("vmpooler__odrequest__#{request_id}", 'retry_count')).to eq('1')
+          expect(redis.zrange('vmpooler__odcreate__task', 0, -1)).to include("#{pool}:#{pool}:1:#{request_id}")
+        end
+      end
+
+      it 'marks as failed after max retries' do
+        redis_connection_pool.with do |redis|
+          redis.hset("vmpooler__odrequest__#{request_id}", 'retry_count', '3')
+          
+          subject.handle_timed_out_vm(vm, pool, redis)
+          
+          expect(redis.hget("vmpooler__odrequest__#{request_id}", 'status')).to eq('failed')
+          expect(redis.hget("vmpooler__odrequest__#{request_id}", 'failure_reason')).to eq('Max retry attempts exceeded')
+          expect(redis.zrange('vmpooler__odcreate__task', 0, -1)).not_to include("#{pool}:#{pool}:1:#{request_id}")
+        end
+      end
+    end
+
+    context 'with request_id and permanent error' do
+      before(:each) do
+        redis_connection_pool.with do |redis|
+          redis.hset("vmpooler__vm__#{vm}", 'request_id', request_id)
+          redis.hset("vmpooler__vm__#{vm}", 'pool_alias', pool)
+          redis.hset("vmpooler__odrequest__#{request_id}", 'status', 'pending')
+          redis.hset("vmpooler__vm__#{vm}", 'clone_error', 'template not found')
+          redis.hset("vmpooler__vm__#{vm}", 'clone_error_class', 'RuntimeError')
+        end
+      end
+
+      it 'immediately marks as failed without retrying' do
+        redis_connection_pool.with do |redis|
+          subject.handle_timed_out_vm(vm, pool, redis)
+          
+          expect(redis.hget("vmpooler__odrequest__#{request_id}", 'status')).to eq('failed')
+          expect(redis.hget("vmpooler__odrequest__#{request_id}", 'failure_reason')).to include('Configuration error')
+          expect(redis.zrange('vmpooler__odcreate__task', 0, -1)).not_to include("#{pool}:#{pool}:1:#{request_id}")
+        end
+      end
+    end
+  end
+
+  describe '#permanent_error?' do
+    before do
+      expect(subject).not_to be_nil
+    end
+
+    it 'identifies template not found errors as permanent' do
+      expect(subject.permanent_error?('template not found', 'RuntimeError')).to be(true)
+    end
+
+    it 'identifies invalid path errors as permanent' do
+      expect(subject.permanent_error?('invalid path specified', 'ArgumentError')).to be(true)
+    end
+
+    it 'identifies permission denied errors as permanent' do
+      expect(subject.permanent_error?('permission denied', 'SecurityError')).to be(true)
+    end
+
+    it 'identifies ArgumentError class as permanent' do
+      expect(subject.permanent_error?('some argument error', 'ArgumentError')).to be(true)
+    end
+
+    it 'identifies network errors as transient' do
+      expect(subject.permanent_error?('connection timeout', 'Timeout::Error')).to be(false)
+    end
+
+    it 'identifies socket errors as transient' do
+      expect(subject.permanent_error?('connection refused', 'Errno::ECONNREFUSED')).to be(false)
+    end
+
+    it 'returns false for nil inputs' do
+      expect(subject.permanent_error?(nil, nil)).to be(false)
+      expect(subject.permanent_error?('error', nil)).to be(false)
+      expect(subject.permanent_error?(nil, 'Error')).to be(false)
+    end
+  end
+
   describe '#move_pending_vm_to_ready' do
     let(:host) { { 'hostname' => vm }}
 
