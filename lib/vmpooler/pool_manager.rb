@@ -423,7 +423,13 @@ module Vmpooler
           if request_id
             $logger.log('s', "[!] [#{pool_name}] failed while cloning VM for request #{request_id} with an error: #{e}")
             @redis.with_metrics do |redis|
-              redis.zadd('vmpooler__odcreate__task', 1, "#{pool_alias}:#{pool_name}:1:#{request_id}")
+              # Only re-queue if the request wasn't already marked as failed (e.g., by permanent error detection)
+              request_status = redis.hget("vmpooler__odrequest__#{request_id}", 'status')
+              if request_status != 'failed'
+                redis.zadd('vmpooler__odcreate__task', 1, "#{pool_alias}:#{pool_name}:1:#{request_id}")
+              else
+                $logger.log('s', "[!] [#{pool_name}] Request #{request_id} already marked as failed, not re-queueing")
+              end
             end
           else
             $logger.log('s', "[!] [#{pool_name}] failed while cloning VM with an error: #{e}")
