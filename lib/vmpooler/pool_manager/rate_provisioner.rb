@@ -36,7 +36,7 @@ module Vmpooler
 
         # Determine if we're in high-demand mode
         # High demand = many pending requests OR very few ready VMs
-        high_demand = (pending_requests >= threshold) || (ready_count.zero? && pending_requests.positive?)
+        high_demand = (pending_requests >= threshold) || (ready_count == 0 && pending_requests > 0)
 
         new_mode = high_demand ? :high_demand : :normal
         old_mode = @current_mode[pool_name] || :normal
@@ -54,23 +54,21 @@ module Vmpooler
 
       # Get count of ready VMs
       def get_ready_count(pool_name)
-        @redis.with_metrics do |redis|
+        @redis.with do |redis|
           redis.llen("vmpooler__ready__#{pool_name}") || 0
         end
       end
 
       # Get count of pending VM requests
       def get_pending_requests_count(pool_name)
-        @redis.with_metrics do |redis|
+        @redis.with do |redis|
           # Check for pending requests in request queue
-          request_keys = redis.keys("vmpooler__request__*")
+          request_keys = redis.keys('vmpooler__request__*')
           pending_count = 0
 
           request_keys.each do |key|
             request_data = redis.hgetall(key)
-            if request_data['status'] == 'pending' && request_data.key?(pool_name)
-              pending_count += request_data[pool_name].to_i
-            end
+            pending_count += request_data[pool_name].to_i if request_data['status'] == 'pending' && request_data.key?(pool_name)
           end
 
           # Also check the queue itself for waiting allocations

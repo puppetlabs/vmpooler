@@ -38,15 +38,15 @@ module Vmpooler
         end
 
         # Get current pool metrics
-        metrics = get_pool_metrics(pool_name)
+        pool_metrics = get_pool_metrics(pool_name)
         current_size = pool['size']
-        ready_count = metrics[:ready]
-        running_count = metrics[:running]
-        pending_count = metrics[:pending]
+        ready_count = pool_metrics[:ready]
+        running_count = pool_metrics[:running]
+        pending_count = pool_metrics[:pending]
 
         # Calculate total VMs (ready + running + pending)
         total_vms = ready_count + running_count + pending_count
-        total_vms = 1 if total_vms.zero? # Avoid division by zero
+        total_vms = 1 if total_vms == 0 # Avoid division by zero
 
         # Calculate ready percentage
         ready_percentage = (ready_count.to_f / total_vms * 100).round(2)
@@ -60,18 +60,18 @@ module Vmpooler
           if new_size > current_size
             logger.log('s', "[+] [#{pool_name}] Scaling UP: #{current_size} -> #{new_size} (ready: #{ready_percentage}% < #{scale_up_threshold}%)")
             @last_scale_time[pool_name] = Time.now
-            metrics.increment("scale_up.#{pool_name}")
+            @metrics.increment("scale_up.#{pool_name}")
             return new_size
           end
         elsif ready_percentage > scale_down_threshold
           # Scale down: decrease pool size (only if no pending requests)
           pending_requests = get_pending_requests_count(pool_name)
-          if pending_requests.zero?
+          if pending_requests == 0
             new_size = calculate_scale_down_size(current_size, min_size, ready_percentage, scale_down_threshold)
             if new_size < current_size
               logger.log('s', "[-] [#{pool_name}] Scaling DOWN: #{current_size} -> #{new_size} (ready: #{ready_percentage}% > #{scale_down_threshold}%)")
               @last_scale_time[pool_name] = Time.now
-              metrics.increment("scale_down.#{pool_name}")
+              @metrics.increment("scale_down.#{pool_name}")
               return new_size
             end
           else
@@ -84,7 +84,7 @@ module Vmpooler
 
       # Get current pool metrics from Redis
       def get_pool_metrics(pool_name)
-        @redis.with_metrics do |redis|
+        @redis.with do |redis|
           {
             ready: redis.llen("vmpooler__ready__#{pool_name}") || 0,
             running: redis.scard("vmpooler__running__#{pool_name}") || 0,
@@ -95,16 +95,14 @@ module Vmpooler
 
       # Get count of pending VM requests
       def get_pending_requests_count(pool_name)
-        @redis.with_metrics do |redis|
+        @redis.with do |redis|
           # Check for pending requests in request queue
-          request_keys = redis.keys("vmpooler__request__*")
+          request_keys = redis.keys('vmpooler__request__*')
           pending_count = 0
 
           request_keys.each do |key|
             request_data = redis.hgetall(key)
-            if request_data['status'] == 'pending' && request_data.key?(pool_name)
-              pending_count += request_data[pool_name].to_i
-            end
+            pending_count += request_data[pool_name].to_i if request_data['status'] == 'pending' && request_data.key?(pool_name)
           end
 
           pending_count
@@ -126,7 +124,7 @@ module Vmpooler
       end
 
       # Calculate new size when scaling down
-      def calculate_scale_down_size(current_size, min_size, ready_percentage, threshold)
+      def calculate_scale_down_size(current_size, min_size, _ready_percentage, _threshold)
         # Conservative scaling down: only reduce by 25%
         new_size = (current_size * 0.75).floor
 
@@ -146,12 +144,12 @@ module Vmpooler
         end
       rescue StandardError => e
         logger.log('s', "[!] [#{pool_name}] Auto-scaling error: #{e.message}")
-        logger.log('s', e.backtrace.join("\n")) if logger.level == 'debug'
+        logger.log('s', e.backtrace.join("\n")) if logger.respond_to?(:level) && logger.level == 'debug'
       end
 
       # Update pool size in Redis
       def update_pool_size_in_redis(pool_name, new_size)
-        @redis.with_metrics do |redis|
+        @redis.with do |redis|
           redis.hset("vmpooler__pool__#{pool_name}", 'size', new_size)
         end
       end

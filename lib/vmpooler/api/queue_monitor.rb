@@ -96,8 +96,8 @@ module Vmpooler
 
         # Calculate health metrics
         total_vms = metrics[:ready] + metrics[:running] + metrics[:pending]
-        ready_percentage = total_vms.positive? ? (metrics[:ready].to_f / total_vms * 100).round(2) : 0
-        capacity_percentage = pool_config[:size].positive? ? ((metrics[:ready] + metrics[:pending]).to_f / pool_config[:size] * 100).round(2) : 0
+        ready_percentage = total_vms > 0 ? (metrics[:ready].to_f / total_vms * 100).round(2) : 0
+        capacity_percentage = pool_config[:size] > 0 ? ((metrics[:ready] + metrics[:pending]).to_f / pool_config[:size] * 100).round(2) : 0
 
         # Determine health status
         health_status = determine_health_status(metrics, pending_requests, pool_config)
@@ -119,14 +119,12 @@ module Vmpooler
       # Get pending requests count for a pool
       def get_pending_requests_for_pool(pool_name, redis)
         redis.with_metrics do |conn|
-          request_keys = conn.keys("vmpooler__request__*")
+          request_keys = conn.keys('vmpooler__request__*')
           pending_count = 0
 
           request_keys.each do |key|
             request_data = conn.hgetall(key)
-            if request_data['status'] == 'pending' && request_data.key?(pool_name)
-              pending_count += request_data[pool_name].to_i
-            end
+            pending_count += request_data[pool_name].to_i if request_data['status'] == 'pending' && request_data.key?(pool_name)
           end
 
           pending_count
@@ -136,7 +134,7 @@ module Vmpooler
       # Get age of oldest pending request in seconds
       def get_oldest_pending_request(pool_name, redis)
         redis.with_metrics do |conn|
-          request_keys = conn.keys("vmpooler__request__*")
+          request_keys = conn.keys('vmpooler__request__*')
           oldest_timestamp = nil
 
           request_keys.each do |key|
@@ -164,13 +162,13 @@ module Vmpooler
 
       # Determine health status based on metrics
       def determine_health_status(metrics, pending_requests, pool_config)
-        if metrics[:ready].zero? && pending_requests.positive?
+        if metrics[:ready] == 0 && pending_requests > 0
           'critical' # No ready VMs and users are waiting
-        elsif metrics[:ready].zero? && metrics[:pending].positive?
+        elsif metrics[:ready] == 0 && metrics[:pending] > 0
           'warning' # No ready VMs but some are being created
         elsif metrics[:ready] < (pool_config[:size] * 0.2).ceil
           'warning' # Less than 20% ready VMs
-        elsif pending_requests.positive?
+        elsif pending_requests > 0
           'warning' # Users waiting for VMs
         else
           'healthy'
