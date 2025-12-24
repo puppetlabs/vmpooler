@@ -10,14 +10,21 @@ module Vmpooler
       api_prefix  = "/api/v#{api_version}"
 
       # Simple in-memory cache for status endpoint
-      @@status_cache = {}
-      @@status_cache_mutex = Mutex.new
+      @status_cache = {}
+      @status_cache_mutex = Mutex.new
       STATUS_CACHE_TTL = 30 # seconds
+
+      class << self
+        attr_accessor :status_cache, :status_cache_mutex
+      end
+
+      @status_cache ||= {}
+      @status_cache_mutex ||= Mutex.new
 
       # Clear cache (useful for testing)
       def self.clear_status_cache
-        @@status_cache_mutex.synchronize do
-          @@status_cache.clear
+        @status_cache_mutex.synchronize do
+          @status_cache.clear
         end
       end
 
@@ -478,18 +485,19 @@ module Vmpooler
 
       # Cache helper methods for status endpoint
       def get_cached_status(cache_key)
-        @@status_cache_mutex.synchronize do
-          cached = @@status_cache[cache_key]
+        self.class.status_cache_mutex.synchronize do
+          cached = self.class.status_cache[cache_key]
           if cached && (Time.now - cached[:timestamp]) < STATUS_CACHE_TTL
             return cached[:data]
           end
+
           nil
         end
       end
 
       def set_cached_status(cache_key, data)
-        @@status_cache_mutex.synchronize do
-          @@status_cache[cache_key] = {
+        self.class.status_cache_mutex.synchronize do
+          self.class.status_cache[cache_key] = {
             data: data,
             timestamp: Time.now
           }
@@ -685,7 +693,7 @@ module Vmpooler
 
         # Create cache key based on view parameters
         cache_key = params[:view] ? "status_#{params[:view]}" : "status_all"
-        
+
         # Try to get cached response
         cached_response = get_cached_status(cache_key)
         return cached_response if cached_response
@@ -751,10 +759,10 @@ module Vmpooler
         result[:status][:uptime] = (Time.now - Vmpooler::API.settings.config[:uptime]).round(1) if Vmpooler::API.settings.config[:uptime]
 
         response = JSON.pretty_generate(Hash[result.sort_by { |k, _v| k }])
-        
+
         # Cache the response
         set_cached_status(cache_key, response)
-        
+
         response
       end
 

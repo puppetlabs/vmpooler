@@ -1699,7 +1699,7 @@ module Vmpooler
             start_time = Time.now
             result = _check_pool(pool, provider)
             duration = Time.now - start_time
-            
+
             $metrics.gauge("vmpooler_performance.check_pool.#{pool['name']}", duration)
             $logger.log('d', "[!] check_pool for #{pool['name']} took #{duration.round(2)}s") if duration > 5
 
