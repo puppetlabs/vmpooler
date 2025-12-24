@@ -3,7 +3,7 @@
 module Vmpooler
   class API < Sinatra::Base
     # Load API components
-    %w[helpers dashboard v3 request_logger healthcheck].each do |lib|
+    %w[helpers dashboard v3 request_logger healthcheck queue_monitor].each do |lib|
       require "vmpooler/api/#{lib}"
     end
     # Load dashboard components
@@ -53,6 +53,7 @@ module Vmpooler
         use Vmpooler::Dashboard
         use Vmpooler::API::Dashboard
         use Vmpooler::API::V3
+        use Vmpooler::API::QueueMonitor
       end
 
       # Get thee started O WebServer

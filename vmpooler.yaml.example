@@ -761,4 +761,26 @@
     provider: vsphere
     create_linked_clone: false
     snapshot_mainMem_ioBlockPages: '2048'
-    snapshot_mainMem_iowait: '0'
+    snapshot_mainMem_iowait: '0'  # Auto-scaling example pool
+  # Automatically adjusts pool size based on demand
+  - name: 'debian-11-x86_64'
+    alias: [ 'debian-11-64', 'debian-11-amd64' ]
+    template: 'Templates/debian-11-x86_64'
+    folder: 'Pooled VMs/debian-11-x86_64'
+    datastore: 'vmstorage'
+    size: 5
+    provider: vsphere
+    # Auto-scaling configuration (optional)
+    auto_scale:
+      enabled: true
+      min_size: 3                    # Minimum pool size (won't scale below this)
+      max_size: 20                   # Maximum pool size (won't scale above this)
+      scale_up_threshold: 20         # Scale up when ready VMs < 20% of total
+      scale_down_threshold: 80       # Scale down when ready VMs > 80% of total
+      cooldown_period: 300           # Wait 300 seconds between scaling actions
+    # Rate-based provisioning configuration (optional)
+    rate_provisioning:
+      enabled: true
+      normal_concurrency: 2          # Normal: clone 2 VMs at a time
+      high_demand_concurrency: 5     # High demand: clone 5 VMs at a time
+      queue_depth_threshold: 5       # Switch to high demand when 5+ requests pending

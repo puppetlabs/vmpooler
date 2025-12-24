@@ -3,6 +3,8 @@
 require 'vmpooler/dns'
 require 'vmpooler/providers'
 require 'vmpooler/util/parsing'
+require 'vmpooler/pool_manager/auto_scaler'
+require 'vmpooler/pool_manager/rate_provisioner'
 require 'spicy-proton'
 require 'resolv' # ruby standard lib
 
@@ -40,6 +42,12 @@ module Vmpooler
 
       # Name generator for generating host names
       @name_generator = Spicy::Proton.new
+
+      # Auto-scaler for dynamic pool sizing
+      @auto_scaler = AutoScaler.new(@redis, logger, metrics)
+
+      # Rate provisioner for dynamic clone concurrency
+      @rate_provisioner = RateProvisioner.new(@redis, logger, metrics)
 
       # load specified providers from config file
       load_used_providers
@@ -1457,6 +1465,17 @@ module Vmpooler
 
         dns_plugin = get_dns_plugin_class_for_pool(pool_name)
 
+        # Get the pool configuration to check for rate-based provisioning
+        pool_config = $config[:pools].find { |p| p['name'] == pool_name }
+
+        # Determine clone concurrency based on demand
+        # Use rate-based provisioning if enabled, otherwise use default task_limit
+        max_concurrent_clones = if pool_config && @rate_provisioner.enabled_for_pool?(pool_config)
+                                  @rate_provisioner.get_clone_concurrency(pool_config, pool_name)
+                                else
+                                  $config[:config]['task_limit'].to_i
+                                end
+
         unless pool_size == 0
           if redis.get("vmpooler__empty__#{pool_name}")
             redis.del("vmpooler__empty__#{pool_name}") unless ready == 0
@@ -1467,7 +1486,8 @@ module Vmpooler
         end
 
         (pool_size - total.to_i).times do
-          if redis.get('vmpooler__tasks__clone').to_i < $config[:config]['task_limit'].to_i
+          # Use dynamic concurrency limit from rate provisioner
+          if redis.get('vmpooler__tasks__clone').to_i < max_concurrent_clones
             begin
               redis.incr('vmpooler__tasks__clone')
               pool_check_response[:cloned_vms] += 1
@@ -1525,6 +1545,9 @@ module Vmpooler
       # Check to see if a pool size change has been made via the configuration API
       # Additionally, a pool will drain ready and pending instances
       update_clone_target(pool)
+
+      # Apply auto-scaling if enabled for this pool
+      @auto_scaler.apply_auto_scaling(pool)
 
       repopulate_pool_vms(pool['name'], provider, pool_check_response, pool['size'])
 
