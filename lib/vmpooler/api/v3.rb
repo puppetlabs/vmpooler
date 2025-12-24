@@ -10,21 +10,16 @@ module Vmpooler
       api_prefix  = "/api/v#{api_version}"
 
       # Simple in-memory cache for status endpoint
-      @status_cache = {}
-      @status_cache_mutex = Mutex.new
+      # rubocop:disable Style/ClassVars
+      @@status_cache = {}
+      @@status_cache_mutex = Mutex.new
+      # rubocop:enable Style/ClassVars
       STATUS_CACHE_TTL = 30 # seconds
-
-      class << self
-        attr_accessor :status_cache, :status_cache_mutex
-      end
-
-      @status_cache ||= {}
-      @status_cache_mutex ||= Mutex.new
 
       # Clear cache (useful for testing)
       def self.clear_status_cache
-        @status_cache_mutex.synchronize do
-          @status_cache.clear
+        @@status_cache_mutex.synchronize do
+          @@status_cache.clear
         end
       end
 
@@ -485,8 +480,8 @@ module Vmpooler
 
       # Cache helper methods for status endpoint
       def get_cached_status(cache_key)
-        self.class.status_cache_mutex.synchronize do
-          cached = self.class.status_cache[cache_key]
+        @@status_cache_mutex.synchronize do
+          cached = @@status_cache[cache_key]
           if cached && (Time.now - cached[:timestamp]) < STATUS_CACHE_TTL
             return cached[:data]
           end
@@ -496,8 +491,8 @@ module Vmpooler
       end
 
       def set_cached_status(cache_key, data)
-        self.class.status_cache_mutex.synchronize do
-          self.class.status_cache[cache_key] = {
+        @@status_cache_mutex.synchronize do
+          @@status_cache[cache_key] = {
             data: data,
             timestamp: Time.now
           }
