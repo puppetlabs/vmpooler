@@ -125,8 +125,12 @@ describe Vmpooler::API::Helpers do
           {'name' => 'p2'}
       ]
 
-      allow(redis).to receive(:pipelined).with(no_args).and_return [1,1]
-      allow(redis).to receive(:get).and_return(1,0)
+      # Mock returns 7*2 + 2 = 16 results (7 queue types for 2 pools + 2 global counters)
+      # For each pool: [request, processing, odcreate, pending, ready, running, completed]
+      # Plus 2 global counters: clone (1), ondemandclone (0)
+      # Results array: [1,1, 1,1, 1,1, 1,1, 1,1, 1,1, 1,1, 1, 0]
+      #                [req,  proc,  odc,   pend, rdy,  run,  comp, clone, odc]
+      allow(redis).to receive(:pipelined).with(no_args).and_return [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0]
 
       expect(subject.get_queue_metrics(pools, redis)).to eq({requested: 6, pending: 2, cloning: 1, booting: 1, ready: 2, running: 2, completed: 2, total: 14})
     end
@@ -137,8 +141,8 @@ describe Vmpooler::API::Helpers do
           {'name' => 'p2'}
       ]
 
-      allow(redis).to receive(:pipelined).with(no_args).and_return [1,1]
-      allow(redis).to receive(:get).and_return(5,0)
+      # Mock returns 7*2 + 2 = 16 results with clone=5 to cause negative booting
+      allow(redis).to receive(:pipelined).with(no_args).and_return [1,1,1,1,1,1,1,1,1,1,1,1,1,1,5,0]
 
       expect(subject.get_queue_metrics(pools, redis)).to eq({requested: 6, pending: 2, cloning: 5, booting: 0, ready: 2, running: 2, completed: 2, total: 14})
     end

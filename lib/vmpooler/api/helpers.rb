@@ -299,17 +299,33 @@ module Vmpooler
               total: 0
           }
 
-          queue[:requested] = get_total_across_pools_redis_scard(pools, 'vmpooler__provisioning__request', backend) + get_total_across_pools_redis_scard(pools, 'vmpooler__provisioning__processing', backend) + get_total_across_pools_redis_scard(pools, 'vmpooler__odcreate__task', backend)
+          # Use a single pipeline to fetch all queue counts at once for better performance
+          results = backend.pipelined do |pipeline|
+            # Order matters - we'll use indices to extract values
+            pools.each { |pool| pipeline.scard("vmpooler__provisioning__request#{pool['name']}") }  # 0..n-1
+            pools.each { |pool| pipeline.scard("vmpooler__provisioning__processing#{pool['name']}") } # n..2n-1
+            pools.each { |pool| pipeline.scard("vmpooler__odcreate__task#{pool['name']}") }         # 2n..3n-1
+            pools.each { |pool| pipeline.scard("vmpooler__pending__#{pool['name']}") }              # 3n..4n-1
+            pools.each { |pool| pipeline.scard("vmpooler__ready__#{pool['name']}") }                # 4n..5n-1
+            pools.each { |pool| pipeline.scard("vmpooler__running__#{pool['name']}") }              # 5n..6n-1
+            pools.each { |pool| pipeline.scard("vmpooler__completed__#{pool['name']}") }            # 6n..7n-1
+            pipeline.get('vmpooler__tasks__clone')                                                   # 7n
+            pipeline.get('vmpooler__tasks__ondemandclone')                                          # 7n+1
+          end
 
-          queue[:pending]   = get_total_across_pools_redis_scard(pools, 'vmpooler__pending__', backend)
-          queue[:ready]     = get_total_across_pools_redis_scard(pools, 'vmpooler__ready__', backend)
-          queue[:running]   = get_total_across_pools_redis_scard(pools, 'vmpooler__running__', backend)
-          queue[:completed] = get_total_across_pools_redis_scard(pools, 'vmpooler__completed__', backend)
-
-          queue[:cloning] = backend.get('vmpooler__tasks__clone').to_i + backend.get('vmpooler__tasks__ondemandclone').to_i
-          queue[:booting] = queue[:pending].to_i - queue[:cloning].to_i
-          queue[:booting] = 0 if queue[:booting] < 0
-          queue[:total]   = queue[:requested] + queue[:pending].to_i + queue[:ready].to_i + queue[:running].to_i + queue[:completed].to_i
+          n = pools.length
+          # Safely extract results with default to empty array if slice returns nil
+          queue[:requested] = (results[0...n] || []).sum(&:to_i) + 
+                             (results[n...(2*n)] || []).sum(&:to_i) + 
+                             (results[(2*n)...(3*n)] || []).sum(&:to_i)
+          queue[:pending]   = (results[(3*n)...(4*n)] || []).sum(&:to_i)
+          queue[:ready]     = (results[(4*n)...(5*n)] || []).sum(&:to_i)
+          queue[:running]   = (results[(5*n)...(6*n)] || []).sum(&:to_i)
+          queue[:completed] = (results[(6*n)...(7*n)] || []).sum(&:to_i)
+          queue[:cloning]   = (results[7*n] || 0).to_i + (results[7*n + 1] || 0).to_i
+          queue[:booting]   = queue[:pending].to_i - queue[:cloning].to_i
+          queue[:booting]   = 0 if queue[:booting] < 0
+          queue[:total]     = queue[:requested] + queue[:pending].to_i + queue[:ready].to_i + queue[:running].to_i + queue[:completed].to_i
 
           queue
         end
