@@ -1107,7 +1107,8 @@ EOT
     context 'with no errors during cloning' do
       before(:each) do
         allow(metrics).to receive(:timing)
-        expect(metrics).to receive(:timing).with(/clone\./,/0/)
+        allow(metrics).to receive(:gauge)
+        expect(metrics).to receive(:gauge).with(/vmpooler_clone\./,/0/)
         expect(provider).to receive(:create_vm).with(pool, String)
         allow(provider).to receive(:get_vm_ip_address).and_return(1)
         allow(subject).to receive(:get_domain_for_pool).and_return('example.com')
@@ -1158,7 +1159,8 @@ EOT
     context 'with a failure to get ip address after cloning' do
       it 'should log a message that it completed being cloned' do
         allow(metrics).to receive(:timing)
-        expect(metrics).to receive(:timing).with(/clone\./,/0/)
+        allow(metrics).to receive(:gauge)
+        expect(metrics).to receive(:gauge).with(/vmpooler_clone\./,/0/)
         expect(provider).to receive(:create_vm).with(pool, String)
         allow(provider).to receive(:get_vm_ip_address).and_return(nil)
 
@@ -1217,7 +1219,8 @@ EOT
     context 'with request_id' do
       before(:each) do
         allow(metrics).to receive(:timing)
-        expect(metrics).to receive(:timing).with(/clone\./,/0/)
+        allow(metrics).to receive(:gauge)
+        expect(metrics).to receive(:gauge).with(/vmpooler_clone\./,/0/)
         expect(provider).to receive(:create_vm).with(pool, String)
         allow(provider).to receive(:get_vm_ip_address).with(vm,pool).and_return(1)
         allow(subject).to receive(:get_dns_plugin_class_name_for_pool).and_return(dns_plugin)
@@ -1255,7 +1258,7 @@ EOT
         resolv = class_double("Resolv").as_stubbed_const(:transfer_nested_constants => true)
         expect(subject).to receive(:generate_and_check_hostname).exactly(3).times.and_return([vm_name, true]) #skip this, make it available all times
         expect(resolv).to receive(:getaddress).exactly(3).times.and_return("1.2.3.4")
-        expect(metrics).to receive(:increment).with("errors.staledns.#{pool}").exactly(3).times
+        expect(metrics).to receive(:increment).with("vmpooler_errors.staledns.#{pool}").exactly(3).times
         expect{subject._clone_vm(pool,provider,dns_plugin)}.to raise_error(/Unable to generate a unique hostname after/)
       end
       it 'should be successful if DNS does not exist' do
@@ -1353,7 +1356,8 @@ EOT
       it 'should emit a timing metric' do
         allow(subject).to receive(:get_vm_usage_labels)
         allow(metrics).to receive(:timing)
-        expect(metrics).to receive(:timing).with("destroy.#{pool}", String)
+        allow(metrics).to receive(:gauge)
+        expect(metrics).to receive(:gauge).with("vmpooler_destroy.#{pool}", String)
 
         subject._destroy_vm(vm,pool,provider,dns_plugin)
       end
@@ -5170,6 +5174,44 @@ EOT
         redis_connection_pool.with do |redis|
           expect(logger).to receive(:log).with('s', "Failed to find odrequest for request_id '1111'")
           subject.create_ondemand_vms('1111', redis)
+        end
+      end
+    end
+
+    context 'when request is already marked as failed' do
+      let(:request_string) { "#{pool}:#{pool}:1" }
+      before(:each) do
+        redis_connection_pool.with do |redis|
+          create_ondemand_request_for_test(request_id, current_time.to_i, request_string, redis)
+          set_ondemand_request_status(request_id, 'failed', redis)
+        end
+      end
+
+      it 'logs that the request is already failed' do
+        redis_connection_pool.with do |redis|
+          expect(logger).to receive(:log).with('s', "Request '#{request_id}' already marked as failed, skipping VM creation")
+          subject.create_ondemand_vms(request_id, redis)
+        end
+      end
+
+      it 'removes the request from provisioning__request queue' do
+        redis_connection_pool.with do |redis|
+          subject.create_ondemand_vms(request_id, redis)
+          expect(redis.zscore('vmpooler__provisioning__request', request_id)).to be_nil
+        end
+      end
+
+      it 'does not create VM tasks' do
+        redis_connection_pool.with do |redis|
+          subject.create_ondemand_vms(request_id, redis)
+          expect(redis.zcard('vmpooler__odcreate__task')).to eq(0)
+        end
+      end
+
+      it 'does not add to provisioning__processing queue' do
+        redis_connection_pool.with do |redis|
+          subject.create_ondemand_vms(request_id, redis)
+          expect(redis.zscore('vmpooler__provisioning__processing', request_id)).to be_nil
         end
       end
     end

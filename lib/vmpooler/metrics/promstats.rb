@@ -329,6 +329,30 @@ module Vmpooler
             buckets: REDIS_CONNECT_BUCKETS,
             docstring: 'vmpooler redis connection wait time',
             param_labels: %i[type provider]
+          },
+          vmpooler_health: {
+            mtype: M_GAUGE,
+            torun: %i[manager],
+            docstring: 'vmpooler health check metrics',
+            param_labels: %i[metric_path]
+          },
+          vmpooler_purge: {
+            mtype: M_GAUGE,
+            torun: %i[manager],
+            docstring: 'vmpooler purge metrics',
+            param_labels: %i[metric_path]
+          },
+          vmpooler_destroy: {
+            mtype: M_GAUGE,
+            torun: %i[manager],
+            docstring: 'vmpooler destroy metrics',
+            param_labels: %i[poolname]
+          },
+          vmpooler_clone: {
+            mtype: M_GAUGE,
+            torun: %i[manager],
+            docstring: 'vmpooler clone metrics',
+            param_labels: %i[poolname]
           }
         }
       end
