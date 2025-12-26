@@ -353,12 +353,6 @@ module Vmpooler
             torun: %i[manager],
             docstring: 'vmpooler clone metrics',
             param_labels: %i[poolname]
-          },
-          vmpooler_performance: {
-            mtype: M_GAUGE,
-            torun: %i[manager api],
-            docstring: 'vmpooler method performance timing',
-            param_labels: %i[method poolname]
           }
         }
       end

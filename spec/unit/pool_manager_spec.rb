@@ -1258,7 +1258,6 @@ EOT
         resolv = class_double("Resolv").as_stubbed_const(:transfer_nested_constants => true)
         expect(subject).to receive(:generate_and_check_hostname).exactly(3).times.and_return([vm_name, true]) #skip this, make it available all times
         expect(resolv).to receive(:getaddress).exactly(3).times.and_return("1.2.3.4")
-        allow(metrics).to receive(:increment)
         expect(metrics).to receive(:increment).with("vmpooler_errors.staledns.#{pool}").exactly(3).times
         expect{subject._clone_vm(pool,provider,dns_plugin)}.to raise_error(/Unable to generate a unique hostname after/)
       end

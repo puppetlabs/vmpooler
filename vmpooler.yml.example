@@ -1,0 +1,92 @@
+---
+# VMPooler Configuration Example with Dead-Letter Queue, Auto-Purge, and Health Checks
+
+# Redis Configuration
+:redis:
+  server: 'localhost'
+  port: 6379
+  data_ttl: 168  # hours - how long to keep VM metadata in Redis
+  
+  # Dead-Letter Queue (DLQ) Configuration
+  dlq_enabled: true
+  dlq_ttl: 168  # hours (7 days) - how long to keep DLQ entries
+  dlq_max_entries: 10000  # maximum entries per DLQ queue before trimming
+
+# Application Configuration
+:config:
+  # ... other existing config ...
+  
+  # Dead-Letter Queue (DLQ) - Optional, defaults shown
+  dlq_enabled: false  # Set to true to enable DLQ
+  dlq_ttl: 168  # hours (7 days)
+  dlq_max_entries: 10000  # per DLQ queue
+  
+  # Auto-Purge Stale Queue Entries
+  purge_enabled: false  # Set to true to enable auto-purge
+  purge_interval: 3600  # seconds (1 hour) - how often to run purge cycle
+  purge_dry_run: false  # Set to true to log what would be purged without actually purging
+  
+  # Auto-Purge Age Thresholds (in seconds)
+  max_pending_age: 7200  # 2 hours - VMs stuck in pending
+  max_ready_age: 86400  # 24 hours - VMs idle in ready queue
+  max_completed_age: 3600  # 1 hour - VMs in completed queue
+  max_orphaned_age: 86400  # 24 hours - orphaned VM metadata
+  max_request_age: 86400  # 24 hours - stale on-demand requests
+  
+  # Health Checks
+  health_check_enabled: false  # Set to true to enable health checks
+  health_check_interval: 300  # seconds (5 minutes) - how often to run health checks
+  
+  # Health Check Thresholds
+  health_thresholds:
+    pending_queue_max: 100  # Warning threshold for pending queue size
+    ready_queue_max: 500  # Warning threshold for ready queue size
+    dlq_max_warning: 100  # Warning threshold for DLQ size
+    dlq_max_critical: 1000  # Critical threshold for DLQ size
+    stuck_vm_age_threshold: 7200  # 2 hours - age at which VM is considered "stuck"
+    stuck_vm_max_warning: 10  # Warning threshold for stuck VM count
+    stuck_vm_max_critical: 50  # Critical threshold for stuck VM count
+
+# Pool Configuration
+:pools:
+  - name: 'centos-7-x86_64'
+    size: 5
+    provider: 'vsphere'
+    # ... other pool settings ...
+
+# Provider Configuration
+:providers:
+  :vsphere:
+    server: 'vcenter.example.com'
+    username: 'vmpooler'
+    password: 'secret'
+    # ... other provider settings ...
+
+# Example: Production Configuration
+# For production use, you might want:
+# :config:
+#   dlq_enabled: true
+#   dlq_ttl: 168  # Keep failed VMs for a week
+#   
+#   purge_enabled: true
+#   purge_interval: 1800  # Run every 30 minutes
+#   purge_dry_run: false
+#   max_pending_age: 3600  # Purge pending VMs after 1 hour
+#   max_ready_age: 172800  # Purge ready VMs after 2 days
+#   
+#   health_check_enabled: true
+#   health_check_interval: 300  # Check every 5 minutes
+
+# Example: Development Configuration
+# For development/testing, you might want:
+# :config:
+#   dlq_enabled: true
+#   dlq_ttl: 24  # Keep failed VMs for a day
+#   
+#   purge_enabled: true
+#   purge_interval: 600  # Run every 10 minutes
+#   purge_dry_run: true  # Test mode - log but don't actually purge
+#   max_pending_age: 1800  # More aggressive - 30 minutes
+#   
+#   health_check_enabled: true
+#   health_check_interval: 60  # Check every minute

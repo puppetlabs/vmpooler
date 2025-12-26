@@ -819,7 +819,6 @@ module Vmpooler
     end
 
     def purge_pending_queue(pool_name, redis)
-      start_time = Time.now
       queue_key = "vmpooler__pending__#{pool_name}"
       vms = redis.smembers(queue_key)
       purged_count = 0
@@ -863,13 +862,10 @@ module Vmpooler
         end
       end
 
-      duration = Time.now - start_time
-      $metrics.gauge("vmpooler_performance.purge_pending.#{pool_name}", duration)
       purged_count
     end
 
     def purge_ready_queue(pool_name, redis)
-      start_time = Time.now
       queue_key = "vmpooler__ready__#{pool_name}"
       vms = redis.smembers(queue_key)
       purged_count = 0
@@ -897,13 +893,10 @@ module Vmpooler
         end
       end
 
-      duration = Time.now - start_time
-      $metrics.gauge("vmpooler_performance.purge_ready.#{pool_name}", duration)
       purged_count
     end
 
     def purge_completed_queue(pool_name, redis)
-      start_time = Time.now
       queue_key = "vmpooler__completed__#{pool_name}"
       vms = redis.smembers(queue_key)
       purged_count = 0
@@ -936,8 +929,6 @@ module Vmpooler
         end
       end
 
-      duration = Time.now - start_time
-      $metrics.gauge("vmpooler_performance.purge_completed.#{pool_name}", duration)
       purged_count
     end
 
