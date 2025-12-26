@@ -13,6 +13,10 @@ module Vmpooler
         attr_reader :metrics
         # Provider options passed in during initialization
         attr_reader :provider_options
+        # Circuit breaker for provider resilience
+        attr_reader :circuit_breaker
+        # Adaptive timeout for connections
+        attr_reader :adaptive_timeout
 
         def initialize(config, logger, metrics, redis_connection_pool, name, options)
           @config = config
@@ -30,6 +34,11 @@ module Vmpooler
 
           @provider_options = options
           logger.log('s', "[!] Creating provider '#{name}'")
+
+          # Initialize circuit breaker if enabled
+          initialize_circuit_breaker if circuit_breaker_enabled?
+          # Initialize adaptive timeout if enabled
+          initialize_adaptive_timeout if adaptive_timeout_enabled?
         end
 
         # Helper Methods
@@ -270,6 +279,86 @@ module Vmpooler
         def purge_unconfigured_folders(_deprecated, _deprecated2, allowlist)
           logger.log('s', '[!] purge_unconfigured_folders was renamed to purge_unconfigured_resources, please update your provider implementation')
           purge_unconfigured_resources(allowlist)
+        end
+
+        private
+
+        # Circuit breaker configuration and initialization
+
+        def circuit_breaker_enabled?
+          global_config = @config[:config] || {}
+          provider_cfg = provider_config || {}
+
+          # Check provider-specific setting first, then global
+          enabled = provider_cfg['circuit_breaker_enabled']
+          enabled = global_config['circuit_breaker_enabled'] if enabled.nil?
+          enabled = true if enabled.nil? # Default to enabled
+
+          enabled
+        end
+
+        def initialize_circuit_breaker
+          require 'vmpooler/circuit_breaker'
+
+          global_config = @config[:config] || {}
+          provider_cfg = provider_config || {}
+
+          # Get circuit breaker settings (provider-specific overrides global)
+          failure_threshold = provider_cfg['circuit_breaker_failure_threshold'] ||
+                              global_config['circuit_breaker_failure_threshold'] || 5
+          timeout = provider_cfg['circuit_breaker_timeout'] ||
+                    global_config['circuit_breaker_timeout'] || 30
+          half_open_attempts = provider_cfg['circuit_breaker_half_open_attempts'] ||
+                               global_config['circuit_breaker_half_open_attempts'] || 3
+
+          @circuit_breaker = Vmpooler::CircuitBreaker.new(
+            name: @provider_name,
+            logger: @logger,
+            metrics: @metrics,
+            failure_threshold: failure_threshold.to_i,
+            timeout: timeout.to_i,
+            half_open_attempts: half_open_attempts.to_i
+          )
+
+          @logger.log('d', "[*] [#{@provider_name}] Circuit breaker initialized (threshold: #{failure_threshold}, timeout: #{timeout}s)")
+        end
+
+        def adaptive_timeout_enabled?
+          global_config = @config[:config] || {}
+          provider_cfg = provider_config || {}
+
+          # Check provider-specific setting first, then global
+          enabled = provider_cfg['adaptive_timeout_enabled']
+          enabled = global_config['adaptive_timeout_enabled'] if enabled.nil?
+          enabled = true if enabled.nil? # Default to enabled
+
+          enabled
+        end
+
+        def initialize_adaptive_timeout
+          require 'vmpooler/adaptive_timeout'
+
+          global_config = @config[:config] || {}
+          provider_cfg = provider_config || {}
+
+          # Get adaptive timeout settings (provider-specific overrides global)
+          min = provider_cfg['connection_pool_timeout_min'] ||
+                global_config['connection_pool_timeout_min'] || 5
+          max = provider_cfg['connection_pool_timeout_max'] ||
+                global_config['connection_pool_timeout_max'] || 60
+          initial = provider_cfg['connection_pool_timeout_initial'] ||
+                    global_config['connection_pool_timeout_initial'] || 30
+
+          @adaptive_timeout = Vmpooler::AdaptiveTimeout.new(
+            name: "#{@provider_name}_connections",
+            logger: @logger,
+            metrics: @metrics,
+            min: min.to_i,
+            max: max.to_i,
+            initial: initial.to_i
+          )
+
+          @logger.log('d', "[*] [#{@provider_name}] Adaptive timeout initialized (min: #{min}s, max: #{max}s, initial: #{initial}s)")
         end
       end
     end

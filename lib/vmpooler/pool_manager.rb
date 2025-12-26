@@ -1287,6 +1287,63 @@ module Vmpooler
       $metrics.gauge('vmpooler_health.status', status_value)
     end
 
+    # Monitor connection pool health across all providers
+    def monitor_connection_pools
+      return unless $providers
+
+      $providers.each do |provider_name, provider|
+        begin
+          next unless provider.respond_to?(:connection_pool)
+
+          pool = provider.connection_pool
+          next unless pool.respond_to?(:health_status)
+
+          health = pool.health_status
+
+          # Push metrics
+          $metrics.gauge("connection_pool.#{provider_name}.available", health[:available])
+          $metrics.gauge("connection_pool.#{provider_name}.in_use", health[:in_use])
+          $metrics.gauge("connection_pool.#{provider_name}.utilization", health[:utilization])
+          $metrics.gauge("connection_pool.#{provider_name}.waiting", health[:waiting_threads])
+
+          # Log warnings for unhealthy states
+          if health[:state] == :critical
+            $logger.log('s', "[!] [connection_pool] '#{provider_name}' CRITICAL: #{health[:utilization]}% used, #{health[:waiting_threads]} waiting")
+            $metrics.increment("connection_pool.#{provider_name}.critical")
+          elsif health[:state] == :warning
+            $logger.log('d', "[*] [connection_pool] '#{provider_name}' WARNING: #{health[:utilization]}% used, #{health[:waiting_threads]} waiting")
+            $metrics.increment("connection_pool.#{provider_name}.warning")
+          end
+
+          # Check circuit breaker status
+          if provider.respond_to?(:circuit_breaker) && provider.circuit_breaker
+            cb_status = provider.circuit_breaker.status
+            state_value = { closed: 0, half_open: 0.5, open: 1 }[cb_status[:state]] || 1
+            $metrics.gauge("circuit_breaker.state.#{provider_name}", state_value)
+            $metrics.gauge("circuit_breaker.failures.#{provider_name}", cb_status[:failure_count])
+          end
+
+          # Log adaptive timeout stats
+          if provider.respond_to?(:adaptive_timeout) && provider.adaptive_timeout
+            timeout_stats = provider.adaptive_timeout.stats
+            if timeout_stats[:samples] > 0
+              $metrics.gauge("adaptive_timeout.current.#{provider_name}", timeout_stats[:current_timeout])
+              $metrics.gauge("adaptive_timeout.p95.#{provider_name}", timeout_stats[:p95])
+            end
+          end
+        rescue StandardError => e
+          $logger.log('d', "[!] [connection_pool_monitor] Failed to monitor '#{provider_name}': #{e}")
+        end
+      end
+    end
+
+    def connection_pool_monitor_enabled?
+      global_config = $config[:config] || {}
+      enabled = global_config['connection_pool_monitor_enabled']
+      enabled = true if enabled.nil? # Default to enabled
+      enabled
+    end
+
     def create_vm_disk(pool_name, vm, disk_size, provider)
       Thread.new do
         begin
@@ -2520,6 +2577,27 @@ module Vmpooler
               loop do
                 check_queue_health
                 sleep(health_interval)
+              end
+            end
+          end
+        end
+
+        # Connection pool monitoring thread
+        if connection_pool_monitor_enabled?
+          monitor_interval = ($config[:config] && $config[:config]['connection_pool_monitor_interval']) || 10 # default 10 seconds
+          if !$threads['connection_pool_monitor']
+            $threads['connection_pool_monitor'] = Thread.new do
+              loop do
+                monitor_connection_pools
+                sleep(monitor_interval)
+              end
+            end
+          elsif !$threads['connection_pool_monitor'].alive?
+            $logger.log('d', '[!] [connection_pool_monitor] worker thread died, restarting')
+            $threads['connection_pool_monitor'] = Thread.new do
+              loop do
+                monitor_connection_pools
+                sleep(monitor_interval)
               end
             end
           end
