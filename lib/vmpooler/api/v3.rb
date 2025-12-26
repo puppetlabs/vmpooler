@@ -9,6 +9,20 @@ module Vmpooler
       api_version = '3'
       api_prefix  = "/api/v#{api_version}"
 
+      # Simple in-memory cache for status endpoint
+      # rubocop:disable Style/ClassVars
+      @@status_cache = {}
+      @@status_cache_mutex = Mutex.new
+      # rubocop:enable Style/ClassVars
+      STATUS_CACHE_TTL = 30 # seconds
+
+      # Clear cache (useful for testing)
+      def self.clear_status_cache
+        @@status_cache_mutex.synchronize do
+          @@status_cache.clear
+        end
+      end
+
       helpers do
         include Vmpooler::API::Helpers
       end
@@ -464,6 +478,32 @@ module Vmpooler
         end
       end
 
+      # Cache helper methods for status endpoint
+      def get_cached_status(cache_key)
+        @@status_cache_mutex.synchronize do
+          cached = @@status_cache[cache_key]
+          if cached && (Time.now - cached[:timestamp]) < STATUS_CACHE_TTL
+            return cached[:data]
+          end
+
+          nil
+        end
+      end
+
+      def set_cached_status(cache_key, data)
+        @@status_cache_mutex.synchronize do
+          @@status_cache[cache_key] = {
+            data: data,
+            timestamp: Time.now
+          }
+          # Cleanup old cache entries (keep only last 10 unique view combinations)
+          if @@status_cache.size > 10
+            oldest = @@status_cache.min_by { |_k, v| v[:timestamp] }
+            @@status_cache.delete(oldest[0])
+          end
+        end
+      end
+
       def sync_pool_templates
         tracer.in_span("Vmpooler::API::V3.#{__method__}") do
           pool_index = pool_index(pools)
@@ -646,6 +686,13 @@ module Vmpooler
       get "#{api_prefix}/status/?" do
         content_type :json
 
+        # Create cache key based on view parameters
+        cache_key = params[:view] ? "status_#{params[:view]}" : "status_all"
+
+        # Try to get cached response
+        cached_response = get_cached_status(cache_key)
+        return cached_response if cached_response
+
         if params[:view]
           views = params[:view].split(",")
         end
@@ -706,7 +753,12 @@ module Vmpooler
 
         result[:status][:uptime] = (Time.now - Vmpooler::API.settings.config[:uptime]).round(1) if Vmpooler::API.settings.config[:uptime]
 
-        JSON.pretty_generate(Hash[result.sort_by { |k, _v| k }])
+        response = JSON.pretty_generate(Hash[result.sort_by { |k, _v| k }])
+
+        # Cache the response
+        set_cached_status(cache_key, response)
+
+        response
       end
 
       # request statistics for specific pools by passing parameter 'pool'

@@ -1687,7 +1687,12 @@ module Vmpooler
 
           sync_pool_template(pool)
           loop do
+            start_time = Time.now
             result = _check_pool(pool, provider)
+            duration = Time.now - start_time
+
+            $metrics.gauge("vmpooler_performance.check_pool.#{pool['name']}", duration)
+            $logger.log('d', "[!] check_pool for #{pool['name']} took #{duration.round(2)}s") if duration > 5
 
             if result[:cloned_vms] > 0 || result[:checked_pending_vms] > 0 || result[:discovered_vms] > 0
               loop_delay = loop_delay_min

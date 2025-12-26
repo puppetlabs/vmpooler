@@ -17,6 +17,8 @@ describe Vmpooler::API::V3 do
   # https://rubydoc.info/gems/sinatra/Sinatra/Base#reset!-class_method 
   before(:each) do
     app.reset!
+    # Clear status cache to prevent test interference
+    Vmpooler::API::V3.clear_status_cache
   end
 
   describe 'status and metrics endpoints' do
