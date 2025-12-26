@@ -1,10 +1,13 @@
 # frozen_string_literal: true
 
+require 'vmpooler/api/input_validator'
+
 module Vmpooler
 
   class API
 
     module Helpers
+      include InputValidator
 
       def tracer
         @tracer ||= OpenTelemetry.tracer_provider.tracer('api', Vmpooler::VERSION)

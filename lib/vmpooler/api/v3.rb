@@ -1137,9 +1137,29 @@ module Vmpooler
         result = { 'ok' => false }
         metrics.increment('http_requests_vm_total.post.vm.checkout')
 
-        payload = JSON.parse(request.body.read)
+        # Validate and sanitize JSON body
+        payload = sanitize_json_body(request.body.read)
+        if validation_error?(payload)
+          status 400
+          return JSON.pretty_generate(payload)
+        end
 
-        if payload
+        # Validate each template and count
+        payload.each do |template, count|
+          validation = validate_pool_name(template)
+          if validation_error?(validation)
+            status 400
+            return JSON.pretty_generate(validation)
+          end
+
+          validated_count = validate_vm_count(count)
+          if validation_error?(validated_count)
+            status 400
+            return JSON.pretty_generate(validated_count)
+          end
+        end
+
+        if payload && !payload.empty?
           invalid = invalid_templates(payload)
           if invalid.empty?
             result = atomically_allocate_vms(payload)
@@ -1258,6 +1278,7 @@ module Vmpooler
         result = { 'ok' => false }
         metrics.increment('http_requests_vm_total.get.vm.template')
 
+        # Template can contain multiple pools separated by +, so validate after parsing
         payload = extract_templates_from_query_params(params[:template])
 
         if payload
@@ -1286,6 +1307,13 @@ module Vmpooler
 
         status 404
         result['ok'] = false
+
+        # Validate hostname
+        validation = validate_hostname(params[:hostname])
+        if validation_error?(validation)
+          status 400
+          return JSON.pretty_generate(validation)
+        end
 
         params[:hostname] = hostname_shorten(params[:hostname])
 
@@ -1425,6 +1453,13 @@ module Vmpooler
         status 404
         result['ok'] = false
 
+        # Validate hostname
+        validation = validate_hostname(params[:hostname])
+        if validation_error?(validation)
+          status 400
+          return JSON.pretty_generate(validation)
+        end
+
         params[:hostname] = hostname_shorten(params[:hostname])
 
         rdata = backend.hgetall("vmpooler__vm__#{params[:hostname]}")
@@ -1455,16 +1490,21 @@ module Vmpooler
 
         failure = []
 
+        # Validate hostname
+        validation = validate_hostname(params[:hostname])
+        if validation_error?(validation)
+          status 400
+          return JSON.pretty_generate(validation)
+        end
+
         params[:hostname] = hostname_shorten(params[:hostname])
 
         if backend.exists?("vmpooler__vm__#{params[:hostname]}")
-          begin
-            jdata = JSON.parse(request.body.read)
-          rescue StandardError => e
-            span = OpenTelemetry::Trace.current_span
-            span.record_exception(e)
-            span.status = OpenTelemetry::Trace::Status.error(e.to_s)
-            halt 400, JSON.pretty_generate(result)
+          # Validate and sanitize JSON body
+          jdata = sanitize_json_body(request.body.read)
+          if validation_error?(jdata)
+            status 400
+            return JSON.pretty_generate(jdata)
           end
 
           # Validate data payload
@@ -1472,6 +1512,13 @@ module Vmpooler
             case param
               when 'lifetime'
                 need_token! if Vmpooler::API.settings.config[:auth]
+
+                # Validate lifetime is a positive integer
+                lifetime_int = arg.to_i
+                if lifetime_int <= 0
+                  failure.push("Lifetime must be a positive integer (got #{arg})")
+                  next
+                end
 
                 # in hours, defaults to one week
                 max_lifetime_upper_limit = config['max_lifetime_upper_limit']
@@ -1482,13 +1529,17 @@ module Vmpooler
                   end
                 end
 
-                # validate lifetime is within boundaries
-                unless arg.to_i > 0
-                  failure.push("You provided a lifetime (#{arg}) but you must provide a positive number.")
-                end
-
               when 'tags'
                 failure.push("You provided tags (#{arg}) as something other than a hash.") unless arg.is_a?(Hash)
+
+                # Validate each tag key and value
+                arg.each do |key, value|
+                  tag_validation = validate_tag(key, value)
+                  if validation_error?(tag_validation)
+                    failure.push(tag_validation['error'])
+                  end
+                end
+
                 failure.push("You provided unsuppored tags (#{arg}).") if config['allowed_tags'] && !(arg.keys - config['allowed_tags']).empty?
               else
                 failure.push("Unknown argument #{arg}.")
@@ -1530,9 +1581,23 @@ module Vmpooler
         status 404
         result = { 'ok' => false }
 
+        # Validate hostname
+        validation = validate_hostname(params[:hostname])
+        if validation_error?(validation)
+          status 400
+          return JSON.pretty_generate(validation)
+        end
+
+        # Validate disk size
+        validated_size = validate_disk_size(params[:size])
+        if validation_error?(validated_size)
+          status 400
+          return JSON.pretty_generate(validated_size)
+        end
+
         params[:hostname] = hostname_shorten(params[:hostname])
 
-        if ((params[:size].to_i > 0 )and (backend.exists?("vmpooler__vm__#{params[:hostname]}")))
+        if backend.exists?("vmpooler__vm__#{params[:hostname]}")
           result[params[:hostname]] = {}
           result[params[:hostname]]['disk'] = "+#{params[:size]}gb"
 
