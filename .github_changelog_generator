@@ -1,3 +1,5 @@
 project=vmpooler
 user=puppetlabs
 exclude_labels=maintenance
+github-api=https://api.github.com
+release-branch=main
