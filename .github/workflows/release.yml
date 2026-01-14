@@ -29,17 +29,6 @@ jobs:
           echo "version=$version" >> $GITHUB_OUTPUT
           echo "Found version $version from lib/vmpooler/version.rb"
 
-      - name: Generate Release Notes
-        uses: docker://githubchangeloggenerator/github-changelog-generator:1.16.2
-        with:
-          args: >-
-            --since-tag ${{ steps.cv.outputs.result }}
-            --future-release ${{ steps.nv.outputs.version }}
-            --output release-notes.md
-            --release-branch main
-        env:
-          CHANGELOG_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Tag Release
         uses: ncipollo/release-action@v1
         with:
