@@ -34,6 +34,34 @@ module Vmpooler
           end
         end
       end
+
+      # Get connection pool health status
+      # @return [Hash] Health status including utilization and queue depth
+      def health_status
+        {
+          size: @size,
+          available: @available.length,
+          in_use: @size - @available.length,
+          utilization: ((@size - @available.length).to_f / @size * 100).round(2),
+          waiting_threads: (@queue.respond_to?(:length) ? @queue.length : 0),
+          state: determine_health_state
+        }
+      end
+
+      private
+
+      def determine_health_state
+        utilization = ((@size - @available.length).to_f / @size * 100)
+        waiting = @queue.respond_to?(:length) ? @queue.length : 0
+
+        if utilization >= 90 || waiting > 5
+          :critical  # Pool exhausted or many waiting threads
+        elsif utilization >= 70 || waiting > 2
+          :warning   # Pool under stress
+        else
+          :healthy   # Normal operation
+        end
+      end
     end
   end
 end

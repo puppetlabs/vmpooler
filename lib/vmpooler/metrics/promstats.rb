@@ -353,6 +353,24 @@ module Vmpooler
             torun: %i[manager],
             docstring: 'vmpooler clone metrics',
             param_labels: %i[poolname]
+          },
+          circuit_breaker: {
+            mtype: M_GAUGE,
+            torun: %i[manager],
+            docstring: 'Circuit breaker state and failure tracking',
+            param_labels: %i[metric_path]
+          },
+          connection_pool: {
+            mtype: M_GAUGE,
+            torun: %i[manager],
+            docstring: 'Connection pool health metrics',
+            param_labels: %i[metric_path]
+          },
+          adaptive_timeout: {
+            mtype: M_GAUGE,
+            torun: %i[manager],
+            docstring: 'Adaptive timeout statistics',
+            param_labels: %i[metric_path]
           }
         }
       end
