@@ -522,6 +522,54 @@
 #         for example, the first time is 2 seconds, then 4, 8, 16 etc. until it reaches check_loop_delay_max.
 #         This value must be greater than 1.0.
 #
+#   - circuit_breaker_enabled (optional; default: true)
+#     Enable circuit breaker pattern for provider connections to prevent cascading failures.
+#     When a provider experiences repeated failures, the circuit breaker will "open" and reject
+#     requests immediately (fail-fast) rather than waiting for timeouts, allowing the provider
+#     to recover while protecting the system from thread exhaustion.
+#     (optional; default: true)
+#
+#   - circuit_breaker_failure_threshold (optional; default: 5)
+#     Number of consecutive failures before opening the circuit breaker.
+#     Lower values make the circuit breaker more sensitive to failures.
+#     (optional; default: 5)
+#
+#   - circuit_breaker_timeout (optional; default: 30) seconds
+#     How long to keep the circuit breaker open before attempting to test recovery.
+#     After this timeout, the circuit enters "half-open" state to test if the provider has recovered.
+#     (optional; default: 30)
+#
+#   - circuit_breaker_half_open_attempts (optional; default: 3)
+#     Number of successful test requests required in half-open state before closing the circuit.
+#     (optional; default: 3)
+#
+#   - adaptive_timeout_enabled (optional; default: true)
+#     Enable adaptive timeout that adjusts connection timeouts based on observed performance.
+#     The timeout will adapt to p95 latency + 50% buffer, bounded by min/max values.
+#     On failures, timeout is reduced to fail faster on subsequent attempts.
+#     (optional; default: true)
+#
+#   - connection_pool_timeout_min (optional; default: 5) seconds
+#     Minimum connection timeout for adaptive timeout mechanism.
+#     (optional; default: 5)
+#
+#   - connection_pool_timeout_max (optional; default: 60) seconds
+#     Maximum connection timeout for adaptive timeout mechanism.
+#     (optional; default: 60)
+#
+#   - connection_pool_timeout_initial (optional; default: 30) seconds
+#     Initial connection timeout before adaptation begins.
+#     (optional; default: 30)
+#
+#   - connection_pool_monitor_enabled (optional; default: true)
+#     Enable monitoring of connection pool health across all providers.
+#     Emits metrics for pool utilization, waiting threads, and circuit breaker status.
+#     (optional; default: true)
+#
+#   - connection_pool_monitor_interval (optional; default: 10) seconds
+#     How often to check connection pool health and emit metrics.
+#     (optional; default: 10)
+#
 #   - manage_host_selection (Only affects vSphere Provider)
 #     Allow host selection to be determined by vmpooler
 #     Hosts are selected based on current CPU utilization and cycled between when there are multiple targets
