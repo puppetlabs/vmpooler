@@ -371,6 +371,24 @@ module Vmpooler
             torun: %i[manager],
             docstring: 'Adaptive timeout statistics',
             param_labels: %i[metric_path]
+          },
+          vmpooler_performance: {
+            mtype: M_GAUGE,
+            torun: %i[manager],
+            docstring: 'vmpooler performance metrics for pool operations',
+            param_labels: %i[metric_path]
+          },
+          vmpooler_dlq: {
+            mtype: M_COUNTER,
+            torun: %i[manager],
+            docstring: 'vmpooler dead letter queue metrics',
+            param_labels: %i[metric_path]
+          },
+          vmpooler_errors: {
+            mtype: M_COUNTER,
+            torun: %i[manager],
+            docstring: 'vmpooler error counters including permanent failures',
+            param_labels: %i[metric_path]
           }
         }
       end
