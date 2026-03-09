@@ -9,7 +9,7 @@ module Vmpooler
   # - OPEN: Provider is failing, reject requests immediately (fail fast)
   # - HALF_OPEN: Testing if provider has recovered with limited requests
   class CircuitBreaker
-    STATES = [:closed, :open, :half_open].freeze
+    STATES = %i[closed open half_open].freeze
 
     class CircuitOpenError < StandardError; end
 
@@ -133,9 +133,7 @@ module Vmpooler
           @failure_count = 0
           @logger.log('d', "[+] [circuit_breaker] '#{@name}' successful test request (#{@success_count}/#{@half_open_attempts})")
 
-          if @success_count >= @half_open_attempts
-            transition_to_closed
-          end
+          transition_to_closed if @success_count >= @half_open_attempts
         when :open
           # Should not happen, but reset if we somehow get a success
           transition_to_closed
@@ -151,9 +149,7 @@ module Vmpooler
         case @state
         when :closed
           @logger.log('d', "[!] [circuit_breaker] '#{@name}' failure #{@failure_count}/#{@failure_threshold}: #{error.class}")
-          if @failure_count >= @failure_threshold
-            transition_to_open
-          end
+          transition_to_open if @failure_count >= @failure_threshold
         when :half_open
           @logger.log('d', "[!] [circuit_breaker] '#{@name}' failed during half-open test")
           transition_to_open
