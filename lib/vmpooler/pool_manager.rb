@@ -1300,7 +1300,7 @@ module Vmpooler
 
           health = pool.health_status
 
-          # Push metrics
+          # Push metrics using metric_path pattern
           $metrics.gauge("connection_pool.#{provider_name}.available", health[:available])
           $metrics.gauge("connection_pool.#{provider_name}.in_use", health[:in_use])
           $metrics.gauge("connection_pool.#{provider_name}.utilization", health[:utilization])
