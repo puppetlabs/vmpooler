@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.9.0](https://github.com/puppetlabs/vmpooler/tree/3.9.0) (2026-03-17)
+
+[Full Changelog](https://github.com/puppetlabs/vmpooler/compare/3.8.1...3.9.0)
+
+**Implemented enhancements:**
+
+- \(P4DEVOPS-9438\) Add circuit breaker and adaptive timeout for provider resilience [\#691](https://github.com/puppetlabs/vmpooler/pull/691) ([smahima27](https://github.com/smahima27))
+
 ## [3.8.1](https://github.com/puppetlabs/vmpooler/tree/3.8.1) (2026-01-14)
 
 [Full Changelog](https://github.com/puppetlabs/vmpooler/compare/3.7.0...3.8.1)
