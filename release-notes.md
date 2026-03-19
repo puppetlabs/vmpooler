@@ -1,15 +1,7 @@
-## [3.8.1](https://github.com/puppetlabs/vmpooler/tree/3.8.1) (2026-01-14)
+## [3.9.1](https://github.com/puppetlabs/vmpooler/tree/3.9.1) (2026-03-19)
 
-[Full Changelog](https://github.com/puppetlabs/vmpooler/compare/3.7.0...3.8.1)
+[Full Changelog](https://github.com/puppetlabs/vmpooler/compare/3.9.0...3.9.1)
 
-**Implemented enhancements:**
+**Merged pull requests:**
 
-- \(P4DEVOPS-9434\) Add rate limiting and input validation security enhancements [\#690](https://github.com/puppetlabs/vmpooler/pull/690) ([mahima-singh](https://github.com/mahima-singh))
-- \(P4DEVOPS-8570\) Add Phase 2 optimizations: status API caching and improved Redis pipelining [\#689](https://github.com/puppetlabs/vmpooler/pull/689) ([mahima-singh](https://github.com/mahima-singh))
-- \(P4DEVOPS-8567\) Add DLQ, auto-purge, and health checks for Redis queues [\#688](https://github.com/puppetlabs/vmpooler/pull/688) ([mahima-singh](https://github.com/mahima-singh))
-- Add retry logic for immediate clone failures [\#687](https://github.com/puppetlabs/vmpooler/pull/687) ([mahima-singh](https://github.com/mahima-singh))
-
-**Fixed bugs:**
-
-- \(P4DEVOPS-8567\) Prevent VM allocation for already-deleted request-ids [\#688](https://github.com/puppetlabs/vmpooler/pull/688) ([mahima-singh](https://github.com/mahima-singh))
-- Prevent re-queueing requests already marked as failed [\#687](https://github.com/puppetlabs/vmpooler/pull/687) ([mahima-singh](https://github.com/mahima-singh))
+- \(P4DEVOPS-9434\) Wire RateLimiter middleware into API Rack stack [\#696](https://github.com/puppetlabs/vmpooler/pull/696) ([smahima27](https://github.com/smahima27))

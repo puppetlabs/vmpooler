@@ -29,6 +29,13 @@ jobs:
           echo "version=$version" >> $GITHUB_OUTPUT
           echo "Found version $version from lib/vmpooler/version.rb"
 
+      - name: Generate Release Notes
+        run: |
+          version=$(grep VERSION lib/vmpooler/version.rb |rev |cut -d "'" -f2 |rev)
+          awk "/^## \[${version}\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md > release-notes.md
+          echo "Generated release-notes.md for version ${version}:"
+          cat release-notes.md
+
       - name: Tag Release
         uses: ncipollo/release-action@v1
         with:
