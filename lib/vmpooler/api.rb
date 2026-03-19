@@ -3,7 +3,7 @@
 module Vmpooler
   class API < Sinatra::Base
     # Load API components
-    %w[helpers dashboard v3 request_logger healthcheck].each do |lib|
+    %w[helpers dashboard v3 request_logger healthcheck rate_limiter].each do |lib|
       require "vmpooler/api/#{lib}"
     end
     # Load dashboard components
@@ -49,6 +49,9 @@ module Vmpooler
       if torun.include? :api
         # Enable API request logging only if required
         use Vmpooler::API::RequestLogger, logger: logger if config[:config]['request_logger']
+
+        # Enable rate limiting if configured
+        use Vmpooler::API::RateLimiter, redis, config if config[:config]['rate_limiting_enabled']
 
         use Vmpooler::Dashboard
         use Vmpooler::API::Dashboard
