@@ -51,9 +51,7 @@ module Vmpooler
         use Vmpooler::API::RequestLogger, logger: logger if config[:config]['request_logger']
 
         # Enable rate limiting if configured
-        if config[:config]['rate_limiting_enabled']
-          use Vmpooler::API::RateLimiter, redis, config
-        end
+        use Vmpooler::API::RateLimiter, redis, config if config[:config]['rate_limiting_enabled']
 
         use Vmpooler::Dashboard
         use Vmpooler::API::Dashboard
