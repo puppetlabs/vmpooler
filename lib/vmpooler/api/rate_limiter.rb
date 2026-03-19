@@ -26,11 +26,9 @@ module Vmpooler
         client_id = identify_client(request)
         endpoint_type = classify_endpoint(request)
 
-        # Check rate limits
-        return rate_limit_response(client_id, endpoint_type) if rate_limit_exceeded?(client_id, endpoint_type, request)
-
-        # Track the request
-        increment_request_count(client_id, endpoint_type)
+        # Atomically increment and check in one step
+        current_count = increment_request_count(client_id, endpoint_type)
+        return rate_limit_response(client_id, endpoint_type) if current_count.nil? || current_count > limit_for(endpoint_type)
 
         @app.call(env)
       end
@@ -58,29 +56,22 @@ module Vmpooler
         :global_per_ip
       end
 
-      def rate_limit_exceeded?(client_id, endpoint_type, _request)
-        limit_config = @config[endpoint_type] || @config[:global_per_ip]
-        key = "vmpooler__ratelimit__#{endpoint_type}__#{client_id}"
-
-        current_count = @redis.get(key).to_i
-        current_count >= limit_config[:limit]
-      rescue StandardError => e
-        # If Redis fails, allow the request through (fail open)
-        warn "Rate limiter Redis error: #{e.message}"
-        false
+      def limit_for(endpoint_type)
+        (@config[endpoint_type] || @config[:global_per_ip])[:limit]
       end
 
       def increment_request_count(client_id, endpoint_type)
         limit_config = @config[endpoint_type] || @config[:global_per_ip]
         key = "vmpooler__ratelimit__#{endpoint_type}__#{client_id}"
 
-        @redis.pipelined do |pipeline|
-          pipeline.incr(key)
-          pipeline.expire(key, limit_config[:period])
-        end
+        count = @redis.incr(key)
+        # Only set expiry on first request in the window
+        @redis.expire(key, limit_config[:period]) if count == 1
+        count
       rescue StandardError => e
         # Log error but don't fail the request
         warn "Rate limiter increment error: #{e.message}"
+        nil
       end
 
       def rate_limit_response(client_id, endpoint_type)
