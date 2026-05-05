@@ -40,7 +40,7 @@ if torun.include?(:api)
       Vmpooler.new_redis(redis_host, redis_port, redis_password, redis_reconnect_attempts)
     end
     Vmpooler::API.execute(torun, config, redis, metrics, logger)
-  rescue => e
+  rescue StandardError => e
     logger.log('s', "[!] [api] thread crashed: #{e.message}\n#{e.backtrace.join("\n")}")
     raise
   end
