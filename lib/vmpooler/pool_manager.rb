@@ -37,6 +37,7 @@ module Vmpooler
       @reconfigure_pool = Concurrent::Hash.new
 
       @vm_mutex = Concurrent::Hash.new
+      @request_mutex = Concurrent::Hash.new
 
       # Name generator for generating host names
       @name_generator = Spicy::Proton.new
@@ -242,29 +243,31 @@ module Vmpooler
       finish = format('%<time>.2f', time: Time.now - Time.parse(clone_time))
 
       if request_id
-        ondemandrequest_hash = redis.hgetall("vmpooler__odrequest__#{request_id}")
-        case ondemandrequest_hash['status']
-        when 'failed'
-          move_vm_queue(pool, vm, 'pending', 'completed', redis, "moved to completed queue. '#{request_id}' could not be filled in time")
-          return nil
-        when 'deleted'
-          move_vm_queue(pool, vm, 'pending', 'completed', redis, "moved to completed queue. '#{request_id}' has been deleted")
-          return nil
-        end
-        pool_alias = redis.hget("vmpooler__vm__#{vm}", 'pool_alias')
-
-        redis.pipelined do |pipeline|
-          pipeline.hset("vmpooler__active__#{pool}", vm, Time.now.to_s)
-          pipeline.hset("vmpooler__vm__#{vm}", 'checkout', Time.now.to_s)
-          if ondemandrequest_hash['token:token']
-            pipeline.hset("vmpooler__vm__#{vm}", 'token:token', ondemandrequest_hash['token:token'])
-            pipeline.hset("vmpooler__vm__#{vm}", 'token:user', ondemandrequest_hash['token:user'])
-            pipeline.hset("vmpooler__vm__#{vm}", 'lifetime', $config[:config]['vm_lifetime_auth'].to_i)
+        request_mutex(request_id).synchronize do
+          ondemandrequest_hash = redis.hgetall("vmpooler__odrequest__#{request_id}")
+          case ondemandrequest_hash['status']
+          when 'failed'
+            move_vm_queue(pool, vm, 'pending', 'completed', redis, "moved to completed queue. '#{request_id}' could not be filled in time")
+            return nil
+          when 'deleted'
+            move_vm_queue(pool, vm, 'pending', 'completed', redis, "moved to completed queue. '#{request_id}' has been deleted")
+            return nil
           end
-          pipeline.sadd("vmpooler__#{request_id}__#{pool_alias}__#{pool}", vm)
+          pool_alias = redis.hget("vmpooler__vm__#{vm}", 'pool_alias')
+
+          redis.pipelined do |pipeline|
+            pipeline.hset("vmpooler__active__#{pool}", vm, Time.now.to_s)
+            pipeline.hset("vmpooler__vm__#{vm}", 'checkout', Time.now.to_s)
+            if ondemandrequest_hash['token:token']
+              pipeline.hset("vmpooler__vm__#{vm}", 'token:token', ondemandrequest_hash['token:token'])
+              pipeline.hset("vmpooler__vm__#{vm}", 'token:user', ondemandrequest_hash['token:user'])
+              pipeline.hset("vmpooler__vm__#{vm}", 'lifetime', $config[:config]['vm_lifetime_auth'].to_i)
+            end
+            pipeline.sadd("vmpooler__#{request_id}__#{pool_alias}__#{pool}", vm)
+          end
+          move_vm_queue(pool, vm, 'pending', 'running', redis)
+          check_ondemand_request_ready(request_id, redis)
         end
-        move_vm_queue(pool, vm, 'pending', 'running', redis)
-        check_ondemand_request_ready(request_id, redis)
       else
         redis.smove("vmpooler__pending__#{pool}", "vmpooler__ready__#{pool}", vm)
       end
@@ -1782,6 +1785,14 @@ module Vmpooler
       @vm_mutex[vmname] || @vm_mutex[vmname] = Mutex.new
     end
 
+    def request_mutex(request_id)
+      @request_mutex[request_id] || @request_mutex[request_id] = Mutex.new
+    end
+
+    def dereference_request_mutex(request_id)
+      true if @request_mutex.delete(request_id)
+    end
+
     def dereference_mutex(vmname)
       true if @vm_mutex.delete(vmname)
     end
@@ -2386,21 +2397,34 @@ module Vmpooler
     end
 
     def check_ondemand_request_ready(request_id, redis, score = nil)
-      # default expiration is one month to ensure the data does not stay in redis forever
-      default_expiration = 259_200_0
-      processing_key = 'vmpooler__provisioning__processing'
-      ondemand_hash_key = "vmpooler__odrequest__#{request_id}"
-      score ||= redis.zscore(processing_key, request_id)
-      return if request_expired?(request_id, score, redis)
+      request_mutex(request_id).synchronize do
+        # default expiration is one month to ensure the data does not stay in redis forever
+        default_expiration = 259_200_0
+        processing_key = 'vmpooler__provisioning__processing'
+        ondemand_hash_key = "vmpooler__odrequest__#{request_id}"
 
-      return unless vms_ready?(request_id, redis)
+        # Check readiness before expiry: a request that just became fully
+        # provisioned must not be killed by a concurrent expiry sweep landing
+        # on the same tick.
+        if vms_ready?(request_id, redis)
+          redis.hset(ondemand_hash_key, 'status', 'ready')
+          redis.expire(ondemand_hash_key, default_expiration)
+          redis.zrem(processing_key, request_id)
+          dereference_request_mutex(request_id)
+          next
+        end
 
-      redis.hset(ondemand_hash_key, 'status', 'ready')
-      redis.expire(ondemand_hash_key, default_expiration)
-      redis.zrem(processing_key, request_id)
+        score ||= redis.zscore(processing_key, request_id)
+        request_expired?(request_id, score, redis)
+      end
     end
 
     def request_expired?(request_id, score, redis)
+      # A missing score means there is nothing in the processing set to
+      # expire (e.g. the request already completed) - treat as not expired
+      # rather than letting `nil.to_i` (0) produce a runaway delta.
+      return false if score.nil?
+
       delta = Time.now.to_i - score.to_i
       ondemand_request_ttl = $config[:config]['ondemand_request_ttl']
       return false unless delta > ondemand_request_ttl * 60
@@ -2413,6 +2437,7 @@ module Vmpooler
         pipeline.expire("vmpooler__odrequest__#{request_id}", expiration_ttl)
       end
       remove_vms_for_failed_request(request_id, expiration_ttl, redis)
+      dereference_request_mutex(request_id)
       true
     end
 

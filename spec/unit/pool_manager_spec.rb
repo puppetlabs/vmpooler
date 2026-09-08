@@ -5428,7 +5428,9 @@ EOT
       before(:each) do
         expect(subject).to receive(:vms_ready?).and_return(true)
         redis_connection_pool.with do |redis|
-          expect(redis).to receive(:zscore).and_return(score)
+          # readiness is checked before expiry, so a ready request must not
+          # need to look up its score at all
+          allow(redis).to receive(:zscore).and_return(score)
         end
       end
 
@@ -5468,8 +5470,21 @@ EOT
     context 'when a request has taken too long to be filled' do
       it 'should return true for request_expired?' do
         redis_connection_pool.with do |redis|
+          expect(subject).to receive(:vms_ready?).and_return(false)
           expect(redis).to receive(:zscore).and_return(score)
           expect(subject).to receive(:request_expired?).with(request_id, Float, redis).and_return(true)
+          subject.check_ondemand_request_ready(request_id, redis)
+        end
+      end
+    end
+
+    context 'when the request is not ready and the score has already been removed from processing' do
+      it 'does not treat a missing score as an infinitely old request' do
+        redis_connection_pool.with do |redis|
+          expect(subject).to receive(:vms_ready?).and_return(false)
+          expect(redis).to receive(:zscore).and_return(nil)
+          expect(subject).to receive(:request_expired?).with(request_id, nil, redis).and_call_original
+          expect(subject).to_not receive(:remove_vms_for_failed_request)
           subject.check_ondemand_request_ready(request_id, redis)
         end
       end
@@ -5545,6 +5560,16 @@ EOT
       it 'should return false' do
         redis_connection_pool.with do |redis|
           result = subject.request_expired?(request_id, current_time, redis)
+          expect(result).to be false
+        end
+      end
+    end
+
+    context 'with a nil score' do
+      it 'returns false without treating the missing score as an infinitely old request' do
+        redis_connection_pool.with do |redis|
+          expect(subject).to_not receive(:remove_vms_for_failed_request)
+          result = subject.request_expired?(request_id, nil, redis)
           expect(result).to be false
         end
       end
