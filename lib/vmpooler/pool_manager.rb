@@ -266,7 +266,10 @@ module Vmpooler
             pipeline.sadd("vmpooler__#{request_id}__#{pool_alias}__#{pool}", vm)
           end
           move_vm_queue(pool, vm, 'pending', 'running', redis)
-          check_ondemand_request_ready(request_id, redis)
+          # already holding request_mutex(request_id) from the top of this
+          # block, so call the lock-free variant directly to avoid deadlocking
+          # on Ruby's non-reentrant Mutex
+          check_ondemand_request_ready_locked(request_id, redis)
         end
       else
         redis.smove("vmpooler__pending__#{pool}", "vmpooler__ready__#{pool}", vm)
@@ -2396,27 +2399,35 @@ module Vmpooler
       in_progress_requests.length
     end
 
+    # Acquires the per-request lock before delegating. Callers that already
+    # hold request_mutex(request_id) (e.g. move_pending_vm_to_ready) must call
+    # check_ondemand_request_ready_locked directly instead - Ruby's Mutex is
+    # not reentrant, so re-synchronizing here would deadlock.
     def check_ondemand_request_ready(request_id, redis, score = nil)
       request_mutex(request_id).synchronize do
-        # default expiration is one month to ensure the data does not stay in redis forever
-        default_expiration = 259_200_0
-        processing_key = 'vmpooler__provisioning__processing'
-        ondemand_hash_key = "vmpooler__odrequest__#{request_id}"
-
-        # Check readiness before expiry: a request that just became fully
-        # provisioned must not be killed by a concurrent expiry sweep landing
-        # on the same tick.
-        if vms_ready?(request_id, redis)
-          redis.hset(ondemand_hash_key, 'status', 'ready')
-          redis.expire(ondemand_hash_key, default_expiration)
-          redis.zrem(processing_key, request_id)
-          dereference_request_mutex(request_id)
-          next
-        end
-
-        score ||= redis.zscore(processing_key, request_id)
-        request_expired?(request_id, score, redis)
+        check_ondemand_request_ready_locked(request_id, redis, score)
       end
+    end
+
+    def check_ondemand_request_ready_locked(request_id, redis, score = nil)
+      # default expiration is one month to ensure the data does not stay in redis forever
+      default_expiration = 259_200_0
+      processing_key = 'vmpooler__provisioning__processing'
+      ondemand_hash_key = "vmpooler__odrequest__#{request_id}"
+
+      # Check readiness before expiry: a request that just became fully
+      # provisioned must not be killed by a concurrent expiry sweep landing
+      # on the same tick.
+      if vms_ready?(request_id, redis)
+        redis.hset(ondemand_hash_key, 'status', 'ready')
+        redis.expire(ondemand_hash_key, default_expiration)
+        redis.zrem(processing_key, request_id)
+        dereference_request_mutex(request_id)
+        return
+      end
+
+      score ||= redis.zscore(processing_key, request_id)
+      request_expired?(request_id, score, redis)
     end
 
     def request_expired?(request_id, score, redis)

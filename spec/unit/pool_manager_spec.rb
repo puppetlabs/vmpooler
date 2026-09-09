@@ -541,7 +541,7 @@ EOT
     context 'with request_id' do
       context 'with a pending request' do
         before(:each) do
-          allow(subject).to receive(:check_ondemand_request_ready)
+          allow(subject).to receive(:check_ondemand_request_ready_locked)
           config[:config]['ondemand_request_ttl'] = 20
         end
 
@@ -562,6 +562,33 @@ EOT
             expect(logger).to receive(:log).with('s', "[>] [#{pool}] '#{vm}' is 'ready' for request '#{request_id}'")
 
             subject.move_pending_vm_to_ready(vm, pool, redis, request_id)
+          end
+        end
+      end
+
+      context 'when this is the last vm needed to fulfill the request' do
+        let(:platform_alias) { pool }
+        let(:platforms_string) { "#{platform_alias}:#{pool}:1" }
+
+        before(:each) do
+          config[:config]['ondemand_request_ttl'] = 20
+          redis_connection_pool.with do |redis|
+            create_ondemand_request_for_test(request_id, current_time.to_i, platforms_string, redis)
+            create_ondemand_processing(request_id, current_time.to_i, redis)
+            redis.hset("vmpooler__vm__#{vm}", 'pool_alias', pool)
+          end
+        end
+
+        it 'does not deadlock marking the request ready (regression: move_pending_vm_to_ready already holds request_mutex)' do
+          redis_connection_pool.with do |redis|
+            expect { subject.move_pending_vm_to_ready(vm, pool, redis, request_id) }.to_not raise_error
+          end
+        end
+
+        it 'marks the request as ready' do
+          redis_connection_pool.with do |redis|
+            subject.move_pending_vm_to_ready(vm, pool, redis, request_id)
+            expect(redis.hget("vmpooler__odrequest__#{request_id}", 'status')).to eq('ready')
           end
         end
       end
@@ -617,7 +644,7 @@ EOT
         let(:score) { current_time.to_i }
         before(:each) do
           config[:config]['ondemand_request_ttl'] = 20
-          allow(subject).to receive(:check_ondemand_request_ready)
+          allow(subject).to receive(:check_ondemand_request_ready_locked)
           redis_connection_pool.with do |redis|
             create_ondemand_request_for_test(request_id, score, platforms_string, redis, user, token)
           end
