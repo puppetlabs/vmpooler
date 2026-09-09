@@ -34,10 +34,10 @@ module Vmpooler
       $threads = Concurrent::Hash.new
 
       # Pool mutex
-      @reconfigure_pool = Concurrent::Hash.new
+      @reconfigure_pool = Concurrent::Map.new
 
-      @vm_mutex = Concurrent::Hash.new
-      @request_mutex = Concurrent::Hash.new
+      @vm_mutex = Concurrent::Map.new
+      @request_mutex = Concurrent::Map.new
 
       # Name generator for generating host names
       @name_generator = Spicy::Proton.new
@@ -1778,15 +1778,15 @@ module Vmpooler
     end
 
     def pool_mutex(poolname)
-      @reconfigure_pool[poolname] || @reconfigure_pool[poolname] = Mutex.new
+      @reconfigure_pool.compute_if_absent(poolname) { Mutex.new }
     end
 
     def vm_mutex(vmname)
-      @vm_mutex[vmname] || @vm_mutex[vmname] = Mutex.new
+      @vm_mutex.compute_if_absent(vmname) { Mutex.new }
     end
 
     def request_mutex(request_id)
-      @request_mutex[request_id] || @request_mutex[request_id] = Mutex.new
+      @request_mutex.compute_if_absent(request_id) { Mutex.new }
     end
 
     def dereference_request_mutex(request_id)
