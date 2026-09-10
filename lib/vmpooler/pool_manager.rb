@@ -12,6 +12,11 @@ module Vmpooler
     CHECK_LOOP_DELAY_MAX_DEFAULT = 60
     CHECK_LOOP_DELAY_DECAY_DEFAULT = 2.0
 
+    # Number of pre-allocated mutexes that ondemand request_ids are hashed
+    # across. See #request_mutex for why this is striped rather than a
+    # per-request_id map.
+    REQUEST_MUTEX_STRIPE_COUNT = 256
+
     def initialize(config, logger, redis_connection_pool, metrics)
       $config = config
 
@@ -1800,8 +1805,20 @@ module Vmpooler
     # array of pre-allocated mutexes needs no creation or deletion at all, so
     # this can't happen; unrelated request_ids occasionally sharing a stripe
     # just means incidental extra contention, not a correctness problem.
-    REQUEST_MUTEX_STRIPE_COUNT = 256
-
+    #
+    # LOCK ORDERING: _check_pending_vm holds vm_mutex(vm) while calling
+    # move_pending_vm_to_ready, which acquires request_mutex(request_id) - so
+    # the established order is vm_mutex -> request_mutex. Anything acquiring
+    # request_mutex first (e.g. the ondemand_provisioner sweep) must not then
+    # acquire vm_mutex, or the two will deadlock. Note in particular that
+    # remove_vms_for_failed_request currently destroys VMs without taking
+    # their vm_mutex; adding that locking would need this order respected.
+    #
+    # SCOPE: this is an in-process Mutex, so it only serializes threads within
+    # a single manager process. It does not coordinate with the api process
+    # (which mutates request status and VM queues in the ondemand delete
+    # endpoint), and it provides no protection at all if the manager is run
+    # with more than one replica.
     def request_mutex(request_id)
       @request_mutex_stripes[request_id.hash.abs % REQUEST_MUTEX_STRIPE_COUNT]
     end
@@ -2419,11 +2436,24 @@ module Vmpooler
       end
     end
 
+    # MUST be called with request_mutex(request_id) already held - it does no
+    # locking of its own. Use check_ondemand_request_ready if you do not
+    # already hold the lock.
     def check_ondemand_request_ready_locked(request_id, redis, score = nil)
       # default expiration is one month to ensure the data does not stay in redis forever
       default_expiration = 259_200_0
       processing_key = 'vmpooler__provisioning__processing'
       ondemand_hash_key = "vmpooler__odrequest__#{request_id}"
+
+      # Never resurrect a request that already reached a terminal state. The
+      # ondemand delete endpoint sets 'deleted' (from the api process, which
+      # this lock cannot coordinate with) without removing the request from
+      # the processing set, so the sweep keeps visiting it; drop it here so we
+      # neither overwrite its status nor revisit it forever.
+      if %w[failed deleted].include?(redis.hget(ondemand_hash_key, 'status'))
+        redis.zrem(processing_key, request_id)
+        return
+      end
 
       # Check readiness before expiry: a request that just became fully
       # provisioned must not be killed by a concurrent expiry sweep landing
