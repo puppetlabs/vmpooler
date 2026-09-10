@@ -37,7 +37,7 @@ module Vmpooler
       @reconfigure_pool = Concurrent::Map.new
 
       @vm_mutex = Concurrent::Map.new
-      @request_mutex = Concurrent::Map.new
+      @request_mutex_stripes = Array.new(REQUEST_MUTEX_STRIPE_COUNT) { Mutex.new }
 
       # Name generator for generating host names
       @name_generator = Spicy::Proton.new
@@ -1788,12 +1788,22 @@ module Vmpooler
       @vm_mutex.compute_if_absent(vmname) { Mutex.new }
     end
 
-    def request_mutex(request_id)
-      @request_mutex.compute_if_absent(request_id) { Mutex.new }
-    end
+    # Striped rather than per-request_id: request_ids are one-shot and never
+    # revisited once terminal (ready/failed/deleted), so a growable
+    # compute_if_absent+delete map (like pool_mutex/vm_mutex) would leak
+    # forever if never deleted, or - if deleted - risks a caller that already
+    # fetched the old Mutex still being blocked/about to synchronize on it
+    # while a later caller, finding the entry gone, gets handed a brand new
+    # Mutex for the same request_id. That would let both callers enter the
+    # request's critical section concurrently, defeating the whole point of
+    # this lock (see puppetlabs/vmpooler#702 review discussion). A fixed-size
+    # array of pre-allocated mutexes needs no creation or deletion at all, so
+    # this can't happen; unrelated request_ids occasionally sharing a stripe
+    # just means incidental extra contention, not a correctness problem.
+    REQUEST_MUTEX_STRIPE_COUNT = 256
 
-    def dereference_request_mutex(request_id)
-      true if @request_mutex.delete(request_id)
+    def request_mutex(request_id)
+      @request_mutex_stripes[request_id.hash.abs % REQUEST_MUTEX_STRIPE_COUNT]
     end
 
     def dereference_mutex(vmname)
@@ -2422,7 +2432,6 @@ module Vmpooler
         redis.hset(ondemand_hash_key, 'status', 'ready')
         redis.expire(ondemand_hash_key, default_expiration)
         redis.zrem(processing_key, request_id)
-        dereference_request_mutex(request_id)
         return
       end
 
@@ -2448,7 +2457,6 @@ module Vmpooler
         pipeline.expire("vmpooler__odrequest__#{request_id}", expiration_ttl)
       end
       remove_vms_for_failed_request(request_id, expiration_ttl, redis)
-      dereference_request_mutex(request_id)
       true
     end
 
