@@ -1,5 +1,6 @@
 require 'spec_helper'
 require 'time'
+require 'timeout'
 require 'mock_redis'
 
 # Custom RSpec :Matchers
@@ -541,7 +542,7 @@ EOT
     context 'with request_id' do
       context 'with a pending request' do
         before(:each) do
-          allow(subject).to receive(:check_ondemand_request_ready)
+          allow(subject).to receive(:check_ondemand_request_ready_locked)
           config[:config]['ondemand_request_ttl'] = 20
         end
 
@@ -563,6 +564,142 @@ EOT
 
             subject.move_pending_vm_to_ready(vm, pool, redis, request_id)
           end
+        end
+      end
+
+      context 'when this is the last vm needed to fulfill the request' do
+        let(:platform_alias) { pool }
+        let(:platforms_string) { "#{platform_alias}:#{pool}:1" }
+
+        before(:each) do
+          config[:config]['ondemand_request_ttl'] = 20
+          redis_connection_pool.with do |redis|
+            create_ondemand_request_for_test(request_id, current_time.to_i, platforms_string, redis)
+            create_ondemand_processing(request_id, current_time.to_i, redis)
+            redis.hset("vmpooler__vm__#{vm}", 'pool_alias', pool)
+          end
+        end
+
+        it 'does not deadlock marking the request ready (regression: move_pending_vm_to_ready already holds request_mutex)' do
+          redis_connection_pool.with do |redis|
+            expect { subject.move_pending_vm_to_ready(vm, pool, redis, request_id) }.to_not raise_error
+          end
+        end
+
+        it 'marks the request as ready' do
+          redis_connection_pool.with do |redis|
+            subject.move_pending_vm_to_ready(vm, pool, redis, request_id)
+            expect(redis.hget("vmpooler__odrequest__#{request_id}", 'status')).to eq('ready')
+          end
+        end
+      end
+
+      context 'when the expiry sweep runs concurrently with the last vm completing the request' do
+        # Deterministic two-thread test: proves request_mutex actually
+        # provides mutual exclusion between move_pending_vm_to_ready and the
+        # expiry sweep (check_ondemand_request_ready), rather than merely
+        # proving the recursive-lock deadlock is gone. Uses a single shared
+        # MockRedis instance directly (not redis_connection_pool, which is
+        # sized to 1 connection here and would otherwise block on pool
+        # checkout rather than on the mutex we're testing).
+        let(:platform_alias) { pool }
+        let(:platforms_string) { "#{platform_alias}:#{pool}:1" }
+        # older than the ttl configured below, so the sweep considers the
+        # request expired the instant it can inspect it
+        let(:expired_score) { (Time.now - 960).to_i }
+        let(:shared_redis) { MockRedis.new }
+
+        before(:each) do
+          config[:config]['ondemand_request_ttl'] = 5
+          create_ondemand_request_for_test(request_id, expired_score, platforms_string, shared_redis)
+          create_ondemand_processing(request_id, expired_score, shared_redis)
+          shared_redis.hset("vmpooler__vm__#{vm}", 'pool_alias', pool)
+          shared_redis.hset("vmpooler__vm__#{vm}", 'clone', Time.now.to_s)
+          shared_redis.sadd("vmpooler__pending__#{pool}", vm)
+        end
+
+        it 'blocks the sweep from entering its critical section until move_pending_vm_to_ready releases it, and never runs both concurrently' do
+          reached_move_pause = Queue.new
+          release_move_pending = Queue.new
+          entered_locked_check = Queue.new
+          bookkeeping_mutex = Mutex.new
+          active_count = 0
+          max_active = 0
+
+          # Pause move_pending_vm_to_ready only at its 'pending' -> 'running'
+          # transition (unique to this call site) while it still holds
+          # request_mutex, so we can deterministically run the sweep
+          # concurrently and prove it can't make progress until this releases.
+          allow(subject).to receive(:move_vm_queue).and_wrap_original do |original, *args|
+            if args[2] == 'pending' && args[3] == 'running'
+              reached_move_pause << true
+              release_move_pending.pop
+            end
+            original.call(*args)
+          end
+
+          # Instrument the actual critical section both callers eventually
+          # reach, so we can directly observe: (a) whether the sweep manages
+          # to enter it while move_pending_vm_to_ready is paused holding the
+          # lock, and (b) whether the two ever overlap.
+          original_locked_check = subject.method(:check_ondemand_request_ready_locked)
+          allow(subject).to receive(:check_ondemand_request_ready_locked) do |*args|
+            entered_locked_check << true
+            bookkeeping_mutex.synchronize do
+              active_count += 1
+              max_active = active_count if active_count > max_active
+            end
+            begin
+              original_locked_check.call(*args)
+            ensure
+              bookkeeping_mutex.synchronize { active_count -= 1 }
+            end
+          end
+
+          Timeout.timeout(5) do
+            move_thread = Thread.new do
+              subject.move_pending_vm_to_ready(vm, pool, shared_redis, request_id)
+            end
+
+            reached_move_pause.pop
+
+            sweep_thread = Thread.new do
+              subject.check_ondemand_request_ready(request_id, shared_redis, expired_score)
+            end
+
+            # While move_pending_vm_to_ready still holds request_mutex, the
+            # sweep must not be able to enter its own critical section yet -
+            # give it a generous 0.3s window (far longer than an in-memory
+            # mock-redis call sequence needs) to prove it's genuinely blocked,
+            # not just slow.
+            #
+            # Note the flake direction is deliberately one-sided: a working
+            # lock can never spuriously fail this (the sweep is blocked
+            # indefinitely, not merely for longer than 0.3s), whereas a broken
+            # lock on a pathologically slow runner could occasionally escape
+            # detection. It can under-report a regression, never invent one.
+            sweep_progress = Thread.new do
+              Timeout.timeout(0.3) { entered_locked_check.pop }
+              :entered
+            rescue Timeout::Error
+              :blocked
+            end
+            expect(sweep_progress.value).to eq(:blocked)
+
+            release_move_pending << true
+
+            move_thread.join
+            sweep_thread.join
+          end
+
+          # Covers only overlap of the check_ondemand_request_ready_locked
+          # call itself; the :blocked assertion above is what proves the sweep
+          # can't overlap the earlier part of move_pending_vm_to_ready's
+          # critical section (the status read and fulfillment-set write).
+          expect(max_active).to eq(1)
+          expect(shared_redis.hget("vmpooler__odrequest__#{request_id}", 'status')).to eq('ready')
+          expect(shared_redis.sismember("vmpooler__completed__#{pool}", vm)).to be false
+          expect(shared_redis.sismember("vmpooler__running__#{pool}", vm)).to be true
         end
       end
 
@@ -617,7 +754,7 @@ EOT
         let(:score) { current_time.to_i }
         before(:each) do
           config[:config]['ondemand_request_ttl'] = 20
-          allow(subject).to receive(:check_ondemand_request_ready)
+          allow(subject).to receive(:check_ondemand_request_ready_locked)
           redis_connection_pool.with do |redis|
             create_ondemand_request_for_test(request_id, score, platforms_string, redis, user, token)
           end
@@ -5428,7 +5565,9 @@ EOT
       before(:each) do
         expect(subject).to receive(:vms_ready?).and_return(true)
         redis_connection_pool.with do |redis|
-          expect(redis).to receive(:zscore).and_return(score)
+          # readiness is checked before expiry, so a ready request must not
+          # need to look up its score at all
+          allow(redis).to receive(:zscore).and_return(score)
         end
       end
 
@@ -5468,8 +5607,54 @@ EOT
     context 'when a request has taken too long to be filled' do
       it 'should return true for request_expired?' do
         redis_connection_pool.with do |redis|
+          expect(subject).to receive(:vms_ready?).and_return(false)
           expect(redis).to receive(:zscore).and_return(score)
           expect(subject).to receive(:request_expired?).with(request_id, Float, redis).and_return(true)
+          subject.check_ondemand_request_ready(request_id, redis)
+        end
+      end
+    end
+
+    %w[failed deleted].each do |terminal_status|
+      context "when the request has already been marked as '#{terminal_status}'" do
+        before(:each) do
+          redis_connection_pool.with do |redis|
+            create_ondemand_processing(request_id, current_time.to_i, redis)
+            set_ondemand_request_status(request_id, terminal_status, redis)
+          end
+        end
+
+        it 'does not overwrite the status' do
+          redis_connection_pool.with do |redis|
+            subject.check_ondemand_request_ready(request_id, redis)
+            expect(redis.hget("vmpooler__odrequest__#{request_id}", 'status')).to eq(terminal_status)
+          end
+        end
+
+        it 'stops revisiting it by removing it from the processing set' do
+          redis_connection_pool.with do |redis|
+            subject.check_ondemand_request_ready(request_id, redis)
+            expect(redis.zscore('vmpooler__provisioning__processing', request_id)).to be nil
+          end
+        end
+
+        it 'does not evaluate readiness or expiry' do
+          redis_connection_pool.with do |redis|
+            expect(subject).to_not receive(:vms_ready?)
+            expect(subject).to_not receive(:request_expired?)
+            subject.check_ondemand_request_ready(request_id, redis)
+          end
+        end
+      end
+    end
+
+    context 'when the request is not ready and the score has already been removed from processing' do
+      it 'does not treat a missing score as an infinitely old request' do
+        redis_connection_pool.with do |redis|
+          expect(subject).to receive(:vms_ready?).and_return(false)
+          expect(redis).to receive(:zscore).and_return(nil)
+          expect(subject).to receive(:request_expired?).with(request_id, nil, redis).and_call_original
+          expect(subject).to_not receive(:remove_vms_for_failed_request)
           subject.check_ondemand_request_ready(request_id, redis)
         end
       end
@@ -5545,6 +5730,16 @@ EOT
       it 'should return false' do
         redis_connection_pool.with do |redis|
           result = subject.request_expired?(request_id, current_time, redis)
+          expect(result).to be false
+        end
+      end
+    end
+
+    context 'with a nil score' do
+      it 'returns false without treating the missing score as an infinitely old request' do
+        redis_connection_pool.with do |redis|
+          expect(subject).to_not receive(:remove_vms_for_failed_request)
+          result = subject.request_expired?(request_id, nil, redis)
           expect(result).to be false
         end
       end

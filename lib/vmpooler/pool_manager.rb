@@ -12,6 +12,11 @@ module Vmpooler
     CHECK_LOOP_DELAY_MAX_DEFAULT = 60
     CHECK_LOOP_DELAY_DECAY_DEFAULT = 2.0
 
+    # Number of pre-allocated mutexes that ondemand request_ids are hashed
+    # across. See #request_mutex for why this is striped rather than a
+    # per-request_id map.
+    REQUEST_MUTEX_STRIPE_COUNT = 256
+
     def initialize(config, logger, redis_connection_pool, metrics)
       $config = config
 
@@ -34,9 +39,10 @@ module Vmpooler
       $threads = Concurrent::Hash.new
 
       # Pool mutex
-      @reconfigure_pool = Concurrent::Hash.new
+      @reconfigure_pool = Concurrent::Map.new
 
-      @vm_mutex = Concurrent::Hash.new
+      @vm_mutex = Concurrent::Map.new
+      @request_mutex_stripes = Array.new(REQUEST_MUTEX_STRIPE_COUNT) { Mutex.new }
 
       # Name generator for generating host names
       @name_generator = Spicy::Proton.new
@@ -242,29 +248,34 @@ module Vmpooler
       finish = format('%<time>.2f', time: Time.now - Time.parse(clone_time))
 
       if request_id
-        ondemandrequest_hash = redis.hgetall("vmpooler__odrequest__#{request_id}")
-        case ondemandrequest_hash['status']
-        when 'failed'
-          move_vm_queue(pool, vm, 'pending', 'completed', redis, "moved to completed queue. '#{request_id}' could not be filled in time")
-          return nil
-        when 'deleted'
-          move_vm_queue(pool, vm, 'pending', 'completed', redis, "moved to completed queue. '#{request_id}' has been deleted")
-          return nil
-        end
-        pool_alias = redis.hget("vmpooler__vm__#{vm}", 'pool_alias')
-
-        redis.pipelined do |pipeline|
-          pipeline.hset("vmpooler__active__#{pool}", vm, Time.now.to_s)
-          pipeline.hset("vmpooler__vm__#{vm}", 'checkout', Time.now.to_s)
-          if ondemandrequest_hash['token:token']
-            pipeline.hset("vmpooler__vm__#{vm}", 'token:token', ondemandrequest_hash['token:token'])
-            pipeline.hset("vmpooler__vm__#{vm}", 'token:user', ondemandrequest_hash['token:user'])
-            pipeline.hset("vmpooler__vm__#{vm}", 'lifetime', $config[:config]['vm_lifetime_auth'].to_i)
+        request_mutex(request_id).synchronize do
+          ondemandrequest_hash = redis.hgetall("vmpooler__odrequest__#{request_id}")
+          case ondemandrequest_hash['status']
+          when 'failed'
+            move_vm_queue(pool, vm, 'pending', 'completed', redis, "moved to completed queue. '#{request_id}' could not be filled in time")
+            return nil
+          when 'deleted'
+            move_vm_queue(pool, vm, 'pending', 'completed', redis, "moved to completed queue. '#{request_id}' has been deleted")
+            return nil
           end
-          pipeline.sadd("vmpooler__#{request_id}__#{pool_alias}__#{pool}", vm)
+          pool_alias = redis.hget("vmpooler__vm__#{vm}", 'pool_alias')
+
+          redis.pipelined do |pipeline|
+            pipeline.hset("vmpooler__active__#{pool}", vm, Time.now.to_s)
+            pipeline.hset("vmpooler__vm__#{vm}", 'checkout', Time.now.to_s)
+            if ondemandrequest_hash['token:token']
+              pipeline.hset("vmpooler__vm__#{vm}", 'token:token', ondemandrequest_hash['token:token'])
+              pipeline.hset("vmpooler__vm__#{vm}", 'token:user', ondemandrequest_hash['token:user'])
+              pipeline.hset("vmpooler__vm__#{vm}", 'lifetime', $config[:config]['vm_lifetime_auth'].to_i)
+            end
+            pipeline.sadd("vmpooler__#{request_id}__#{pool_alias}__#{pool}", vm)
+          end
+          move_vm_queue(pool, vm, 'pending', 'running', redis)
+          # already holding request_mutex(request_id) from the top of this
+          # block, so call the lock-free variant directly to avoid deadlocking
+          # on Ruby's non-reentrant Mutex
+          check_ondemand_request_ready_locked(request_id, redis)
         end
-        move_vm_queue(pool, vm, 'pending', 'running', redis)
-        check_ondemand_request_ready(request_id, redis)
       else
         redis.smove("vmpooler__pending__#{pool}", "vmpooler__ready__#{pool}", vm)
       end
@@ -1775,11 +1786,41 @@ module Vmpooler
     end
 
     def pool_mutex(poolname)
-      @reconfigure_pool[poolname] || @reconfigure_pool[poolname] = Mutex.new
+      @reconfigure_pool.compute_if_absent(poolname) { Mutex.new }
     end
 
     def vm_mutex(vmname)
-      @vm_mutex[vmname] || @vm_mutex[vmname] = Mutex.new
+      @vm_mutex.compute_if_absent(vmname) { Mutex.new }
+    end
+
+    # Striped rather than per-request_id: request_ids are one-shot and never
+    # revisited once terminal (ready/failed/deleted), so a growable
+    # compute_if_absent+delete map (like pool_mutex/vm_mutex) would leak
+    # forever if never deleted, or - if deleted - risks a caller that already
+    # fetched the old Mutex still being blocked/about to synchronize on it
+    # while a later caller, finding the entry gone, gets handed a brand new
+    # Mutex for the same request_id. That would let both callers enter the
+    # request's critical section concurrently, defeating the whole point of
+    # this lock (see puppetlabs/vmpooler#702 review discussion). A fixed-size
+    # array of pre-allocated mutexes needs no creation or deletion at all, so
+    # this can't happen; unrelated request_ids occasionally sharing a stripe
+    # just means incidental extra contention, not a correctness problem.
+    #
+    # LOCK ORDERING: _check_pending_vm holds vm_mutex(vm) while calling
+    # move_pending_vm_to_ready, which acquires request_mutex(request_id) - so
+    # the established order is vm_mutex -> request_mutex. Anything acquiring
+    # request_mutex first (e.g. the ondemand_provisioner sweep) must not then
+    # acquire vm_mutex, or the two will deadlock. Note in particular that
+    # remove_vms_for_failed_request currently destroys VMs without taking
+    # their vm_mutex; adding that locking would need this order respected.
+    #
+    # SCOPE: this is an in-process Mutex, so it only serializes threads within
+    # a single manager process. It does not coordinate with the api process
+    # (which mutates request status and VM queues in the ondemand delete
+    # endpoint), and it provides no protection at all if the manager is run
+    # with more than one replica.
+    def request_mutex(request_id)
+      @request_mutex_stripes[request_id.hash.abs % REQUEST_MUTEX_STRIPE_COUNT]
     end
 
     def dereference_mutex(vmname)
@@ -2385,22 +2426,55 @@ module Vmpooler
       in_progress_requests.length
     end
 
+    # Acquires the per-request lock before delegating. Callers that already
+    # hold request_mutex(request_id) (e.g. move_pending_vm_to_ready) must call
+    # check_ondemand_request_ready_locked directly instead - Ruby's Mutex is
+    # not reentrant, so re-synchronizing here would deadlock.
     def check_ondemand_request_ready(request_id, redis, score = nil)
+      request_mutex(request_id).synchronize do
+        check_ondemand_request_ready_locked(request_id, redis, score)
+      end
+    end
+
+    # MUST be called with request_mutex(request_id) already held - it does no
+    # locking of its own. Use check_ondemand_request_ready if you do not
+    # already hold the lock.
+    def check_ondemand_request_ready_locked(request_id, redis, score = nil)
       # default expiration is one month to ensure the data does not stay in redis forever
       default_expiration = 259_200_0
       processing_key = 'vmpooler__provisioning__processing'
       ondemand_hash_key = "vmpooler__odrequest__#{request_id}"
+
+      # Never resurrect a request that already reached a terminal state. The
+      # ondemand delete endpoint sets 'deleted' (from the api process, which
+      # this lock cannot coordinate with) without removing the request from
+      # the processing set, so the sweep keeps visiting it; drop it here so we
+      # neither overwrite its status nor revisit it forever.
+      if %w[failed deleted].include?(redis.hget(ondemand_hash_key, 'status'))
+        redis.zrem(processing_key, request_id)
+        return
+      end
+
+      # Check readiness before expiry: a request that just became fully
+      # provisioned must not be killed by a concurrent expiry sweep landing
+      # on the same tick.
+      if vms_ready?(request_id, redis)
+        redis.hset(ondemand_hash_key, 'status', 'ready')
+        redis.expire(ondemand_hash_key, default_expiration)
+        redis.zrem(processing_key, request_id)
+        return
+      end
+
       score ||= redis.zscore(processing_key, request_id)
-      return if request_expired?(request_id, score, redis)
-
-      return unless vms_ready?(request_id, redis)
-
-      redis.hset(ondemand_hash_key, 'status', 'ready')
-      redis.expire(ondemand_hash_key, default_expiration)
-      redis.zrem(processing_key, request_id)
+      request_expired?(request_id, score, redis)
     end
 
     def request_expired?(request_id, score, redis)
+      # A missing score means there is nothing in the processing set to
+      # expire (e.g. the request already completed) - treat as not expired
+      # rather than letting `nil.to_i` (0) produce a runaway delta.
+      return false if score.nil?
+
       delta = Time.now.to_i - score.to_i
       ondemand_request_ttl = $config[:config]['ondemand_request_ttl']
       return false unless delta > ondemand_request_ttl * 60
