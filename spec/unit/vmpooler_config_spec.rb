@@ -344,9 +344,11 @@ describe Vmpooler do
     end
 
     it 'throws spans away when tracing is off' do
-      pending('NoopSpanExporter does not exist in opentelemetry-sdk 1.8 or 1.10, so tracing off, the default, raises NameError')
+      expect(OpenTelemetry::SDK::Trace::Export::SpanExporter).to receive(:new).and_return(:noop_exporter)
 
       expect { configure(['api'], '', 'false') }.to output(/Exporting of traces has been disabled/).to_stdout
+      expect(OpenTelemetry::SDK::Trace::Export::BatchSpanProcessor).to have_received(:new).with(:noop_exporter)
+      expect(OpenTelemetry::Exporter::Jaeger::CollectorExporter).not_to have_received(:new)
     end
 
     it 'names the service after the component and the prefix, and sets the version and resource' do

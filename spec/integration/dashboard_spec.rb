@@ -1,4 +1,5 @@
 require 'spec_helper'
+require 'climate_control'
 require 'rack/test'
 
 describe Vmpooler::API do
@@ -41,8 +42,10 @@ describe Vmpooler::API do
     end
 
     context '/dashboard/' do
-      ENV['SITE_NAME'] = 'test pooler'
-      ENV['VMPOOLER_CONFIG'] = 'thing'
+      # Set per example: assigning ENV in the context body leaked into every later spec file
+      around(:each) do |example|
+        ClimateControl.modify(SITE_NAME: 'test pooler', VMPOOLER_CONFIG: 'thing') { example.run }
+      end
 
       before(:each) do
         get '/dashboard/'

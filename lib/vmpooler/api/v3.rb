@@ -1783,7 +1783,7 @@ module Vmpooler
               metrics.increment('poolreset.invalid.unknown')
               status 404
             end
-          rescue JSON::ParserError
+          rescue JSON::ParserError => e
             span = OpenTelemetry::Trace.current_span
             span.record_exception(e)
             span.status = OpenTelemetry::Trace::Status.error('JSON payload could not be parsed')

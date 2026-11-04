@@ -99,6 +99,13 @@ describe Vmpooler::API::Helpers do
       expect(summary[:clone][:duration][:total]).to eq(22.0)
     end
 
+    it 'gives the min, max and average duration over the range' do
+      summary = subject.get_task_summary(redis, 'clone', from, to)
+
+      expect(summary[:clone][:duration]).to include(min: 2.0, max: 10.0)
+      expect(summary[:clone][:duration][:average]).to be_a(Numeric)
+    end
+
     it 'handles a range with no data' do
       summary = subject.get_task_summary(redis, 'clone', Date.parse('2020-01-01'), Date.parse('2020-01-02'))
 
