@@ -601,4 +601,21 @@ describe 'Vmpooler::PoolManager::Provider::Dummy' do
       expect(File.exist?(@backing_file)).to be false
     end
   end
+  describe '#get_vm_ip_address' do
+    let(:pool_name) { 'pool1' }
+    let(:vm_name) { 'vm-ip-test' }
+
+    it 'returns nil for a VM that does not exist' do
+      expect(subject.get_vm_ip_address('doesnotexist', pool_name)).to be_nil
+    end
+
+    it 'returns the same address for the same VM, in 10.0.0.0/16' do
+      subject.create_vm(pool_name, vm_name)
+
+      ip = subject.get_vm_ip_address(vm_name, pool_name)
+
+      expect(ip).to match(/\A10\.0\.\d{1,3}\.\d{1,3}\z/)
+      expect(subject.get_vm_ip_address(vm_name, pool_name)).to eq(ip)
+    end
+  end
 end

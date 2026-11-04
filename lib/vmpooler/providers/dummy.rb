@@ -318,6 +318,15 @@ module Vmpooler
           true
         end
 
+        # A made-up but stable address per VM name, in 10.0.0.0/16. Without this the
+        # pool manager's clone step fails on the base class, so no VM is ever created.
+        def get_vm_ip_address(vm_name, pool_name)
+          return nil if get_dummy_vm(pool_name, vm_name).nil?
+
+          sum = vm_name.each_byte.sum
+          "10.0.#{sum % 250 + 1}.#{(sum * 7) % 250 + 1}"
+        end
+
         def vm_ready?(pool_name, vm_name)
           @connection_pool.with_metrics do |_conn|
             vm_object = get_dummy_vm(pool_name, vm_name)
