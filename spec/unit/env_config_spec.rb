@@ -8,7 +8,7 @@ describe 'Vmpooler' do
   describe 'config' do
     # Vmpooler.config reads ./vmpooler.yaml, which the repo does not ship; start from an empty config
     around do |example|
-      ClimateControl.modify(VMPOOLER_CONFIG: ":config: {}\n") { example.run }
+      ClimateControl.modify(VMPOOLER_CONFIG: ":config: {}\n", LOGFILE: nil) { example.run }
     end
 
     # With no pools in the config, Vmpooler.config reads them from redis
@@ -28,7 +28,7 @@ describe 'Vmpooler' do
         ['max_tries', test_integer, nil],
         ['retry_factor', test_integer, nil],
         ['prefix', test_string, ''],
-        ['logfile', test_string, '/dev/stdout'],
+        ['logfile', test_string, nil],
         ['site_name', test_string, nil],
         ['clone_target', test_string, nil],
         ['create_folders', test_bool, nil],
