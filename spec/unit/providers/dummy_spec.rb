@@ -595,6 +595,15 @@ describe 'Vmpooler::PoolManager::Provider::Dummy' do
       expect(saved['pool'][pool_name].map { |vm| vm['name'] }).to include('savedvm')
     end
 
+    it 'is read back by a new provider, so VMs survive a restart' do
+      config[:providers][:dummy]['filename'] = @backing_file
+      subject.create_vm(pool_name, 'survivor')
+
+      restarted = Vmpooler::PoolManager::Provider::Dummy.new(config, logger, metrics, redis_connection_pool, 'dummy', provider_options)
+
+      expect(restarted.vms_in_pool(pool_name).map { |vm| vm['name'] }).to include('survivor')
+    end
+
     it 'is not written when no file is configured' do
       subject.create_vm(pool_name, 'unsavedvm')
 

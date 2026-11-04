@@ -16,7 +16,11 @@ module Vmpooler
           # This initial_state option is only intended to be used by spec tests
           @dummylist = provider_options['initial_state'].nil? ? {} : provider_options['initial_state']
 
-          @dummylist = YAML.load_file(dummyfilename) if !dummyfilename.nil? && File.exist?(dummyfilename)
+          if !dummyfilename.nil? && File.exist?(dummyfilename)
+            # The file is written by this provider and holds Time values, which the
+            # safe load of Psych 4 rejects, so a restart with an existing file failed.
+            @dummylist = YAML.respond_to?(:unsafe_load_file) ? YAML.unsafe_load_file(dummyfilename) : YAML.load_file(dummyfilename)
+          end
 
           # Even though this code is using Mutexes, it's still no 100% atomic i.e. it's still possible for
           # duplicate actions to put the @dummylist hashtable into a bad state, for example;
