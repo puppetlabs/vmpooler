@@ -509,4 +509,98 @@ EOT
       expect(subject.vm_exists?(pool_name, 'doesnotexist')).to eq(false)
     end
   end
+
+  describe 'simulated delays' do
+    let(:dummy_config) { config[:providers][:dummy] }
+
+    before(:each) do
+      # rand(n) gives n - 1, so each delay is 1 + (n - 1) = n seconds, and no failure is injected
+      allow(subject).to receive(:rand) { |limit| limit.is_a?(Range) ? limit.last + 1 : limit - 1 }
+      allow(subject).to receive(:sleep)
+    end
+
+    it 'waits when migrating a VM' do
+      dummy_config['migratevm_max_time'] = 5
+
+      expect(subject.migrate_vm_to_host(pool_name, vm_name, 'HOST2')).to eq(true)
+
+      expect(subject).to have_received(:sleep).with(5)
+      expect(subject.get_vm_host(pool_name, vm_name)).to eq('HOST2')
+    end
+
+    it 'waits while a VM is cloning, then leaves it running' do
+      dummy_config['createvm_max_time'] = 7
+
+      subject.create_vm(pool_name, 'slowvm')
+
+      expect(subject).to have_received(:sleep).with(7)
+      expect(subject.get_vm(pool_name, 'slowvm')).not_to be_nil
+    end
+
+    it 'waits when creating a disk' do
+      dummy_config['createdisk_max_time'] = 3
+
+      subject.create_disk(pool_name, vm_name, 10)
+
+      expect(subject).to have_received(:sleep).with(3)
+    end
+
+    it 'waits when creating a snapshot' do
+      dummy_config['createsnapshot_max_time'] = 4
+
+      subject.create_snapshot(pool_name, vm_name, 'snap1')
+
+      expect(subject).to have_received(:sleep).with(4)
+    end
+
+    it 'waits when reverting to a snapshot' do
+      dummy_config['revertsnapshot_max_time'] = 6
+      subject.create_snapshot(pool_name, vm_name, 'snap1')
+
+      subject.revert_snapshot(pool_name, vm_name, 'snap1')
+
+      expect(subject).to have_received(:sleep).with(6)
+    end
+
+    it 'waits for the shutdown and again for the destroy' do
+      dummy_config['destroyvm_max_shutdown_time'] = 2
+      dummy_config['destroyvm_max_time'] = 8
+
+      expect(subject.destroy_vm(pool_name, vm_name)).to eq(true)
+
+      expect(subject).to have_received(:sleep).with(2).ordered
+      expect(subject).to have_received(:sleep).with(8).ordered
+    end
+
+    it 'does not wait when no delay is configured' do
+      subject.create_vm(pool_name, 'quickvm')
+      subject.destroy_vm(pool_name, vm_name)
+
+      expect(subject).not_to have_received(:sleep)
+    end
+  end
+
+  describe 'the backing file' do
+    around(:each) do |example|
+      Dir.mktmpdir do |dir|
+        @backing_file = File.join(dir, 'dummy.yaml')
+        example.run
+      end
+    end
+
+    it 'is written when a VM is created' do
+      config[:providers][:dummy]['filename'] = @backing_file
+
+      subject.create_vm(pool_name, 'savedvm')
+
+      saved = YAML.load_file(@backing_file, permitted_classes: [Time, Symbol])
+      expect(saved['pool'][pool_name].map { |vm| vm['name'] }).to include('savedvm')
+    end
+
+    it 'is not written when no file is configured' do
+      subject.create_vm(pool_name, 'unsavedvm')
+
+      expect(File.exist?(@backing_file)).to be false
+    end
+  end
 end
