@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 require 'vmpooler/providers/dummy'
 
@@ -11,85 +13,85 @@ describe 'Vmpooler::PoolManager::Provider::Dummy' do
   let(:running_vm_name) { 'vm2' }
   let(:notready_vm_name) { 'vm3' }
 
-  let (:provider_options) {
+  let(:provider_options) do
     # Construct an initial state for testing
     dummylist = {}
     dummylist['pool'] = {}
     # pool1 is a pool of "normal" VMs
     dummylist['pool'][pool_name] = []
-      # A normal running VM
-      vm = {}
-      vm['name'] = vm_name
-      vm['hostname'] = vm_name
-      vm['domain']  = 'dummy.local'
-      vm['vm_template'] = 'template1'
-      vm['template'] = pool_name
-      vm['poolname'] = pool_name
-      vm['ready'] = true
-      vm['boottime'] = Time.now
-      vm['powerstate'] = 'PoweredOn'
-      vm['vm_host'] = 'HOST1'
-      vm['snapshots'] = []
-      vm['disks'] = []
-      vm['dummy_state'] = 'RUNNING'
-      dummylist['pool'][pool_name] << vm
+    # A normal running VM
+    vm = {}
+    vm['name'] = vm_name
+    vm['hostname'] = vm_name
+    vm['domain'] = 'dummy.local'
+    vm['vm_template'] = 'template1'
+    vm['template'] = pool_name
+    vm['poolname'] = pool_name
+    vm['ready'] = true
+    vm['boottime'] = Time.now
+    vm['powerstate'] = 'PoweredOn'
+    vm['vm_host'] = 'HOST1'
+    vm['snapshots'] = []
+    vm['disks'] = []
+    vm['dummy_state'] = 'RUNNING'
+    dummylist['pool'][pool_name] << vm
 
     # pool2 is a pool of "abnormal" VMs e.g. PoweredOff etc.
     dummylist['pool'][other_pool_name] = []
-      # A freshly provisioned VM that is not ready
-      vm = {}
-      vm['name'] = running_vm_name
-      vm['hostname'] = running_vm_name
-      vm['domain']  = 'dummy.local'
-      vm['vm_template'] = 'template1'
-      vm['template'] = other_pool_name
-      vm['poolname'] = other_pool_name
-      vm['ready'] = false
-      vm['boottime'] = Time.now
-      vm['powerstate'] = 'PoweredOn'
-      vm['vm_host'] = 'HOST1'
-      vm['snapshots'] = []
-      vm['disks'] = []
-      vm['dummy_state'] = 'UNKNOWN'
-      dummylist['pool'][other_pool_name] << vm
-      # A freshly provisioned VM that is running but not ready
-      vm = {}
-      vm['name'] = notready_vm_name
-      vm['hostname'] = notready_vm_name
-      vm['domain']  = 'dummy.local'
-      vm['vm_template'] = 'template1'
-      vm['template'] = other_pool_name
-      vm['poolname'] = other_pool_name
-      vm['ready'] = false
-      vm['boottime'] = Time.now
-      vm['powerstate'] = 'PoweredOn'
-      vm['vm_host'] = 'HOST1'
-      vm['snapshots'] = []
-      vm['disks'] = []
-      vm['dummy_state'] = 'RUNNING'
-      dummylist['pool'][other_pool_name] << vm
+    # A freshly provisioned VM that is not ready
+    vm = {}
+    vm['name'] = running_vm_name
+    vm['hostname'] = running_vm_name
+    vm['domain'] = 'dummy.local'
+    vm['vm_template'] = 'template1'
+    vm['template'] = other_pool_name
+    vm['poolname'] = other_pool_name
+    vm['ready'] = false
+    vm['boottime'] = Time.now
+    vm['powerstate'] = 'PoweredOn'
+    vm['vm_host'] = 'HOST1'
+    vm['snapshots'] = []
+    vm['disks'] = []
+    vm['dummy_state'] = 'UNKNOWN'
+    dummylist['pool'][other_pool_name] << vm
+    # A freshly provisioned VM that is running but not ready
+    vm = {}
+    vm['name'] = notready_vm_name
+    vm['hostname'] = notready_vm_name
+    vm['domain'] = 'dummy.local'
+    vm['vm_template'] = 'template1'
+    vm['template'] = other_pool_name
+    vm['poolname'] = other_pool_name
+    vm['ready'] = false
+    vm['boottime'] = Time.now
+    vm['powerstate'] = 'PoweredOn'
+    vm['vm_host'] = 'HOST1'
+    vm['snapshots'] = []
+    vm['disks'] = []
+    vm['dummy_state'] = 'RUNNING'
+    dummylist['pool'][other_pool_name] << vm
 
     {
       'initial_state' => dummylist
     }
-  }
+  end
 
-  let(:config) { YAML.load(<<-EOT
----
-:config:
-:providers:
-  :dummy:
-    key1: 'value1'
-    # Drop the connection pool timeout way down for spec tests so they fail fast
-    connection_pool_timeout: 1
-:pools:
-  - name: '#{pool_name}'
-    size: 5
-  - name: 'pool2'
-    size: 5
-EOT
-    )
-  }
+  let(:config) do
+    YAML.safe_load(<<~YAML_CONFIG, permitted_classes: [Symbol])
+      ---
+      :config:
+      :providers:
+        :dummy:
+          key1: 'value1'
+          # Drop the connection pool timeout way down for spec tests so they fail fast
+          connection_pool_timeout: 1
+      :pools:
+        - name: '#{pool_name}'
+          size: 5
+        - name: 'pool2'
+          size: 5
+    YAML_CONFIG
+  end
 
   let(:redis_connection_pool) { ConnectionPool.new(size: 1) { MockRedis.new } }
 
@@ -121,7 +123,7 @@ EOT
     end
 
     it 'should error when VM does not exist' do
-      expect{subject.get_vm_host(pool_name, 'doesnotexist')}.to raise_error(RuntimeError)
+      expect { subject.get_vm_host(pool_name, 'doesnotexist') }.to raise_error(RuntimeError)
     end
   end
 
@@ -153,13 +155,12 @@ EOT
           expect(new_host).to_not eq('HOST1')
         end
       end
-
     end
   end
 
   describe '#migrate_vm_to_host' do
     it 'should move to the new host' do
-      expect(subject.migrate_vm_to_host(pool_name, 'vm1','NEWHOST')).to eq(true)
+      expect(subject.migrate_vm_to_host(pool_name, 'vm1', 'NEWHOST')).to eq(true)
       expect(subject.get_vm_host(pool_name, 'vm1')).to eq('NEWHOST')
     end
 
@@ -170,7 +171,7 @@ EOT
         end
 
         it 'should move to the new host' do
-          expect(subject.migrate_vm_to_host(pool_name, 'vm1','NEWHOST')).to eq(true)
+          expect(subject.migrate_vm_to_host(pool_name, 'vm1', 'NEWHOST')).to eq(true)
           expect(subject.get_vm_host(pool_name, 'vm1')).to eq('NEWHOST')
         end
       end
@@ -181,7 +182,7 @@ EOT
         end
 
         it 'should raise an error' do
-          expect{subject.migrate_vm_to_host(pool_name, 'vm1','NEWHOST')}.to raise_error(/migratevm_fail_percent/)
+          expect { subject.migrate_vm_to_host(pool_name, 'vm1', 'NEWHOST') }.to raise_error(/migratevm_fail_percent/)
         end
       end
     end
@@ -262,7 +263,7 @@ EOT
     it 'should increase the number of VMs in the pool' do
       old_pool_count = subject.vms_in_pool(pool_name).count
 
-      new_vm = subject.create_vm(pool_name, new_vm_name)
+      subject.create_vm(pool_name, new_vm_name)
 
       expect(subject.vms_in_pool(pool_name).count).to eq(old_pool_count + 1)
     end
@@ -274,7 +275,7 @@ EOT
         end
 
         it 'should return a new VM' do
-      expect(subject.create_vm(pool_name, new_vm_name)['name']).to eq(new_vm_name)
+          expect(subject.create_vm(pool_name, new_vm_name)['name']).to eq(new_vm_name)
         end
       end
 
@@ -284,14 +285,11 @@ EOT
         end
 
         it 'should raise an error' do
-          expect{subject.create_vm(pool_name, new_vm_name)}.to raise_error(/createvm_fail_percent/)
+          expect { subject.create_vm(pool_name, new_vm_name) }.to raise_error(/createvm_fail_percent/)
         end
 
         it 'new VM should not exist' do
-          begin
-            subject.create_vm(pool_name, new_vm_name)
-          rescue
-          end
+          expect { subject.create_vm(pool_name, new_vm_name) }.to raise_error(StandardError)
           expect(subject.get_vm(pool_name, new_vm_name)).to eq(nil)
         end
       end
@@ -302,11 +300,11 @@ EOT
     let(:disk_size) { 10 }
 
     it 'should return true when the disk is created' do
-      expect(subject.create_disk(pool_name, vm_name,disk_size)).to be true
+      expect(subject.create_disk(pool_name, vm_name, disk_size)).to be true
     end
 
     it 'should raise an error when VM does not exist' do
-      expect{ subject.create_disk(pool_name, 'doesnotexist',disk_size) }.to raise_error(/VM doesnotexist does not exist/)
+      expect { subject.create_disk(pool_name, 'doesnotexist', disk_size) }.to raise_error(/VM doesnotexist does not exist/)
     end
 
     context 'using createdisk_fail_percent' do
@@ -316,7 +314,7 @@ EOT
         end
 
         it 'should return true when the disk is created' do
-          expect(subject.create_disk(pool_name, vm_name,disk_size)).to be true
+          expect(subject.create_disk(pool_name, vm_name, disk_size)).to be true
         end
       end
 
@@ -326,7 +324,7 @@ EOT
         end
 
         it 'should raise an error' do
-          expect{subject.create_disk(pool_name, vm_name,disk_size)}.to raise_error(/createdisk_fail_percent/)
+          expect { subject.create_disk(pool_name, vm_name, disk_size) }.to raise_error(/createdisk_fail_percent/)
         end
       end
     end
@@ -340,7 +338,7 @@ EOT
     end
 
     it 'should raise an error when VM does not exist' do
-      expect{ subject.create_snapshot(pool_name, 'doesnotexist', snapshot_name) }.to raise_error(/VM doesnotexist does not exist/)
+      expect { subject.create_snapshot(pool_name, 'doesnotexist', snapshot_name) }.to raise_error(/VM doesnotexist does not exist/)
     end
 
     context 'using createsnapshot_fail_percent' do
@@ -360,7 +358,7 @@ EOT
         end
 
         it 'should raise an error' do
-          expect{ subject.create_snapshot(pool_name, vm_name, snapshot_name) }.to raise_error(/createsnapshot_fail_percent/)
+          expect { subject.create_snapshot(pool_name, vm_name, snapshot_name) }.to raise_error(/createsnapshot_fail_percent/)
         end
       end
     end
@@ -379,7 +377,7 @@ EOT
     end
 
     it 'should raise an error when VM does not exist' do
-      expect{ subject.revert_snapshot(pool_name, 'doesnotexist', snapshot_name) }.to raise_error(/VM doesnotexist does not exist/)
+      expect { subject.revert_snapshot(pool_name, 'doesnotexist', snapshot_name) }.to raise_error(/VM doesnotexist does not exist/)
     end
 
     it 'should return false when the snapshot does not exist' do
@@ -403,7 +401,7 @@ EOT
         end
 
         it 'should raise an error when VM does not exist' do
-          expect{ subject.revert_snapshot(pool_name, vm_name, snapshot_name) }.to raise_error(/revertsnapshot_fail_percent/)
+          expect { subject.revert_snapshot(pool_name, vm_name, snapshot_name) }.to raise_error(/revertsnapshot_fail_percent/)
         end
       end
     end
@@ -421,7 +419,7 @@ EOT
     end
 
     it 'should return false if VM does not exist' do
-      expect(subject.destroy_vm('doesnotexist',vm_name)).to eq(false)
+      expect(subject.destroy_vm('doesnotexist', vm_name)).to eq(false)
     end
 
     it 'should return false if VM is not in the correct pool' do
@@ -445,7 +443,7 @@ EOT
         end
 
         it 'should raise an error' do
-          expect{subject.destroy_vm(pool_name, vm_name)}.to raise_error(/migratevm_fail_percent/)
+          expect { subject.destroy_vm(pool_name, vm_name) }.to raise_error(/migratevm_fail_percent/)
         end
       end
     end
@@ -470,7 +468,7 @@ EOT
     end
 
     it 'should raise an error if timeout expires' do
-      expect{subject.vm_ready?(other_pool_name, running_vm_name)}.to raise_error(Timeout::Error)
+      expect { subject.vm_ready?(other_pool_name, running_vm_name) }.to raise_error(Timeout::Error)
     end
 
     it 'should return true if VM becomes ready' do
@@ -494,7 +492,7 @@ EOT
         end
 
         it 'should raise an error' do
-          expect{subject.vm_ready?(other_pool_name, notready_vm_name)}.to raise_error(/vmready_fail_percent/)
+          expect { subject.vm_ready?(other_pool_name, notready_vm_name) }.to raise_error(/vmready_fail_percent/)
         end
       end
     end

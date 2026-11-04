@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 require 'climate_control'
 require 'rack/test'
@@ -5,26 +7,27 @@ require 'rack/test'
 describe Vmpooler::API do
   include Rack::Test::Methods
 
-  def app()
+  def app
     Vmpooler::API
   end
 
   # Added to ensure no leakage in rack state from previous tests.
   # Removes all routes, filters, middleware and extension hooks from the current class
-  # https://rubydoc.info/gems/sinatra/Sinatra/Base#reset!-class_method 
+  # https://rubydoc.info/gems/sinatra/Sinatra/Base#reset!-class_method
   before(:each) do
     app.reset!
   end
 
   describe 'Dashboard' do
-
-    let(:config) { {
-      config: {},
-      pools: [
-          {'name' => 'pool1', 'size' => 5}
-      ],
-      graphite: {}
-    } }
+    let(:config) do
+      {
+        config: {},
+        pools: [
+          { 'name' => 'pool1', 'size' => 5 }
+        ],
+        graphite: {}
+      }
+    end
 
     before(:each) do
       expect(app).to receive(:run!)
@@ -63,18 +66,20 @@ describe Vmpooler::API do
 
       it { expect(last_response.header['Content-Type']).to eq('application/json') }
       it { expect(last_response.status).to eq(404) }
-      it { expect(last_response.body).to eq(JSON.pretty_generate({ok: false})) }
+      it { expect(last_response.body).to eq(JSON.pretty_generate({ ok: false })) }
     end
 
     describe '/dashboard/stats/vmpooler/pool' do
-      let(:config) { {
+      let(:config) do
+        {
           config: {},
           pools: [
-              {'name' => 'pool1', 'size' => 5},
-              {'name' => 'pool2', 'size' => 1}
+            { 'name' => 'pool1', 'size' => 5 },
+            { 'name' => 'pool2', 'size' => 1 }
           ],
           graphite: {}
-      } }
+        }
+      end
 
       before(:each) do
         app.settings.set :config, config
@@ -92,8 +97,8 @@ describe Vmpooler::API do
           get '/dashboard/stats/vmpooler/pool'
 
           json_hash = {
-              pool1: {size: 5, ready: 3},
-              pool2: {size: 1, ready: 2}
+            pool1: { size: 5, ready: 3 },
+            pool2: { size: 1, ready: 2 }
           }
 
           expect(last_response).to be_ok
@@ -104,11 +109,11 @@ describe Vmpooler::API do
 
       context 'with history param' do
         it 'returns JSON with zeroed history when redis does not have values' do
-          get '/dashboard/stats/vmpooler/pool', :history => true
+          get '/dashboard/stats/vmpooler/pool', history: true
 
           json_hash = {
-              pool1: {size: 5, ready: 0, history: [0]},
-              pool2: {size: 1, ready: 0, history: [0]}
+            pool1: { size: 5, ready: 0, history: [0] },
+            pool2: { size: 1, ready: 0, history: [0] }
           }
 
           expect(last_response).to be_ok
@@ -123,11 +128,11 @@ describe Vmpooler::API do
           create_ready_vm('pool2', 'vm4', redis)
           create_ready_vm('pool2', 'vm5', redis)
 
-          get '/dashboard/stats/vmpooler/pool', :history => true
+          get '/dashboard/stats/vmpooler/pool', history: true
 
           json_hash = {
-              pool1: {size: 5, ready: 3, history: [3]},
-              pool2: {size: 1, ready: 2, history: [2]}
+            pool1: { size: 5, ready: 3, history: [3] },
+            pool2: { size: 1, ready: 2, history: [2] }
           }
 
           expect(last_response).to be_ok
@@ -138,15 +143,17 @@ describe Vmpooler::API do
     end
 
     describe '/dashboard/stats/vmpooler/running' do
-      let(:config) { {
+      let(:config) do
+        {
           config: {},
           pools: [
-              {'name' => 'pool-1', 'size' => 5},
-              {'name' => 'pool-2', 'size' => 1},
-              {'name' => 'diffpool-1', 'size' => 3}
+            { 'name' => 'pool-1', 'size' => 5 },
+            { 'name' => 'pool-2', 'size' => 1 },
+            { 'name' => 'diffpool-1', 'size' => 3 }
           ],
           graphite: {}
-      } }
+        }
+      end
 
       before(:each) do
         app.settings.set :config, config
@@ -154,11 +161,10 @@ describe Vmpooler::API do
       end
 
       context 'without history param' do
-
         it 'returns basic JSON' do
           get '/dashboard/stats/vmpooler/running'
 
-          json_hash = {pool: {running: 0}, diffpool: {running: 0}}
+          json_hash = { pool: { running: 0 }, diffpool: { running: 0 } }
 
           expect(last_response).to be_ok
           expect(last_response.body).to eq(JSON.pretty_generate(json_hash))
@@ -181,7 +187,7 @@ describe Vmpooler::API do
 
           get '/dashboard/stats/vmpooler/running'
 
-          json_hash = {pool: {running: 8}, diffpool: {running: 2}}
+          json_hash = { pool: { running: 8 }, diffpool: { running: 2 } }
 
           expect(last_response).to be_ok
           expect(last_response.body).to eq(JSON.pretty_generate(json_hash))

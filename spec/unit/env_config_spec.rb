@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'vmpooler'
 require 'climate_control'
 require 'mock_redis'
@@ -13,7 +15,6 @@ describe 'Vmpooler' do
     before { allow(Vmpooler).to receive(:new_redis).and_return(MockRedis.new) }
 
     describe 'environment variables' do
-
       test_integer = '5'
       test_string = 'test_string'
       test_bool = 'true'
@@ -26,7 +27,7 @@ describe 'Vmpooler' do
         ['vm_lifetime_auth', test_integer, nil],
         ['max_tries', test_integer, nil],
         ['retry_factor', test_integer, nil],
-        ['prefix', test_string, ""],
+        ['prefix', test_string, ''],
         ['logfile', test_string, '/dev/stdout'],
         ['site_name', test_string, nil],
         ['clone_target', test_string, nil],
@@ -36,7 +37,7 @@ describe 'Vmpooler' do
         ['experimental_features', test_bool, nil],
         ['purge_unconfigured_resources', test_bool, nil],
         ['usage_stats', test_bool, nil],
-        ['request_logger', test_bool, nil],
+        ['request_logger', test_bool, nil]
       ]
 
       # extra_config is only read when the config comes from a file, so it is not covered here
@@ -78,7 +79,7 @@ describe 'Vmpooler' do
         ['server', 'redis', 'localhost'],
         ['port', '4567', nil],
         ['password', 'testpass', nil],
-        ['data_ttl', '500', 168],
+        ['data_ttl', '500', 168]
       ]
 
       test_cases.each do |key, value, default|
@@ -112,10 +113,9 @@ describe 'Vmpooler' do
     end
 
     describe 'statsd environment variables' do
-
       test_cases = [
         ['prefix', 'vmpooler', nil],
-        ['port', '4567', nil],
+        ['port', '4567', nil]
       ]
 
       test_cases.each do |key, value, default|
@@ -124,8 +124,8 @@ describe 'Vmpooler' do
             test_value = value
             test_value = Integer(value) if value =~ /\d/
             config = Vmpooler.config
-
-            expect(config[:statsd][key]).to eq(test_value) end
+            expect(config[:statsd][key]).to eq(test_value)
+          end
         end
 
         it "should set a default value for each #{key}" do
@@ -149,10 +149,9 @@ describe 'Vmpooler' do
     end
 
     describe 'graphite environment variables' do
-
       test_cases = [
         ['prefix', 'vmpooler', nil],
-        ['port', '4567', nil],
+        ['port', '4567', nil]
       ]
 
       test_cases.each do |key, value, default|
@@ -187,12 +186,11 @@ describe 'Vmpooler' do
     end
 
     describe 'ldap environment variables' do
-
       test_cases = [
         ['host', 'test', nil],
         ['port', '4567', nil],
         ['base', 'dc=example,dc=com', nil],
-        ['user_object', 'uid', nil],
+        ['user_object', 'uid', nil]
       ]
 
       test_cases.each do |key, value, default|

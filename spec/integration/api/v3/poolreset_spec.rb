@@ -1,10 +1,12 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 require 'rack/test'
 
 describe Vmpooler::API::V3 do
   include Rack::Test::Methods
 
-  def app()
+  def app
     Vmpooler::API
   end
 
@@ -12,7 +14,7 @@ describe Vmpooler::API::V3 do
     Vmpooler::API.reset!
   end
 
-  let(:config) {
+  let(:config) do
     {
       config: {
         'site_name' => 'test pooler',
@@ -20,14 +22,14 @@ describe Vmpooler::API::V3 do
         'experimental_features' => true
       },
       pools: [
-        {'name' => 'pool1', 'size' => 5, 'template' => 'templates/pool1', 'clone_target' => 'default_cluster'},
-        {'name' => 'pool2', 'size' => 10}
+        { 'name' => 'pool1', 'size' => 5, 'template' => 'templates/pool1', 'clone_target' => 'default_cluster' },
+        { 'name' => 'pool2', 'size' => 10 }
       ],
-      statsd: { 'prefix' => 'stats_prefix'},
+      statsd: { 'prefix' => 'stats_prefix' },
       alias: { 'poolone' => 'pool1' },
-      pool_names: [ 'pool1', 'pool2', 'poolone' ]
+      pool_names: ['pool1', 'pool2', 'poolone']
     }
-  }
+  end
 
   describe '/poolreset' do
     let(:prefix) { '/api/v3' }
@@ -45,7 +47,7 @@ describe Vmpooler::API::V3 do
     describe 'POST /poolreset' do
       it 'refreshes ready and pending instances from a pool' do
         post "#{prefix}/poolreset", '{"pool1":"1"}'
-        expect_json(ok = true, http = 201)
+        expect_json(true, 201)
 
         expected = { ok: true }
 
@@ -54,12 +56,12 @@ describe Vmpooler::API::V3 do
 
       it 'fails on nonexistent pools' do
         post "#{prefix}/poolreset", '{"poolpoolpool":"1"}'
-        expect_json(ok = false, http = 400)
+        expect_json(false, 400)
       end
 
       it 'resets multiple pools' do
         post "#{prefix}/poolreset", '{"pool1":"1","pool2":"1"}'
-        expect_json(ok = true, http = 201)
+        expect_json(true, 201)
 
         expected = { ok: true }
 
@@ -68,7 +70,7 @@ describe Vmpooler::API::V3 do
 
       it 'fails when not all pools exist' do
         post "#{prefix}/poolreset", '{"pool1":"1","pool3":"1"}'
-        expect_json(ok = false, http = 400)
+        expect_json(false, 400)
 
         expected = {
           ok: false,
@@ -85,7 +87,7 @@ describe Vmpooler::API::V3 do
 
         it 'should return 405' do
           post "#{prefix}/poolreset", '{"pool1":"1"}'
-          expect_json(ok = false, http = 405)
+          expect_json(false, 405)
 
           expected = { ok: false }
           expect(last_response.body).to eq(JSON.pretty_generate(expected))
@@ -94,7 +96,7 @@ describe Vmpooler::API::V3 do
 
       it 'should return 400 for invalid json' do
         post "#{prefix}/poolreset", '{"pool1":"1}'
-        expect_json(ok = false, http = 400)
+        expect_json(false, 400)
 
         expected = { ok: false, message: 'JSON payload could not be parsed' }
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
@@ -102,7 +104,7 @@ describe Vmpooler::API::V3 do
 
       it 'should return 400 with a bad pool name' do
         post "#{prefix}/poolreset", '{"pool11":"1"}'
-        expect_json(ok = false, http = 400)
+        expect_json(false, 400)
 
         expected = { ok: false, bad_pools: ['pool11'] }
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
@@ -110,7 +112,7 @@ describe Vmpooler::API::V3 do
 
       it 'should return 400 when there is no payload' do
         post "#{prefix}/poolreset"
-        expect_json(ok = false, http = 400)
+        expect_json(false, 400)
 
         expected = { ok: false, message: 'JSON payload could not be parsed' }
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
