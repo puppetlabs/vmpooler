@@ -610,6 +610,12 @@ describe 'Vmpooler::PoolManager::Provider::Dummy' do
       expect(File.exist?(@backing_file)).to be false
     end
   end
+  describe '#vm_ready? as the pool manager calls it' do
+    it 'accepts the redis connection the pool manager passes as a third argument' do
+      expect(subject.vm_ready?(pool_name, vm_name, double('redis'))).to be true
+    end
+  end
+
   describe '#get_vm_ip_address' do
     let(:pool_name) { 'pool1' }
     let(:vm_name) { 'vm-ip-test' }

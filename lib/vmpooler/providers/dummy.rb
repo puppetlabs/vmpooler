@@ -331,7 +331,7 @@ module Vmpooler
           "10.0.#{sum % 250 + 1}.#{(sum * 7) % 250 + 1}"
         end
 
-        def vm_ready?(pool_name, vm_name)
+        def vm_ready?(pool_name, vm_name, _redis = nil)
           @connection_pool.with_metrics do |_conn|
             vm_object = get_dummy_vm(pool_name, vm_name)
             return false if vm_object.nil?
