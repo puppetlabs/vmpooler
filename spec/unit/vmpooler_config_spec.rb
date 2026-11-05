@@ -374,5 +374,12 @@ describe Vmpooler do
         expect(configurator).to have_received(:use).with("OpenTelemetry::Instrumentation::#{name}")
       end
     end
+
+    # With the events handler on, instrumentation-rack 0.26+ logs an unmatched context detach on every request.
+    it 'turns on the rack instrumentation without the rack events handler' do
+      configure(['api'])
+
+      expect(configurator).to have_received(:use).with('OpenTelemetry::Instrumentation::Rack', use_rack_events: false)
+    end
   end
 end
