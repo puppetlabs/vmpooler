@@ -740,6 +740,10 @@ module Vmpooler
 
     def purge_vms_and_resources(provider_name)
       provider = $providers[provider_name.to_s]
+      unless provider
+        $logger.log('d', "[!] [purge] Skipping provider '#{provider_name}': not initialized")
+        return
+      end
       # Deprecated, will be removed in version 3
       if provider.provider_config['folder_whitelist']
         $logger.log('d', "[!] [deprecation] rename configuration 'folder_whitelist' to 'resources_allowlist' for provider #{provider_name}")
