@@ -7,5 +7,4 @@ require 'spec_helper'
 describe 'Vmpooler::Parsing' do
   let(:pool) { 'pool1' }
   subject { Vmpooler::Parsing }
-
 end

@@ -22,32 +22,34 @@ describe 'Pool Manager' do
 
   let(:provider_options) { {} }
   let(:dns_options) { {} }
-  let(:redis_connection_pool) { Vmpooler::PoolManager::GenericConnectionPool.new(
-    metrics: metrics,
-    connpool_type: 'redis_connection_pool',
-    connpool_provider: 'testprovider',
-    size: 1,
-    timeout: 5
-  ) { MockRedis.new }
-  }
+  let(:redis_connection_pool) do
+    Vmpooler::PoolManager::GenericConnectionPool.new(
+      metrics: metrics,
+      connpool_type: 'redis_connection_pool',
+      connpool_provider: 'testprovider',
+      size: 1,
+      timeout: 5
+    ) { MockRedis.new }
+  end
 
   let(:provider) { Vmpooler::PoolManager::Provider::Base.new(config, logger, metrics, redis_connection_pool, 'mock_provider', provider_options) }
   let(:dns_plugin) { MockPoolManagerDnsBase.new }
-  let(:config) { YAML.load(<<-EOT
----
-:config: {}
-:dns_configs: {}
-:providers:
-  :mock:
-    dns_class: base
-:redis: {}
-:pools:
-  - name: '#{pool}'
-    size: 1
-    dns_plugin: 'mock'
-EOT
-    )
-  }
+  let(:config) do
+    YAML.load(<<~EOT
+      ---
+      :config: {}
+      :dns_configs: {}
+      :providers:
+        :mock:
+          dns_class: base
+      :redis: {}
+      :pools:
+        - name: '#{pool}'
+          size: 1
+          dns_plugin: 'mock'
+    EOT
+             )
+  end
 
   subject { Vmpooler::PoolManager.new(config, logger, redis_connection_pool, metrics) }
 
@@ -62,18 +64,19 @@ EOT
   end
 
   describe '#load_used_providers' do
-    let(:config) { YAML.load(<<-EOT
----
-:config:
-:providers:
-  :mock:
-:pools:
-  - name: '#{pool}'
-    size: 1
-    provider: 'spoof'
-    EOT
-    )
-    }
+    let(:config) do
+      YAML.load(<<~EOT
+        ---
+        :config:
+        :providers:
+          :mock:
+        :pools:
+          - name: '#{pool}'
+            size: 1
+            provider: 'spoof'
+      EOT
+               )
+    end
     it do
       files = ["#{project_root_dir}/lib/vmpooler/providers/dummy.rb"]
       expect(subject.load_used_providers).to eq(files)
@@ -81,99 +84,102 @@ EOT
   end
 
   describe '#load_used_dns_plugins' do
-    let(:config) { YAML.load(<<-EOT
----
-:config:
-:dns_configs:
-  :base:
-:pools:
-  - name: '#{pool}'
-    size: 1
-    provider: 'spoof'
-    EOT
-    )
-    }
+    let(:config) do
+      YAML.load(<<~EOT
+        ---
+        :config:
+        :dns_configs:
+          :base:
+        :pools:
+          - name: '#{pool}'
+            size: 1
+            provider: 'spoof'
+      EOT
+               )
+    end
     it do
       files = ['vmpooler/dns/base']
       expect(subject.load_used_dns_plugins).to eq(files)
     end
-
-
   end
 
   describe '#used_providers' do
     context 'with no named providers' do
-      let(:config) { YAML.load(<<-EOT
----
-:config:
-:pools:
-  - name: '#{pool}'
-    size: 1
-    provider: 'spoof'
-    EOT
-      )
-      }
+      let(:config) do
+        YAML.load(<<~EOT
+          ---
+          :config:
+          :pools:
+            - name: '#{pool}'
+              size: 1
+              provider: 'spoof'
+        EOT
+                 )
+      end
       it do
-        result = ["dummy"]
+        result = ['dummy']
         expect(subject.used_providers).to eq(result)
       end
     end
     context 'with one named provider without a provider_class key' do
-      let(:config) { YAML.load(<<-EOT
----
-:config:
-:providers:
-  :mock:
-:pools:
-  - name: '#{pool}'
-    size: 1
-    provider: 'spoof'
-    EOT
-      )
-      }
+      let(:config) do
+        YAML.load(<<~EOT
+          ---
+          :config:
+          :providers:
+            :mock:
+          :pools:
+            - name: '#{pool}'
+              size: 1
+              provider: 'spoof'
+        EOT
+                 )
+      end
       it do
-        result = ["mock", "dummy"]
+        result = ['mock', 'dummy']
         expect(subject.used_providers).to eq(result)
       end
     end
 
     context 'with one named provider with a provider_class key' do
-      let(:config) { YAML.load(<<-EOT
----
-:config:
-:providers:
-  :mock:
-    provider_class: 'mock_mock'
-:pools:
-  - name: '#{pool}'
-    size: 1
-    provider: 'spoof'
-    EOT
-      )
-      }
+      let(:config) do
+        YAML.load(<<~EOT
+          ---
+          :config:
+          :providers:
+            :mock:
+              provider_class: 'mock_mock'
+          :pools:
+            - name: '#{pool}'
+              size: 1
+              provider: 'spoof'
+        EOT
+                 )
+      end
       it do
-        result = ["mock_mock", "dummy"]
+        result = ['mock_mock', 'dummy']
         expect(subject.used_providers).to eq(result)
       end
     end
 
     context 'with one named provider with a provider_class key and one without' do
-      let(:config) { YAML.load(<<-EOT
----
-:config:
-:providers:
-  :mock:
-    provider_class: 'mock_mock'
-  :foo:
-:pools:
-  - name: '#{pool}'
-    size: 1
-    provider: 'spoof'
-    EOT
-      )
-      }
+      let(:config) do
+        YAML.load(<<~EOT
+          ---
+          :config:
+          :providers:
+            :mock:
+              provider_class: 'mock_mock'
+            :foo:
+          :pools:
+            - name: '#{pool}'
+              size: 1
+              provider: 'spoof'
+        EOT
+                 )
+      end
       it do
-        result = ["mock_mock", "foo", "dummy"]
+        result = ['mock_mock', 'foo', 'dummy']
         expect(subject.used_providers).to eq(result)
       end
     end
@@ -202,7 +208,6 @@ EOT
     end
 
     context 'host is in pool' do
-
       it 'calls move_pending_vm_to_ready if host is ready' do
         redis_connection_pool.with do |redis|
           expect(provider).to receive(:vm_ready?).with(pool, vm, redis).and_return(true)
@@ -245,7 +250,7 @@ EOT
 
     it 'removes VM from pending in redis' do
       redis_connection_pool.with do |redis|
-        create_pending_vm(pool,vm,redis)
+        create_pending_vm(pool, vm, redis)
 
         subject.remove_nonexistent_vm(vm, pool, redis)
         expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(false)
@@ -261,14 +266,14 @@ EOT
     end
   end
 
- describe '#fail_pending_vm' do
+  describe '#fail_pending_vm' do
     before do
       expect(subject).not_to be_nil
     end
 
     before(:each) do
       redis_connection_pool.with do |redis|
-        create_pending_vm(pool,vm,redis)
+        create_pending_vm(pool, vm, redis)
         config[:config]['vm_checktime'] = 15
       end
     end
@@ -282,7 +287,7 @@ EOT
 
     it 'takes no action if VM is within timeout' do
       redis_connection_pool.with do |redis|
-        redis.hset("vmpooler__vm__#{vm}", 'clone',Time.now.to_s)
+        redis.hset("vmpooler__vm__#{vm}", 'clone', Time.now.to_s)
         expect(logger).to_not receive(:log)
         expect(subject.fail_pending_vm(vm, pool, timeout, timeout_notification, redis)).to eq(true)
         expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(true)
@@ -291,7 +296,7 @@ EOT
 
     it 'moves VM to completed queue if VM has exceeded timeout and exists' do
       redis_connection_pool.with do |redis|
-        redis.hset("vmpooler__vm__#{vm}", 'clone',Date.new(2001,1,1).to_s)
+        redis.hset("vmpooler__vm__#{vm}", 'clone', Date.new(2001, 1, 1).to_s)
         expect(subject.fail_pending_vm(vm, pool, timeout, timeout_notification, redis, exists: true)).to eq(true)
         expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(false)
         expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
@@ -300,7 +305,7 @@ EOT
 
     it 'logs message if VM has exceeded timeout and exists' do
       redis_connection_pool.with do |redis|
-        redis.hset("vmpooler__vm__#{vm}", 'clone',Date.new(2001,1,1).to_s)
+        redis.hset("vmpooler__vm__#{vm}", 'clone', Date.new(2001, 1, 1).to_s)
         expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes with error: ")
         expect(subject.fail_pending_vm(vm, pool, timeout, timeout_notification, redis, exists: true)).to eq(true)
       end
@@ -308,7 +313,7 @@ EOT
 
     it 'calls remove_nonexistent_vm if VM has exceeded timeout and does not exist' do
       redis_connection_pool.with do |redis|
-        redis.hset("vmpooler__vm__#{vm}", 'clone',Date.new(2001,1,1).to_s)
+        redis.hset("vmpooler__vm__#{vm}", 'clone', Date.new(2001, 1, 1).to_s)
         expect(logger).to_not receive(:log)
         expect(subject).to receive(:remove_nonexistent_vm).with(vm, pool, redis)
         expect(subject.fail_pending_vm(vm, pool, timeout, timeout_notification, redis, exists: false)).to eq(true)
@@ -317,14 +322,14 @@ EOT
 
     it 'swallows error if an error is raised' do
       redis_connection_pool.with do |redis|
-        redis.hset("vmpooler__vm__#{vm}", 'clone','iamnotparsable_asdate')
+        redis.hset("vmpooler__vm__#{vm}", 'clone', 'iamnotparsable_asdate')
         expect(subject.fail_pending_vm(vm, pool, timeout, timeout_notification, redis, exists: true)).to eq(false)
       end
     end
 
     it 'logs message if an error is raised' do
       redis_connection_pool.with do |redis|
-        redis.hset("vmpooler__vm__#{vm}", 'clone','iamnotparsable_asdate')
+        redis.hset("vmpooler__vm__#{vm}", 'clone', 'iamnotparsable_asdate')
         expect(logger).to receive(:log).with('d', String)
 
         subject.fail_pending_vm(vm, pool, timeout, timeout_notification, redis, exists: true)
@@ -332,10 +337,9 @@ EOT
     end
 
     context 'with request_id' do
-
       it 'creates a new odcreate task' do
         redis_connection_pool.with do |redis|
-          redis.hset("vmpooler__vm__#{vm}", 'clone',(Time.now - 900).to_s)
+          redis.hset("vmpooler__vm__#{vm}", 'clone', (Time.now - 900).to_s)
           redis.hset("vmpooler__vm__#{vm}", 'pool_alias', pool)
           redis.hset("vmpooler__vm__#{vm}", 'request_id', request_id)
           subject.fail_pending_vm(vm, pool, timeout, timeout_notification, redis, exists: true)
@@ -362,7 +366,7 @@ EOT
         redis_connection_pool.with do |redis|
           redis.hset("vmpooler__vm__#{vm}", 'open_socket_error', 'connection failed')
           result = subject.handle_timed_out_vm(vm, pool, redis)
-          
+
           expect(redis.sismember("vmpooler__pending__#{pool}", vm)).to be(false)
           expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
           expect(result).to eq('connection failed')
@@ -384,7 +388,7 @@ EOT
       it 'retries on first failure' do
         redis_connection_pool.with do |redis|
           subject.handle_timed_out_vm(vm, pool, redis)
-          
+
           expect(redis.hget("vmpooler__odrequest__#{request_id}", 'retry_count')).to eq('1')
           expect(redis.zrange('vmpooler__odcreate__task', 0, -1)).to include("#{pool}:#{pool}:1:#{request_id}")
         end
@@ -393,9 +397,9 @@ EOT
       it 'marks as failed after max retries' do
         redis_connection_pool.with do |redis|
           redis.hset("vmpooler__odrequest__#{request_id}", 'retry_count', '3')
-          
+
           subject.handle_timed_out_vm(vm, pool, redis)
-          
+
           expect(redis.hget("vmpooler__odrequest__#{request_id}", 'status')).to eq('failed')
           expect(redis.hget("vmpooler__odrequest__#{request_id}", 'failure_reason')).to eq('Max retry attempts exceeded')
           expect(redis.zrange('vmpooler__odcreate__task', 0, -1)).not_to include("#{pool}:#{pool}:1:#{request_id}")
@@ -417,7 +421,7 @@ EOT
       it 'immediately marks as failed without retrying' do
         redis_connection_pool.with do |redis|
           subject.handle_timed_out_vm(vm, pool, redis)
-          
+
           expect(redis.hget("vmpooler__odrequest__#{request_id}", 'status')).to eq('failed')
           expect(redis.hget("vmpooler__odrequest__#{request_id}", 'failure_reason')).to include('Configuration error')
           expect(redis.zrange('vmpooler__odcreate__task', 0, -1)).not_to include("#{pool}:#{pool}:1:#{request_id}")
@@ -463,7 +467,7 @@ EOT
   end
 
   describe '#move_pending_vm_to_ready' do
-    let(:host) { { 'hostname' => vm }}
+    let(:host) { { 'hostname' => vm } }
 
     before do
       expect(subject).not_to be_nil
@@ -471,7 +475,7 @@ EOT
 
     before(:each) do
       redis_connection_pool.with do |redis|
-        create_pending_vm(pool,vm,redis)
+        create_pending_vm(pool, vm, redis)
       end
     end
 
@@ -496,21 +500,20 @@ EOT
 
       it 'should receive time_to_ready_state metric' do
         redis_connection_pool.with do |redis|
-          redis.hset("vmpooler__vm__#{vm}", 'clone',Time.now.to_s)
-          expect(metrics).to receive(:timing).with(/time_to_ready_state\./,/0/)
+          redis.hset("vmpooler__vm__#{vm}", 'clone', Time.now.to_s)
+          expect(metrics).to receive(:timing).with(/time_to_ready_state\./, /0/)
 
           subject.move_pending_vm_to_ready(vm, pool, redis)
         end
       end
 
-
       it 'should set the boot time in redis' do
         redis_connection_pool.with do |redis|
-          redis.hset("vmpooler__vm__#{vm}", 'clone',Time.now.to_s)
+          redis.hset("vmpooler__vm__#{vm}", 'clone', Time.now.to_s)
           expect(redis.hget('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm)).to be_nil
           subject.move_pending_vm_to_ready(vm, pool, redis)
           expect(redis.hget('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm)).to_not be_nil
-          # TODO Should we inspect the value to see if it's valid?
+          # TODO: Should we inspect the value to see if it's valid?
         end
       end
 
@@ -524,8 +527,8 @@ EOT
 
       it 'should raise error if clone start time is not parsable' do
         redis_connection_pool.with do |redis|
-          redis.hset("vmpooler__vm__#{vm}", 'clone','iamnotparsable_asdate')
-          expect{subject.move_pending_vm_to_ready(vm, pool, redis)}.to raise_error(/iamnotparsable_asdate/)
+          redis.hset("vmpooler__vm__#{vm}", 'clone', 'iamnotparsable_asdate')
+          expect { subject.move_pending_vm_to_ready(vm, pool, redis) }.to raise_error(/iamnotparsable_asdate/)
         end
       end
 
@@ -655,30 +658,31 @@ EOT
   describe '#_check_ready_vm' do
     let(:ttl) { 5 }
     let(:host) { {} }
-    let(:config) { YAML.load(<<-EOT
----
-:config: {}
-:providers:
-  :mock:
-:pools:
-  - name: '#{pool}'
-    size: 1
-:pool_index:
-  '#{pool}': 0
-EOT
-      )
-    }
+    let(:config) do
+      YAML.load(<<~EOT
+        ---
+        :config: {}
+        :providers:
+          :mock:
+        :pools:
+          - name: '#{pool}'
+            size: 1
+        :pool_index:
+          '#{pool}': 0
+      EOT
+               )
+    end
 
     before(:each) do
       redis_connection_pool.with do |redis|
-        create_ready_vm(pool,vm,redis)
+        create_ready_vm(pool, vm, redis)
       end
       config[:config]['vm_checktime'] = 15
 
       # Create a VM which is powered on
       host['hostname'] = vm
       host['powerstate'] = 'PoweredOn'
-      allow(provider).to receive(:get_vm).with(pool,vm).and_return(host)
+      allow(provider).to receive(:get_vm).with(pool, vm).and_return(host)
     end
 
     context 'a VM that does not need to be checked' do
@@ -707,7 +711,7 @@ EOT
       let(:last_check_date) { Time.now - 901 }
       before(:each) do
         redis_connection_pool.with do |redis|
-          redis.hset("vmpooler__vm__#{vm}", 'check',last_check_date)
+          redis.hset("vmpooler__vm__#{vm}", 'check', last_check_date)
         end
       end
 
@@ -756,7 +760,6 @@ EOT
       end
 
       context 'with hostname mismatch checking enabled' do
-
         context 'when less than 60 seconds since a VM moved to ready' do
           before(:each) do
             redis_connection_pool.with do |redis|
@@ -829,7 +832,7 @@ EOT
 
   describe '#check_running_vm' do
     let(:provider) { double('provider') }
-    let (:ttl) { 5 }
+    let(:ttl) { 5 }
 
     before do
       expect(subject).not_to be_nil
@@ -852,19 +855,19 @@ EOT
 
     before(:each) do
       redis_connection_pool.with do |redis|
-        create_running_vm(pool,vm, redis)
+        create_running_vm(pool, vm, redis)
       end
 
       # Create a VM which is powered on
       host['hostname'] = vm
       host['powerstate'] = 'PoweredOn'
-      allow(provider).to receive(:get_vm).with(pool,vm).and_return(host)
+      allow(provider).to receive(:get_vm).with(pool, vm).and_return(host)
     end
 
     it 'moves a missing VM to the completed queue' do
       redis_connection_pool.with do |redis|
         expect(provider).to receive(:vm_ready?).and_return(false)
-        expect(provider).to receive(:get_vm).with(pool,vm).and_return(nil)
+        expect(provider).to receive(:get_vm).with(pool, vm).and_return(nil)
         expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
         subject._check_running_vm(vm, pool, timeout, provider)
         expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(false)
@@ -882,9 +885,9 @@ EOT
       end
 
       it 'should log a message when the machine is removed due to no active data' do
-        redis_connection_pool.with do |redis|
+        redis_connection_pool.with do |_redis|
           expect(provider).to receive(:vm_ready?).and_return(true)
-          expect(logger).to receive(:log).with('d',"[!] [#{pool}] '#{vm}' is listed as running, but has no checkouttime data. Removing from running")
+          expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' is listed as running, but has no checkouttime data. Removing from running")
           subject._check_running_vm(vm, pool, 0, provider)
         end
       end
@@ -892,7 +895,7 @@ EOT
       it 'should not move VM if TTL is zero' do
         redis_connection_pool.with do |redis|
           expect(provider).to receive(:vm_ready?).and_return(true)
-          redis.hset("vmpooler__active__#{pool}", vm,(Time.now - timeout*60*60).to_s)
+          redis.hset("vmpooler__active__#{pool}", vm, (Time.now - timeout * 60 * 60).to_s)
           expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
           subject._check_running_vm(vm, pool, 0, provider)
           expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
@@ -901,7 +904,7 @@ EOT
 
       it 'should move VM when past TTL' do
         redis_connection_pool.with do |redis|
-          redis.hset("vmpooler__active__#{pool}", vm,(Time.now - timeout*60*60).to_s)
+          redis.hset("vmpooler__active__#{pool}", vm, (Time.now - timeout * 60 * 60).to_s)
           expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
           expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(false)
           subject._check_running_vm(vm, pool, timeout, provider)
@@ -913,7 +916,7 @@ EOT
       it 'should try to tag if it has not been done' do
         redis_connection_pool.with do |redis|
           expect(provider).to receive(:vm_ready?).and_return(true)
-          redis.hset("vmpooler__active__#{pool}", vm,(Time.now - timeout*60*60).to_s)
+          redis.hset("vmpooler__active__#{pool}", vm, (Time.now - timeout * 60 * 60).to_s)
           expect(provider).to receive(:tag_vm_user)
           subject._check_running_vm(vm, pool, 0, provider)
         end
@@ -922,7 +925,7 @@ EOT
       it 'should not try to tag if it has been done' do
         redis_connection_pool.with do |redis|
           expect(provider).to receive(:vm_ready?).and_return(true)
-          redis.hset("vmpooler__active__#{pool}", vm,(Time.now - timeout*60*60).to_s)
+          redis.hset("vmpooler__active__#{pool}", vm, (Time.now - timeout * 60 * 60).to_s)
           redis.hset("vmpooler__vm__#{vm}", 'user_tagged', 'true')
           expect(provider).not_to receive(:tag_vm_user)
           subject._check_running_vm(vm, pool, 0, provider)
@@ -961,27 +964,27 @@ EOT
 
     it 'VM should be in the "from queue" before the move' do
       redis_connection_pool.with do |redis|
-        expect(redis.sismember("vmpooler__#{queue_from}__#{pool}",vm))
+        expect(redis.sismember("vmpooler__#{queue_from}__#{pool}", vm))
       end
     end
 
     it 'VM should not be in the "from queue" after the move' do
       redis_connection_pool.with do |redis|
         subject.move_vm_queue(pool, vm, queue_from, queue_to, redis, message)
-        expect(!redis.sismember("vmpooler__#{queue_from}__#{pool}",vm))
+        expect(!redis.sismember("vmpooler__#{queue_from}__#{pool}", vm))
       end
     end
 
     it 'VM should not be in the "to queue" before the move' do
       redis_connection_pool.with do |redis|
-        expect(!redis.sismember("vmpooler__#{queue_to}__#{pool}",vm))
+        expect(!redis.sismember("vmpooler__#{queue_to}__#{pool}", vm))
       end
     end
 
     it 'VM should be in the "to queue" after the move' do
       redis_connection_pool.with do |redis|
         subject.move_vm_queue(pool, vm, queue_from, queue_to, redis, message)
-        expect(redis.sismember("vmpooler__#{queue_to}__#{pool}",vm))
+        expect(redis.sismember("vmpooler__#{queue_to}__#{pool}", vm))
       end
     end
 
@@ -995,7 +998,7 @@ EOT
   end
 
   describe '#clone_vm' do
-    let (:pool_object) { { 'name' => pool } }
+    let(:pool_object) { { 'name' => pool } }
 
     before do
       expect(subject).not_to be_nil
@@ -1003,118 +1006,118 @@ EOT
     end
 
     it 'calls _clone_vm' do
-      expect(subject).to receive(:_clone_vm).with(pool_object,provider,dns_plugin,nil,nil)
+      expect(subject).to receive(:_clone_vm).with(pool_object, provider, dns_plugin, nil, nil)
 
-      subject.clone_vm(pool_object,provider,dns_plugin)
+      subject.clone_vm(pool_object, provider, dns_plugin)
     end
 
     it 'logs a message if an error is raised' do
       allow(logger).to receive(:log)
-      expect(logger).to receive(:log).with('s',"[!] [#{pool}] failed while cloning VM with an error: MockError")
-      expect(subject).to receive(:_clone_vm).with(pool,provider,dns_plugin,nil,nil).and_raise('MockError')
+      expect(logger).to receive(:log).with('s', "[!] [#{pool}] failed while cloning VM with an error: MockError")
+      expect(subject).to receive(:_clone_vm).with(pool, provider, dns_plugin, nil, nil).and_raise('MockError')
 
-      expect{subject.clone_vm(pool,provider,dns_plugin)}.to raise_error(/MockError/)
+      expect { subject.clone_vm(pool, provider, dns_plugin) }.to raise_error(/MockError/)
     end
   end
 
   describe '#find_unique_hostname' do
     # it should return the hostname
     before do
-      allow(subject).to receive(:generate_and_check_hostname).and_return(["spicy-proton", true])
+      allow(subject).to receive(:generate_and_check_hostname).and_return(['spicy-proton', true])
       allow(subject).to receive(:get_provider_for_pool).and_return(provider)
     end
 
     context 'with a setting to skip dns check' do
-      let(:config) {
-        YAML.load(<<-EOT
----
-:dns_configs:
-  :mock:
-    dns_class: base
-:providers:
-  :mock_provider:
-    skip_dns_check_before_creating_vm: true
-:pools:
-  - name: '#{pool}'
-    size: 1
-    dns_config: 'mock'
+      let(:config) do
+        YAML.load(<<~EOT
+          ---
+          :dns_configs:
+            :mock:
+              dns_class: base
+          :providers:
+            :mock_provider:
+              skip_dns_check_before_creating_vm: true
+          :pools:
+            - name: '#{pool}'
+              size: 1
+              dns_config: 'mock'
         EOT
-        )
-      }
+                 )
+      end
       it 'should skip the dns check' do
-        #method is skipped
+        # method is skipped
         expect(subject).not_to receive(:check_dns_available)
         allow(subject).to receive(:get_domain_for_pool).and_return('example.com')
-        expect(subject.find_unique_hostname(pool)).to eq("spicy-proton")
+        expect(subject.find_unique_hostname(pool)).to eq('spicy-proton')
       end
     end
     context 'without the setting to skip dns check' do
-      let(:config) {
-        YAML.load(<<-EOT
----
-:dns_configs:
-  :mock:
-    dns_class: base
-:providers:
-  :mock_provider:
-:pools:
-  - name: '#{pool}'
-    size: 1
-    dns_config: 'mock'
+      let(:config) do
+        YAML.load(<<~EOT
+          ---
+          :dns_configs:
+            :mock:
+              dns_class: base
+          :providers:
+            :mock_provider:
+          :pools:
+            - name: '#{pool}'
+              size: 1
+              dns_config: 'mock'
         EOT
-        )
-      }
+                 )
+      end
       it 'should run the dns check and pass' do
-        #method is skipped
-        expect(subject).to receive(:check_dns_available).and_return(["1.1.1.1",true])
-        expect(subject.find_unique_hostname(pool)).to eq("spicy-proton")
+        # method is skipped
+        expect(subject).to receive(:check_dns_available).and_return(['1.1.1.1', true])
+        expect(subject.find_unique_hostname(pool)).to eq('spicy-proton')
       end
 
       it 'should run the dns check and fail' do
-        #method is skipped
-        allow(subject).to receive(:check_dns_available).and_return(["1.1.1.1",false]).exactly(3).times
-        expect{subject.find_unique_hostname(pool)}.to raise_error(RuntimeError)
+        # method is skipped
+        allow(subject).to receive(:check_dns_available).and_return(['1.1.1.1', false]).exactly(3).times
+        expect { subject.find_unique_hostname(pool) }.to raise_error(RuntimeError)
       end
     end
   end
 
   describe '#_clone_vm' do
-    let (:pool_object) { { 'name' => pool } }
-    let (:redis_ttl) { 1 }
+    let(:pool_object) { { 'name' => pool } }
+    let(:redis_ttl) { 1 }
 
     before do
       expect(subject).not_to be_nil
     end
 
-    let(:config) {
-      YAML.load(<<-EOT
----
-:dns_configs:
-  :mock:
-    dns_class: base
-:config:
-  prefix: "prefix"
-:redis:
-  ttl: #{redis_ttl}
-:pools:
-  - name: 'pool1'
-    size: 1
-    dns_config: 'mock'
-EOT
-      )
-    }
+    let(:config) do
+      YAML.load(<<~EOT
+        ---
+        :dns_configs:
+          :mock:
+            dns_class: base
+        :config:
+          prefix: "prefix"
+        :redis:
+          ttl: #{redis_ttl}
+        :pools:
+          - name: 'pool1'
+            size: 1
+            dns_config: 'mock'
+      EOT
+               )
+    end
 
     context 'with no errors during cloning' do
       before(:each) do
         allow(metrics).to receive(:timing)
         allow(metrics).to receive(:gauge)
-        expect(metrics).to receive(:gauge).with(/vmpooler_clone\./,/0/)
+        expect(metrics).to receive(:gauge).with(/vmpooler_clone\./, /0/)
         expect(provider).to receive(:create_vm).with(pool, String)
         allow(provider).to receive(:get_vm_ip_address).and_return(1)
         allow(subject).to receive(:get_domain_for_pool).and_return('example.com')
         allow(subject).to receive(:get_dns_plugin_class_name_for_pool).and_return(dns_plugin)
         allow(logger).to receive(:log)
-        redis_connection_pool.with do |redis|
+        redis_connection_pool.with do |_redis|
           expect(subject).to receive(:find_unique_hostname).with(pool).and_return(vm)
         end
       end
@@ -1123,12 +1126,12 @@ EOT
         redis_connection_pool.with do |redis|
           expect(redis.scard("vmpooler__pending__#{pool}")).to eq(0)
 
-          subject._clone_vm(pool,provider,dns_plugin)
+          subject._clone_vm(pool, provider, dns_plugin)
 
           expect(redis.scard("vmpooler__pending__#{pool}")).to eq(1)
           expect(redis.hget("vmpooler__vm__#{vm}", 'clone')).to_not be_nil
           expect(redis.hget("vmpooler__vm__#{vm}", 'template')).to eq(pool)
-          expect(redis.hget("vmpooler__clone__#{Date.today.to_s}", "#{pool}:#{vm}")).to_not be_nil
+          expect(redis.hget("vmpooler__clone__#{Date.today}", "#{pool}:#{vm}")).to_not be_nil
           expect(redis.hget("vmpooler__vm__#{vm}", 'clone_time')).to_not be_nil
         end
       end
@@ -1138,21 +1141,21 @@ EOT
           redis.incr('vmpooler__tasks__clone')
           redis.incr('vmpooler__tasks__clone')
           expect(redis.get('vmpooler__tasks__clone')).to eq('2')
-          subject._clone_vm(pool,provider,dns_plugin)
+          subject._clone_vm(pool, provider, dns_plugin)
           expect(redis.get('vmpooler__tasks__clone')).to eq('1')
         end
       end
 
       it 'should log a message that is being cloned from a template' do
-        expect(logger).to receive(:log).with('d',/\[ \] \[#{pool}\] Starting to clone '(.+)'/)
+        expect(logger).to receive(:log).with('d', /\[ \] \[#{pool}\] Starting to clone '(.+)'/)
 
-        subject._clone_vm(pool,provider,dns_plugin)
+        subject._clone_vm(pool, provider, dns_plugin)
       end
 
       it 'should log a message that it completed being cloned' do
-        expect(logger).to receive(:log).with('s',/\[\+\] \[#{pool}\] '(.+)' cloned in [0-9.]+ seconds/)
+        expect(logger).to receive(:log).with('s', /\[\+\] \[#{pool}\] '(.+)' cloned in [0-9.]+ seconds/)
 
-        subject._clone_vm(pool,provider,dns_plugin)
+        subject._clone_vm(pool, provider, dns_plugin)
       end
     end
 
@@ -1160,11 +1163,11 @@ EOT
       it 'should log a message that it completed being cloned' do
         allow(metrics).to receive(:timing)
         allow(metrics).to receive(:gauge)
-        expect(metrics).to receive(:gauge).with(/vmpooler_clone\./,/0/)
+        expect(metrics).to receive(:gauge).with(/vmpooler_clone\./, /0/)
         expect(provider).to receive(:create_vm).with(pool, String)
         allow(provider).to receive(:get_vm_ip_address).and_return(nil)
 
-        expect{subject._clone_vm(pool,provider,dns_plugin)}.to raise_error(StandardError)
+        expect { subject._clone_vm(pool, provider, dns_plugin) }.to raise_error(StandardError)
       end
     end
 
@@ -1173,7 +1176,7 @@ EOT
         expect(provider).to receive(:create_vm).with(pool, String).and_raise('MockError')
         allow(subject).to receive(:get_domain_for_pool)
         allow(logger).to receive(:log)
-        redis_connection_pool.with do |redis|
+        redis_connection_pool.with do |_redis|
           expect(subject).to receive(:find_unique_hostname).with(pool).and_return(vm)
         end
       end
@@ -1182,7 +1185,7 @@ EOT
         redis_connection_pool.with do |redis|
           expect(redis.scard("vmpooler__pending__#{pool}")).to eq(0)
 
-          expect{subject._clone_vm(pool,provider,dns_plugin)}.to raise_error(/MockError/)
+          expect { subject._clone_vm(pool, provider, dns_plugin) }.to raise_error(/MockError/)
 
           expect(redis.scard("vmpooler__pending__#{pool}")).to eq(0)
           # Get the new VM Name from the pending pool queue as it should be the only entry
@@ -1196,7 +1199,7 @@ EOT
           redis.incr('vmpooler__tasks__clone')
           redis.incr('vmpooler__tasks__clone')
           expect(redis.get('vmpooler__tasks__clone')).to eq('2')
-          expect{subject._clone_vm(pool,provider,dns_plugin)}.to raise_error(/MockError/)
+          expect { subject._clone_vm(pool, provider, dns_plugin) }.to raise_error(/MockError/)
           expect(redis.get('vmpooler__tasks__clone')).to eq('1')
         end
       end
@@ -1206,34 +1209,33 @@ EOT
           redis.pipelined do |pipe|
             expect(pipe).to receive(:expire)
           end
-          expect{subject._clone_vm(pool,provider,dns_plugin)}.to raise_error(/MockError/)
+          expect { subject._clone_vm(pool, provider, dns_plugin) }.to raise_error(/MockError/)
         end
       end
 
       it 'should raise the error' do
-        expect{subject._clone_vm(pool,provider,dns_plugin)}.to raise_error(/MockError/)
+        expect { subject._clone_vm(pool, provider, dns_plugin) }.to raise_error(/MockError/)
       end
-
     end
 
     context 'with request_id' do
       before(:each) do
         allow(metrics).to receive(:timing)
         allow(metrics).to receive(:gauge)
-        expect(metrics).to receive(:gauge).with(/vmpooler_clone\./,/0/)
+        expect(metrics).to receive(:gauge).with(/vmpooler_clone\./, /0/)
         expect(provider).to receive(:create_vm).with(pool, String)
-        allow(provider).to receive(:get_vm_ip_address).with(vm,pool).and_return(1)
+        allow(provider).to receive(:get_vm_ip_address).with(vm, pool).and_return(1)
         allow(subject).to receive(:get_dns_plugin_class_name_for_pool).and_return(dns_plugin)
         expect(dns_plugin).to receive(:create_or_replace_record)
         allow(logger).to receive(:log)
-        redis_connection_pool.with do |redis|
+        redis_connection_pool.with do |_redis|
           expect(subject).to receive(:find_unique_hostname).with(pool).and_return(vm)
         end
       end
 
       it 'should set request_id and pool_alias on the vm data' do
         redis_connection_pool.with do |redis|
-          subject._clone_vm(pool,provider,dns_plugin,request_id,pool)
+          subject._clone_vm(pool, provider, dns_plugin, request_id, pool)
           expect(redis.hget("vmpooler__vm__#{vm}", 'pool_alias')).to eq(pool)
           expect(redis.hget("vmpooler__vm__#{vm}", 'request_id')).to eq(request_id)
         end
@@ -1242,7 +1244,7 @@ EOT
       it 'should reduce the clone count' do
         redis_connection_pool.with do |redis|
           expect(redis).to receive(:decr).with('vmpooler__tasks__ondemandclone')
-          subject._clone_vm(pool,provider,dns_plugin,request_id,pool)
+          subject._clone_vm(pool, provider, dns_plugin, request_id, pool)
         end
       end
     end
@@ -1254,21 +1256,21 @@ EOT
         allow(subject).to receive(:get_dns_plugin_class_name_for_pool).and_return(dns_plugin)
       end
       it 'should error out if DNS already exists' do
-        vm_name = "foo"
-        resolv = class_double("Resolv").as_stubbed_const(:transfer_nested_constants => true)
-        expect(subject).to receive(:generate_and_check_hostname).exactly(3).times.and_return([vm_name, true]) #skip this, make it available all times
-        expect(resolv).to receive(:getaddress).exactly(3).times.and_return("1.2.3.4")
+        vm_name = 'foo'
+        resolv = class_double('Resolv').as_stubbed_const(transfer_nested_constants: true)
+        expect(subject).to receive(:generate_and_check_hostname).exactly(3).times.and_return([vm_name, true]) # skip this, make it available all times
+        expect(resolv).to receive(:getaddress).exactly(3).times.and_return('1.2.3.4')
         expect(metrics).to receive(:increment).with("vmpooler_errors.staledns.#{pool}").exactly(3).times
-        expect{subject._clone_vm(pool,provider,dns_plugin)}.to raise_error(/Unable to generate a unique hostname after/)
+        expect { subject._clone_vm(pool, provider, dns_plugin) }.to raise_error(/Unable to generate a unique hostname after/)
       end
       it 'should be successful if DNS does not exist' do
-        vm_name = "foo"
-        resolv = class_double("Resolv").as_stubbed_const(:transfer_nested_constants => true)
+        vm_name = 'foo'
+        resolv = class_double('Resolv').as_stubbed_const(transfer_nested_constants: true)
         expect(subject).to receive(:generate_and_check_hostname).and_return([vm_name, true])
         expect(resolv).to receive(:getaddress).exactly(1).times.and_raise(Resolv::ResolvError)
         expect(provider).to receive(:get_vm_ip_address)
         expect(provider).to receive(:create_vm).with(pool, String)
-        subject._clone_vm(pool,provider,dns_plugin)
+        subject._clone_vm(pool, provider, dns_plugin)
       end
     end
   end
@@ -1280,29 +1282,29 @@ EOT
     end
 
     it 'calls _destroy_vm' do
-      expect(subject).to receive(:_destroy_vm).with(vm,pool,provider,dns_plugin)
+      expect(subject).to receive(:_destroy_vm).with(vm, pool, provider, dns_plugin)
 
-      subject.destroy_vm(vm,pool,provider,dns_plugin)
+      subject.destroy_vm(vm, pool, provider, dns_plugin)
     end
 
     it 'logs a message if an error is raised' do
       allow(logger).to receive(:log)
-      expect(logger).to receive(:log).with('d',"[!] [#{pool}] '#{vm}' failed while destroying the VM with an error: MockError")
-      expect(subject).to receive(:_destroy_vm).with(vm,pool,provider,dns_plugin).and_raise('MockError')
+      expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' failed while destroying the VM with an error: MockError")
+      expect(subject).to receive(:_destroy_vm).with(vm, pool, provider, dns_plugin).and_raise('MockError')
 
-      expect{subject.destroy_vm(vm,pool,provider,dns_plugin)}.to raise_error(/MockError/)
+      expect { subject.destroy_vm(vm, pool, provider, dns_plugin) }.to raise_error(/MockError/)
     end
   end
 
-  describe "#_destroy_vm" do
+  describe '#_destroy_vm' do
     before(:each) do
       expect(subject).not_to be_nil
 
       redis_connection_pool.with do |redis|
-        create_completed_vm(vm,pool,redis,true)
+        create_completed_vm(vm, pool, redis, true)
       end
 
-      allow(provider).to receive(:destroy_vm).with(pool,vm).and_return(true)
+      allow(provider).to receive(:destroy_vm).with(pool, vm).and_return(true)
 
       # Set redis configuration
       config[:redis] = {}
@@ -1319,7 +1321,7 @@ EOT
           redis.pipelined do |pipe|
             expect(pipe).to receive(:expire).with("vmpooler__vm__#{vm}", 0)
           end
-          subject._destroy_vm(vm,pool,provider,dns_plugin)
+          subject._destroy_vm(vm, pool, provider, dns_plugin)
         end
       end
     end
@@ -1330,18 +1332,18 @@ EOT
       end
 
       it 'should raise an error' do
-        expect{ subject._destroy_vm(vm,pool,provider,dns_plugin) }.to raise_error(NoMethodError)
+        expect { subject._destroy_vm(vm, pool, provider, dns_plugin) }.to raise_error(NoMethodError)
       end
     end
 
     context 'when a VM does not exist' do
       before(:each) do
         # As per base_spec, destroy_vm will return true if the VM does not exist
-        expect(provider).to receive(:destroy_vm).with(pool,vm).and_return(true)
+        expect(provider).to receive(:destroy_vm).with(pool, vm).and_return(true)
       end
 
       it 'should not raise an error' do
-        subject._destroy_vm(vm,pool,provider,dns_plugin)
+        subject._destroy_vm(vm, pool, provider, dns_plugin)
       end
     end
 
@@ -1350,7 +1352,7 @@ EOT
         expect(logger).to receive(:log).with('s', /\[-\] \[#{pool}\] '#{vm}' destroyed in [0-9.]+ seconds/)
         allow(logger).to receive(:log)
 
-        subject._destroy_vm(vm,pool,provider,dns_plugin)
+        subject._destroy_vm(vm, pool, provider, dns_plugin)
       end
 
       it 'should emit a timing metric' do
@@ -1359,33 +1361,33 @@ EOT
         allow(metrics).to receive(:gauge)
         expect(metrics).to receive(:gauge).with("vmpooler_destroy.#{pool}", String)
 
-        subject._destroy_vm(vm,pool,provider,dns_plugin)
+        subject._destroy_vm(vm, pool, provider, dns_plugin)
       end
 
       it 'should dereference the mutex' do
         expect(subject).to receive(:dereference_mutex)
 
-        subject._destroy_vm(vm,pool,provider,dns_plugin)
+        subject._destroy_vm(vm, pool, provider, dns_plugin)
       end
     end
 
     context 'when the VM destruction raises an eror' do
       before(:each) do
         # As per base_spec, destroy_vm will return true if the VM does not exist
-        expect(provider).to receive(:destroy_vm).with(pool,vm).and_raise('MockError')
+        expect(provider).to receive(:destroy_vm).with(pool, vm).and_raise('MockError')
       end
 
       it 'should not log a message the VM was destroyed' do
         expect(logger).to receive(:log).with('s', /\[-\] \[#{pool}\] '#{vm}' destroyed in [0-9.]+ seconds/).exactly(0).times
         allow(logger).to receive(:log)
 
-        expect{ subject._destroy_vm(vm,pool,provider,dns_plugin) }.to raise_error(/MockError/)
+        expect { subject._destroy_vm(vm, pool, provider, dns_plugin) }.to raise_error(/MockError/)
       end
 
       it 'should not emit a timing metric' do
         expect(metrics).to receive(:timing).with("destroy.#{pool}", String).exactly(0).times
 
-        expect{ subject._destroy_vm(vm,pool,provider,dns_plugin) }.to raise_error(/MockError/)
+        expect { subject._destroy_vm(vm, pool, provider, dns_plugin) }.to raise_error(/MockError/)
       end
     end
 
@@ -1398,23 +1400,24 @@ EOT
       it 'should return' do
         expect(subject).to receive(:vm_mutex).with(vm).and_return(mutex)
 
-        expect(subject._destroy_vm(vm,pool,provider,dns_plugin)).to eq(nil)
+        expect(subject._destroy_vm(vm, pool, provider, dns_plugin)).to eq(nil)
       end
     end
   end
 
   describe '#purge_unused_vms_and_resources' do
-    let(:config) { YAML.load(<<-EOT
----
-:config: {}
-:providers:
-  :mock: {}
-:pools:
-  - name: '#{pool}'
-    size: 1
-EOT
-      )
-    }
+    let(:config) do
+      YAML.load(<<~EOT
+        ---
+        :config: {}
+        :providers:
+          :mock: {}
+        :pools:
+          - name: '#{pool}'
+            size: 1
+      EOT
+               )
+    end
 
     it 'should return when purging is not enabled' do
       expect(subject.purge_unused_vms_and_resources).to be_nil
@@ -1433,7 +1436,7 @@ EOT
       end
 
       it 'should log when purging fails' do
-        expect(subject).to receive(:purge_vms_and_resources).and_raise(RuntimeError,'MockError')
+        expect(subject).to receive(:purge_vms_and_resources).and_raise(RuntimeError, 'MockError')
         expect(logger).to receive(:log).with('s', '[!] failed while purging provider mock VMs and folders with an error: MockError')
 
         subject.purge_unused_vms_and_resources
@@ -1459,23 +1462,24 @@ EOT
     let(:folder_base) { 'vmpooler' }
     let(:datacenter) { 'dc1' }
     let(:full_folder_path) { "#{datacenter}/vm/folder_base" }
-    let(:folder) { [folder_base,folder_name].join('/') }
+    let(:folder) { [folder_base, folder_name].join('/') }
     let(:provider_name) { 'mock_provider' }
     let(:allowlist) { nil }
-    let(:config) { YAML.load(<<-EOT
----
-:config: {}
-:providers:
-  :mock_provider: {}
-:pools:
-  - name: '#{pool}'
-    folder: '#{folder}'
-    size: 1
-    datacenter: '#{datacenter}'
-    provider: '#{provider_name}'
-EOT
-      )
-    }
+    let(:config) do
+      YAML.load(<<~EOT
+        ---
+        :config: {}
+        :providers:
+          :mock_provider: {}
+        :pools:
+          - name: '#{pool}'
+            folder: '#{folder}'
+            size: 1
+            datacenter: '#{datacenter}'
+            provider: '#{provider_name}'
+      EOT
+               )
+    end
 
     context 'when purging folders' do
       before do
@@ -1495,7 +1499,7 @@ EOT
         expect(provider).to receive(:purge_unconfigured_resources).with(allowlist).and_raise('mockerror')
         expect(provider).to receive(:provider_config).and_return({}).twice
 
-        expect{ subject.purge_vms_and_resources(provider_name) }.to raise_error(RuntimeError, 'mockerror')
+        expect { subject.purge_vms_and_resources(provider_name) }.to raise_error(RuntimeError, 'mockerror')
       end
     end
   end
@@ -1516,7 +1520,7 @@ EOT
     end
   end
 
-  describe "#_create_vm_disk" do
+  describe '#_create_vm_disk' do
     let(:disk_size) { '15' }
 
     before(:each) do
@@ -1524,52 +1528,51 @@ EOT
       allow(logger).to receive(:log)
 
       redis_connection_pool.with do |redis|
-        create_running_vm(pool,vm,redis,token)
+        create_running_vm(pool, vm, redis, token)
       end
     end
 
     context 'Given a VM that does not exist' do
       before(:each) do
         # As per base_spec, create_disk will raise if the VM does not exist
-        expect(provider).to receive(:create_disk).with(pool,vm,disk_size.to_i).and_raise("VM #{vm} does not exist")
+        expect(provider).to receive(:create_disk).with(pool, vm, disk_size.to_i).and_raise("VM #{vm} does not exist")
       end
 
       it 'should not update redis if the VM does not exist' do
         redis_connection_pool.with do |redis|
           expect(redis).to receive(:hset).exactly(0).times
-          expect{ subject._create_vm_disk(pool, vm, disk_size, provider) }.to raise_error(RuntimeError)
+          expect { subject._create_vm_disk(pool, vm, disk_size, provider) }.to raise_error(RuntimeError)
         end
       end
     end
 
     context 'Given an invalid disk size' do
-      [{ :description => 'is nil',                            :value => nil },
-       { :description => 'is an empty string',                :value => '' },
-       { :description => 'is less than 1',                    :value => '0' },
-       { :description => 'cannot be converted to an integer', :value => 'abc123' },
-      ].each do |testcase|
+      [{ description: 'is nil',                            value: nil },
+       { description: 'is an empty string',                value: '' },
+       { description: 'is less than 1',                    value: '0' },
+       { description: 'cannot be converted to an integer', value: 'abc123' }].each do |testcase|
         it "should not attempt the create the disk if the disk size #{testcase[:description]}" do
           expect(provider).to receive(:create_disk).exactly(0).times
-          expect{ subject._create_vm_disk(pool, vm, testcase[:value], provider) }.to raise_error(/Invalid disk size/)
+          expect { subject._create_vm_disk(pool, vm, testcase[:value], provider) }.to raise_error(/Invalid disk size/)
         end
       end
 
       it 'should raise an error if the disk size is a Fixnum' do
         redis_connection_pool.with do |redis|
           expect(redis).to receive(:hset).exactly(0).times
-          expect{ subject._create_vm_disk(pool, vm, 10, provider) }.to raise_error(NoMethodError,/empty?/)
+          expect { subject._create_vm_disk(pool, vm, 10, provider) }.to raise_error(NoMethodError, /empty?/)
         end
       end
     end
 
     context 'Given a successful disk creation' do
       before(:each) do
-        expect(provider).to receive(:create_disk).with(pool,vm,disk_size.to_i).and_return(true)
+        expect(provider).to receive(:create_disk).with(pool, vm, disk_size.to_i).and_return(true)
       end
 
       it 'should log a message' do
         expect(logger).to receive(:log).with('s', "[ ] [disk_manager] '#{vm}' is attaching a #{disk_size}gb disk")
-        expect(logger).to receive(:log).with('s', /\[\+\] \[disk_manager\] '#{vm}' attached #{disk_size}gb disk in 0.[\d]+ seconds/)
+        expect(logger).to receive(:log).with('s', /\[\+\] \[disk_manager\] '#{vm}' attached #{disk_size}gb disk in 0.\d+ seconds/)
 
         subject._create_vm_disk(pool, vm, disk_size, provider)
       end
@@ -1594,7 +1597,7 @@ EOT
 
     context 'Given a failed disk creation' do
       before(:each) do
-        expect(provider).to receive(:create_disk).with(pool,vm,disk_size.to_i).and_return(false)
+        expect(provider).to receive(:create_disk).with(pool, vm, disk_size.to_i).and_return(false)
       end
 
       it 'should not update redis information' do
@@ -1638,7 +1641,7 @@ EOT
 
     before(:each) do
       redis_connection_pool.with do |redis|
-        create_running_vm(pool,vm,redis,token)
+        create_running_vm(pool, vm, redis, token)
       end
     end
 
@@ -1652,7 +1655,7 @@ EOT
       it 'should not update redis' do
         redis_connection_pool.with do |redis|
           expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to be_nil
-          expect{ subject._create_vm_snapshot(missing_pool, vm, snapshot_name, provider) }.to raise_error("Pool #{missing_pool} not found")
+          expect { subject._create_vm_snapshot(missing_pool, vm, snapshot_name, provider) }.to raise_error("Pool #{missing_pool} not found")
           expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to be_nil
         end
       end
@@ -1667,7 +1670,7 @@ EOT
       it 'should not update redis' do
         redis_connection_pool.with do |redis|
           expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to be_nil
-          expect{ subject._create_vm_snapshot(pool, missing_vm, snapshot_name, provider) }.to raise_error("VM #{missing_vm} not found")
+          expect { subject._create_vm_snapshot(pool, missing_vm, snapshot_name, provider) }.to raise_error("VM #{missing_vm} not found")
           expect(redis.hget("vmpooler__vm__#{vm}", "snapshot:#{snapshot_name}")).to be_nil
         end
       end
@@ -1680,7 +1683,7 @@ EOT
 
       it 'should log messages' do
         expect(logger).to receive(:log).with('s', "[ ] [snapshot_manager] 'Attempting to snapshot #{vm} in pool #{pool}")
-        expect(logger).to receive(:log).with('s', /\[\+\] \[snapshot_manager\] '#{vm}' snapshot created in 0.[\d]+ seconds/)
+        expect(logger).to receive(:log).with('s', /\[\+\] \[snapshot_manager\] '#{vm}' snapshot created in 0.\d+ seconds/)
 
         subject._create_vm_snapshot(pool, vm, snapshot_name, provider)
       end
@@ -1746,10 +1749,10 @@ EOT
       end
 
       it 'should not log a result message' do
-        expect(logger).to receive(:log).with('s', /\[\+\] \[snapshot_manager\] '#{vm}' reverted to snapshot '#{snapshot_name}' in 0.[\d]+ seconds/).exactly(0).times
+        expect(logger).to receive(:log).with('s', /\[\+\] \[snapshot_manager\] '#{vm}' reverted to snapshot '#{snapshot_name}' in 0.\d+ seconds/).exactly(0).times
         expect(logger).to receive(:log).with('s', "[+] [snapshot_manager] Failed to revert #{vm}' in pool #{missing_pool} to snapshot '#{snapshot_name}'").exactly(0).times
 
-        expect{ subject._revert_vm_snapshot(missing_pool, vm, snapshot_name, provider) }.to raise_error("Pool #{missing_pool} not found")
+        expect { subject._revert_vm_snapshot(missing_pool, vm, snapshot_name, provider) }.to raise_error("Pool #{missing_pool} not found")
       end
     end
 
@@ -1760,10 +1763,10 @@ EOT
       end
 
       it 'should not log a result message' do
-        expect(logger).to receive(:log).with('s', /\[\+\] \[snapshot_manager\] '#{missing_vm}' reverted to snapshot '#{snapshot_name}' in 0.[\d]+ seconds/).exactly(0).times
+        expect(logger).to receive(:log).with('s', /\[\+\] \[snapshot_manager\] '#{missing_vm}' reverted to snapshot '#{snapshot_name}' in 0.\d+ seconds/).exactly(0).times
         expect(logger).to receive(:log).with('s', "[+] [snapshot_manager] Failed to revert #{missing_vm}' in pool #{pool} to snapshot '#{snapshot_name}'").exactly(0).times
 
-        expect{ subject._revert_vm_snapshot(pool, missing_vm, snapshot_name, provider) }.to raise_error("VM #{missing_vm} not found")
+        expect { subject._revert_vm_snapshot(pool, missing_vm, snapshot_name, provider) }.to raise_error("VM #{missing_vm} not found")
       end
     end
 
@@ -1774,7 +1777,7 @@ EOT
 
       it 'should log success messages' do
         expect(logger).to receive(:log).with('s', "[ ] [snapshot_manager] 'Attempting to revert #{vm}' in pool #{pool} to snapshot '#{snapshot_name}'")
-        expect(logger).to receive(:log).with('s', /\[\+\] \[snapshot_manager\] '#{vm}' reverted to snapshot '#{snapshot_name}' in 0.[\d]+ seconds/)
+        expect(logger).to receive(:log).with('s', /\[\+\] \[snapshot_manager\] '#{vm}' reverted to snapshot '#{snapshot_name}' in 0.\d+ seconds/)
 
         subject._revert_vm_snapshot(pool, vm, snapshot_name, provider)
       end
@@ -1812,7 +1815,7 @@ EOT
 
       it 'should return the pool name' do
         redis_connection_pool.with do |redis|
-          expect(subject.get_pool_name_for_vm(vm,redis)).to eq(pool)
+          expect(subject.get_pool_name_for_vm(vm, redis)).to eq(pool)
         end
       end
     end
@@ -1820,7 +1823,7 @@ EOT
     context 'Given an invalid VM' do
       it 'should return nil' do
         redis_connection_pool.with do |redis|
-          expect(subject.get_pool_name_for_vm('does_not_exist',redis)).to be_nil
+          expect(subject.get_pool_name_for_vm('does_not_exist', redis)).to be_nil
         end
       end
     end
@@ -1841,16 +1844,18 @@ EOT
     end
 
     context 'Given a pool name which does not exist' do
-      let(:config) { YAML.load(<<-EOT
----
-:config:
-:providers:
-  :mock:
-:pools:
-  - name: '#{pool}'
-    size: 1
-EOT
-      )}
+      let(:config) do
+        YAML.load(<<~EOT
+          ---
+          :config:
+          :providers:
+            :mock:
+          :pools:
+            - name: '#{pool}'
+              size: 1
+        EOT
+                 )
+      end
 
       it 'should return nil' do
         expect(subject.get_provider_for_pool('pool_does_not_exist')).to be_nil
@@ -1858,16 +1863,18 @@ EOT
     end
 
     context 'Given a pool which does not have a provider' do
-      let(:config) { YAML.load(<<-EOT
----
-:config:
-:providers:
-  :mock:
-:pools:
-  - name: '#{pool}'
-    size: 1
-EOT
-      )}
+      let(:config) do
+        YAML.load(<<~EOT
+          ---
+          :config:
+          :providers:
+            :mock:
+          :pools:
+            - name: '#{pool}'
+              size: 1
+        EOT
+                 )
+      end
 
       it 'should return nil' do
         expect(subject.get_provider_for_pool(pool)).to be_nil
@@ -1875,17 +1882,19 @@ EOT
     end
 
     context 'Given a pool which uses an invalid provider' do
-      let(:config) { YAML.load(<<-EOT
----
-:config:
-:providers:
-  :mock:
-:pools:
-  - name: '#{pool}'
-    size: 1
-    provider: 'does_not_exist'
-EOT
-      )}
+      let(:config) do
+        YAML.load(<<~EOT
+          ---
+          :config:
+          :providers:
+            :mock:
+          :pools:
+            - name: '#{pool}'
+              size: 1
+              provider: 'does_not_exist'
+        EOT
+                 )
+      end
 
       it 'should return nil' do
         expect(subject.get_provider_for_pool(pool)).to be_nil
@@ -1893,17 +1902,19 @@ EOT
     end
 
     context 'Given a pool which uses a valid provider' do
-      let(:config) { YAML.load(<<-EOT
----
-:config:
-:providers:
-  :mock:
-:pools:
-  - name: '#{pool}'
-    size: 1
-    provider: #{provider_name}
-EOT
-      )}
+      let(:config) do
+        YAML.load(<<~EOT
+          ---
+          :config:
+          :providers:
+            :mock:
+          :pools:
+            - name: '#{pool}'
+              size: 1
+              provider: #{provider_name}
+        EOT
+                 )
+      end
 
       it 'should return a provider object' do
         result = subject.get_provider_for_pool(pool)
@@ -1914,17 +1925,18 @@ EOT
   end
 
   describe '#get_dns_plugin_class_name_for_pool' do
-    let(:config) { YAML.load(<<-EOT
----
-:dns_configs:
-  :mock:
-    dns_class: base
-:pools:
-  - name: #{pool}
-    dns_plugin: 'mock'
-EOT
-
-    )}
+    let(:config) do
+      YAML.load(<<~EOT
+        ---
+        :dns_configs:
+          :mock:
+            dns_class: base
+        :pools:
+          - name: #{pool}
+            dns_plugin: 'mock'
+      EOT
+               )
+    end
     before(:each) do
       allow(Vmpooler::Dns).to receive(:load_used_dns_plugins).and_return('vmpooler/dns/mock')
     end
@@ -1937,16 +1949,18 @@ EOT
   end
 
   describe '#get_dns_plugin_domain_for_pool' do
-    let(:config) { YAML.load(<<-EOT
----
-:dns_configs:
-  :mock:
-    dns_class: base
-:pools:
-  - name: #{pool}
-    dns_plugin: 'mock'
-EOT
-  )}
+    let(:config) do
+      YAML.load(<<~EOT
+        ---
+        :dns_configs:
+          :mock:
+            dns_class: base
+        :pools:
+          - name: #{pool}
+            dns_plugin: 'mock'
+      EOT
+               )
+    end
     before(:each) do
       allow(Vmpooler::Dns).to receive(:load_used_dns_plugins).and_return('vmpooler/dns/mock')
     end
@@ -1959,7 +1973,7 @@ EOT
   end
 
   describe '#check_disk_queue' do
-    let(:threads) {[]}
+    let(:threads) { [] }
 
     before(:each) do
       expect(Thread).to receive(:new).and_yield
@@ -1967,24 +1981,24 @@ EOT
     end
 
     it 'should log the disk manager is starting' do
-      expect(logger).to receive(:log).with('d', "[*] [disk_manager] starting worker thread")
+      expect(logger).to receive(:log).with('d', '[*] [disk_manager] starting worker thread')
 
       expect($threads.count).to be(0)
-      subject.check_disk_queue(1,0)
+      subject.check_disk_queue(1, 0)
       expect($threads.count).to be(1)
     end
 
     it 'should add the manager to the global thread list' do
       # Note - Ruby core types are not necessarily thread safe
       expect($threads.count).to be(0)
-      subject.check_disk_queue(1,0)
+      subject.check_disk_queue(1, 0)
       expect($threads.count).to be(1)
     end
 
     it 'should call _check_disk_queue' do
       expect(subject).to receive(:_check_disk_queue).with(no_args)
 
-      subject.check_disk_queue(1,0)
+      subject.check_disk_queue(1, 0)
     end
 
     context 'delays between loops' do
@@ -2000,7 +2014,7 @@ EOT
       it 'when a non-default loop delay is specified' do
         expect(subject).to receive(:sleep).with(loop_delay).exactly(maxloop).times
 
-        subject.check_disk_queue(maxloop,loop_delay)
+        subject.check_disk_queue(maxloop, loop_delay)
       end
     end
 
@@ -2016,7 +2030,7 @@ EOT
       it 'should call _check_disk_queue 5 times' do
         expect(subject).to receive(:_check_disk_queue).with(no_args).exactly(maxloop).times
 
-        subject.check_disk_queue(maxloop,0)
+        subject.check_disk_queue(maxloop, 0)
       end
     end
   end
@@ -2036,7 +2050,7 @@ EOT
     context 'when VM in the queue does not exist' do
       before(:each) do
         redis_connection_pool.with do |redis|
-          disk_task_vm(vm,"snapshot_#{vm}",redis)
+          disk_task_vm(vm, "snapshot_#{vm}", redis)
         end
       end
 
@@ -2056,7 +2070,7 @@ EOT
     context 'when specified provider does not exist' do
       before(:each) do
         redis_connection_pool.with do |redis|
-          disk_task_vm(vm,"snapshot_#{vm}",redis)
+          disk_task_vm(vm, "snapshot_#{vm}", redis)
           create_running_vm(pool, vm, redis, token)
           expect(subject).to receive(:get_provider_for_pool).and_return(nil)
         end
@@ -2079,7 +2093,7 @@ EOT
       before(:each) do
         ['vm1', 'vm2', 'vm3'].each do |vm_name|
           redis_connection_pool.with do |redis|
-            disk_task_vm(vm_name,"snapshot_#{vm_name}",redis)
+            disk_task_vm(vm_name, "snapshot_#{vm_name}", redis)
             create_running_vm(pool, vm_name, redis, token)
           end
         end
@@ -2093,20 +2107,20 @@ EOT
       end
 
       it 'should create the disk for the first VM in the queue' do
-        expect(subject).to receive(:create_vm_disk).with(pool,'vm1','snapshot_vm1',provider)
+        expect(subject).to receive(:create_vm_disk).with(pool, 'vm1', 'snapshot_vm1', provider)
         subject._check_disk_queue
       end
 
       it 'should log an error if one occurs' do
-        expect(subject).to receive(:create_vm_disk).and_raise(RuntimeError,'MockError')
-        expect(logger).to receive(:log).with('s', "[!] [disk_manager] disk creation appears to have failed: MockError")
+        expect(subject).to receive(:create_vm_disk).and_raise(RuntimeError, 'MockError')
+        expect(logger).to receive(:log).with('s', '[!] [disk_manager] disk creation appears to have failed: MockError')
         subject._check_disk_queue
       end
     end
   end
 
   describe '#check_snapshot_queue' do
-    let(:threads) {[]}
+    let(:threads) { [] }
 
     before(:each) do
       expect(Thread).to receive(:new).and_yield
@@ -2115,24 +2129,24 @@ EOT
     end
 
     it 'should log the snapshot manager is starting' do
-      expect(logger).to receive(:log).with('d', "[*] [snapshot_manager] starting worker thread")
+      expect(logger).to receive(:log).with('d', '[*] [snapshot_manager] starting worker thread')
 
       expect($threads.count).to be(0)
-      subject.check_snapshot_queue(1,0)
+      subject.check_snapshot_queue(1, 0)
       expect($threads.count).to be(1)
     end
 
     it 'should add the manager to the global thread list' do
       # Note - Ruby core types are not necessarily thread safe
       expect($threads.count).to be(0)
-      subject.check_snapshot_queue(1,0)
+      subject.check_snapshot_queue(1, 0)
       expect($threads.count).to be(1)
     end
 
     it 'should call _check_snapshot_queue' do
       expect(subject).to receive(:_check_snapshot_queue).with(no_args)
 
-      subject.check_snapshot_queue(1,0)
+      subject.check_snapshot_queue(1, 0)
     end
 
     context 'delays between loops' do
@@ -2148,7 +2162,7 @@ EOT
       it 'when a non-default loop delay is specified' do
         expect(subject).to receive(:sleep).with(loop_delay).exactly(maxloop).times
 
-        subject.check_snapshot_queue(maxloop,loop_delay)
+        subject.check_snapshot_queue(maxloop, loop_delay)
       end
     end
 
@@ -2168,7 +2182,7 @@ EOT
       it 'should call _check_snapshot_queue 5 times' do
         expect(subject).to receive(:_check_snapshot_queue).with(no_args).exactly(maxloop).times
 
-        subject.check_snapshot_queue(maxloop,0)
+        subject.check_snapshot_queue(maxloop, 0)
       end
     end
   end
@@ -2189,7 +2203,7 @@ EOT
       context 'when VM in the queue does not exist' do
         before(:each) do
           redis_connection_pool.with do |redis|
-            snapshot_vm(vm,"snapshot_#{vm}",redis)
+            snapshot_vm(vm, "snapshot_#{vm}", redis)
           end
         end
 
@@ -2209,7 +2223,7 @@ EOT
       context 'when specified provider does not exist' do
         before(:each) do
           redis_connection_pool.with do |redis|
-            snapshot_vm(vm,"snapshot_#{vm}",redis)
+            snapshot_vm(vm, "snapshot_#{vm}", redis)
             create_running_vm(pool, vm, redis, token)
             expect(subject).to receive(:get_provider_for_pool).and_return(nil)
           end
@@ -2232,7 +2246,7 @@ EOT
         before(:each) do
           ['vm1', 'vm2', 'vm3'].each do |vm_name|
             redis_connection_pool.with do |redis|
-              snapshot_vm(vm_name,"snapshot_#{vm_name}",redis)
+              snapshot_vm(vm_name, "snapshot_#{vm_name}", redis)
               create_running_vm(pool, vm_name, redis, token)
             end
           end
@@ -2246,13 +2260,13 @@ EOT
         end
 
         it 'should snapshot the first VM in the queue' do
-          expect(subject).to receive(:create_vm_snapshot).with(pool,'vm1','snapshot_vm1',provider)
+          expect(subject).to receive(:create_vm_snapshot).with(pool, 'vm1', 'snapshot_vm1', provider)
           subject._check_snapshot_queue
         end
 
         it 'should log an error if one occurs' do
-          expect(subject).to receive(:create_vm_snapshot).and_raise(RuntimeError,'MockError')
-          expect(logger).to receive(:log).with('s', "[!] [snapshot_manager] snapshot create appears to have failed: MockError")
+          expect(subject).to receive(:create_vm_snapshot).and_raise(RuntimeError, 'MockError')
+          expect(logger).to receive(:log).with('s', '[!] [snapshot_manager] snapshot create appears to have failed: MockError')
           subject._check_snapshot_queue
         end
       end
@@ -2269,7 +2283,7 @@ EOT
       context 'when VM in the queue does not exist' do
         before(:each) do
           redis_connection_pool.with do |redis|
-            snapshot_revert_vm(vm,"snapshot_#{vm}",redis)
+            snapshot_revert_vm(vm, "snapshot_#{vm}", redis)
           end
         end
 
@@ -2289,7 +2303,7 @@ EOT
       context 'when specified provider does not exist' do
         before(:each) do
           redis_connection_pool.with do |redis|
-            snapshot_revert_vm(vm,"snapshot_#{vm}",redis)
+            snapshot_revert_vm(vm, "snapshot_#{vm}", redis)
             create_running_vm(pool, vm, redis, token)
             expect(subject).to receive(:get_provider_for_pool).and_return(nil)
           end
@@ -2312,7 +2326,7 @@ EOT
         before(:each) do
           ['vm1', 'vm2', 'vm3'].each do |vm_name|
             redis_connection_pool.with do |redis|
-              snapshot_revert_vm(vm_name,"snapshot_#{vm_name}",redis)
+              snapshot_revert_vm(vm_name, "snapshot_#{vm_name}", redis)
               create_running_vm(pool, vm_name, redis, token)
             end
           end
@@ -2326,13 +2340,13 @@ EOT
         end
 
         it 'should snapshot the first VM in the queue' do
-          expect(subject).to receive(:revert_vm_snapshot).with(pool,'vm1','snapshot_vm1',provider)
+          expect(subject).to receive(:revert_vm_snapshot).with(pool, 'vm1', 'snapshot_vm1', provider)
           subject._check_snapshot_queue
         end
 
         it 'should log an error if one occurs' do
-          expect(subject).to receive(:revert_vm_snapshot).and_raise(RuntimeError,'MockError')
-          expect(logger).to receive(:log).with('s', "[!] [snapshot_manager] snapshot revert appears to have failed: MockError")
+          expect(subject).to receive(:revert_vm_snapshot).and_raise(RuntimeError, 'MockError')
+          expect(logger).to receive(:log).with('s', '[!] [snapshot_manager] snapshot revert appears to have failed: MockError')
           subject._check_snapshot_queue
         end
       end
@@ -2413,15 +2427,16 @@ EOT
   describe 'sync_pool_template' do
     let(:old_template) { 'templates/old-template' }
     let(:new_template) { 'templates/new-template' }
-    let(:config) { YAML.load(<<-EOT
----
-:pools:
-  - name: '#{pool}'
-    size: 1
-    template: old_template
-EOT
-      )
-    }
+    let(:config) do
+      YAML.load(<<~EOT
+        ---
+        :pools:
+          - name: '#{pool}'
+            size: 1
+            template: old_template
+      EOT
+               )
+    end
 
     it 'returns when a template is not set in redis' do
       expect(subject.sync_pool_template(config[:pools][0])).to be_nil
@@ -2462,16 +2477,16 @@ EOT
   describe 'update_pool_template' do
     let(:current_template) { 'templates/pool_template' }
     let(:new_template) { 'templates/new_pool_template' }
-    let(:config) {
-      YAML.load(<<-EOT
----
-:config: {}
-:pools:
-  - name: #{pool}
-    template: "#{current_template}"
-EOT
-      )
-    }
+    let(:config) do
+      YAML.load(<<~EOT
+        ---
+        :config: {}
+        :pools:
+          - name: #{pool}
+            template: "#{current_template}"
+      EOT
+               )
+    end
     let(:poolconfig) { config[:pools][0] }
 
     before(:each) do
@@ -2528,15 +2543,15 @@ EOT
   end
 
   describe '#remove_excess_vms' do
-    let(:config) {
-      YAML.load(<<-EOT
----
-:pools:
-  - name: #{pool}
-    size: 2
-EOT
-      )
-    }
+    let(:config) do
+      YAML.load(<<~EOT
+        ---
+        :pools:
+          - name: #{pool}
+            size: 2
+      EOT
+               )
+    end
 
     before(:each) do
       expect(subject).not_to be_nil
@@ -2554,9 +2569,9 @@ EOT
       let(:mutex) { Mutex.new }
       before(:each) do
         redis_connection_pool.with do |redis|
-          create_ready_vm(pool,'vm1',redis)
-          create_ready_vm(pool,'vm2',redis)
-          create_pending_vm(pool,'vm3',redis)
+          create_ready_vm(pool, 'vm1', redis)
+          create_ready_vm(pool, 'vm2', redis)
+          create_pending_vm(pool, 'vm3', redis)
         end
         mutex.lock
         expect(subject).to receive(:pool_mutex).with(pool).and_return(mutex)
@@ -2580,8 +2595,8 @@ EOT
     context 'with a total size greater than the pool size' do
       it 'should remove excess ready vms' do
         redis_connection_pool.with do |redis|
-          ['vm1','vm2','vm3','vm4'].each do |v|
-            create_ready_vm(pool,v,redis)
+          ['vm1', 'vm2', 'vm3', 'vm4'].each do |v|
+            create_ready_vm(pool, v, redis)
           end
         end
         expect(subject).to receive(:move_vm_queue).exactly(2).times
@@ -2591,11 +2606,11 @@ EOT
 
       it 'should remove excess pending vms' do
         redis_connection_pool.with do |redis|
-          create_pending_vm(pool,'vm1',redis)
-          create_pending_vm(pool,'vm2',redis)
-          create_ready_vm(pool,'vm3',redis)
-          create_ready_vm(pool,'vm4',redis)
-          create_ready_vm(pool,'vm5',redis)
+          create_pending_vm(pool, 'vm1', redis)
+          create_pending_vm(pool, 'vm2', redis)
+          create_ready_vm(pool, 'vm3', redis)
+          create_ready_vm(pool, 'vm4', redis)
+          create_ready_vm(pool, 'vm5', redis)
           expect(subject).to receive(:move_vm_queue).exactly(3).times
         end
 
@@ -2605,19 +2620,20 @@ EOT
   end
 
   describe 'prepare_template' do
-    let(:config) { YAML.load(<<-EOT
----
-:config:
-  create_template_delta_disks: true
-:providers:
-  :mock:
-:pools:
-  - name: '#{pool}'
-    size: 1
-    template: 'templates/pool1'
-EOT
-      )
-    }
+    let(:config) do
+      YAML.load(<<~EOT
+        ---
+        :config:
+          create_template_delta_disks: true
+        :providers:
+          :mock:
+        :pools:
+          - name: '#{pool}'
+            size: 1
+            template: 'templates/pool1'
+      EOT
+               )
+    end
 
     context 'when creating the template delta disks' do
       before(:each) do
@@ -2649,7 +2665,7 @@ EOT
         redis_connection_pool.with do |redis|
           allow(redis).to receive(:hset)
         end
-        expect(provider).to receive(:create_template_delta_disks).and_raise("MockError")
+        expect(provider).to receive(:create_template_delta_disks).and_raise('MockError')
       end
 
       it 'should log a message when delta disk creation returns an error' do
@@ -2666,19 +2682,20 @@ EOT
     let(:mutex) { Mutex.new }
     let(:current_template) { 'templates/template1' }
     let(:new_template) { 'templates/template2' }
-    let(:config) { YAML.load(<<-EOT
----
-:config:
-  task_limit: 5
-:providers:
-  :mock:
-:pools:
-  - name: '#{pool}'
-    size: 1
-    template: '#{current_template}'
-EOT
-      )
-    }
+    let(:config) do
+      YAML.load(<<~EOT
+        ---
+        :config:
+          task_limit: 5
+        :providers:
+          :mock:
+        :pools:
+          - name: '#{pool}'
+            size: 1
+            template: '#{current_template}'
+      EOT
+               )
+    end
 
     before(:each) do
       redis_connection_pool.with do |redis|
@@ -2714,7 +2731,6 @@ EOT
     end
 
     context 'when prepared template is nil' do
-
       it 'should prepare the template' do
         redis_connection_pool.with do |redis|
           expect(redis).to receive(:hget).with('vmpooler__template__prepared', pool).and_return(nil)
@@ -2862,19 +2878,18 @@ EOT
 
   describe 'update_pool_size' do
     let(:newsize) { '3' }
-    let(:config) {
-      YAML.load(<<-EOT
----
-:pools:
-  - name: #{pool}
-    size: 2
-EOT
-      )
-    }
+    let(:config) do
+      YAML.load(<<~EOT
+        ---
+        :pools:
+          - name: #{pool}
+            size: 2
+      EOT
+               )
+    end
     let(:poolconfig) { config[:pools][0] }
 
     context 'with a locked mutex' do
-
       let(:mutex) { Mutex.new }
       before(:each) do
         mutex.lock
@@ -2923,19 +2938,18 @@ EOT
 
   describe 'update_clone_target' do
     let(:newtarget) { 'cluster2' }
-    let(:config) {
-      YAML.load(<<-EOT
----
-:pools:
-  - name: #{pool}
-    clone_target: 'cluster1'
-EOT
-      )
-    }
+    let(:config) do
+      YAML.load(<<~EOT
+        ---
+        :pools:
+          - name: #{pool}
+            clone_target: 'cluster1'
+      EOT
+               )
+    end
     let(:poolconfig) { config[:pools][0] }
 
     context 'with a locked mutex' do
-
       let(:mutex) { Mutex.new }
       before(:each) do
         mutex.lock
@@ -2982,15 +2996,15 @@ EOT
     end
   end
 
-  describe "#execute!" do
-    let(:config) {
-      YAML.load(<<-EOT
----
-:pools:
-  - name: #{pool}
-EOT
-      )
-    }
+  describe '#execute!' do
+    let(:config) do
+      YAML.load(<<~EOT
+        ---
+        :pools:
+          - name: #{pool}
+      EOT
+               )
+    end
 
     before(:each) do
       expect(subject).not_to be_nil
@@ -3010,18 +3024,19 @@ EOT
     end
 
     context 'on startup' do
-      let(:config) {
-        YAML.load(<<-EOT
----
-:config:
-:dns_configs:
-  :mock:
-    dns_class: base
-:pools:
-  - name: #{pool}
-    dns_plugin: 'mock'
-EOT
-        )}
+      let(:config) do
+        YAML.load(<<~EOT
+          ---
+          :config:
+          :dns_configs:
+            :mock:
+              dns_class: base
+          :pools:
+            - name: #{pool}
+              dns_plugin: 'mock'
+        EOT
+                 )
+      end
 
       before(:each) do
         allow(Vmpooler::Dns).to receive(:get_domain_for_pool)
@@ -3030,13 +3045,13 @@ EOT
       it 'should log a message that VMPooler has started' do
         expect(logger).to receive(:log).with('d', 'starting vmpooler')
 
-        subject.execute!(1,0)
+        subject.execute!(1, 0)
       end
 
       it 'should set clone tasks to zero' do
         redis_connection_pool.with do |redis|
           redis.set('vmpooler__tasks__clone', 1)
-          subject.execute!(1,0)
+          subject.execute!(1, 0)
           expect(redis.get('vmpooler__tasks__clone')).to eq('0')
         end
       end
@@ -3044,7 +3059,7 @@ EOT
       it 'should clear migration tasks' do
         redis_connection_pool.with do |redis|
           redis.set('vmpooler__migration', 1)
-          subject.execute!(1,0)
+          subject.execute!(1, 0)
           expect(redis.get('vmpooler__migration')).to be_nil
         end
       end
@@ -3052,86 +3067,88 @@ EOT
       it 'should run the check_disk_queue method' do
         expect(subject).to receive(:check_disk_queue)
 
-        subject.execute!(1,0)
+        subject.execute!(1, 0)
       end
 
       it 'should run the check_snapshot_queue method' do
         expect(subject).to receive(:check_snapshot_queue)
 
-        subject.execute!(1,0)
+        subject.execute!(1, 0)
       end
 
       it 'should check the pools in the config' do
         expect(subject).to receive(:check_pool).with(a_pool_with_name_of(pool))
 
-        subject.execute!(1,0)
+        subject.execute!(1, 0)
       end
 
       it 'should run the check_ondemand_requests method' do
         expect(subject).to receive(:check_ondemand_requests)
 
-        subject.execute!(1,0)
+        subject.execute!(1, 0)
       end
 
       context 'creating Dns plugins' do
         let(:mock_dns_plugin) { double('mock_dns_plugin') }
-        let(:config) {
-        YAML.load(<<-EOT
----
-:dns_configs:
-  :mock:
-    dns_class: base
-:pools:
-  - name: #{pool}
-    dns_plugin: 'mock'
-  - name: 'dummy'
-    dns_plugin: 'mock'
-  - name: 'dummy2'
-    dns_plugin: 'mock'
-EOT
-        )}
+        let(:config) do
+          YAML.load(<<~EOT
+            ---
+            :dns_configs:
+              :mock:
+                dns_class: base
+            :pools:
+              - name: #{pool}
+                dns_plugin: 'mock'
+              - name: 'dummy'
+                dns_plugin: 'mock'
+              - name: 'dummy2'
+                dns_plugin: 'mock'
+          EOT
+                   )
+        end
 
         it 'should call create_dns_object idempotently' do
           # Even though there are two pools using the mock dns plugin, it should only
           # create the dns object once.
           expect(subject).to receive(:create_dns_object).and_return(mock_dns_plugin)
 
-          subject.execute!(1,0)
+          subject.execute!(1, 0)
         end
 
         it 'should raise an error if the dns plugin cannot be created' do
-          expect(subject).to receive(:create_dns_object).and_raise(RuntimeError, "MockError")
+          expect(subject).to receive(:create_dns_object).and_raise(RuntimeError, 'MockError')
 
-          expect{ subject.execute!(1,0) }.to raise_error(/MockError/)
+          expect { subject.execute!(1, 0) }.to raise_error(/MockError/)
         end
 
         it 'should log a message if the dns plugin cannot be created' do
-          expect(subject).to receive(:create_dns_object).and_raise(RuntimeError, "MockError")
-          expect(logger).to receive(:log).with('s',"Error while creating dns plugin for pool #{pool}: MockError")
+          expect(subject).to receive(:create_dns_object).and_raise(RuntimeError, 'MockError')
+          expect(logger).to receive(:log).with('s', "Error while creating dns plugin for pool #{pool}: MockError")
 
-          expect{ subject.execute!(1,0) }.to raise_error(/MockError/)
+          expect { subject.execute!(1, 0) }.to raise_error(/MockError/)
         end
       end
 
       context 'creating Providers' do
         let(:vsphere_provider) { double('vsphere_provider') }
-        let(:config) {
-        YAML.load(<<-EOT
----
-:providers:
-  :vsphere: {}
-:dns_configs:
-  :mock:
-    dns_class: base
-:pools:
-  - name: #{pool}
-    provider: 'vsphere'
-    dns_plugin: 'mock'
-  - name: 'dummy'
-    provider: 'vsphere'
-    dns_plugin: 'mock'
-EOT
-        )}
+        let(:config) do
+          YAML.load(<<~EOT
+            ---
+            :providers:
+              :vsphere: {}
+            :dns_configs:
+              :mock:
+                dns_class: base
+            :pools:
+              - name: #{pool}
+                provider: 'vsphere'
+                dns_plugin: 'mock'
+              - name: 'dummy'
+                provider: 'vsphere'
+                dns_plugin: 'mock'
+          EOT
+                   )
+        end
 
         before(:each) do
           allow(Vmpooler::Dns).to receive(:get_domain_for_pool)
@@ -3142,40 +3159,41 @@ EOT
           # create the provider object once.
           expect(subject).to receive(:create_provider_object).with(Object, Object, Object, redis_connection_pool, 'vsphere', 'vsphere', Object).and_return(vsphere_provider)
 
-          subject.execute!(1,0)
+          subject.execute!(1, 0)
         end
 
         it 'should raise an error if the provider can not be created' do
-          expect(subject).to receive(:create_provider_object).and_raise(RuntimeError, "MockError")
+          expect(subject).to receive(:create_provider_object).and_raise(RuntimeError, 'MockError')
 
-          expect{ subject.execute!(1,0) }.to raise_error(/MockError/)
+          expect { subject.execute!(1, 0) }.to raise_error(/MockError/)
         end
 
         it 'should log a message if the provider can not be created' do
-          expect(subject).to receive(:create_provider_object).and_raise(RuntimeError, "MockError")
-          expect(logger).to receive(:log).with('s',"Error while creating provider for pool #{pool}: MockError")
+          expect(subject).to receive(:create_provider_object).and_raise(RuntimeError, 'MockError')
+          expect(logger).to receive(:log).with('s', "Error while creating provider for pool #{pool}: MockError")
 
-          expect{ subject.execute!(1,0) }.to raise_error(/MockError/)
+          expect { subject.execute!(1, 0) }.to raise_error(/MockError/)
         end
       end
     end
 
     context 'modify configuration on startup' do
       context 'move vSphere configuration to providers location' do
-        let(:config) {
-        YAML.load(<<-EOT
-:dns_configs:
-  :mock:
-    dns_class: base
-:vsphere:
-  server: 'vsphere.example.com'
-  username: 'vmpooler'
-  password: 'password'
-:pools:
-  - name: #{pool}
-    dns_plugin: 'mock'
-EOT
-        )}
+        let(:config) do
+          YAML.load(<<~EOT
+            :dns_configs:
+              :mock:
+                dns_class: base
+            :vsphere:
+              server: 'vsphere.example.com'
+              username: 'vmpooler'
+              password: 'password'
+            :pools:
+              - name: #{pool}
+                dns_plugin: 'mock'
+          EOT
+                   )
+        end
         before(:each) do
           allow(Vmpooler::Dns).to receive(:get_domain_for_pool)
         end
@@ -3183,7 +3201,7 @@ EOT
         it 'should set providers with no provider to vsphere' do
           expect(subject.config[:providers]).to be nil
 
-          subject.execute!(1,0)
+          subject.execute!(1, 0)
           expect(subject.config[:providers][:vsphere]['server']).to eq('vsphere.example.com')
           expect(subject.config[:providers][:vsphere]['username']).to eq('vmpooler')
           expect(subject.config[:providers][:vsphere]['password']).to eq('password')
@@ -3192,26 +3210,26 @@ EOT
         it 'should log a message' do
           expect(logger).to receive(:log).with('d', "[!] Detected an older configuration file. Copying the settings from ':vsphere:' to ':providers:/:vsphere:'")
 
-          subject.execute!(1,0)
+          subject.execute!(1, 0)
         end
       end
 
-
       context 'default to the dummy provider' do
-        let(:config) {
-        YAML.load(<<-EOT
----
-:dns_configs:
-  :mock:
-    dns_class: base
-:pools:
-  - name: #{pool}
-    dns_plugin: 'mock'
-  - name: 'dummy'
-    provider: 'dummy'
-    dns_plugin: 'mock'
-EOT
-        )}
+        let(:config) do
+          YAML.load(<<~EOT
+            ---
+            :dns_configs:
+              :mock:
+                dns_class: base
+            :pools:
+              - name: #{pool}
+                dns_plugin: 'mock'
+              - name: 'dummy'
+                provider: 'dummy'
+                dns_plugin: 'mock'
+          EOT
+                   )
+        end
 
         before(:each) do
           allow(Vmpooler::Dns).to receive(:get_domain_for_pool)
@@ -3221,7 +3239,7 @@ EOT
           expect(subject.config[:pools][0]['provider']).to be_nil
           expect(subject.config[:pools][1]['provider']).to eq('dummy')
 
-          subject.execute!(1,0)
+          subject.execute!(1, 0)
 
           expect(subject.config[:pools][0]['provider']).to eq('dummy')
           expect(subject.config[:pools][1]['provider']).to eq('dummy')
@@ -3230,32 +3248,32 @@ EOT
         it 'should log a message' do
           expect(logger).to receive(:log).with('d', "[!] Setting provider for pool '#{pool}' to 'dummy' as default")
 
-          subject.execute!(1,0)
+          subject.execute!(1, 0)
         end
       end
     end
 
     context 'with dead disk_manager thread' do
-      let(:disk_manager_thread) { double('thread', :alive? => false) }
+      let(:disk_manager_thread) { double('thread', alive?: false) }
       let(:check_loop_delay_min) { 7 }
       let(:check_loop_delay_max) { 20 }
       let(:check_loop_delay_decay) { 2.1 }
-      let(:config) {
-      YAML.load(<<-EOT
----
-:config:
-  check_loop_delay_min: #{check_loop_delay_min}
-  check_loop_delay_max: #{check_loop_delay_max}
-  check_loop_delay_decay: #{check_loop_delay_decay}
-:dns_configs:
-  :mock:
-    dns_class: base
-:pools:
-  - name: #{pool}
-    dns_plugin: 'mock'
-EOT
-          )
-        }
+      let(:config) do
+        YAML.load(<<~EOT
+          ---
+          :config:
+            check_loop_delay_min: #{check_loop_delay_min}
+            check_loop_delay_max: #{check_loop_delay_max}
+            check_loop_delay_decay: #{check_loop_delay_decay}
+          :dns_configs:
+            :mock:
+              dns_class: base
+          :pools:
+            - name: #{pool}
+              dns_plugin: 'mock'
+        EOT
+                 )
+      end
 
       before(:each) do
         # Reset the global variable - Note this is a code smell
@@ -3266,33 +3284,33 @@ EOT
 
       it 'should run the check_disk_queue method and log a message' do
         expect(subject).to receive(:check_disk_queue)
-        expect(logger).to receive(:log).with('d', "[!] [disk_manager] worker thread died, restarting")
+        expect(logger).to receive(:log).with('d', '[!] [disk_manager] worker thread died, restarting')
 
-        subject.execute!(1,0)
+        subject.execute!(1, 0)
       end
     end
 
     context 'with dead snapshot_manager thread' do
-      let(:snapshot_manager_thread) { double('thread', :alive? => false) }
+      let(:snapshot_manager_thread) { double('thread', alive?: false) }
       let(:check_loop_delay_min) { 7 }
       let(:check_loop_delay_max) { 20 }
       let(:check_loop_delay_decay) { 2.1 }
-      let(:config) {
-      YAML.load(<<-EOT
----
-:config:
-  check_loop_delay_min: #{check_loop_delay_min}
-  check_loop_delay_max: #{check_loop_delay_max}
-  check_loop_delay_decay: #{check_loop_delay_decay}
-:dns_configs:
-  :mock:
-    dns_class: base
-:pools:
-  - name: #{pool}
-    dns_plugin: 'mock'
-EOT
-          )
-        }
+      let(:config) do
+        YAML.load(<<~EOT
+          ---
+          :config:
+            check_loop_delay_min: #{check_loop_delay_min}
+            check_loop_delay_max: #{check_loop_delay_max}
+            check_loop_delay_decay: #{check_loop_delay_decay}
+          :dns_configs:
+            :mock:
+              dns_class: base
+          :pools:
+            - name: #{pool}
+              dns_plugin: 'mock'
+        EOT
+                 )
+      end
       before(:each) do
         # Reset the global variable - Note this is a code smell
         $threads = {}
@@ -3302,35 +3320,35 @@ EOT
 
       it 'should run the check_snapshot_queue method and log a message' do
         expect(subject).to receive(:check_snapshot_queue)
-        expect(logger).to receive(:log).with('d', "[!] [snapshot_manager] worker thread died, restarting")
+        expect(logger).to receive(:log).with('d', '[!] [snapshot_manager] worker thread died, restarting')
         $threads['snapshot_manager'] = snapshot_manager_thread
 
-        subject.execute!(1,0)
+        subject.execute!(1, 0)
       end
     end
 
     context 'with dead pool thread' do
       context 'without check_loop_delay_xxx settings' do
-        let(:pool_thread) { double('thread', :alive? => false) }
+        let(:pool_thread) { double('thread', alive?: false) }
         let(:default_check_loop_delay_min) { 5 }
         let(:default_check_loop_delay_max) { 60 }
         let(:default_check_loop_delay_decay) { 2.0 }
         let(:check_loop_delay_min) { 7 }
         let(:check_loop_delay_max) { 20 }
         let(:check_loop_delay_decay) { 2.1 }
-        let(:config) {
-      YAML.load(<<-EOT
----
-:config:
-:dns_configs:
-  :mock:
-    dns_class: base
-:pools:
-  - name: #{pool}
-    dns_plugin: 'mock'
-EOT
-          )
-        }
+        let(:config) do
+          YAML.load(<<~EOT
+            ---
+            :config:
+            :dns_configs:
+              :mock:
+                dns_class: base
+            :pools:
+              - name: #{pool}
+                dns_plugin: 'mock'
+          EOT
+                   )
+        end
         before(:each) do
           # Reset the global variable - Note this is a code smell
           $threads = {}
@@ -3345,28 +3363,28 @@ EOT
                                                        default_check_loop_delay_decay)
           expect(logger).to receive(:log).with('d', "[!] [#{pool}] worker thread died, restarting")
 
-          subject.execute!(1,0)
+          subject.execute!(1, 0)
         end
       end
 
       context 'with dead ondemand provisioner thread' do
-        let(:ondemand_provisioner_thread) { double('thread', :alive? => false) }
+        let(:ondemand_provisioner_thread) { double('thread', alive?: false) }
         let(:default_check_loop_delay_min) { 5 }
         let(:default_check_loop_delay_max) { 60 }
         let(:default_check_loop_delay_decay) { 2.0 }
-        let(:config) {
-      YAML.load(<<-EOT
----
-:config:
-:dns_configs:
-  :mock:
-    dns_class: base
-:pools:
-  - name: #{pool}
-    dns_plugin: 'mock'
-EOT
-          )
-        }
+        let(:config) do
+          YAML.load(<<~EOT
+            ---
+            :config:
+            :dns_configs:
+              :mock:
+                dns_class: base
+            :pools:
+              - name: #{pool}
+                dns_plugin: 'mock'
+          EOT
+                   )
+        end
         before(:each) do
           # Reset the global variable - Note this is a code smell
           $threads = {}
@@ -3375,33 +3393,32 @@ EOT
 
         it 'should run the process_ondemand_requests method' do
           expect(subject).to receive(:check_ondemand_requests).with(default_check_loop_delay_min, default_check_loop_delay_max, default_check_loop_delay_decay)
-          subject.execute!(1,0)
+          subject.execute!(1, 0)
         end
-
       end
 
       context 'with check_loop_delay_xxx settings' do
-        let(:pool_thread) { double('thread', :alive? => false) }
+        let(:pool_thread) { double('thread', alive?: false) }
         let(:check_loop_delay_min) { 7 }
         let(:check_loop_delay_max) { 20 }
         let(:check_loop_delay_decay) { 2.1 }
 
-        let(:config) {
-      YAML.load(<<-EOT
----
-:config:
-  check_loop_delay_min: #{check_loop_delay_min}
-  check_loop_delay_max: #{check_loop_delay_max}
-  check_loop_delay_decay: #{check_loop_delay_decay}
-:dns_configs:
-  :mock:
-    dns_class: base
-:pools:
-  - name: #{pool}
-    dns_plugin: 'mock'
-EOT
-          )
-        }
+        let(:config) do
+          YAML.load(<<~EOT
+            ---
+            :config:
+              check_loop_delay_min: #{check_loop_delay_min}
+              check_loop_delay_max: #{check_loop_delay_max}
+              check_loop_delay_decay: #{check_loop_delay_decay}
+            :dns_configs:
+              :mock:
+                dns_class: base
+            :pools:
+              - name: #{pool}
+                dns_plugin: 'mock'
+          EOT
+                   )
+        end
         before(:each) do
           # Reset the global variable - Note this is a code smell
           $threads = {}
@@ -3417,7 +3434,7 @@ EOT
                                                        check_loop_delay_decay)
           expect(logger).to receive(:log).with('d', "[!] [#{pool}] worker thread died, restarting")
 
-          subject.execute!(1,0)
+          subject.execute!(1, 0)
         end
       end
     end
@@ -3429,25 +3446,24 @@ EOT
       let(:check_loop_delay_max) { 20 }
       let(:check_loop_delay_decay) { 2.1 }
       let(:maxloop) { 5 }
-      let(:config) {
-      YAML.load(<<-EOT
----
-:config:
-  check_loop_delay_min: #{check_loop_delay_min}
-  check_loop_delay_max: #{check_loop_delay_max}
-  check_loop_delay_decay: #{check_loop_delay_decay}
-:dns_configs:
-  :mock:
-    dns_class: base
-:pools:
-  - name: #{pool}
-    dns_plugin: 'mock'
-EOT
-          )
-        }
+      let(:config) do
+        YAML.load(<<~EOT
+          ---
+          :config:
+            check_loop_delay_min: #{check_loop_delay_min}
+            check_loop_delay_max: #{check_loop_delay_max}
+            check_loop_delay_decay: #{check_loop_delay_decay}
+          :dns_configs:
+            :mock:
+              dns_class: base
+          :pools:
+            - name: #{pool}
+              dns_plugin: 'mock'
+        EOT
+                 )
+      end
       # Note a maxloop of zero can not be tested as it never terminates
       before(:each) do
-
         allow(subject).to receive(:check_disk_queue)
         allow(subject).to receive(:check_snapshot_queue)
         allow(subject).to receive(:check_pool)
@@ -3458,32 +3474,32 @@ EOT
       it 'when a non-default loop delay is specified' do
         expect(subject).to receive(:sleep).with(loop_delay).exactly(maxloop).times
 
-        subject.execute!(maxloop,loop_delay)
+        subject.execute!(maxloop, loop_delay)
       end
     end
 
     context 'loops specified number of times (5)' do
-      let(:alive_thread) { double('thread', :alive? => true) }
+      let(:alive_thread) { double('thread', alive?: true) }
       let(:check_loop_delay_min) { 7 }
       let(:check_loop_delay_max) { 20 }
       let(:check_loop_delay_decay) { 2.1 }
       let(:maxloop) { 5 }
-      let(:config) {
-      YAML.load(<<-EOT
----
-:config:
-  check_loop_delay_min: #{check_loop_delay_min}
-  check_loop_delay_max: #{check_loop_delay_max}
-  check_loop_delay_decay: #{check_loop_delay_decay}
-:dns_configs:
-  :mock:
-    dns_class: base
-:pools:
-  - name: #{pool}
-    dns_plugin: 'mock'
-EOT
-          )
-        }
+      let(:config) do
+        YAML.load(<<~EOT
+          ---
+          :config:
+            check_loop_delay_min: #{check_loop_delay_min}
+            check_loop_delay_max: #{check_loop_delay_max}
+            check_loop_delay_decay: #{check_loop_delay_decay}
+          :dns_configs:
+            :mock:
+              dns_class: base
+          :pools:
+            - name: #{pool}
+              dns_plugin: 'mock'
+        EOT
+                 )
+      end
       # Note a maxloop of zero can not be tested as it never terminates
       before(:each) do
         allow(subject).to receive(:get_domain_for_pool)
@@ -3497,7 +3513,7 @@ EOT
           expect(redis).to receive(:del).with('vmpooler__migration').once
         end
 
-        subject.execute!(maxloop,0)
+        subject.execute!(maxloop, 0)
       end
 
       it 'should run per thread tasks 5 times when threads are not remembered' do
@@ -3506,7 +3522,7 @@ EOT
         expect(subject).to receive(:check_pool).exactly(maxloop).times
         expect(subject).to receive(:check_ondemand_requests).exactly(maxloop).times
 
-        subject.execute!(maxloop,0)
+        subject.execute!(maxloop, 0)
       end
 
       it 'should not run per thread tasks when threads are alive' do
@@ -3520,7 +3536,7 @@ EOT
         $threads['snapshot_manager'] = alive_thread
         $threads['ondemand_provisioner'] = alive_thread
 
-        subject.execute!(maxloop,0)
+        subject.execute!(maxloop, 0)
       end
     end
 
@@ -3532,15 +3548,15 @@ EOT
         end
         expect(logger).to receive(:log).with('s', 'Cannot connect to the redis server: Redis::CannotConnectError')
 
-        expect{subject.execute!(maxloop,0)}.to raise_error Redis::CannotConnectError
+        expect { subject.execute!(maxloop, 0) }.to raise_error Redis::CannotConnectError
       end
     end
   end
 
-  describe "#sleep_with_wakeup_events" do
+  describe '#sleep_with_wakeup_events' do
     let(:loop_delay) { 10 }
     before(:each) do
-      allow(Kernel).to receive(:sleep).and_raise("sleep should not be called")
+      allow(Kernel).to receive(:sleep).and_raise('sleep should not be called')
       allow(subject).to receive(:time_passed?).with(:wakeup_by, Time).and_call_original
       allow(subject).to receive(:time_passed?).with(:exit_by, Time).and_call_original
     end
@@ -3562,10 +3578,12 @@ EOT
     end
 
     describe 'with the pool_size_change wakeup option' do
-      let(:wakeup_option) {{
-        :pool_size_change => true,
-        :poolname => pool,
-      }}
+      let(:wakeup_option) do
+        {
+          pool_size_change: true,
+          poolname: pool
+        }
+      end
       let(:wakeup_period) { -1 } # A negative number forces the wakeup evaluation to always occur
 
       it 'should check the number of VMs ready in Redis' do
@@ -3580,7 +3598,7 @@ EOT
       it 'should sleep until the number of VMs ready in Redis increases' do
         redis_connection_pool.with do |redis|
           expect(subject).to receive(:sleep).exactly(3).times
-          expect(redis).to receive(:scard).with("vmpooler__ready__#{pool}").and_return(1,1,1,2)
+          expect(redis).to receive(:scard).with("vmpooler__ready__#{pool}").and_return(1, 1, 1, 2)
         end
 
         subject.sleep_with_wakeup_events(loop_delay, wakeup_period, wakeup_option)
@@ -3589,7 +3607,7 @@ EOT
       it 'should sleep until the number of VMs ready in Redis decreases' do
         redis_connection_pool.with do |redis|
           expect(subject).to receive(:sleep).exactly(3).times
-          expect(redis).to receive(:scard).with("vmpooler__ready__#{pool}").and_return(2,2,2,1)
+          expect(redis).to receive(:scard).with("vmpooler__ready__#{pool}").and_return(2, 2, 2, 1)
         end
 
         subject.sleep_with_wakeup_events(loop_delay, wakeup_period, wakeup_option)
@@ -3597,10 +3615,12 @@ EOT
     end
 
     describe 'with the pool_template_change wakeup option' do
-      let(:wakeup_option) {{
-        :pool_template_change => true,
-        :poolname => pool
-      }}
+      let(:wakeup_option) do
+        {
+          pool_template_change: true,
+          poolname: pool
+        }
+      end
       let(:new_template) { 'templates/newtemplate' }
       let(:wakeup_period) { -1 } # A negative number forces the wakeup evaluation to always occur
 
@@ -3624,7 +3644,7 @@ EOT
         it 'should sleep until a template change is detected' do
           redis_connection_pool.with do |redis|
             expect(subject).to receive(:sleep).exactly(3).times
-            expect(redis).to receive(:hget).with('vmpooler__config__template', pool).and_return(nil,nil,new_template)
+            expect(redis).to receive(:hget).with('vmpooler__config__template', pool).and_return(nil, nil, new_template)
           end
 
           subject.sleep_with_wakeup_events(loop_delay, wakeup_period, wakeup_option)
@@ -3633,19 +3653,20 @@ EOT
     end
 
     describe 'with the pool_reset wakeup option' do
-      let(:wakeup_option) {{
-        :pool_reset => true,
-        :poolname => pool
-      }}
+      let(:wakeup_option) do
+        {
+          pool_reset: true,
+          poolname: pool
+        }
+      end
 
       let(:wakeup_period) { -1 } # A negative number forces the wakeup evaluation to always occur
 
       context 'when a pool reset is requested' do
-
         it 'should sleep until the reset request is detected' do
           redis_connection_pool.with do |redis|
             expect(subject).to receive(:sleep).exactly(3).times
-            expect(redis).to receive(:sismember).with('vmpooler__poolreset', pool).and_return(false,false,true)
+            expect(redis).to receive(:sismember).with('vmpooler__poolreset', pool).and_return(false, false, true)
           end
 
           subject.sleep_with_wakeup_events(loop_delay, wakeup_period, wakeup_option)
@@ -3654,10 +3675,12 @@ EOT
     end
 
     describe 'with the undo_override wakeup option' do
-      let(:wakeup_option) {{
-        :undo_override => true,
-        :poolname => pool
-      }}
+      let(:wakeup_option) do
+        {
+          undo_override: true,
+          poolname: pool
+        }
+      end
 
       let(:wakeup_period) { -1 } # A negative number forces the wakeup evaluation to always occur
 
@@ -3673,8 +3696,8 @@ EOT
           redis_connection_pool.with do |redis|
             expect(subject).to receive(:sleep).at_least(2).times
             expect(subject).to receive(:sleep).at_most(3).times
-            expect(redis).to receive(:sismember).with('vmpooler__pool__undo_template_override', pool).and_return(false,false,true)
-            expect(redis).to receive(:sismember).with('vmpooler__pool__undo_size_override', pool).and_return(false,false)
+            expect(redis).to receive(:sismember).with('vmpooler__pool__undo_template_override', pool).and_return(false, false, true)
+            expect(redis).to receive(:sismember).with('vmpooler__pool__undo_size_override', pool).and_return(false, false)
           end
 
           subject.sleep_with_wakeup_events(loop_delay, wakeup_period, wakeup_option)
@@ -3692,8 +3715,8 @@ EOT
         it 'should sleep until the undo override request is detected' do
           redis_connection_pool.with do |redis|
             expect(subject).to receive(:sleep).exactly(3).times
-            expect(redis).to receive(:sismember).with('vmpooler__pool__undo_template_override', pool).and_return(false,false,false)
-            expect(redis).to receive(:sismember).with('vmpooler__pool__undo_size_override', pool).and_return(false,false,true)
+            expect(redis).to receive(:sismember).with('vmpooler__pool__undo_template_override', pool).and_return(false, false, false)
+            expect(redis).to receive(:sismember).with('vmpooler__pool__undo_size_override', pool).and_return(false, false, true)
           end
 
           subject.sleep_with_wakeup_events(loop_delay, wakeup_period, wakeup_option)
@@ -3702,19 +3725,20 @@ EOT
     end
 
     describe 'with the pending_vm wakeup option' do
-      let(:wakeup_option) {{
-        :pending_vm => true,
-        :poolname => pool
-      }}
+      let(:wakeup_option) do
+        {
+          pending_vm: true,
+          poolname: pool
+        }
+      end
 
       let(:wakeup_period) { -1 } # A negative number forces the wakeup evaluation to always occur
 
       context 'when a pending_vm is detected' do
-
         it 'should sleep until the pending instance' do
           redis_connection_pool.with do |redis|
             expect(subject).to receive(:sleep).exactly(3).times
-            expect(redis).to receive(:scard).with("vmpooler__pending__#{pool}").and_return(0,0,1)
+            expect(redis).to receive(:scard).with("vmpooler__pending__#{pool}").and_return(0, 0, 1)
           end
 
           subject.sleep_with_wakeup_events(loop_delay, wakeup_period, wakeup_option)
@@ -3723,16 +3747,16 @@ EOT
     end
 
     describe 'with the ondemand_request wakeup option' do
-      let(:wakeup_option) {{ :ondemand_request => true }}
+      let(:wakeup_option) { { ondemand_request: true } }
 
       let(:wakeup_period) { -1 } # A negative number forces the wakeup evaluation to always occur
 
       it 'should sleep until the provisioning request is detected' do
         redis_connection_pool.with do |redis|
           expect(subject).to receive(:sleep).exactly(3).times
-          expect(redis).to receive(:zcard).with('vmpooler__provisioning__request').and_return(0,0,1)
-          expect(redis).to receive(:zcard).with('vmpooler__provisioning__processing').and_return(0,0,0)
-          expect(redis).to receive(:zcard).with('vmpooler__odcreate__task').and_return(0,0,0)
+          expect(redis).to receive(:zcard).with('vmpooler__provisioning__request').and_return(0, 0, 1)
+          expect(redis).to receive(:zcard).with('vmpooler__provisioning__processing').and_return(0, 0, 0)
+          expect(redis).to receive(:zcard).with('vmpooler__odcreate__task').and_return(0, 0, 0)
         end
 
         subject.sleep_with_wakeup_events(loop_delay, wakeup_period, wakeup_option)
@@ -3741,9 +3765,9 @@ EOT
       it 'should sleep until provisioning processing is detected' do
         redis_connection_pool.with do |redis|
           expect(subject).to receive(:sleep).exactly(3).times
-          expect(redis).to receive(:zcard).with('vmpooler__provisioning__request').and_return(0,0,0)
-          expect(redis).to receive(:zcard).with('vmpooler__provisioning__processing').and_return(0,0,1)
-          expect(redis).to receive(:zcard).with('vmpooler__odcreate__task').and_return(0,0,0)
+          expect(redis).to receive(:zcard).with('vmpooler__provisioning__request').and_return(0, 0, 0)
+          expect(redis).to receive(:zcard).with('vmpooler__provisioning__processing').and_return(0, 0, 1)
+          expect(redis).to receive(:zcard).with('vmpooler__odcreate__task').and_return(0, 0, 0)
         end
 
         subject.sleep_with_wakeup_events(loop_delay, wakeup_period, wakeup_option)
@@ -3752,9 +3776,9 @@ EOT
       it 'should sleep until ondemand creation task is detected' do
         redis_connection_pool.with do |redis|
           expect(subject).to receive(:sleep).exactly(3).times
-          expect(redis).to receive(:zcard).with('vmpooler__provisioning__request').and_return(0,0,0)
-          expect(redis).to receive(:zcard).with('vmpooler__provisioning__processing').and_return(0,0,0)
-          expect(redis).to receive(:zcard).with('vmpooler__odcreate__task').and_return(0,0,1)
+          expect(redis).to receive(:zcard).with('vmpooler__provisioning__request').and_return(0, 0, 0)
+          expect(redis).to receive(:zcard).with('vmpooler__provisioning__processing').and_return(0, 0, 0)
+          expect(redis).to receive(:zcard).with('vmpooler__odcreate__task').and_return(0, 0, 1)
         end
 
         subject.sleep_with_wakeup_events(loop_delay, wakeup_period, wakeup_option)
@@ -3762,29 +3786,31 @@ EOT
     end
   end
 
-  describe "#check_pool" do
-    let(:threads) {{}}
+  describe '#check_pool' do
+    let(:threads) { {} }
     let(:provider_name) { 'mock_provider' }
-    let(:config) {
-      YAML.load(<<-EOT
----
-:pools:
-  - name: #{pool}
-    provider: #{provider_name}
-EOT
-      )
-    }
+    let(:config) do
+      YAML.load(<<~EOT
+        ---
+        :pools:
+          - name: #{pool}
+            provider: #{provider_name}
+      EOT
+               )
+    end
 
     let(:pool_object) { config[:pools][0] }
-    let(:check_pool_response) {{
-        :discovered_vms      => 0,
-        :checked_running_vms => 0,
-        :checked_ready_vms   => 0,
-        :checked_pending_vms => 0,
-        :destroyed_vms       => 0,
-        :migrated_vms        => 0,
-        :cloned_vms          => 0,
-    }}
+    let(:check_pool_response) do
+      {
+        discovered_vms: 0,
+        checked_running_vms: 0,
+        checked_ready_vms: 0,
+        checked_pending_vms: 0,
+        destroyed_vms: 0,
+        migrated_vms: 0,
+        cloned_vms: 0
+      }
+    end
 
     before do
       expect(subject).not_to be_nil
@@ -3804,11 +3830,11 @@ EOT
       end
 
       it 'should log a message the worker thread is starting' do
-        subject.check_pool(pool_object,1,0)
+        subject.check_pool(pool_object, 1, 0)
       end
 
       it 'should populate the threads global variable' do
-        subject.check_pool(pool_object,1,0)
+        subject.check_pool(pool_object, 1, 0)
 
         # Unable to test for nil as the Thread is mocked
         expect($threads.keys.include?(pool))
@@ -3833,19 +3859,19 @@ EOT
       it 'when a non-default loop delay is specified' do
         expect(subject).to receive(:sleep_with_wakeup_events).with(loop_delay, Numeric, Hash).exactly(maxloop).times
 
-        subject.check_pool(pool_object,maxloop,loop_delay,loop_delay)
+        subject.check_pool(pool_object, maxloop, loop_delay, loop_delay)
       end
 
       it 'specifies a wakeup option for pool size change' do
-        expect(subject).to receive(:sleep_with_wakeup_events).with(loop_delay, Numeric, hash_including(:pool_size_change => true)).exactly(maxloop).times
+        expect(subject).to receive(:sleep_with_wakeup_events).with(loop_delay, Numeric, hash_including(pool_size_change: true)).exactly(maxloop).times
 
-        subject.check_pool(pool_object,maxloop,loop_delay,loop_delay)
+        subject.check_pool(pool_object, maxloop, loop_delay, loop_delay)
       end
 
       it 'specifies a wakeup option for poolname' do
-        expect(subject).to receive(:sleep_with_wakeup_events).with(loop_delay, Numeric, hash_including(:poolname => pool)).exactly(maxloop).times
+        expect(subject).to receive(:sleep_with_wakeup_events).with(loop_delay, Numeric, hash_including(poolname: pool)).exactly(maxloop).times
 
-        subject.check_pool(pool_object,maxloop,loop_delay,loop_delay)
+        subject.check_pool(pool_object, maxloop, loop_delay, loop_delay)
       end
     end
 
@@ -3857,7 +3883,7 @@ EOT
         allow(subject).to receive(:_check_pool).and_raise(Redis::CannotConnectError)
         expect(logger).to receive(:log).with('d', "[*] [#{pool}] starting worker thread")
 
-        expect{subject.check_pool(pool_object,maxloop,loop_delay,loop_delay)}.to raise_error Redis::CannotConnectError
+        expect { subject.check_pool(pool_object, maxloop, loop_delay, loop_delay) }.to raise_error Redis::CannotConnectError
       end
     end
 
@@ -3865,17 +3891,17 @@ EOT
       let(:maxloop) { 2 }
       let(:loop_delay) { 1 }
       let(:pool_loop_delay) { 2 }
-      let(:config) {
-        YAML.load(<<-EOT
----
-:pools:
-  - name: #{pool}
-    provider: #{provider_name}
-    check_loop_delay_min: #{pool_loop_delay}
-    check_loop_delay_max: #{pool_loop_delay}
-EOT
-        )
-      }
+      let(:config) do
+        YAML.load(<<~EOT
+          ---
+          :pools:
+            - name: #{pool}
+              provider: #{provider_name}
+              check_loop_delay_min: #{pool_loop_delay}
+              check_loop_delay_max: #{pool_loop_delay}
+        EOT
+                 )
+      end
 
       before(:each) do
         allow(logger).to receive(:log)
@@ -3890,7 +3916,7 @@ EOT
       it 'when a non-default loop delay is specified' do
         expect(subject).to receive(:sleep_with_wakeup_events).with(pool_loop_delay, pool_loop_delay, Hash).exactly(maxloop).times
 
-        subject.check_pool(pool_object,maxloop,loop_delay)
+        subject.check_pool(pool_object, maxloop, loop_delay)
       end
     end
 
@@ -3910,28 +3936,28 @@ EOT
         $threads = nil
       end
 
-      [:checked_pending_vms, :discovered_vms, :cloned_vms].each do |testcase|
+      %i[checked_pending_vms discovered_vms cloned_vms].each do |testcase|
         describe "when #{testcase} is greater than zero" do
-          it "delays the minimum delay time" do
+          it 'delays the minimum delay time' do
             expect(subject).to receive(:sleep_with_wakeup_events).with(loop_delay_min, loop_delay_min, Hash).exactly(maxloop).times
             check_pool_response[testcase] = 1
 
-            subject.check_pool(pool_object,maxloop,loop_delay_min,loop_delay_max)
+            subject.check_pool(pool_object, maxloop, loop_delay_min, loop_delay_max)
           end
         end
       end
 
-      [:checked_running_vms, :checked_ready_vms, :destroyed_vms, :migrated_vms].each do |testcase|
+      %i[checked_running_vms checked_ready_vms destroyed_vms migrated_vms].each do |testcase|
         describe "when #{testcase} is greater than zero" do
           let(:loop_decay) { 3.0 }
-          it "delays increases with a decay" do
+          it 'delays increases with a decay' do
             expect(subject).to receive(:sleep_with_wakeup_events).with(3, Numeric, Hash).once
             expect(subject).to receive(:sleep_with_wakeup_events).with(9, Numeric, Hash).once
             expect(subject).to receive(:sleep_with_wakeup_events).with(27, Numeric, Hash).once
             expect(subject).to receive(:sleep_with_wakeup_events).with(60, Numeric, Hash).twice
             check_pool_response[testcase] = 1
 
-            subject.check_pool(pool_object,maxloop,loop_delay_min,loop_delay_max,loop_decay)
+            subject.check_pool(pool_object, maxloop, loop_delay_min, loop_delay_max, loop_decay)
           end
         end
       end
@@ -3945,18 +3971,18 @@ EOT
       let(:pool_loop_delay_min) { 3 }
       let(:pool_loop_delay_max) { 70 }
       let(:pool_loop_delay_decay) { 2.5 }
-      let(:config) {
-        YAML.load(<<-EOT
----
-:pools:
-  - name: #{pool}
-    provider: #{provider_name}
-    check_loop_delay_min: #{pool_loop_delay_min}
-    check_loop_delay_max: #{pool_loop_delay_max}
-    check_loop_delay_decay: #{pool_loop_delay_decay}
-EOT
-        )
-      }
+      let(:config) do
+        YAML.load(<<~EOT
+          ---
+          :pools:
+            - name: #{pool}
+              provider: #{provider_name}
+              check_loop_delay_min: #{pool_loop_delay_min}
+              check_loop_delay_max: #{pool_loop_delay_max}
+              check_loop_delay_decay: #{pool_loop_delay_decay}
+        EOT
+                 )
+      end
 
       before(:each) do
         allow(logger).to receive(:log)
@@ -3968,32 +3994,31 @@ EOT
         $threads = nil
       end
 
-      [:checked_pending_vms, :discovered_vms, :cloned_vms].each do |testcase|
+      %i[checked_pending_vms discovered_vms cloned_vms].each do |testcase|
         describe "when #{testcase} is greater than zero" do
-          it "delays the minimum delay time" do
+          it 'delays the minimum delay time' do
             expect(subject).to receive(:sleep_with_wakeup_events).with(pool_loop_delay_min, Numeric, Hash).exactly(maxloop).times
             check_pool_response[testcase] = 1
 
-            subject.check_pool(pool_object,maxloop,loop_delay_min,loop_delay_max,loop_decay)
+            subject.check_pool(pool_object, maxloop, loop_delay_min, loop_delay_max, loop_decay)
           end
         end
       end
 
-      [:checked_running_vms, :checked_ready_vms, :destroyed_vms, :migrated_vms].each do |testcase|
+      %i[checked_running_vms checked_ready_vms destroyed_vms migrated_vms].each do |testcase|
         describe "when #{testcase} is greater than zero" do
-          it "delays increases with a decay" do
+          it 'delays increases with a decay' do
             expect(subject).to receive(:sleep_with_wakeup_events).with(7, Numeric, Hash).once
             expect(subject).to receive(:sleep_with_wakeup_events).with(17, Numeric, Hash).once
             expect(subject).to receive(:sleep_with_wakeup_events).with(42, Numeric, Hash).once
             expect(subject).to receive(:sleep_with_wakeup_events).with(70, Numeric, Hash).twice
             check_pool_response[testcase] = 1
 
-            subject.check_pool(pool_object,maxloop,loop_delay_min,loop_delay_max,loop_decay)
+            subject.check_pool(pool_object, maxloop, loop_delay_min, loop_delay_max, loop_decay)
           end
         end
       end
     end
-
 
     context 'loops specified number of times (5)' do
       let(:maxloop) { 5 }
@@ -4012,13 +4037,13 @@ EOT
       it 'should run startup tasks only once' do
         expect(logger).to receive(:log).with('d', "[*] [#{pool}] starting worker thread")
 
-        subject.check_pool(pool_object,maxloop,0)
+        subject.check_pool(pool_object, maxloop, 0)
       end
 
       it 'should run per thread tasks 5 times' do
         expect(subject).to receive(:_check_pool).exactly(maxloop).times
 
-        subject.check_pool(pool_object,maxloop,0)
+        subject.check_pool(pool_object, maxloop, 0)
       end
     end
   end
@@ -4029,25 +4054,26 @@ EOT
     let(:override_template) { 'templates/template2' }
     let(:original_size) { 2 }
     let(:override_size) { 10 }
-    let(:config) { YAML.load(<<-EOT
----
-:config:
-  task_limit: 5
-:providers:
-  :mock:
-:pools:
-  - name: '#{pool}'
-    size: #{override_size}
-    template: '#{override_template}'
-:pool_index:
-  '#{pool}': 0
-:pools_at_startup:
-  - name: '#{pool}'
-    size: #{original_size}
-    template: '#{original_template}'
-EOT
-      )
-    }
+    let(:config) do
+      YAML.load(<<~EOT
+        ---
+        :config:
+          task_limit: 5
+        :providers:
+          :mock:
+        :pools:
+          - name: '#{pool}'
+            size: #{override_size}
+            template: '#{override_template}'
+        :pool_index:
+          '#{pool}': 0
+        :pools_at_startup:
+          - name: '#{pool}'
+            size: #{original_size}
+            template: '#{original_template}'
+      EOT
+               )
+    end
 
     before(:each) do
       redis_connection_pool.with do |redis|
@@ -4072,31 +4098,30 @@ EOT
   end
 
   describe '#create_inventory' do
-
     it 'should log an error if one occurs' do
       allow(provider).to receive(:vms_in_pool).and_raise(
-        RuntimeError,'Mock Error'
+        RuntimeError, 'Mock Error'
       )
 
-      expect {
+      expect do
         subject.create_inventory(config[:pools].first, provider, {})
-      }.to raise_error(RuntimeError, 'Mock Error')
+      end.to raise_error(RuntimeError, 'Mock Error')
     end
   end
 
   describe '#check_running_pool_vms' do
     let(:pool_object) { config[:pools][0] }
-    let(:pool_check_response) {
-      {:checked_running_vms => 0}
-    }
+    let(:pool_check_response) do
+      { checked_running_vms: 0 }
+    end
     context 'Running VM not in the inventory' do
-      let(:inventory) {
+      let(:inventory) do
         # mock response from create_inventory
         {}
-      }
+      end
       before(:each) do
         redis_connection_pool.with do |redis|
-          create_running_vm(pool,vm,redis,token)
+          create_running_vm(pool, vm, redis, token)
         end
       end
 
@@ -4108,28 +4133,28 @@ EOT
 
       it 'should move the VM to completed queue' do
         redis_connection_pool.with do |redis|
-          expect(subject).to receive(:move_vm_queue).with(pool,vm,'running','completed',redis,String).and_call_original
+          expect(subject).to receive(:move_vm_queue).with(pool, vm, 'running', 'completed', redis, String).and_call_original
         end
 
-        subject.check_running_pool_vms(pool,provider, pool_check_response, inventory)
+        subject.check_running_pool_vms(pool, provider, pool_check_response, inventory)
       end
     end
 
     context 'Running VM in the inventory' do
       let(:provider) { double('provider') }
-      let(:inventory) {
+      let(:inventory) do
         # mock response from create_inventory
         { vm => 1 }
-      }
+      end
       before(:each) do
         redis_connection_pool.with do |redis|
           allow(subject).to receive(:check_running_vm)
-          create_running_vm(pool,vm,redis,token)
+          create_running_vm(pool, vm, redis, token)
         end
       end
 
       it 'should log an error if one occurs' do
-        expect(subject).to receive(:check_running_vm).and_raise(RuntimeError,'MockError')
+        expect(subject).to receive(:check_running_vm).and_raise(RuntimeError, 'MockError')
         expect(logger).to receive(:log).with('d', "[!] [#{pool}] _check_pool with an error while evaluating running VMs: MockError")
 
         subject.check_running_pool_vms(pool, provider, pool_check_response, inventory)
@@ -4144,23 +4169,23 @@ EOT
       it 'should use the VM lifetime in preference to defaults' do
         big_lifetime = 2000
         redis_connection_pool.with do |redis|
-          redis.hset("vmpooler__vm__#{vm}", 'lifetime',big_lifetime)
+          redis.hset("vmpooler__vm__#{vm}", 'lifetime', big_lifetime)
         end
         # The lifetime comes in as string
-        expect(subject).to receive(:check_running_vm).with(vm,pool,"#{big_lifetime}",provider)
+        expect(subject).to receive(:check_running_vm).with(vm, pool, "#{big_lifetime}", provider)
 
         subject.check_running_pool_vms(pool, provider, pool_check_response, inventory)
       end
 
       it 'should use the configuration default if the VM lifetime is not set' do
         config[:config]['vm_lifetime'] = 50
-        expect(subject).to receive(:check_running_vm).with(vm,pool,50,provider)
+        expect(subject).to receive(:check_running_vm).with(vm, pool, 50, provider)
 
         subject.check_running_pool_vms(pool, provider, pool_check_response, inventory)
       end
 
       it 'should use a lifetime of 12 if nothing is set' do
-        expect(subject).to receive(:check_running_vm).with(vm,pool,12,provider)
+        expect(subject).to receive(:check_running_vm).with(vm, pool, 12, provider)
 
         subject.check_running_pool_vms(pool, provider, pool_check_response, inventory)
       end
@@ -4170,18 +4195,18 @@ EOT
   describe '#check_ready_pool_vms' do
     let(:provider) { double('provider') }
     let(:pool_ttl) { 5 }
-    let(:pool_check_response) {
-      {:checked_ready_vms => 0}
-    }
+    let(:pool_check_response) do
+      { checked_ready_vms: 0 }
+    end
 
     context 'Ready VM not in the inventory' do
-      let(:inventory) {
+      let(:inventory) do
         # mock response from create_inventory
         {}
-      }
+      end
       before(:each) do
         redis_connection_pool.with do |redis|
-          create_ready_vm(pool,vm,redis,token)
+          create_ready_vm(pool, vm, redis, token)
         end
       end
 
@@ -4193,7 +4218,7 @@ EOT
 
       it 'should move the VM to completed queue' do
         redis_connection_pool.with do |redis|
-          expect(subject).to receive(:move_vm_queue).with(pool,vm,'ready','completed',redis,String).and_call_original
+          expect(subject).to receive(:move_vm_queue).with(pool, vm, 'ready', 'completed', redis, String).and_call_original
         end
 
         subject.check_ready_pool_vms(pool, provider, pool_check_response, inventory, pool_ttl)
@@ -4201,15 +4226,15 @@ EOT
     end
 
     context 'Ready VM in the inventory' do
-      let(:inventory) {
+      let(:inventory) do
         # mock response from create_inventory
-        {vm => 1}
-      }
+        { vm => 1 }
+      end
       let(:big_lifetime) { 2000 }
       before(:each) do
         redis_connection_pool.with do |redis|
           allow(subject).to receive(:check_ready_vm)
-          create_ready_vm(pool,vm,redis,token)
+          create_ready_vm(pool, vm, redis, token)
         end
       end
 
@@ -4220,20 +4245,20 @@ EOT
       end
 
       it 'should log an error if one occurs' do
-        expect(subject).to receive(:check_ready_vm).and_raise(RuntimeError,'MockError')
+        expect(subject).to receive(:check_ready_vm).and_raise(RuntimeError, 'MockError')
         expect(logger).to receive(:log).with('d', "[!] [#{pool}] _check_pool failed with an error while evaluating ready VMs: MockError")
 
         subject.check_ready_pool_vms(pool, provider, pool_check_response, inventory, big_lifetime)
       end
 
       it 'should use the pool TTL if set' do
-        expect(subject).to receive(:check_ready_vm).with(vm,pool,big_lifetime,provider)
+        expect(subject).to receive(:check_ready_vm).with(vm, pool, big_lifetime, provider)
 
         subject.check_ready_pool_vms(pool, provider, pool_check_response, inventory, big_lifetime)
       end
 
       it 'should use a pool TTL of zero if none set' do
-        expect(subject).to receive(:check_ready_vm).with(vm,pool,pool_ttl,provider)
+        expect(subject).to receive(:check_ready_vm).with(vm, pool, pool_ttl, provider)
 
         subject.check_ready_pool_vms(pool, provider, pool_check_response, inventory, pool_ttl)
       end
@@ -4243,19 +4268,19 @@ EOT
   describe '#check_pending_pool_vms' do
     let(:provider) { double('provider') }
     let(:timeout) { 10 }
-    let(:pool_check_response) {
-      {:checked_pending_vms => 0}
-    }
+    let(:pool_check_response) do
+      { checked_pending_vms: 0 }
+    end
 
     context 'Pending VM not in the inventory' do
-      let(:inventory) {
+      let(:inventory) do
         # mock response from create_inventory
         {}
-      }
+      end
 
       before(:each) do
         redis_connection_pool.with do |redis|
-          create_pending_vm(pool,vm,redis,token)
+          create_pending_vm(pool, vm, redis, token)
         end
       end
 
@@ -4269,14 +4294,14 @@ EOT
     end
 
     context 'Pending VM in the inventory' do
-      let(:inventory) {
+      let(:inventory) do
         # mock response from create_inventory
-        {vm => 1}
-      }
+        { vm => 1 }
+      end
 
       before(:each) do
         redis_connection_pool.with do |redis|
-          create_pending_vm(pool,vm,redis,token)
+          create_pending_vm(pool, vm, redis, token)
         end
       end
 
@@ -4288,7 +4313,7 @@ EOT
       end
 
       it 'should log an error if one occurs' do
-        expect(subject).to receive(:check_pending_vm).and_raise(RuntimeError,'MockError')
+        expect(subject).to receive(:check_pending_vm).and_raise(RuntimeError, 'MockError')
         expect(logger).to receive(:log).with('d', "[!] [#{pool}] _check_pool failed with an error while evaluating pending VMs: MockError")
 
         subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory, timeout, timeout_notification)
@@ -4298,7 +4323,7 @@ EOT
         big_lifetime = 2000
 
         config[:pools][0]['timeout'] = big_lifetime
-        expect(subject).to receive(:check_pending_vm).with(vm,pool, big_lifetime, timeout_notification, provider)
+        expect(subject).to receive(:check_pending_vm).with(vm, pool, big_lifetime, timeout_notification, provider)
 
         subject.check_pending_pool_vms(pool, provider, pool_check_response, inventory, big_lifetime, timeout_notification)
       end
@@ -4322,20 +4347,21 @@ EOT
 
   describe '#check_completed_pool_vms' do
     let(:provider) { double('provider') }
-    let(:pool_check_response) { {
-        :checked_completed_vms => 0,
-        :destroyed_vms => 0
+    let(:pool_check_response) do
+      {
+        checked_completed_vms: 0,
+        destroyed_vms: 0
       }
-    }
+    end
     context 'Completed VM not in the inventory' do
-      let(:inventory) {
+      let(:inventory) do
         # mock response from create_inventory
         {}
-      }
+      end
 
       before(:each) do
         redis_connection_pool.with do |redis|
-          create_completed_vm(vm,pool,redis,true)
+          create_completed_vm(vm, pool, redis, true)
         end
       end
 
@@ -4351,28 +4377,28 @@ EOT
 
       it 'should remove redis information' do
         redis_connection_pool.with do |redis|
-          expect(redis.sismember("vmpooler__completed__#{pool}",vm)).to be(true)
+          expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
           expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to_not be(nil)
-          expect(redis.hget("vmpooler__active__#{pool}",vm)).to_not be(nil)
+          expect(redis.hget("vmpooler__active__#{pool}", vm)).to_not be(nil)
 
           subject.check_completed_pool_vms(pool, provider, pool_check_response, inventory)
 
-          expect(redis.sismember("vmpooler__completed__#{pool}",vm)).to be(false)
+          expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(false)
           expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to be(nil)
-          expect(redis.hget("vmpooler__active__#{pool}",vm)).to be(nil)
+          expect(redis.hget("vmpooler__active__#{pool}", vm)).to be(nil)
         end
       end
     end
 
     context 'Completed VM in the inventory' do
-      let(:inventory) {
+      let(:inventory) do
         # mock response from create_inventory
-        {vm => 1}
-      }
+        { vm => 1 }
+      end
 
       before(:each) do
         redis_connection_pool.with do |redis|
-          create_completed_vm(vm,pool,redis,true)
+          create_completed_vm(vm, pool, redis, true)
         end
       end
 
@@ -4390,7 +4416,7 @@ EOT
 
       context 'with an error during destroy_vm' do
         before(:each) do
-          expect(subject).to receive(:destroy_vm).and_raise(RuntimeError,"MockError")
+          expect(subject).to receive(:destroy_vm).and_raise(RuntimeError, 'MockError')
           expect(logger).to receive(:log).with('d', "[!] [#{pool}] _check_pool failed with an error while evaluating completed VMs: MockError")
         end
 
@@ -4400,26 +4426,26 @@ EOT
 
         it 'should remove redis information' do
           redis_connection_pool.with do |redis|
-            expect(redis.sismember("vmpooler__completed__#{pool}",vm)).to be(true)
+            expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(true)
             expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to_not be(nil)
-            expect(redis.hget("vmpooler__active__#{pool}",vm)).to_not be(nil)
+            expect(redis.hget("vmpooler__active__#{pool}", vm)).to_not be(nil)
 
             subject.check_completed_pool_vms(pool, provider, pool_check_response, inventory)
 
-            expect(redis.sismember("vmpooler__completed__#{pool}",vm)).to be(false)
+            expect(redis.sismember("vmpooler__completed__#{pool}", vm)).to be(false)
             expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to be(nil)
-            expect(redis.hget("vmpooler__active__#{pool}",vm)).to be(nil)
+            expect(redis.hget("vmpooler__active__#{pool}", vm)).to be(nil)
           end
         end
       end
     end
   end
 
-  describe "#check_discovered_pool_vms" do
+  describe '#check_discovered_pool_vms' do
     context 'Discovered VM' do
       before(:each) do
         redis_connection_pool.with do |redis|
-          create_discovered_vm(vm,pool,redis)
+          create_discovered_vm(vm, pool, redis)
         end
       end
 
@@ -4433,14 +4459,14 @@ EOT
 
       it 'should log a message if an error occurs' do
         redis_connection_pool.with do |redis|
-          expect(redis).to receive(:smove).with("vmpooler__discovered__#{pool}", "vmpooler__completed__#{pool}", vm).and_raise(RuntimeError,'MockError')
+          expect(redis).to receive(:smove).with("vmpooler__discovered__#{pool}", "vmpooler__completed__#{pool}", vm).and_raise(RuntimeError, 'MockError')
         end
-        expect(logger).to receive(:log).with("d", "[!] [#{pool}] _check_pool failed with an error while evaluating discovered VMs: MockError")
+        expect(logger).to receive(:log).with('d', "[!] [#{pool}] _check_pool failed with an error while evaluating discovered VMs: MockError")
 
         subject.check_discovered_pool_vms(pool)
       end
 
-      ['pending','ready','running','completed'].each do |queue_name|
+      ['pending', 'ready', 'running', 'completed'].each do |queue_name|
         context "exists in the #{queue_name} queue" do
           before(:each) do
             allow(subject).to receive(:migrate_vm)
@@ -4462,7 +4488,7 @@ EOT
             end
           end
 
-          it "should be removed from the discovered queue" do
+          it 'should be removed from the discovered queue' do
             redis_connection_pool.with do |redis|
               redis.sadd("vmpooler__#{queue_name}__#{pool}", vm)
               allow(logger).to receive(:log)
@@ -4473,7 +4499,7 @@ EOT
             end
           end
 
-          it "should log a message" do
+          it 'should log a message' do
             redis_connection_pool.with do |redis|
               redis.sadd("vmpooler__#{queue_name}__#{pool}", vm)
             end
@@ -4486,22 +4512,23 @@ EOT
     end
   end
 
-  describe "#check_migrating_pool_vms" do
+  describe '#check_migrating_pool_vms' do
     let(:provider) { double('provider') }
-    let(:pool_check_response) { {
-        :migrated_vms => 0
+    let(:pool_check_response) do
+      {
+        migrated_vms: 0
       }
-    }
+    end
 
     context 'Migrating VM not in the inventory' do
-      let(:inventory) {
+      let(:inventory) do
         # mock response from create_inventory
         {}
-      }
+      end
 
       before(:each) do
         redis_connection_pool.with do |redis|
-          create_migrating_vm(vm,pool,redis)
+          create_migrating_vm(vm, pool, redis)
         end
       end
 
@@ -4513,33 +4540,33 @@ EOT
     end
 
     context 'Migrating VM in the inventory' do
-      let(:inventory) {
+      let(:inventory) do
         # mock response from create_inventory
-        {vm => 1}
-      }
+        { vm => 1 }
+      end
 
       before(:each) do
         redis_connection_pool.with do |redis|
-          create_migrating_vm(vm,pool,redis)
+          create_migrating_vm(vm, pool, redis)
         end
       end
 
       it 'should return the number of migrated VMs' do
-        allow(subject).to receive(:migrate_vm).with(vm,pool,provider)
+        allow(subject).to receive(:migrate_vm).with(vm, pool, provider)
         subject.check_migrating_pool_vms(pool, provider, pool_check_response, inventory)
 
         expect(pool_check_response[:migrated_vms]).to be(1)
       end
 
       it 'should log an error if one occurs' do
-        expect(subject).to receive(:migrate_vm).and_raise(RuntimeError,'MockError')
+        expect(subject).to receive(:migrate_vm).and_raise(RuntimeError, 'MockError')
         expect(logger).to receive(:log).with('s', "[x] [#{pool}] '#{vm}' failed to migrate: MockError")
 
         subject.check_migrating_pool_vms(pool, provider, pool_check_response, inventory)
       end
 
       it 'should call migrate_vm' do
-        expect(subject).to receive(:migrate_vm).with(vm,pool,provider)
+        expect(subject).to receive(:migrate_vm).with(vm, pool, provider)
 
         subject.check_migrating_pool_vms(pool, provider, pool_check_response, inventory)
       end
@@ -4548,20 +4575,20 @@ EOT
 
   describe '#repopulate_pool_vms' do
     let(:pool_size) { 1 }
-    let(:config) {
-      YAML.load(<<-EOT
----
-:config:
-  task_limit: 10
-EOT
-      )
-    }
+    let(:config) do
+      YAML.load(<<~EOT
+        ---
+        :config:
+          task_limit: 10
+      EOT
+               )
+    end
     let(:provider) { double('provider') }
-    let(:pool_check_response) {
+    let(:pool_check_response) do
       {
-        :cloned_vms => 0
+        cloned_vms: 0
       }
-    }
+    end
 
     before(:each) do
       allow(subject).to receive(:get_dns_plugin_class_for_pool).and_return(dns_plugin)
@@ -4575,19 +4602,19 @@ EOT
 
     it 'should not call clone_vm when number of VMs is greater than the pool size' do
       redis_connection_pool.with do |redis|
-        create_ready_vm(pool,vm,redis,token)
+        create_ready_vm(pool, vm, redis, token)
       end
       expect(subject).to receive(:clone_vm).exactly(0).times
 
       subject.repopulate_pool_vms(pool, provider, pool_check_response, pool_size)
     end
 
-    ['ready','pending'].each do |queue_name|
+    ['ready', 'pending'].each do |queue_name|
       it "should use VMs in #{queue_name} queue to calculate pool size" do
         expect(subject).to receive(:clone_vm).exactly(0).times
         # Modify the pool size to 1 and add a VM in the queue
         redis_connection_pool.with do |redis|
-          redis.sadd("vmpooler__#{queue_name}__#{pool}",vm)
+          redis.sadd("vmpooler__#{queue_name}__#{pool}", vm)
         end
         pool_size = 1
 
@@ -4595,12 +4622,12 @@ EOT
       end
     end
 
-    ['running','completed','discovered','migrating'].each do |queue_name|
+    ['running', 'completed', 'discovered', 'migrating'].each do |queue_name|
       it "should not use VMs in #{queue_name} queue to calculate pool size" do
         expect(subject).to receive(:clone_vm)
         # Modify the pool size to 1 and add a VM in the queue
         redis_connection_pool.with do |redis|
-          redis.sadd("vmpooler__#{queue_name}__#{pool}",vm)
+          redis.sadd("vmpooler__#{queue_name}__#{pool}", vm)
         end
         pool_size = 1
 
@@ -4639,7 +4666,7 @@ EOT
 
       it 'should remove the empty pool mark if it is no longer empty' do
         redis_connection_pool.with do |redis|
-          create_ready_vm(pool,vm,redis,token)
+          create_ready_vm(pool, vm, redis, token)
 
           expect(redis.get("vmpooler__empty__#{pool}")).to be_truthy
           subject.repopulate_pool_vms(pool, provider, pool_check_response, pool_size)
@@ -4681,14 +4708,13 @@ EOT
 
       it 'log a message if a cloning error occurs' do
         redis_connection_pool.with do |redis|
-          create_ready_vm(pool,'vm',redis)
+          create_ready_vm(pool, 'vm', redis)
         end
         pool_size = 2
 
-        expect(subject).to receive(:clone_vm).and_raise(RuntimeError,"MockError")
-        expect(logger).to receive(:log).with("s", "[!] [#{pool}] clone failed during check_pool with an error: MockError")
-        expect{ subject.repopulate_pool_vms(pool, provider, pool_check_response, pool_size) }.to raise_error(RuntimeError,'MockError')
-
+        expect(subject).to receive(:clone_vm).and_raise(RuntimeError, 'MockError')
+        expect(logger).to receive(:log).with('s', "[!] [#{pool}] clone failed during check_pool with an error: MockError")
+        expect { subject.repopulate_pool_vms(pool, provider, pool_check_response, pool_size) }.to raise_error(RuntimeError, 'MockError')
       end
     end
 
@@ -4714,9 +4740,9 @@ EOT
 
       it 'increments metrics for ready queue' do
         redis_connection_pool.with do |redis|
-          create_ready_vm(pool,'vm1',redis)
-          create_ready_vm(pool,'vm2',redis)
-          create_ready_vm(pool,'vm3',redis)
+          create_ready_vm(pool, 'vm1', redis)
+          create_ready_vm(pool, 'vm2', redis)
+          create_ready_vm(pool, 'vm3', redis)
         end
 
         expect(metrics).to receive(:gauge).with("ready.#{pool}", 3)
@@ -4727,9 +4753,9 @@ EOT
 
       it 'increments metrics for running queue' do
         redis_connection_pool.with do |redis|
-          create_running_vm(pool,'vm1',redis,token)
-          create_running_vm(pool,'vm2',redis,token)
-          create_running_vm(pool,'vm3',redis,token)
+          create_running_vm(pool, 'vm1', redis, token)
+          create_running_vm(pool, 'vm2', redis, token)
+          create_running_vm(pool, 'vm3', redis, token)
         end
 
         expect(metrics).to receive(:gauge).with("running.#{pool}", 3)
@@ -4739,7 +4765,6 @@ EOT
       end
 
       it 'increments metrics with 0 when pool empty' do
-
         allow(metrics).to receive(:gauge)
         expect(metrics).to receive(:gauge).with("ready.#{pool}", 0)
         expect(metrics).to receive(:gauge).with("running.#{pool}", 0)
@@ -4750,40 +4775,40 @@ EOT
   end
 
   describe '#_check_pool' do
-    let(:new_vm_response) {
+    let(:new_vm_response) do
       # Mock response from Base Provider for vms_in_pool
-      [{ 'name' => new_vm}]
-    }
-    let(:vm_response) {
+      [{ 'name' => new_vm }]
+    end
+    let(:vm_response) do
       # Mock response from Base Provider for vms_in_pool
-      [{ 'name' => vm}]
-    }
-    let(:multi_vm_response) {
+      [{ 'name' => vm }]
+    end
+    let(:multi_vm_response) do
       # Mock response from Base Provider for vms_in_pool
-      [{ 'name' => 'vm1'},
-       { 'name' => 'vm2'},
-       { 'name' => 'vm3'}]
-    }
+      [{ 'name' => 'vm1' },
+       { 'name' => 'vm2' },
+       { 'name' => 'vm3' }]
+    end
 
     # Default test fixtures will consist of;
     #   - Empty Redis dataset
     #   - A single pool with a pool size of zero i.e. no new VMs should be created
     #   - Task limit of 10
-    let(:config) {
-      YAML.load(<<-EOT
----
-:config:
-  task_limit: 10
-:pools:
-  - name: #{pool}
-    size: 10
-    ready_ttl: 1234
-    timeout: 5678
-EOT
-      )
-    }
+    let(:config) do
+      YAML.load(<<~EOT
+        ---
+        :config:
+          task_limit: 10
+        :pools:
+          - name: #{pool}
+            size: 10
+            ready_ttl: 1234
+            timeout: 5678
+      EOT
+               )
+    end
     let(:pool_object) { config[:pools][0] }
-    let(:new_vm) { 'newvm'}
+    let(:new_vm) { 'newvm' }
     let(:pool_name) { pool_object['name'] }
     let(:mutex) { Mutex.new }
 
@@ -4811,13 +4836,13 @@ EOT
       end
 
       it 'captures #create_inventory errors correctly' do
-        allow(subject).to receive(:create_inventory).and_raise(RuntimeError,'Mock Error')
+        allow(subject).to receive(:create_inventory).and_raise(RuntimeError, 'Mock Error')
         subject._check_pool(pool_object, provider)
       end
 
       it 'should return early if an error occurs' do
         allow(subject).to receive(:create_inventory).and_raise(
-          RuntimeError,'Mock Error'
+          RuntimeError, 'Mock Error'
         )
 
         expect(subject).to_not receive(:check_running_pool_vms)
@@ -4825,9 +4850,9 @@ EOT
       end
 
       it 'should return that no actions were taken' do
-        expect(provider).to receive(:vms_in_pool).and_raise(RuntimeError,'Mock Error')
+        expect(provider).to receive(:vms_in_pool).and_raise(RuntimeError, 'Mock Error')
 
-        result = subject._check_pool(pool_object,provider)
+        result = subject._check_pool(pool_object, provider)
 
         expect(result[:discovered_vms]).to be(0)
         expect(result[:checked_running_vms]).to be(0)
@@ -4841,11 +4866,11 @@ EOT
       it 'should log the discovery of VMs' do
         expect(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue")
 
-        subject._check_pool(pool_object,provider)
+        subject._check_pool(pool_object, provider)
       end
 
       it 'should return the number of discovered VMs' do
-        result = subject._check_pool(pool_object,provider)
+        result = subject._check_pool(pool_object, provider)
 
         expect(result[:discovered_vms]).to be(1)
       end
@@ -4857,21 +4882,21 @@ EOT
           expect(redis.sismember("vmpooler__discovered__#{pool}", new_vm)).to be(false)
           expect(redis.sismember("vmpooler__completed__#{pool}", new_vm)).to be(false)
 
-          subject._check_pool(pool_object,provider)
+          subject._check_pool(pool_object, provider)
 
           expect(redis.sismember("vmpooler__discovered__#{pool}", new_vm)).to be(false)
           expect(redis.sismember("vmpooler__completed__#{pool}", new_vm)).to be(true)
         end
       end
 
-      ['running','ready','pending','completed','discovered','migrating'].each do |queue_name|
+      ['running', 'ready', 'pending', 'completed', 'discovered', 'migrating'].each do |queue_name|
         it "should not discover VMs in the #{queue_name} queue" do
           redis_connection_pool.with do |redis|
             expect(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue").exactly(0).times
             expect(redis.sismember("vmpooler__discovered__#{pool}", new_vm)).to be(false)
             redis.sadd("vmpooler__#{queue_name}__#{pool}", new_vm)
 
-            subject._check_pool(pool_object,provider)
+            subject._check_pool(pool_object, provider)
 
             if queue_name == 'discovered'
               # Discovered VMs end up in the completed queue
@@ -4886,14 +4911,14 @@ EOT
       it 'should get the pool mutex' do
         expect(subject).to receive(:pool_mutex).and_return(mutex).at_least(:once)
 
-        subject._check_pool(pool_object,provider)
+        subject._check_pool(pool_object, provider)
       end
 
       it 'should run synchronize' do
         expect(subject).to receive(:pool_mutex).and_return(mutex).at_least(:once)
         expect(mutex).to receive(:synchronize).at_least(:once)
 
-        subject._check_pool(pool_object,provider)
+        subject._check_pool(pool_object, provider)
       end
 
       it 'should yield when locked' do
@@ -4901,7 +4926,7 @@ EOT
         mutex.lock
         expect(mutex).to receive(:synchronize).and_yield
 
-        subject._check_pool(pool_object,provider)
+        subject._check_pool(pool_object, provider)
       end
     end
 
@@ -4911,7 +4936,7 @@ EOT
         allow(subject).to receive(:get_dns_plugin_class_for_pool).and_return(dns_plugin)
       end
 
-      let(:pool_check_response) {
+      let(:pool_check_response) do
         {
           discovered_vms: 0,
           checked_running_vms: 0,
@@ -4921,13 +4946,13 @@ EOT
           migrated_vms: 0,
           cloned_vms: 0
         }
-      }
+      end
 
       it 'should call #check_running_pool_vms' do
         allow(subject).to receive(:create_inventory).and_return({})
         expect(subject).to receive(:check_running_pool_vms).with(pool, provider, pool_check_response, {})
 
-        subject._check_pool(pool_object,provider)
+        subject._check_pool(pool_object, provider)
       end
     end
 
@@ -4937,7 +4962,7 @@ EOT
         allow(subject).to receive(:get_dns_plugin_class_for_pool).and_return(dns_plugin)
       end
 
-      let(:pool_check_response) {
+      let(:pool_check_response) do
         {
           discovered_vms: 0,
           checked_running_vms: 0,
@@ -4947,13 +4972,13 @@ EOT
           migrated_vms: 0,
           cloned_vms: 0
         }
-      }
+      end
 
       it 'should call #check_ready_pool_vms' do
         allow(subject).to receive(:create_inventory).and_return({})
         expect(subject).to receive(:check_ready_pool_vms).with(pool, provider, pool_check_response, {}, pool_object['ready_ttl'])
 
-        subject._check_pool(pool_object,provider)
+        subject._check_pool(pool_object, provider)
       end
     end
 
@@ -4963,7 +4988,7 @@ EOT
         allow(subject).to receive(:get_dns_plugin_class_for_pool).and_return(dns_plugin)
       end
 
-      let(:pool_check_response) {
+      let(:pool_check_response) do
         {
           discovered_vms: 0,
           checked_running_vms: 0,
@@ -4973,16 +4998,15 @@ EOT
           migrated_vms: 0,
           cloned_vms: 0
         }
-      }
+      end
 
       it 'should call #check_ready_pool_vms' do
         allow(subject).to receive(:create_inventory).and_return({})
         expect(subject).to receive(:check_pending_pool_vms).with(pool, provider, pool_check_response, {}, pool_object['timeout'], pool_object['timeout_notification'])
 
-        subject._check_pool(pool_object,provider)
+        subject._check_pool(pool_object, provider)
       end
     end
-
 
     # COMPLETED
     context 'when checking completed VMs' do
@@ -4990,23 +5014,23 @@ EOT
         allow(subject).to receive(:get_dns_plugin_class_for_pool).and_return(dns_plugin)
       end
 
-      let(:pool_check_response) {
+      let(:pool_check_response) do
         {
-            discovered_vms: 0,
-            checked_running_vms: 0,
-            checked_ready_vms: 0,
-            checked_pending_vms: 0,
-            destroyed_vms: 0,
-            migrated_vms: 0,
-            cloned_vms: 0
+          discovered_vms: 0,
+          checked_running_vms: 0,
+          checked_ready_vms: 0,
+          checked_pending_vms: 0,
+          destroyed_vms: 0,
+          migrated_vms: 0,
+          cloned_vms: 0
         }
-      }
+      end
 
       it 'should call #check_completed_pool_vms' do
         allow(subject).to receive(:create_inventory).and_return({})
         expect(subject).to receive(:check_completed_pool_vms).with(pool, provider, pool_check_response, {})
 
-        subject._check_pool(pool_object,provider)
+        subject._check_pool(pool_object, provider)
       end
     end
 
@@ -5016,33 +5040,7 @@ EOT
         allow(subject).to receive(:get_dns_plugin_class_for_pool).and_return(dns_plugin)
       end
 
-      let(:pool_check_response) {
-        {
-            discovered_vms: 0,
-            checked_running_vms: 0,
-            checked_ready_vms: 0,
-            checked_pending_vms: 0,
-            destroyed_vms: 0,
-            migrated_vms: 0,
-            cloned_vms: 0
-        }
-      }
-
-      it 'should call #check_discovered_pool_vms' do
-        allow(subject).to receive(:create_inventory).and_return({})
-        expect(subject).to receive(:check_discovered_pool_vms).with(pool)
-
-        subject._check_pool(pool_object,provider)
-      end
-    end
-
-    # MIGRATIONS
-    context 'when checking migrating VMs' do
-      before(:each) do
-        allow(subject).to receive(:get_dns_plugin_class_for_pool).and_return(dns_plugin)
-      end
-
-      let(:pool_check_response) {
+      let(:pool_check_response) do
         {
           discovered_vms: 0,
           checked_running_vms: 0,
@@ -5052,13 +5050,39 @@ EOT
           migrated_vms: 0,
           cloned_vms: 0
         }
-      }
+      end
+
+      it 'should call #check_discovered_pool_vms' do
+        allow(subject).to receive(:create_inventory).and_return({})
+        expect(subject).to receive(:check_discovered_pool_vms).with(pool)
+
+        subject._check_pool(pool_object, provider)
+      end
+    end
+
+    # MIGRATIONS
+    context 'when checking migrating VMs' do
+      before(:each) do
+        allow(subject).to receive(:get_dns_plugin_class_for_pool).and_return(dns_plugin)
+      end
+
+      let(:pool_check_response) do
+        {
+          discovered_vms: 0,
+          checked_running_vms: 0,
+          checked_ready_vms: 0,
+          checked_pending_vms: 0,
+          destroyed_vms: 0,
+          migrated_vms: 0,
+          cloned_vms: 0
+        }
+      end
 
       it 'should call #check_migrating_pool_vms' do
         allow(subject).to receive(:create_inventory).and_return({})
         expect(subject).to receive(:check_migrating_pool_vms).with(pool, provider, pool_check_response, {})
 
-        subject._check_pool(pool_object,provider)
+        subject._check_pool(pool_object, provider)
       end
     end
 
@@ -5079,23 +5103,25 @@ EOT
 
         expect(subject).to receive(:update_pool_size).and_call_original
 
-        subject._check_pool(config[:pools][0],provider)
+        subject._check_pool(config[:pools][0], provider)
 
         expect(config[:pools][0]['size']).to be(newpoolsize)
       end
     end
 
-    #REPOPULATE
+    # REPOPULATE
     context 'when checking if pools need to be repopulated' do
-      let(:pool_check_response) { {
-        discovered_vms: 0,
-        checked_running_vms: 0,
-        checked_ready_vms: 0,
-        checked_pending_vms: 0,
-        destroyed_vms: 0,
-        migrated_vms: 0,
-        cloned_vms: 0
-      } }
+      let(:pool_check_response) do
+        {
+          discovered_vms: 0,
+          checked_running_vms: 0,
+          checked_ready_vms: 0,
+          checked_pending_vms: 0,
+          destroyed_vms: 0,
+          migrated_vms: 0,
+          cloned_vms: 0
+        }
+      end
       it 'should call #repopulate_pool_vms' do
         allow(subject).to receive(:create_inventory).and_return({})
         expect(subject).to receive(:repopulate_pool_vms).with(pool, provider, pool_check_response, config[:pools][0]['size'])
@@ -5104,9 +5130,8 @@ EOT
       end
     end
 
-    #remove_excess_vms
+    # remove_excess_vms
     context 'when an excess number of ready vms exist' do
-
       before(:each) do
         redis_connection_pool.with do |redis|
           allow(redis).to receive(:scard)
@@ -5120,7 +5145,7 @@ EOT
         allow(subject).to receive(:create_inventory).and_return({})
         expect(subject).to receive(:remove_excess_vms).with(config[:pools][0])
 
-        subject._check_pool(config[:pools][0],provider)
+        subject._check_pool(config[:pools][0], provider)
       end
     end
   end
@@ -5341,7 +5366,7 @@ EOT
       redis_connection_pool.with do |redis|
         request_id = "#{request_id}-wrong"
         create_ondemand_request_for_test(request_id, current_time.to_i, "#{pool}:5", redis)
-        expect{subject.vms_ready?(request_id, redis)}.to raise_error(ArgumentError)
+        expect { subject.vms_ready?(request_id, redis) }.to raise_error(ArgumentError)
       end
     end
 
@@ -5355,7 +5380,7 @@ EOT
     context 'with a request that has all instances ready' do
       before(:each) do
         redis_connection_pool.with do |redis|
-          ['vm1','vm2','vm3','vm4','vm5'].each do |v|
+          ['vm1', 'vm2', 'vm3', 'vm4', 'vm5'].each do |v|
             redis.sadd("vmpooler__#{request_id}__#{platform_alias}__#{pool}", v)
           end
         end
@@ -5374,7 +5399,7 @@ EOT
       before(:each) do
         redis_connection_pool.with do |redis|
           create_ondemand_request_for_test(request_id, current_time.to_i, request_string, redis)
-          ['vm1','vm2','vm3'].each do |v|
+          ['vm1', 'vm2', 'vm3'].each do |v|
             redis.sadd("vmpooler__#{request_id}__#{platform_alias}__#{pool}", v)
           end
         end
@@ -5441,7 +5466,7 @@ EOT
 
       it 'marks the ondemand request hash key for expiration in one month' do
         redis_connection_pool.with do |redis|
-          expect(redis).to receive(:expire).with("vmpooler__odrequest__#{request_id}", 2592000)
+          expect(redis).to receive(:expire).with("vmpooler__odrequest__#{request_id}", 2_592_000)
           subject.check_ondemand_request_ready(request_id, redis)
         end
       end
@@ -5559,7 +5584,7 @@ EOT
       before(:each) do
         redis_connection_pool.with do |redis|
           create_ondemand_request_for_test(request_id, current_time, platforms_string, redis)
-          [vm,"#{vm}2"].each do |v|
+          [vm, "#{vm}2"].each do |v|
             create_running_vm(pool, v, redis)
             redis.sadd("vmpooler__#{request_id}__#{platform_alias}__#{pool}", v)
           end
@@ -5587,7 +5612,7 @@ EOT
   end
 
   describe 'check_ondemand_requests' do
-    let(:threads) {[]}
+    let(:threads) { [] }
     let(:maxloop) { 0 }
     let(:loop_delay_min) { 5 }
     let(:loop_delay_max) { 60 }
@@ -5599,21 +5624,21 @@ EOT
 
     it 'should log the ondemand provisioner is starting' do
       expect(subject).to receive(:_check_ondemand_requests).with(maxloop, loop_delay_min, loop_delay_max, loop_delay_decay)
-      expect(logger).to receive(:log).with('d', "[*] [ondemand_provisioner] starting worker thread")
+      expect(logger).to receive(:log).with('d', '[*] [ondemand_provisioner] starting worker thread')
 
       expect($threads.count).to be(0)
       subject.check_ondemand_requests
       expect($threads.count).to be(1)
     end
 
-    context' delays between loops' do
+    context ' delays between loops' do
       let(:maxloop) { 2 }
       let(:loop_delay) { 1 }
 
       it 'when a non-default loop delay is specified' do
         expect(subject).to receive(:sleep_with_wakeup_events).with(loop_delay, Numeric, Hash).exactly(maxloop).times
 
-        subject.check_ondemand_requests(maxloop,loop_delay,loop_delay)
+        subject.check_ondemand_requests(maxloop, loop_delay, loop_delay)
       end
     end
 
@@ -5629,7 +5654,7 @@ EOT
         expect(subject).to receive(:sleep_with_wakeup_events).with(27, Numeric, Hash).once
         expect(subject).to receive(:sleep_with_wakeup_events).with(60, Numeric, Hash).twice
 
-        subject.check_ondemand_requests(maxloop,loop_delay_min,loop_delay_max,loop_decay)
+        subject.check_ondemand_requests(maxloop, loop_delay_min, loop_delay_max, loop_decay)
       end
     end
 
@@ -5637,15 +5662,15 @@ EOT
       let(:maxloop) { 5 }
 
       it 'should run startup tasks only once' do
-        expect(logger).to receive(:log).with('d', "[*] [ondemand_provisioner] starting worker thread")
+        expect(logger).to receive(:log).with('d', '[*] [ondemand_provisioner] starting worker thread')
 
-        subject.check_ondemand_requests(maxloop,0)
+        subject.check_ondemand_requests(maxloop, 0)
       end
 
       it 'should run per thread tasks 5 times' do
         expect(subject).to receive(:process_ondemand_requests).and_return(0).exactly(maxloop).times
 
-        subject.check_ondemand_requests(maxloop,0)
+        subject.check_ondemand_requests(maxloop, 0)
       end
     end
   end

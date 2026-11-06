@@ -1,12 +1,20 @@
+# frozen_string_literal: true
+
 require 'vmpooler'
 require 'climate_control'
 require 'mock_redis'
 
 describe 'Vmpooler' do
   describe 'config' do
+    # Vmpooler.config reads ./vmpooler.yaml, which the repo does not ship; start from an empty config
+    around do |example|
+      ClimateControl.modify(VMPOOLER_CONFIG: ":config: {}\n", LOGFILE: nil) { example.run }
+    end
+
+    # With no pools in the config, Vmpooler.config reads them from redis
+    before { allow(Vmpooler).to receive(:new_redis).and_return(MockRedis.new) }
 
     describe 'environment variables' do
-
       test_integer = '5'
       test_string = 'test_string'
       test_bool = 'true'
@@ -19,25 +27,27 @@ describe 'Vmpooler' do
         ['vm_lifetime_auth', test_integer, nil],
         ['max_tries', test_integer, nil],
         ['retry_factor', test_integer, nil],
-        ['prefix', test_string, ""],
+        ['prefix', test_string, ''],
         ['logfile', test_string, nil],
         ['site_name', test_string, nil],
         ['clone_target', test_string, nil],
         ['create_folders', test_bool, nil],
         ['create_template_delta_disks', test_bool, nil],
-        ['create_linked_clones', test_bool, nil],
+        ['create_linked_clones', test_bool, true],
         ['experimental_features', test_bool, nil],
         ['purge_unconfigured_resources', test_bool, nil],
         ['usage_stats', test_bool, nil],
-        ['request_logger', test_bool, nil],
-        ['extra_config', test_string, nil],
+        ['request_logger', test_bool, nil]
       ]
 
+      # extra_config is only read when the config comes from a file, so it is not covered here
       test_cases.each do |key, value, default|
         it "should set a value for #{key}" do
           with_modified_env "#{key.upcase}": value do
             test_value = value
             test_value = Integer(value) if value =~ /\d/
+            # these two are turned into real booleans
+            test_value = true if %w[create_folders create_linked_clones].include?(key)
             config = Vmpooler.config
 
             expect(config[:config][key]).to eq(test_value)
@@ -69,7 +79,7 @@ describe 'Vmpooler' do
         ['server', 'redis', 'localhost'],
         ['port', '4567', nil],
         ['password', 'testpass', nil],
-        ['data_ttl', '500', 168],
+        ['data_ttl', '500', 168]
       ]
 
       test_cases.each do |key, value, default|
@@ -103,10 +113,9 @@ describe 'Vmpooler' do
     end
 
     describe 'statsd environment variables' do
-
       test_cases = [
         ['prefix', 'vmpooler', nil],
-        ['port', '4567', nil],
+        ['port', '4567', nil]
       ]
 
       test_cases.each do |key, value, default|
@@ -115,8 +124,8 @@ describe 'Vmpooler' do
             test_value = value
             test_value = Integer(value) if value =~ /\d/
             config = Vmpooler.config
-
-            expect(config[:statsd][key]).to eq(test_value) end
+            expect(config[:statsd][key]).to eq(test_value)
+          end
         end
 
         it "should set a default value for each #{key}" do
@@ -140,10 +149,9 @@ describe 'Vmpooler' do
     end
 
     describe 'graphite environment variables' do
-
       test_cases = [
         ['prefix', 'vmpooler', nil],
-        ['port', '4567', nil],
+        ['port', '4567', nil]
       ]
 
       test_cases.each do |key, value, default|
@@ -178,12 +186,11 @@ describe 'Vmpooler' do
     end
 
     describe 'ldap environment variables' do
-
       test_cases = [
         ['host', 'test', nil],
         ['port', '4567', nil],
         ['base', 'dc=example,dc=com', nil],
-        ['user_object', 'uid', nil],
+        ['user_object', 'uid', nil]
       ]
 
       test_cases.each do |key, value, default|

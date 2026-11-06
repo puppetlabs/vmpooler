@@ -270,9 +270,9 @@ module Vmpooler
     service_name += "-#{prefix}" unless prefix.empty?
 
     if tracing_enabled.eql?('false')
-      puts "Exporting of traces has been disabled so the span processor has been se to a 'NoopSpanExporter'"
+      puts "Exporting of traces has been disabled so the span processor has been set to a no-op 'SpanExporter'"
       span_processor = OpenTelemetry::SDK::Trace::Export::BatchSpanProcessor.new(
-        OpenTelemetry::SDK::Trace::Export::NoopSpanExporter.new
+        OpenTelemetry::SDK::Trace::Export::SpanExporter.new
       )
     else
       puts "Exporting of traces will be done over HTTP in binary Thrift format to #{tracing_jaeger_host}"

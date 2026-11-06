@@ -4,13 +4,13 @@ require 'rack/test'
 describe Vmpooler::API::V3 do
   include Rack::Test::Methods
 
-  def app()
+  def app
     Vmpooler::API
   end
 
   # Added to ensure no leakage in rack state from previous tests.
   # Removes all routes, filters, middleware and extension hooks from the current class
-  # https://rubydoc.info/gems/sinatra/Sinatra/Base#reset!-class_method 
+  # https://rubydoc.info/gems/sinatra/Sinatra/Base#reset!-class_method
   before(:each) do
     app.reset!
   end
@@ -18,29 +18,29 @@ describe Vmpooler::API::V3 do
   describe '/vm/:template' do
     let(:prefix) { '/api/v3' }
     let(:metrics) { Vmpooler::Metrics::DummyStatsd.new }
-    let(:config) {
+    let(:config) do
       {
         config: {
           'site_name' => 'test pooler',
-          'vm_lifetime_auth' => 2,
+          'vm_lifetime_auth' => 2
         },
         dns_configs: {
-          :example => {
+          example: {
             'dns_class' => 'mock',
             'domain' => 'example.com'
           }
         },
         providers: { vsphere: {} },
         pools: [
-          {'name' => 'pool1', 'size' => 5, 'provider' => 'vsphere', 'dns_plugin' => 'example'},
-          {'name' => 'pool2', 'size' => 10, 'provider' => 'vsphere', 'dns_plugin' => 'example'},
-          {'name' => 'poolone', 'size' => 1, 'provider' => 'vsphere', 'dns_plugin' => 'example'}
+          { 'name' => 'pool1', 'size' => 5, 'provider' => 'vsphere', 'dns_plugin' => 'example' },
+          { 'name' => 'pool2', 'size' => 10, 'provider' => 'vsphere', 'dns_plugin' => 'example' },
+          { 'name' => 'poolone', 'size' => 1, 'provider' => 'vsphere', 'dns_plugin' => 'example' }
         ],
-        statsd: { 'prefix' => 'stats_prefix'},
+        statsd: { 'prefix' => 'stats_prefix' },
         alias: { 'poolone' => 'pool1' },
-        pool_names: [ 'pool1', 'pool2', 'poolone' ]
+        pool_names: ['pool1', 'pool2', 'poolone']
       }
-    }
+    end
 
     let(:current_time) { Time.now }
     let(:socket) { double('socket') }
@@ -157,10 +157,10 @@ describe Vmpooler::API::V3 do
         expected = {
           ok: true,
           pool1: {
-            hostname: [ '1abcdefghijklmnop.example.com', '2abcdefghijklmnop.example.com' ]
+            hostname: ['1abcdefghijklmnop.example.com', '2abcdefghijklmnop.example.com']
           },
           pool2: {
-            hostname: [ '1qrstuvwxyz012345.example.com', '2qrstuvwxyz012345.example.com', '3qrstuvwxyz012345.example.com' ]
+            hostname: ['1qrstuvwxyz012345.example.com', '2qrstuvwxyz012345.example.com', '3qrstuvwxyz012345.example.com']
           }
         }
 

@@ -8,13 +8,13 @@ end
 describe Vmpooler::API::V3 do
   include Rack::Test::Methods
 
-  def app()
+  def app
     Vmpooler::API
   end
 
   # Added to ensure no leakage in rack state from previous tests.
   # Removes all routes, filters, middleware and extension hooks from the current class
-  # https://rubydoc.info/gems/sinatra/Sinatra/Base#reset!-class_method 
+  # https://rubydoc.info/gems/sinatra/Sinatra/Base#reset!-class_method
   before(:each) do
     app.reset!
   end
@@ -23,21 +23,21 @@ describe Vmpooler::API::V3 do
     let(:prefix) { '/api/v3' }
     let(:metrics) { Vmpooler::Metrics::DummyStatsd.new }
 
-    let(:config) {
+    let(:config) do
       {
         config: {
           'site_name' => 'test pooler',
-          'vm_lifetime_auth' => 2,
+          'vm_lifetime_auth' => 2
 
         },
         pools: [
-          {'name' => 'pool1', 'size' => 5},
-          {'name' => 'pool2', 'size' => 10}
+          { 'name' => 'pool1', 'size' => 5 },
+          { 'name' => 'pool2', 'size' => 10 }
         ],
         alias: { 'poolone' => 'pool1' },
         auth: false
       }
-    }
+    end
 
     let(:current_time) { Time.now }
 
@@ -75,7 +75,7 @@ describe Vmpooler::API::V3 do
       context '(allowed_tags configured)' do
         it 'fails if specified tag is not in allowed_tags array' do
           app.settings.set :config,
-             { :config => { 'allowed_tags' => ['created_by', 'project', 'url'] } }
+                           { config: { 'allowed_tags' => ['created_by', 'project', 'url'] } }
 
           create_vm('testhost', redis)
 
@@ -141,12 +141,12 @@ describe Vmpooler::API::V3 do
           expect_json(ok = true, http = 200)
 
           vm = fetch_vm('testhost')
-          expect(vm['lifetime']).to eq("20000")
+          expect(vm['lifetime']).to eq('20000')
         end
 
         it 'does not allow a lifetime to be initially past config max_lifetime_upper_limit' do
           app.settings.set :config,
-                           { :config => { 'max_lifetime_upper_limit' => 168 } }
+                           { config: { 'max_lifetime_upper_limit' => 168 } }
           create_vm('testhost', redis)
 
           put "#{prefix}/vm/testhost", '{"lifetime":"200"}'
@@ -156,19 +156,19 @@ describe Vmpooler::API::V3 do
           expect(vm['lifetime']).to be_nil
         end
 
-#       it 'does not allow a lifetime to be extended past config 168' do
-#         app.settings.set :config,
-#                          { :config => { 'max_lifetime_upper_limit' => 168 } }
-#         create_vm('testhost', redis)
-#
-#         set_vm_data('testhost', "checkout", (Time.now - (69*60*60)), redis)
-#         puts redis.hget("vmpooler__vm__testhost", 'checkout')
-#         put "#{prefix}/vm/testhost", '{"lifetime":"100"}'
-#         expect_json(ok = false, http = 400)
-#
-#         vm = fetch_vm('testhost')
-#         expect(vm['lifetime']).to be_nil
-#       end
+        #       it 'does not allow a lifetime to be extended past config 168' do
+        #         app.settings.set :config,
+        #                          { :config => { 'max_lifetime_upper_limit' => 168 } }
+        #         create_vm('testhost', redis)
+        #
+        #         set_vm_data('testhost', "checkout", (Time.now - (69*60*60)), redis)
+        #         puts redis.hget("vmpooler__vm__testhost", 'checkout')
+        #         put "#{prefix}/vm/testhost", '{"lifetime":"100"}'
+        #         expect_json(ok = false, http = 400)
+        #
+        #         vm = fetch_vm('testhost')
+        #         expect(vm['lifetime']).to be_nil
+        #       end
       end
 
       context '(auth configured)' do
@@ -244,7 +244,7 @@ describe Vmpooler::API::V3 do
             create_running_vm('pool1', 'testhost', redis, 'abcdefghijklmnopqrstuvwxyz012345')
             expect fetch_vm('testhost')
 
-            delete "#{prefix}/vm/testhost", "", {
+            delete "#{prefix}/vm/testhost", '', {
               'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
             }
             expect_json(ok = true, http = 200)
@@ -280,7 +280,7 @@ describe Vmpooler::API::V3 do
           create_vm('testhost', redis)
           snapshot_vm('testhost', 'testsnapshot', redis)
 
-          post "#{prefix}/vm/testhost/snapshot", "", {
+          post "#{prefix}/vm/testhost/snapshot", '', {
             'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
           }
           expect_json(ok = true, http = 202)
@@ -304,7 +304,7 @@ describe Vmpooler::API::V3 do
         it 'fails if the specified snapshot does not exist' do
           create_vm('testhost', redis)
 
-          post "#{prefix}/vm/testhost/snapshot/testsnapshot", "", {
+          post "#{prefix}/vm/testhost/snapshot/testsnapshot", '', {
             'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
           }
           expect_json(ok = false, http = 404)
@@ -329,7 +329,7 @@ describe Vmpooler::API::V3 do
         it 'fails if authed and the specified snapshot does not exist' do
           create_vm('testhost', redis)
 
-          post "#{prefix}/vm/testhost/snapshot/testsnapshot", "", {
+          post "#{prefix}/vm/testhost/snapshot/testsnapshot", '', {
             'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
           }
           expect_json(ok = false, http = 404)
@@ -340,7 +340,7 @@ describe Vmpooler::API::V3 do
           create_vm('testhost', redis)
           snapshot_vm('testhost', 'testsnapshot', redis)
 
-          post "#{prefix}/vm/testhost/snapshot/testsnapshot", "", {
+          post "#{prefix}/vm/testhost/snapshot/testsnapshot", '', {
             'HTTP_X_AUTH_TOKEN' => 'abcdefghijklmnopqrstuvwxyz012345'
           }
           expect_json(ok = true, http = 202)

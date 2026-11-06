@@ -9,27 +9,32 @@ describe 'GenericConnectionPool' do
   let(:pool_size) { 1 }
   let(:pool_timeout) { 1 }
 
-  subject { Vmpooler::PoolManager::GenericConnectionPool.new(
-              metrics: metrics,
-              connpool_type: connpool_type,
-              connpool_provider: connpool_provider,
-              size: pool_size,
-              timeout: pool_timeout
-            ) { connection_object }
-  }
+  subject do
+    Vmpooler::PoolManager::GenericConnectionPool.new(
+      metrics: metrics,
+      connpool_type: connpool_type,
+      connpool_provider: connpool_provider,
+      size: pool_size,
+      timeout: pool_timeout
+    ) { connection_object }
+  end
 
-  describe "When consuming a pool object" do
+  describe 'When consuming a pool object' do
     let(:pool_size) { 1 }
     let(:pool_timeout) { 1 }
-    let(:connection_object) {{
-      connection: 'connection'
-    }}
+    let(:connection_object) do
+      {
+        connection: 'connection'
+      }
+    end
 
     it 'should error out when connection pool could not establish no nothing' do
-      newsub = Vmpooler.redis_connection_pool("foo,bar", "1234", "fuba", 1, 1, metrics, 0)
-      expect { newsub.with_metrics do |conn_pool_object|
-        conn_pool_object.srem('foo', "bar")
-      end }.to raise_error Redis::CannotConnectError
+      newsub = Vmpooler.redis_connection_pool('foo,bar', '1234', 'fuba', 1, 1, metrics, 0)
+      expect do
+        newsub.with_metrics do |conn_pool_object|
+          conn_pool_object.srem('foo', 'bar')
+        end
+      end.to raise_error Redis::CannotConnectError
     end
 
     it 'should return a connection object when grabbing one from the pool' do
@@ -67,14 +72,14 @@ describe 'GenericConnectionPool' do
     end
   end
 
-  describe "#with_metrics" do
+  describe '#with_metrics' do
     before(:each) do
       expect(subject).not_to be_nil
     end
 
     context 'When metrics are configured' do
       it 'should emit a gauge metric when the connection is grabbed and released' do
-        expect(metrics).to receive(:gauge).with(/connection_available/,Integer).exactly(2).times
+        expect(metrics).to receive(:gauge).with(/connection_available/, Integer).exactly(2).times
 
         subject.with_metrics do |conn1|
           # do nothing
@@ -82,7 +87,7 @@ describe 'GenericConnectionPool' do
       end
 
       it 'should emit a timing metric when the connection is grabbed' do
-        expect(metrics).to receive(:timing).with(/connection_waited/,Integer).exactly(1).times
+        expect(metrics).to receive(:timing).with(/connection_waited/, Integer).exactly(1).times
 
         subject.with_metrics do |conn1|
           # do nothing
@@ -90,8 +95,8 @@ describe 'GenericConnectionPool' do
       end
 
       it 'should emit metrics with the specified prefix' do
-        expect(metrics).to receive(:gauge).with(/#{connpool_type}\./,Integer).at_least(1).times
-        expect(metrics).to receive(:timing).with(/#{connpool_type}\./,Integer).at_least(1).times
+        expect(metrics).to receive(:gauge).with(/#{connpool_type}\./, Integer).at_least(1).times
+        expect(metrics).to receive(:timing).with(/#{connpool_type}\./, Integer).at_least(1).times
 
         subject.with_metrics do |conn1|
           # do nothing
@@ -102,8 +107,8 @@ describe 'GenericConnectionPool' do
         let(:connpool_type) { nil }
 
         it 'should emit metrics with default prefix' do
-          expect(metrics).to receive(:gauge).with(/#{default_connpool_type}\./,Integer).at_least(1).times
-          expect(metrics).to receive(:timing).with(/#{default_connpool_type}\./,Integer).at_least(1).times
+          expect(metrics).to receive(:gauge).with(/#{default_connpool_type}\./, Integer).at_least(1).times
+          expect(metrics).to receive(:timing).with(/#{default_connpool_type}\./, Integer).at_least(1).times
 
           subject.with_metrics do |conn1|
             # do nothing
@@ -115,8 +120,8 @@ describe 'GenericConnectionPool' do
         let(:connpool_type) { '' }
 
         it 'should emit metrics with default prefix' do
-          expect(metrics).to receive(:gauge).with(/#{default_connpool_type}\./,Integer).at_least(1).times
-          expect(metrics).to receive(:timing).with(/#{default_connpool_type}\./,Integer).at_least(1).times
+          expect(metrics).to receive(:gauge).with(/#{default_connpool_type}\./, Integer).at_least(1).times
+          expect(metrics).to receive(:timing).with(/#{default_connpool_type}\./, Integer).at_least(1).times
 
           subject.with_metrics do |conn1|
             # do nothing
@@ -136,6 +141,5 @@ describe 'GenericConnectionPool' do
         end
       end
     end
-
   end
 end

@@ -1,7 +1,5 @@
-
 require 'rack/test'
 require 'vmpooler/metrics/promstats/collector_middleware'
-
 
 describe Vmpooler::Metrics::Promstats::CollectorMiddleware do
   include Rack::Test::Methods
@@ -23,7 +21,7 @@ describe Vmpooler::Metrics::Promstats::CollectorMiddleware do
     described_class.new(original_app, registry: registry)
   end
 
-  let(:dummy_error) { RuntimeError.new("Dummy error from tests") }
+  let(:dummy_error) { RuntimeError.new('Dummy error from tests') }
 
   it 'returns the app response' do
     get '/foo'
@@ -52,7 +50,7 @@ describe Vmpooler::Metrics::Promstats::CollectorMiddleware do
 
     metric = :http_server_request_duration_seconds
     labels = { method: 'get', path: '/foo' }
-    expect(registry.get(metric).get(labels: labels)).to include("0.1" => 0, "0.25" => 1)
+    expect(registry.get(metric).get(labels: labels)).to include('0.1' => 0, '0.25' => 1)
   end
 
   it 'normalizes paths containing /vm by default' do
@@ -66,7 +64,7 @@ describe Vmpooler::Metrics::Promstats::CollectorMiddleware do
 
     metric = :http_server_request_duration_seconds
     labels = { method: 'get', path: '/foo/vm' }
-    expect(registry.get(metric).get(labels: labels)).to include("0.1" => 0, "0.5" => 1)
+    expect(registry.get(metric).get(labels: labels)).to include('0.1' => 0, '0.5' => 1)
   end
 
   it 'normalizes paths containing /ondemandvm by ' do
@@ -80,7 +78,7 @@ describe Vmpooler::Metrics::Promstats::CollectorMiddleware do
 
     metric = :http_server_request_duration_seconds
     labels = { method: 'get', path: '/foo/ondemandvm' }
-    expect(registry.get(metric).get(labels: labels)).to include("0.1" => 0, "0.5" => 1)
+    expect(registry.get(metric).get(labels: labels)).to include('0.1' => 0, '0.5' => 1)
   end
 
   it 'normalizes paths containing /token by default' do
@@ -94,7 +92,7 @@ describe Vmpooler::Metrics::Promstats::CollectorMiddleware do
 
     metric = :http_server_request_duration_seconds
     labels = { method: 'get', path: '/token' }
-    expect(registry.get(metric).get(labels: labels)).to include("0.1" => 0, "0.5" => 1)
+    expect(registry.get(metric).get(labels: labels)).to include('0.1' => 0, '0.5' => 1)
   end
 
   it 'normalizes paths containing /api/v1/token by default' do
@@ -108,7 +106,7 @@ describe Vmpooler::Metrics::Promstats::CollectorMiddleware do
 
     metric = :http_server_request_duration_seconds
     labels = { method: 'get', path: '/api/v1/token' }
-    expect(registry.get(metric).get(labels: labels)).to include("0.1" => 0, "0.5" => 1)
+    expect(registry.get(metric).get(labels: labels)).to include('0.1' => 0, '0.5' => 1)
   end
 
   it 'normalizes paths containing /img by default' do
@@ -122,7 +120,7 @@ describe Vmpooler::Metrics::Promstats::CollectorMiddleware do
 
     metric = :http_server_request_duration_seconds
     labels = { method: 'get', path: '/img' }
-    expect(registry.get(metric).get(labels: labels)).to include("0.1" => 0, "0.5" => 1)
+    expect(registry.get(metric).get(labels: labels)).to include('0.1' => 0, '0.5' => 1)
   end
 
   it 'normalizes paths containing /lib by default' do
@@ -136,7 +134,7 @@ describe Vmpooler::Metrics::Promstats::CollectorMiddleware do
 
     metric = :http_server_request_duration_seconds
     labels = { method: 'get', path: '/lib' }
-    expect(registry.get(metric).get(labels: labels)).to include("0.1" => 0, "0.5" => 1)
+    expect(registry.get(metric).get(labels: labels)).to include('0.1' => 0, '0.5' => 1)
   end
 
   context 'when the app raises an exception' do
@@ -166,19 +164,19 @@ describe Vmpooler::Metrics::Promstats::CollectorMiddleware do
       described_class.new(
         original_app,
         registry: registry,
-        metrics_prefix: 'lolrus',
+        metrics_prefix: 'lolrus'
       )
     end
 
     it 'provides alternate metric names' do
       expect(
-        registry.get(:lolrus_requests_total),
+        registry.get(:lolrus_requests_total)
       ).to be_a(Prometheus::Client::Counter)
       expect(
-        registry.get(:lolrus_request_duration_seconds),
+        registry.get(:lolrus_request_duration_seconds)
       ).to be_a(Prometheus::Client::Histogram)
       expect(
-        registry.get(:lolrus_exceptions_total),
+        registry.get(:lolrus_exceptions_total)
       ).to be_a(Prometheus::Client::Counter)
     end
 
