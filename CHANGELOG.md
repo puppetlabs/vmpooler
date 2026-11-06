@@ -1,5 +1,17 @@
 # Changelog
 
+## [4.0.0](https://github.com/puppetlabs/vmpooler/tree/4.0.0) (2026-11-06)
+
+[Full Changelog](https://github.com/puppetlabs/vmpooler/compare/3.8.1...4.0.0)
+
+**Breaking changes:**
+
+- \(P4DEVOPS-16617\) The exact OpenTelemetry pins in the gemspec become `~>` ranges (instrumentation-concurrent\_ruby 0.23, http\_client 0.25, rack 0.28, redis 0.27, sinatra 0.27, sdk 1.10). Anything that locks vmpooler together with older OpenTelemetry instrumentation gems has to move with it. [\#706](https://github.com/puppetlabs/vmpooler/pull/706) ([Ramesh7](https://github.com/Ramesh7))
+
+**Fixed bugs:**
+
+- \(P4DEVOPS-16617\) Turn off the Rack events handler of instrumentation-rack, which logs an unmatched context detach on every request from 0.26 on. [\#706](https://github.com/puppetlabs/vmpooler/pull/706) ([Ramesh7](https://github.com/Ramesh7))
+
 ## [3.8.1](https://github.com/puppetlabs/vmpooler/tree/3.8.1) (2026-01-14)
 
 [Full Changelog](https://github.com/puppetlabs/vmpooler/compare/3.7.0...3.8.1)
