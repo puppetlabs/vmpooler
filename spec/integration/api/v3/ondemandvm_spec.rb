@@ -313,11 +313,33 @@ describe Vmpooler::API::V3 do
           end
 
           it 'does not mention the ttl when a failure reason is set' do
-            redis.hset("vmpooler__odrequest__#{uuid}", 'failure_reason', 'Configuration error: template not found')
+            redis.hset("vmpooler__odrequest__#{uuid}", 'failure_reason', 'Configuration error')
 
             get "#{prefix}/ondemandvm/#{uuid}"
 
             expect(JSON.parse(last_response.body)['message']).not_to include('ondemand_request_ttl')
+          end
+
+          it 'does not return the provider message stored by older requests' do
+            raw = "Configuration error: Unable to find template 'tmpl-01' on vc01.internal.example.com in /Datacenter/vm/pooler"
+            redis.hset("vmpooler__odrequest__#{uuid}", 'failure_reason', raw)
+
+            get "#{prefix}/ondemandvm/#{uuid}"
+
+            message = JSON.parse(last_response.body)['message']
+            expect(message).to eq('The request failed to provision instances: Configuration error')
+            expect(message).not_to include('vc01.internal.example.com')
+            expect(message).not_to include('tmpl-01')
+          end
+
+          it 'returns a generic description for a reason it does not know' do
+            redis.hset("vmpooler__odrequest__#{uuid}", 'failure_reason', 'secret-host.internal refused the connection')
+
+            get "#{prefix}/ondemandvm/#{uuid}"
+
+            message = JSON.parse(last_response.body)['message']
+            expect(message).to eq('The request failed to provision instances: VM provisioning failed')
+            expect(message).not_to include('secret-host')
           end
 
           it 'uses the ttl message when the failure reason is empty' do

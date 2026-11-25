@@ -1382,6 +1382,19 @@ module Vmpooler
         JSON.pretty_generate(result)
       end
 
+      # This status call needs no token, so only a fixed description of the stored
+      # failure_reason is returned. Older requests stored the provider's raw message
+      # after 'Configuration error: ', which can name hosts and paths. The full
+      # message stays in the manager log.
+      # Returns nil when there is no reason, so the caller reports the ttl.
+      def client_failure_reason(reason)
+        return nil if reason.nil? || reason.empty?
+        return 'Configuration error' if reason.start_with?('Configuration error')
+        return 'Max retry attempts exceeded' if reason == 'Max retry attempts exceeded'
+
+        'VM provisioning failed'
+      end
+
       def check_ondemand_request(request_id)
         tracer.in_span("Vmpooler::API::V3.#{__method__}") do |span|
           span.set_attribute('vmpooler.request_id', request_id)
@@ -1420,8 +1433,8 @@ module Vmpooler
           when 'failed'
             # failure_reason is set when a clone failed for good. Without it the
             # request ran out of time.
-            failure_reason = request_hash['failure_reason']
-            result['message'] = if failure_reason.nil? || failure_reason.empty?
+            failure_reason = client_failure_reason(request_hash['failure_reason'])
+            result['message'] = if failure_reason.nil?
                                   "The request failed to provision instances within the configured ondemand_request_ttl '#{config['ondemand_request_ttl']}' (minutes)"
                                 else
                                   "The request failed to provision instances: #{failure_reason}"

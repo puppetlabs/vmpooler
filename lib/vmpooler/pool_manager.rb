@@ -193,7 +193,9 @@ module Vmpooler
           else
             # Max retries exceeded or permanent error, mark request as permanently failed
             failure_reason = if permanent_error
-                               "Configuration error: #{clone_error}"
+                               # the provider's message can name hosts and paths, so it stays in
+                               # the log (above) and the request only gets the category
+                               'Configuration error'
                              else
                                'Max retry attempts exceeded'
                              end
@@ -202,7 +204,7 @@ module Vmpooler
               transaction.hset("vmpooler__odrequest__#{request_id}", 'status', 'failed')
               transaction.hset("vmpooler__odrequest__#{request_id}", 'failure_reason', failure_reason)
             end
-            $logger.log('s', "[!] [#{pool}] '#{vm}' permanently failed: #{failure_reason}")
+            $logger.log('s', "[!] [#{pool}] '#{vm}' permanently failed: #{failure_reason}, error='#{clone_error}'")
             $metrics.increment("vmpooler_errors.permanently_failed.#{pool}")
           end
         end
@@ -656,7 +658,7 @@ module Vmpooler
 
               if is_permanent || retry_count >= max_retries
                 reason = is_permanent ? 'permanent error detected' : 'max retries exceeded'
-                failure_reason = is_permanent ? "Configuration error: #{e.message}" : 'Max retry attempts exceeded'
+                failure_reason = is_permanent ? 'Configuration error' : 'Max retry attempts exceeded'
                 $logger.log('s', "[!] [#{pool_name}] Cancelling request #{request_id} due to #{reason}")
                 # one transaction, so a status call never sees 'failed' without its reason
                 redis.multi do |transaction|

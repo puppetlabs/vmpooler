@@ -419,7 +419,7 @@ EOT
           subject.handle_timed_out_vm(vm, pool, redis)
           
           expect(redis.hget("vmpooler__odrequest__#{request_id}", 'status')).to eq('failed')
-          expect(redis.hget("vmpooler__odrequest__#{request_id}", 'failure_reason')).to include('Configuration error')
+          expect(redis.hget("vmpooler__odrequest__#{request_id}", 'failure_reason')).to eq('Configuration error')
           expect(redis.zrange('vmpooler__odcreate__task', 0, -1)).not_to include("#{pool}:#{pool}:1:#{request_id}")
         end
       end
@@ -1184,7 +1184,7 @@ EOT
 
         redis_connection_pool.with do |redis|
           expect(redis.hget("vmpooler__odrequest__#{request_id}", 'status')).to eq('failed')
-          expect(redis.hget("vmpooler__odrequest__#{request_id}", 'failure_reason')).to eq('Configuration error: template not found')
+          expect(redis.hget("vmpooler__odrequest__#{request_id}", 'failure_reason')).to eq('Configuration error')
         end
       end
 
