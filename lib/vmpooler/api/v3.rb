@@ -1418,7 +1418,14 @@ module Vmpooler
             end
             status 200
           when 'failed'
-            result['message'] = "The request failed to provision instances within the configured ondemand_request_ttl '#{config['ondemand_request_ttl']}'"
+            # failure_reason is set when a clone failed for good. Without it the
+            # request ran out of time.
+            failure_reason = request_hash['failure_reason']
+            result['message'] = if failure_reason.nil? || failure_reason.empty?
+                                  "The request failed to provision instances within the configured ondemand_request_ttl '#{config['ondemand_request_ttl']}' (minutes)"
+                                else
+                                  "The request failed to provision instances: #{failure_reason}"
+                                end
             status 200
           when 'deleted'
             result['message'] = 'The request has been deleted'

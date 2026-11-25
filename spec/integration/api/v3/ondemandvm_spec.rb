@@ -293,9 +293,39 @@ describe Vmpooler::API::V3 do
               "ok": true,
               "request_id": uuid,
               "ready": false,
-              "message": "The request failed to provision instances within the configured ondemand_request_ttl '#{ondemand_request_ttl}'"
+              "message": "The request failed to provision instances within the configured ondemand_request_ttl '#{ondemand_request_ttl}' (minutes)"
             }
             expect(last_response.body).to eq(JSON.pretty_generate(expected))
+          end
+
+          it 'returns the failure reason when a clone failed for good' do
+            redis.hset("vmpooler__odrequest__#{uuid}", 'failure_reason', 'Max retry attempts exceeded')
+
+            get "#{prefix}/ondemandvm/#{uuid}"
+            expect_json(true, 200)
+            expected = {
+              "ok": true,
+              "request_id": uuid,
+              "ready": false,
+              "message": "The request failed to provision instances: Max retry attempts exceeded"
+            }
+            expect(last_response.body).to eq(JSON.pretty_generate(expected))
+          end
+
+          it 'does not mention the ttl when a failure reason is set' do
+            redis.hset("vmpooler__odrequest__#{uuid}", 'failure_reason', 'Configuration error: template not found')
+
+            get "#{prefix}/ondemandvm/#{uuid}"
+
+            expect(JSON.parse(last_response.body)['message']).not_to include('ondemand_request_ttl')
+          end
+
+          it 'uses the ttl message when the failure reason is empty' do
+            redis.hset("vmpooler__odrequest__#{uuid}", 'failure_reason', '')
+
+            get "#{prefix}/ondemandvm/#{uuid}"
+
+            expect(JSON.parse(last_response.body)['message']).to include("ondemand_request_ttl '#{ondemand_request_ttl}' (minutes)")
           end
         end
       end

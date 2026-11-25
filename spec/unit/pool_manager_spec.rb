@@ -1168,6 +1168,52 @@ EOT
       end
     end
 
+    context 'with an error during cloning for an ondemand request' do
+      let(:request_id) { 'abc-123' }
+
+      before(:each) do
+        allow(subject).to receive(:get_domain_for_pool)
+        allow(logger).to receive(:log)
+        allow(subject).to receive(:find_unique_hostname).with(pool).and_return(vm)
+      end
+
+      it 'stores the reason when the error is permanent' do
+        expect(provider).to receive(:create_vm).with(pool, String).and_raise('template not found')
+
+        expect{subject._clone_vm(pool,provider,dns_plugin,request_id,pool)}.to raise_error(/template not found/)
+
+        redis_connection_pool.with do |redis|
+          expect(redis.hget("vmpooler__odrequest__#{request_id}", 'status')).to eq('failed')
+          expect(redis.hget("vmpooler__odrequest__#{request_id}", 'failure_reason')).to eq('Configuration error: template not found')
+        end
+      end
+
+      it 'stores the reason when the retries are used up' do
+        expect(provider).to receive(:create_vm).with(pool, String).and_raise('MockError')
+        redis_connection_pool.with do |redis|
+          redis.hset("vmpooler__odrequest__#{request_id}", 'retry_count', '3')
+        end
+
+        expect{subject._clone_vm(pool,provider,dns_plugin,request_id,pool)}.to raise_error(/MockError/)
+
+        redis_connection_pool.with do |redis|
+          expect(redis.hget("vmpooler__odrequest__#{request_id}", 'status')).to eq('failed')
+          expect(redis.hget("vmpooler__odrequest__#{request_id}", 'failure_reason')).to eq('Max retry attempts exceeded')
+        end
+      end
+
+      it 'does not set a reason while a retry is left' do
+        expect(provider).to receive(:create_vm).with(pool, String).and_raise('MockError')
+
+        expect{subject._clone_vm(pool,provider,dns_plugin,request_id,pool)}.to raise_error(/MockError/)
+
+        redis_connection_pool.with do |redis|
+          expect(redis.hget("vmpooler__odrequest__#{request_id}", 'status')).not_to eq('failed')
+          expect(redis.hget("vmpooler__odrequest__#{request_id}", 'failure_reason')).to be_nil
+        end
+      end
+    end
+
     context 'with an error during cloning' do
       before(:each) do
         expect(provider).to receive(:create_vm).with(pool, String).and_raise('MockError')
