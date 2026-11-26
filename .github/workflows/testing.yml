@@ -14,7 +14,7 @@ on:
 
 jobs:
   rubocop:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         ruby-version:
@@ -30,7 +30,7 @@ jobs:
       run: bundle exec rake rubocop
 
   spec_tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         ruby-version:

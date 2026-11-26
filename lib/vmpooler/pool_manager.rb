@@ -193,13 +193,18 @@ module Vmpooler
           else
             # Max retries exceeded or permanent error, mark request as permanently failed
             failure_reason = if permanent_error
-                               "Configuration error: #{clone_error}"
+                               # the provider's message can name hosts and paths, so it stays in
+                               # the log (above) and the request only gets the category
+                               'Configuration error'
                              else
                                'Max retry attempts exceeded'
                              end
-            redis.hset("vmpooler__odrequest__#{request_id}", 'status', 'failed')
-            redis.hset("vmpooler__odrequest__#{request_id}", 'failure_reason', failure_reason)
-            $logger.log('s', "[!] [#{pool}] '#{vm}' permanently failed: #{failure_reason}")
+            # one transaction, so a status call never sees 'failed' without its reason
+            redis.multi do |transaction|
+              transaction.hset("vmpooler__odrequest__#{request_id}", 'status', 'failed')
+              transaction.hset("vmpooler__odrequest__#{request_id}", 'failure_reason', failure_reason)
+            end
+            $logger.log('s', "[!] [#{pool}] '#{vm}' permanently failed: #{failure_reason}, error='#{clone_error}'")
             $metrics.increment("vmpooler_errors.permanently_failed.#{pool}")
           end
         end
@@ -653,8 +658,13 @@ module Vmpooler
 
               if is_permanent || retry_count >= max_retries
                 reason = is_permanent ? 'permanent error detected' : 'max retries exceeded'
+                failure_reason = is_permanent ? 'Configuration error' : 'Max retry attempts exceeded'
                 $logger.log('s', "[!] [#{pool_name}] Cancelling request #{request_id} due to #{reason}")
-                redis.hset("vmpooler__odrequest__#{request_id}", 'status', 'failed')
+                # one transaction, so a status call never sees 'failed' without its reason
+                redis.multi do |transaction|
+                  transaction.hset("vmpooler__odrequest__#{request_id}", 'status', 'failed')
+                  transaction.hset("vmpooler__odrequest__#{request_id}", 'failure_reason', failure_reason)
+                end
                 redis.zadd('vmpooler__odcreate__task', 0, "#{pool_alias}:#{pool_name}:0:#{request_id}")
               else
                 # Increment retry count and re-queue for retry
