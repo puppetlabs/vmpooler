@@ -4,13 +4,13 @@ require 'rack/test'
 describe Vmpooler::API::V3 do
   include Rack::Test::Methods
 
-  def app()
+  def app
     Vmpooler::API
   end
 
   # Added to ensure no leakage in rack state from previous tests.
   # Removes all routes, filters, middleware and extension hooks from the current class
-  # https://rubydoc.info/gems/sinatra/Sinatra/Base#reset!-class_method 
+  # https://rubydoc.info/gems/sinatra/Sinatra/Base#reset!-class_method
   before(:each) do
     app.reset!
   end
@@ -18,7 +18,7 @@ describe Vmpooler::API::V3 do
   describe '/vm' do
     let(:prefix) { '/api/v3' }
     let(:metrics) { Vmpooler::Metrics::DummyStatsd.new }
-    let(:config) {
+    let(:config) do
       {
         config: {
           'site_name' => 'test pooler',
@@ -30,29 +30,29 @@ describe Vmpooler::API::V3 do
           foo: {}
         },
         dns_configs: {
-          :one => {
+          one: {
             'dns_class' => 'mock',
             'domain' => 'one.example.com'
           },
-          :two => {
+          two: {
             'dns_class' => 'mock',
             'domain' => 'two.example.com'
           },
-          :three => {
+          three: {
             'dns_class' => 'mock',
             'domain' => 'three.example.com'
           }
         },
         pools: [
-          {'name' => 'pool1', 'size' => 5, 'provider' => 'vsphere', 'dns_plugin' => 'one'},
-          {'name' => 'pool2', 'size' => 10, 'provider' => 'gce', 'dns_plugin' => 'two'},
-          {'name' => 'pool3', 'size' => 10, 'provider' => 'foo', 'dns_plugin' => 'three'}
+          { 'name' => 'pool1', 'size' => 5, 'provider' => 'vsphere', 'dns_plugin' => 'one' },
+          { 'name' => 'pool2', 'size' => 10, 'provider' => 'gce', 'dns_plugin' => 'two' },
+          { 'name' => 'pool3', 'size' => 10, 'provider' => 'foo', 'dns_plugin' => 'three' }
         ],
-        statsd: { 'prefix' => 'stats_prefix'},
+        statsd: { 'prefix' => 'stats_prefix' },
         alias: { 'poolone' => ['pool1'] },
-        pool_names: [ 'pool1', 'pool2', 'pool3', 'poolone', 'genericpool' ]
+        pool_names: ['pool1', 'pool2', 'pool3', 'poolone', 'genericpool']
       }
-    }
+    end
     let(:current_time) { Time.now }
     let(:vmname) { 'abcdefghijkl' }
     let(:checkoutlock) { Mutex.new }
@@ -73,20 +73,19 @@ describe Vmpooler::API::V3 do
         expect_json(ok = true, http = 200)
         response_body = (JSON.parse(last_response.body)[vmname])
 
-        expect(response_body["template"]).to eq("pool1")
-        expect(response_body["lifetime"]).to eq(0)
-        expect(response_body["running"]).to be >= 0
-        expect(response_body["remaining"]).to be <= 0
-        expect(response_body["start_time"]).to eq(current_time.to_datetime.rfc3339)
-        expect(response_body["end_time"]).to eq(current_time.to_datetime.rfc3339)
-        expect(response_body["state"]).to eq("running")
-        expect(response_body["ip"]).to eq("")
-        expect(response_body["host"]).to eq("host1")
+        expect(response_body['template']).to eq('pool1')
+        expect(response_body['lifetime']).to eq(0)
+        expect(response_body['running']).to be >= 0
+        expect(response_body['remaining']).to be <= 0
+        expect(response_body['start_time']).to eq(current_time.to_datetime.rfc3339)
+        expect(response_body['end_time']).to eq(current_time.to_datetime.rfc3339)
+        expect(response_body['state']).to eq('running')
+        expect(response_body['ip']).to eq('')
+        expect(response_body['host']).to eq('host1')
       end
     end
 
     describe 'POST /vm' do
-
       let(:socket) { double('socket') }
       it 'returns a single VM' do
         create_ready_vm 'pool1', vmname, redis
@@ -186,7 +185,7 @@ describe Vmpooler::API::V3 do
         expected = {
           ok: true,
           pool1: {
-            hostname: [ '1abcdefghijklmnop', '2abcdefghijklmnop' ]
+            hostname: ['1abcdefghijklmnop', '2abcdefghijklmnop']
           },
           pool2: {
             hostname: 'qrstuvwxyz012345'
@@ -215,10 +214,10 @@ describe Vmpooler::API::V3 do
         expected = {
           ok: true,
           pool1: {
-            hostname: [ '1abcdefghijklmnop', '2abcdefghijklmnop' ]
+            hostname: ['1abcdefghijklmnop', '2abcdefghijklmnop']
           },
           pool2: {
-            hostname: [ '1qrstuvwxyz012345', '2qrstuvwxyz012345', '3qrstuvwxyz012345' ]
+            hostname: ['1qrstuvwxyz012345', '2qrstuvwxyz012345', '3qrstuvwxyz012345']
           }
         }
 
@@ -244,7 +243,7 @@ describe Vmpooler::API::V3 do
         expected = {
           ok: true,
           genericpool: {
-            hostname: [ '1abcdefghijklmnop', '2abcdefghijklmnop', '1qrstuvwxyz012345' ]
+            hostname: ['1abcdefghijklmnop', '2abcdefghijklmnop', '1qrstuvwxyz012345']
           }
         }
 
@@ -267,7 +266,7 @@ describe Vmpooler::API::V3 do
         expected = {
           ok: true,
           "pool1": {
-            "hostname": "1abcdefghijklmnop.one.example.com"
+            "hostname": '1abcdefghijklmnop.one.example.com'
           }
         }
 

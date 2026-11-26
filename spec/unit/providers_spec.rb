@@ -2,7 +2,6 @@ require 'spec_helper'
 require 'vmpooler/providers'
 
 describe 'providers' do
-
   let(:providers) do
     Vmpooler::Providers.new
   end
@@ -39,6 +38,4 @@ describe 'providers' do
     expect(providers.load_from_gems.join(', ')).to match(%r{#{project_root_dir}/lib/vmpooler/providers/base.rb})
     expect(providers.load_from_gems.join(', ')).to match(%r{#{project_root_dir}/lib/vmpooler/providers/dummy.rb})
   end
-
-
 end

@@ -492,9 +492,9 @@ module Vmpooler
               daily_task[type] ||= {}
 
               ['min', 'max'].each do |key|
-                if daily[task_sym][type][key]
+                if daily[task_sym][type][key.to_sym]
                   daily_task[type][:data] ||= []
-                  daily_task[type][:data].push(daily[task_sym][type][key])
+                  daily_task[type][:data].push(daily[task_sym][type][key.to_sym])
                 end
               end
 

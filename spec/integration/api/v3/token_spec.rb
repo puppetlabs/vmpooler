@@ -4,13 +4,13 @@ require 'rack/test'
 describe Vmpooler::API::V3 do
   include Rack::Test::Methods
 
-  def app()
+  def app
     Vmpooler::API
   end
 
   # Added to ensure no leakage in rack state from previous tests.
   # Removes all routes, filters, middleware and extension hooks from the current class
-  # https://rubydoc.info/gems/sinatra/Sinatra/Base#reset!-class_method 
+  # https://rubydoc.info/gems/sinatra/Sinatra/Base#reset!-class_method
   before(:each) do
     app.reset!
   end
@@ -18,9 +18,11 @@ describe Vmpooler::API::V3 do
   describe '/token' do
     let(:prefix) { '/api/v3' }
     let(:current_time) { Time.now }
-    let(:config) { { 
-      config: {}
-    } }
+    let(:config) do
+      {
+        config: {}
+      }
+    end
 
     before(:each) do
       expect(app).to receive(:run!).once
@@ -29,10 +31,12 @@ describe Vmpooler::API::V3 do
 
     describe 'GET /token' do
       context '(auth not configured)' do
-        let(:config) { { 
-          config: {},
-          auth: false 
-        } }
+        let(:config) do
+          {
+            config: {},
+            auth: false
+          }
+        end
 
         it 'returns a 404' do
           get "#{prefix}/token"
@@ -41,14 +45,14 @@ describe Vmpooler::API::V3 do
       end
 
       context '(auth configured)' do
-        let(:config) {
+        let(:config) do
           {
             config: {},
             auth: {
               'provider' => 'dummy'
             }
           }
-        }
+        end
         let(:username_str) { 'admin' }
         let(:password_str) { 's3cr3t' }
 
@@ -58,7 +62,7 @@ describe Vmpooler::API::V3 do
         end
 
         it 'returns a list of tokens if authed' do
-          create_token "abc", "admin", current_time
+          create_token 'abc', 'admin', current_time
 
           authorize 'admin', 's3cr3t'
           get "#{prefix}/token"
@@ -71,10 +75,12 @@ describe Vmpooler::API::V3 do
 
     describe 'POST /token' do
       context '(auth not configured)' do
-        let(:config) { { 
-          config: {}, 
-          auth: false 
-        } }
+        let(:config) do
+          {
+            config: {},
+            auth: false
+          }
+        end
 
         it 'returns a 404' do
           post "#{prefix}/token"
@@ -83,14 +89,14 @@ describe Vmpooler::API::V3 do
       end
 
       context '(auth configured)' do
-        let(:config) {
+        let(:config) do
           {
             config: {},
             auth: {
               'provider' => 'dummy'
             }
           }
-        }
+        end
 
         it 'returns a 401 if not authed' do
           post "#{prefix}/token"
@@ -104,7 +110,7 @@ describe Vmpooler::API::V3 do
 
           returned_token = JSON.parse(last_response.body)['token']
           expect(returned_token.length).to be(32)
-          expect(get_token_data(returned_token)['user']).to eq("admin")
+          expect(get_token_data(returned_token)['user']).to eq('admin')
         end
       end
     end
@@ -123,15 +129,17 @@ describe Vmpooler::API::V3 do
 
     def create_vm_for_token(token, pool, vm)
       redis.sadd("vmpooler__running__#{pool}", vm)
-      redis.hset("vmpooler__vm__#{vm}", "token:token", token)
+      redis.hset("vmpooler__vm__#{vm}", 'token:token', token)
     end
 
     describe 'GET /token/:token' do
       context '(auth not configured)' do
-        let(:config) { { 
-          config: {},
-          auth: false 
-        } }
+        let(:config) do
+          {
+            config: {},
+            auth: false
+          }
+        end
 
         it 'returns a 404' do
           get "#{prefix}/token/this"
@@ -140,17 +148,19 @@ describe Vmpooler::API::V3 do
       end
 
       context '(auth configured)' do
-        let(:config) { {
-          config: {},
-          auth: true,
-          pools: [
-            {'name' => 'pool1', 'size' => 5}
-          ]
-        } }
+        let(:config) do
+          {
+            config: {},
+            auth: true,
+            pools: [
+              { 'name' => 'pool1', 'size' => 5 }
+            ]
+          }
+        end
 
         it 'returns a token' do
-          create_token "mytoken", "admin", current_time
-          create_vm_for_token "mytoken", "pool1", "vmhostname"
+          create_token 'mytoken', 'admin', current_time
+          create_vm_for_token 'mytoken', 'pool1', 'vmhostname'
 
           get "#{prefix}/token/mytoken"
           expect_json(ok = true, http = 200)
@@ -164,10 +174,12 @@ describe Vmpooler::API::V3 do
 
     describe 'DELETE /token/:token' do
       context '(auth not configured)' do
-        let(:config) { { 
-          config: {},
-          auth: false
-        } }
+        let(:config) do
+          {
+            config: {},
+            auth: false
+          }
+        end
 
         it 'returns a 404' do
           delete "#{prefix}/token/this"
@@ -176,14 +188,14 @@ describe Vmpooler::API::V3 do
       end
 
       context '(auth configured)' do
-        let(:config) {
+        let(:config) do
           {
             config: {},
             auth: {
               'provider' => 'dummy'
             }
           }
-        }
+        end
 
         it 'returns a 401 if not authed' do
           delete "#{prefix}/token/this"
@@ -191,7 +203,7 @@ describe Vmpooler::API::V3 do
         end
 
         it 'deletes a token if authed' do
-          create_token("mytoken", "admin", current_time)
+          create_token('mytoken', 'admin', current_time)
           authorize 'admin', 's3cr3t'
 
           delete "#{prefix}/token/mytoken"

@@ -212,7 +212,7 @@ module Vmpooler
         #   [String] vm_name   : Name of the VM to check if ready
         # returns
         #   [Boolean] : true if ready, false if not
-        def vm_ready?(_pool_name, _vm_name)
+        def vm_ready?(_pool_name, _vm_name, _redis = nil)
           raise("#{self.class.name} does not implement vm_ready?")
         end
 

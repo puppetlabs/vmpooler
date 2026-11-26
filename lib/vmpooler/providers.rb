@@ -68,10 +68,10 @@ module Vmpooler
     # that start with Vmpooler::PoolManager::Provider
     def plugin_classes
       unless @plugin_classes
-        load_plugins
+        load_from_gems
         # weed out any subclasses in the formatter
         klasses = ObjectSpace.each_object(Class).find_all do |c|
-          c.name && c.name.split('::').count == 3 && c.name =~ /Vmpooler::PoolManager::Provider/
+          c.name && c.name.split('::').count == 4 && c.name =~ /Vmpooler::PoolManager::Provider/
         end
         @plugin_classes = klasses - excluded_classes || []
       end

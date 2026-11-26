@@ -7,38 +7,39 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
   let(:logger) { MockLogger.new }
   let(:redis_connection_pool) { ConnectionPool.new(size: 1) { redis } }
   let(:metrics) { Vmpooler::Metrics::DummyStatsd.new }
-  let(:config) { YAML.load(<<~EOT
-    ---
-    :config:
-      task_limit: 10
-      vm_checktime: 1
-      vm_lifetime: 12
-      prefix: 'pooler-'
-      dlq_enabled: true
-      dlq_ttl: 168
-      dlq_max_entries: 100
-      purge_enabled: true
-      purge_dry_run: false
-      max_pending_age: 7200
-      max_ready_age: 86400
-      max_completed_age: 3600
-      health_check_enabled: true
-      health_check_interval: 300
-      health_thresholds:
-        pending_queue_max: 100
-        ready_queue_max: 500
-        dlq_max_warning: 100
-        dlq_max_critical: 1000
-        stuck_vm_age_threshold: 7200
-    :providers:
-      :dummy: {}
-    :pools:
-      - name: 'test-pool'
-        size: 5
-        provider: 'dummy'
+  let(:config) do
+    YAML.load(<<~EOT
+      ---
+      :config:
+        task_limit: 10
+        vm_checktime: 1
+        vm_lifetime: 12
+        prefix: 'pooler-'
+        dlq_enabled: true
+        dlq_ttl: 168
+        dlq_max_entries: 100
+        purge_enabled: true
+        purge_dry_run: false
+        max_pending_age: 7200
+        max_ready_age: 86400
+        max_completed_age: 3600
+        health_check_enabled: true
+        health_check_interval: 300
+        health_thresholds:
+          pending_queue_max: 100
+          ready_queue_max: 500
+          dlq_max_warning: 100
+          dlq_max_critical: 1000
+          stuck_vm_age_threshold: 7200
+      :providers:
+        :dummy: {}
+      :pools:
+        - name: 'test-pool'
+          size: 5
+          provider: 'dummy'
     EOT
-    )
-  }
+             )
+  end
 
   subject { Vmpooler::PoolManager.new(config, logger, redis_connection_pool, metrics) }
 
@@ -87,7 +88,7 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
 
       it 'returns default max entries when not configured' do
         config[:config].delete('dlq_max_entries')
-        expect(subject.dlq_max_entries).to eq(10000)
+        expect(subject.dlq_max_entries).to eq(10_000)
       end
     end
 
@@ -96,12 +97,12 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
         it 'adds entry to DLQ sorted set' do
           redis_connection_pool.with do |redis_connection|
             dlq_key = 'vmpooler__dlq__pending'
-            
+
             expect(redis_connection).to receive(:zadd).with(dlq_key, anything, anything)
             expect(redis_connection).to receive(:expire).with(dlq_key, anything)
-            
-            subject.move_to_dlq(vm, pool, 'pending', error_class, error_message, 
-                               redis_connection, request_id: request_id, pool_alias: pool_alias)
+
+            subject.move_to_dlq(vm, pool, 'pending', error_class, error_message,
+                                redis_connection, request_id: request_id, pool_alias: pool_alias)
           end
         end
 
@@ -112,7 +113,7 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
               expect(entry).to include(error_message)
               expect(entry).to include(error_class)
             end
-            
+
             subject.move_to_dlq(vm, pool, 'pending', error_class, error_message, redis_connection)
           end
         end
@@ -120,7 +121,7 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
         it 'increments DLQ metrics' do
           redis_connection_pool.with do |redis_connection|
             expect(metrics).to receive(:increment).with('vmpooler_dlq.pending.count')
-            
+
             subject.move_to_dlq(vm, pool, 'pending', error_class, error_message, redis_connection)
           end
         end
@@ -129,7 +130,7 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
           redis_connection_pool.with do |redis_connection|
             allow(redis_connection).to receive(:zcard).and_return(150)
             expect(redis_connection).to receive(:zremrangebyrank).with(anything, 0, 49)
-            
+
             subject.move_to_dlq(vm, pool, 'pending', error_class, error_message, redis_connection)
           end
         end
@@ -141,7 +142,7 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
         it 'does not add entry to DLQ' do
           redis_connection_pool.with do |redis_connection|
             expect(redis_connection).not_to receive(:zadd)
-            
+
             subject.move_to_dlq(vm, pool, 'pending', error_class, error_message, redis_connection)
           end
         end
@@ -192,8 +193,8 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
         redis_connection_pool.with do |redis_connection|
           # Old VM (3 hours old, exceeds 2 hour threshold)
           redis_connection.sadd("vmpooler__pending__#{pool}", old_vm)
-          redis_connection.hset("vmpooler__vm__#{old_vm}", 'clone', (Time.now - 10800).to_s)
-          
+          redis_connection.hset("vmpooler__vm__#{old_vm}", 'clone', (Time.now - 10_800).to_s)
+
           # New VM (30 minutes old, within threshold)
           redis_connection.sadd("vmpooler__pending__#{pool}", new_vm)
           redis_connection.hset("vmpooler__vm__#{new_vm}", 'clone', (Time.now - 1800).to_s)
@@ -204,7 +205,7 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
         it 'purges stale pending VMs' do
           redis_connection_pool.with do |redis_connection|
             purged_count = subject.purge_pending_queue(pool, redis_connection)
-            
+
             expect(purged_count).to eq(1)
             expect(redis_connection.sismember("vmpooler__pending__#{pool}", old_vm)).to be false
             expect(redis_connection.sismember("vmpooler__pending__#{pool}", new_vm)).to be true
@@ -216,7 +217,7 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
             expect(subject).to receive(:move_to_dlq).with(
               old_vm, pool, 'pending', 'Purge', anything, redis_connection, anything
             )
-            
+
             subject.purge_pending_queue(pool, redis_connection)
           end
         end
@@ -224,7 +225,7 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
         it 'increments purge metrics' do
           redis_connection_pool.with do |redis_connection|
             expect(metrics).to receive(:increment).with("vmpooler_purge.pending.#{pool}.count")
-            
+
             subject.purge_pending_queue(pool, redis_connection)
           end
         end
@@ -236,7 +237,7 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
         it 'detects but does not purge stale VMs' do
           redis_connection_pool.with do |redis_connection|
             purged_count = subject.purge_pending_queue(pool, redis_connection)
-            
+
             expect(purged_count).to eq(1)
             expect(redis_connection.sismember("vmpooler__pending__#{pool}", old_vm)).to be true
           end
@@ -245,7 +246,7 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
         it 'does not move to DLQ' do
           redis_connection_pool.with do |redis_connection|
             expect(subject).not_to receive(:move_to_dlq)
-            
+
             subject.purge_pending_queue(pool, redis_connection)
           end
         end
@@ -261,8 +262,8 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
         redis_connection_pool.with do |redis_connection|
           # Old VM (25 hours old, exceeds 24 hour threshold)
           redis_connection.sadd("vmpooler__ready__#{pool}", old_vm)
-          redis_connection.hset("vmpooler__vm__#{old_vm}", 'ready', (Time.now - 90000).to_s)
-          
+          redis_connection.hset("vmpooler__vm__#{old_vm}", 'ready', (Time.now - 90_000).to_s)
+
           # New VM (2 hours old, within threshold)
           redis_connection.sadd("vmpooler__ready__#{pool}", new_vm)
           redis_connection.hset("vmpooler__vm__#{new_vm}", 'ready', (Time.now - 7200).to_s)
@@ -272,7 +273,7 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
       it 'moves stale ready VMs to completed queue' do
         redis_connection_pool.with do |redis_connection|
           purged_count = subject.purge_ready_queue(pool, redis_connection)
-          
+
           expect(purged_count).to eq(1)
           expect(redis_connection.sismember("vmpooler__ready__#{pool}", old_vm)).to be false
           expect(redis_connection.sismember("vmpooler__completed__#{pool}", old_vm)).to be true
@@ -291,7 +292,7 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
           # Old VM (2 hours old, exceeds 1 hour threshold)
           redis_connection.sadd("vmpooler__completed__#{pool}", old_vm)
           redis_connection.hset("vmpooler__vm__#{old_vm}", 'destroy', (Time.now - 7200).to_s)
-          
+
           # New VM (30 minutes old, within threshold)
           redis_connection.sadd("vmpooler__completed__#{pool}", new_vm)
           redis_connection.hset("vmpooler__vm__#{new_vm}", 'destroy', (Time.now - 1800).to_s)
@@ -301,7 +302,7 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
       it 'removes stale completed VMs' do
         redis_connection_pool.with do |redis_connection|
           purged_count = subject.purge_completed_queue(pool, redis_connection)
-          
+
           expect(purged_count).to eq(1)
           expect(redis_connection.sismember("vmpooler__completed__#{pool}", old_vm)).to be false
           expect(redis_connection.sismember("vmpooler__completed__#{pool}", new_vm)).to be true
@@ -332,7 +333,7 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
       it 'merges with defaults when partially configured' do
         config[:config]['health_thresholds'] = { 'pending_queue_max' => 200 }
         thresholds = subject.health_thresholds
-        
+
         expect(thresholds['pending_queue_max']).to eq(200)
         expect(thresholds['ready_queue_max']).to eq(500) # default
       end
@@ -356,7 +357,7 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
         redis_connection_pool.with do |redis_connection|
           vms = [vm1, vm2, vm3]
           ages = subject.calculate_queue_ages(vms, 'clone', redis_connection)
-          
+
           expect(ages.length).to eq(3)
           expect(ages[0]).to be_within(5).of(3600)
           expect(ages[1]).to be_within(5).of(7200)
@@ -368,7 +369,7 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
         redis_connection_pool.with do |redis_connection|
           vms = [vm1, 'vm-nonexistent', vm3]
           ages = subject.calculate_queue_ages(vms, 'clone', redis_connection)
-          
+
           expect(ages.length).to eq(2)
         end
       end
@@ -398,7 +399,7 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
       it 'returns degraded when DLQ size exceeds warning threshold' do
         metrics = base_metrics.dup
         metrics['errors']['dlq_total_size'] = 150
-        
+
         status = subject.determine_health_status(metrics)
         expect(status).to eq('degraded')
       end
@@ -406,7 +407,7 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
       it 'returns unhealthy when DLQ size exceeds critical threshold' do
         metrics = base_metrics.dup
         metrics['errors']['dlq_total_size'] = 1500
-        
+
         status = subject.determine_health_status(metrics)
         expect(status).to eq('unhealthy')
       end
@@ -414,7 +415,7 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
       it 'returns degraded when pending queue exceeds warning threshold' do
         metrics = base_metrics.dup
         metrics['queues']['test-pool']['pending']['size'] = 120
-        
+
         status = subject.determine_health_status(metrics)
         expect(status).to eq('degraded')
       end
@@ -422,7 +423,7 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
       it 'returns unhealthy when pending queue exceeds critical threshold' do
         metrics = base_metrics.dup
         metrics['queues']['test-pool']['pending']['size'] = 250
-        
+
         status = subject.determine_health_status(metrics)
         expect(status).to eq('unhealthy')
       end
@@ -430,7 +431,7 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
       it 'returns unhealthy when stuck VM count exceeds critical threshold' do
         metrics = base_metrics.dup
         metrics['errors']['stuck_vm_count'] = 60
-        
+
         status = subject.determine_health_status(metrics)
         expect(status).to eq('unhealthy')
       end
@@ -461,7 +462,7 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
       it 'pushes status metric' do
         allow(metrics).to receive(:gauge)
         expect(metrics).to receive(:gauge).with('vmpooler_health.status', 0)
-        
+
         subject.push_health_metrics(metrics_data, 'healthy')
       end
 
@@ -470,7 +471,7 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
         expect(metrics).to receive(:gauge).with('vmpooler_health.dlq.total_size', 25)
         expect(metrics).to receive(:gauge).with('vmpooler_health.stuck_vms.count', 2)
         expect(metrics).to receive(:gauge).with('vmpooler_health.orphaned_metadata.count', 3)
-        
+
         subject.push_health_metrics(metrics_data, 'healthy')
       end
 
@@ -480,7 +481,7 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
         expect(metrics).to receive(:gauge).with('vmpooler_health.queue.test-pool.pending.oldest_age', 3600)
         expect(metrics).to receive(:gauge).with('vmpooler_health.queue.test-pool.pending.stuck_count', 2)
         expect(metrics).to receive(:gauge).with('vmpooler_health.queue.test-pool.ready.size', 50)
-        
+
         subject.push_health_metrics(metrics_data, 'healthy')
       end
 
@@ -489,7 +490,7 @@ describe 'Vmpooler::PoolManager - Queue Reliability Features' do
         expect(metrics).to receive(:gauge).with('vmpooler_health.tasks.clone.active', 3)
         expect(metrics).to receive(:gauge).with('vmpooler_health.tasks.ondemand.active', 2)
         expect(metrics).to receive(:gauge).with('vmpooler_health.tasks.ondemand.pending', 5)
-        
+
         subject.push_health_metrics(metrics_data, 'healthy')
       end
     end

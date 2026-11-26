@@ -11,7 +11,7 @@ describe 'Vmpooler::PoolManager::Dns::Base' do
   let(:dns_plugin_name) { 'base' }
   let(:dns_options) { { 'param' => 'value' } }
 
-  let(:fake_vm) {
+  let(:fake_vm) do
     fake_vm = {}
     fake_vm['name'] = 'vm1'
     fake_vm['hostname'] = 'vm1'
@@ -20,16 +20,17 @@ describe 'Vmpooler::PoolManager::Dns::Base' do
     fake_vm['powerstate'] = 'PoweredOn'
 
     fake_vm
-  }
+  end
 
-  let(:redis_connection_pool) { Vmpooler::PoolManager::GenericConnectionPool.new(
-    metrics: metrics,
-    connpool_type: 'redis_connection_pool',
-    connpool_provider: 'testprovider',
-    size: 1,
-    timeout: 5
-  ) { MockRedis.new }
-  }
+  let(:redis_connection_pool) do
+    Vmpooler::PoolManager::GenericConnectionPool.new(
+      metrics: metrics,
+      connpool_type: 'redis_connection_pool',
+      connpool_provider: 'testprovider',
+      size: 1,
+      timeout: 5
+    ) { MockRedis.new }
+  end
 
   subject { Vmpooler::PoolManager::Dns::Base.new(config, logger, metrics, redis_connection_pool, dns_plugin_name, dns_options) }
 
@@ -54,21 +55,22 @@ describe 'Vmpooler::PoolManager::Dns::Base' do
 
   describe '#pool_config' do
     let(:poolname) { 'pool1' }
-    let(:config) { YAML.load(<<-EOT
----
-:pools:
-  - name: '#{poolname}'
-    alias: [ 'mockpool' ]
-    template: 'Templates/pool1'
-    folder: 'Pooler/pool1'
-    datastore: 'datastore0'
-    size: 5
-    timeout: 10
-    ready_ttl: 1440
-    clone_target: 'cluster1'
-EOT
-      )
-    }
+    let(:config) do
+      YAML.load(<<~EOT
+        ---
+        :pools:
+          - name: '#{poolname}'
+            alias: [ 'mockpool' ]
+            template: 'Templates/pool1'
+            folder: 'Pooler/pool1'
+            datastore: 'datastore0'
+            size: 5
+            timeout: 10
+            ready_ttl: 1440
+            clone_target: 'cluster1'
+      EOT
+               )
+    end
     context 'Given a pool that does not exist' do
       it 'should return nil' do
         expect(subject.pool_config('missing_pool')).to be_nil
@@ -85,25 +87,27 @@ EOT
 
   describe '#dns_config' do
     let(:poolname) { 'pool1' }
-    let(:config) { YAML.load(<<-EOT
----
-:dns_configs:
-  :#{dns_plugin_name}:
-    option1: 'value1'
-EOT
-      )
-    }
+    let(:config) do
+      YAML.load(<<~EOT
+        ---
+        :dns_configs:
+          :#{dns_plugin_name}:
+            option1: 'value1'
+      EOT
+               )
+    end
 
     context 'Given a dns plugin with no configuration' do
-    let(:config) { YAML.load(<<-EOT
----
-:dns_configs:
-  :bad_dns:
-    option1: 'value1'
-    option2: 'value1'
-EOT
-      )
-    }
+      let(:config) do
+        YAML.load(<<~EOT
+          ---
+          :dns_configs:
+            :bad_dns:
+              option1: 'value1'
+              option2: 'value1'
+        EOT
+                 )
+      end
       it 'should return nil' do
         expect(subject.dns_config).to be_nil
       end
@@ -124,7 +128,7 @@ EOT
   end
 
   describe '#name' do
-    it "should come from the dns initialization" do
+    it 'should come from the dns initialization' do
       expect(subject.name).to eq(dns_plugin_name)
     end
   end
@@ -132,41 +136,42 @@ EOT
   describe '#get_ip' do
     it 'calls redis hget with vm name and ip' do
       redis_connection_pool.with do |redis|
-        expect(redis).to receive(:hget).with("vmpooler__vm__vm1", 'ip')
+        expect(redis).to receive(:hget).with('vmpooler__vm__vm1', 'ip')
       end
       subject.get_ip(fake_vm['name'])
     end
   end
 
   describe '#provided_pools' do
-    let(:config) { YAML.load(<<-EOT
----
-:pools:
-  - name: 'pool1'
-    dns_config: 'base'
-  - name: 'pool2'
-    dns_config: 'base'
-  - name: 'otherpool'
-    dns_config: 'other provider'
-  - name: 'no name'
-EOT
-      )
-    }
+    let(:config) do
+      YAML.load(<<~EOT
+        ---
+        :pools:
+          - name: 'pool1'
+            dns_config: 'base'
+          - name: 'pool2'
+            dns_config: 'base'
+          - name: 'otherpool'
+            dns_config: 'other provider'
+          - name: 'no name'
+      EOT
+               )
+    end
 
-    it "should return pools serviced by this provider" do
-      expect(subject.provided_pools).to eq(['pool1','pool2'])
+    it 'should return pools serviced by this provider' do
+      expect(subject.provided_pools).to eq(['pool1', 'pool2'])
     end
   end
 
   describe '#create_or_replace_record' do
     it 'should raise error' do
-      expect{subject.create_or_replace_record('pool')}.to raise_error(/does not implement create_or_replace_record/)
+      expect { subject.create_or_replace_record('pool') }.to raise_error(/does not implement create_or_replace_record/)
     end
   end
 
   describe '#delete_record' do
     it 'should raise error' do
-      expect{subject.delete_record('pool')}.to raise_error(/does not implement delete_record/)
+      expect { subject.delete_record('pool') }.to raise_error(/does not implement delete_record/)
     end
   end
 end

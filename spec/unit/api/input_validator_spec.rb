@@ -163,7 +163,7 @@ describe Vmpooler::API::InputValidator do
     end
 
     it 'rejects bodies that are too large' do
-      large_json = '{"data":"' + ('a' * 20000) + '"}'
+      large_json = '{"data":"' + ('a' * 20_000) + '"}'
       result = validator.sanitize_json_body(large_json)
       expect(result['ok']).to be false
       expect(result['error']).to include('too large')

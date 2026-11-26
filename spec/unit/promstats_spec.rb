@@ -4,7 +4,7 @@ require 'spec_helper'
 
 describe 'prometheus' do
   logger = MockLogger.new
-  params = { 'prefix' => 'test', 'prometheus_prefix'  => 'mtest', 'prometheus_endpoint'  => 'eptest' }
+  params = { 'prefix' => 'test', 'prometheus_prefix' => 'mtest', 'prometheus_endpoint' => 'eptest' }
   subject = Vmpooler::Metrics::Promstats.new(logger, params)
   let(:logger) { MockLogger.new }
 
@@ -15,17 +15,17 @@ describe 'prometheus' do
   end
 
   describe '#find_metric' do
-    context "Single Value Parameters" do
+    context 'Single Value Parameters' do
       let!(:foo_metrics) do
         { metric_suffixes: { bar: 'baz' },
           param_labels: %i[first second last] }
       end
-      let!(:labels_hash) { { labels: { :first => nil, :second => nil, :last => nil } } }
-      before { 
-        subject.instance_variable_set(:@p_metrics, { foo: foo_metrics, torun: %i[api] }) 
-        subject.instance_variable_set(:@torun, [ :api ]) 
-      }
-  
+      let!(:labels_hash) { { labels: { first: nil, second: nil, last: nil } } }
+      before do
+        subject.instance_variable_set(:@p_metrics, { foo: foo_metrics, torun: %i[api] })
+        subject.instance_variable_set(:@torun, [:api])
+      end
+
       it 'returns the metric for a given label including parsed labels' do
         expect(subject.find_metric('foo.bar')).to include(metric_name: 'mtest_foo_bar')
         expect(subject.find_metric('foo.bar')).to include(foo_metrics)
@@ -35,24 +35,23 @@ describe 'prometheus' do
       it 'raises an error when the given label is not present in metrics' do
         expect { subject.find_metric('bogus') }.to raise_error(RuntimeError, 'Invalid Metric bogus for bogus')
       end
-  
+
       it 'raises an error when the given label specifies metric_suffixes but the following suffix not present in metrics' do
         expect { subject.find_metric('foo.metric_suffixes.bogus') }.to raise_error(RuntimeError, 'Invalid Metric foo_metric_suffixes for foo.metric_suffixes.bogus')
       end
     end
 
-    context "Node Name Handling" do
+    context 'Node Name Handling' do
       let!(:node_metrics) do
         { metric_name: 'connection_to',
           param_labels: %i[node],
-          torun: %i[api] 
-        }
+          torun: %i[api] }
       end
-      let!(:nodename_hash) { { labels: { :node => 'test.bar.net'}}}
-      before { 
+      let!(:nodename_hash) { { labels: { node: 'test.bar.net' } } }
+      before do
         subject.instance_variable_set(:@p_metrics, { connection_to: node_metrics })
-        subject.instance_variable_set(:@torun, [ :api ]) 
-      }
+        subject.instance_variable_set(:@torun, [:api])
+      end
 
       it 'Return final remaining fields (e.g. fqdn) in last label' do
         expect(subject.find_metric('connection_to.test.bar.net')).to include(nodename_hash)
@@ -281,7 +280,6 @@ describe 'prometheus' do
           po.get(labels: metric[:labels])
         }.by(1)
       end
-
     end
 
     describe '#gauge' do
@@ -311,34 +309,34 @@ describe 'prometheus' do
       it 'sets histogram value of time_to_ready_state.#{pool} to finish' do
         pool = 'test-pool'
         finish = 42
-        expect { subject.timing("time_to_ready_state.#{pool}", finish) }.to change {
+        expect { subject.timing("time_to_ready_state.#{pool}", finish) }.to(change do
           metric, po = subject.get("time_to_ready_state.#{pool}")
           po.get(labels: metric[:labels])
-        }
+        end)
       end
       it 'sets histogram value of clone.#{pool} to finish' do
         pool = 'test-pool'
         finish = 42
-        expect { subject.timing("clone.#{pool}", finish) }.to change {
+        expect { subject.timing("clone.#{pool}", finish) }.to(change do
           metric, po = subject.get("clone.#{pool}")
           po.get(labels: metric[:labels])
-        }
+        end)
       end
       it 'sets histogram value of migrate.#{pool} to finish' do
         pool = 'test-pool'
         finish = 42
-        expect { subject.timing("migrate.#{pool}", finish) }.to change {
+        expect { subject.timing("migrate.#{pool}", finish) }.to(change do
           metric, po = subject.get("migrate.#{pool}")
           po.get(labels: metric[:labels])
-        }
+        end)
       end
       it 'sets histogram value of destroy.#{pool} to finish' do
         pool = 'test-pool'
         finish = 42
-        expect { subject.timing("destroy.#{pool}", finish) }.to change {
+        expect { subject.timing("destroy.#{pool}", finish) }.to(change do
           metric, po = subject.get("destroy.#{pool}")
           po.get(labels: metric[:labels])
-        }
+        end)
       end
     end
   end

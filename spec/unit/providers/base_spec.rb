@@ -11,7 +11,7 @@ describe 'Vmpooler::PoolManager::Provider::Base' do
   let(:provider_name) { 'base' }
   let(:provider_options) { { 'param' => 'value' } }
 
-  let(:fake_vm) {
+  let(:fake_vm) do
     fake_vm = {}
     fake_vm['name'] = 'vm1'
     fake_vm['hostname'] = 'vm1'
@@ -20,7 +20,7 @@ describe 'Vmpooler::PoolManager::Provider::Base' do
     fake_vm['powerstate'] = 'PoweredOn'
 
     fake_vm
-  }
+  end
 
   let(:redis_connection_pool) { ConnectionPool.new(size: 1) { MockRedis.new } }
 
@@ -47,21 +47,22 @@ describe 'Vmpooler::PoolManager::Provider::Base' do
 
   describe '#pool_config' do
     let(:poolname) { 'pool1' }
-    let(:config) { YAML.load(<<-EOT
----
-:pools:
-  - name: '#{poolname}'
-    alias: [ 'mockpool' ]
-    template: 'Templates/pool1'
-    folder: 'Pooler/pool1'
-    datastore: 'datastore0'
-    size: 5
-    timeout: 10
-    ready_ttl: 1440
-    clone_target: 'cluster1'
-EOT
-      )
-    }
+    let(:config) do
+      YAML.load(<<~EOT
+        ---
+        :pools:
+          - name: '#{poolname}'
+            alias: [ 'mockpool' ]
+            template: 'Templates/pool1'
+            folder: 'Pooler/pool1'
+            datastore: 'datastore0'
+            size: 5
+            timeout: 10
+            ready_ttl: 1440
+            clone_target: 'cluster1'
+      EOT
+               )
+    end
     context 'Given a pool that does not exist' do
       it 'should return nil' do
         expect(subject.pool_config('missing_pool')).to be_nil
@@ -78,25 +79,27 @@ EOT
 
   describe '#provider_config' do
     let(:poolname) { 'pool1' }
-    let(:config) { YAML.load(<<-EOT
----
-:providers:
-  :#{provider_name}:
-    option1: 'value1'
-EOT
-      )
-    }
+    let(:config) do
+      YAML.load(<<~EOT
+        ---
+        :providers:
+          :#{provider_name}:
+            option1: 'value1'
+      EOT
+               )
+    end
 
     context 'Given a provider with no configuration' do
-    let(:config) { YAML.load(<<-EOT
----
-:providers:
-  :bad_provider:
-    option1: 'value1'
-    option2: 'value1'
-EOT
-      )
-    }
+      let(:config) do
+        YAML.load(<<~EOT
+          ---
+          :providers:
+            :bad_provider:
+              option1: 'value1'
+              option2: 'value1'
+        EOT
+                 )
+      end
       it 'should return empty hash' do
         expect(subject.provider_config).to eq({})
       end
@@ -118,100 +121,101 @@ EOT
 
   # Pool Manager Methods
   describe '#name' do
-    it "should come from the provider initialization" do
+    it 'should come from the provider initialization' do
       expect(subject.name).to eq(provider_name)
     end
   end
 
   describe '#provided_pools' do
-    let(:config) { YAML.load(<<-EOT
----
-:pools:
-  - name: 'pool1'
-    provider: 'base'
-  - name: 'pool2'
-    provider: 'base'
-  - name: 'otherpool'
-    provider: 'other provider'
-  - name: 'no name'
-EOT
-      )
-    }
+    let(:config) do
+      YAML.load(<<~EOT
+        ---
+        :pools:
+          - name: 'pool1'
+            provider: 'base'
+          - name: 'pool2'
+            provider: 'base'
+          - name: 'otherpool'
+            provider: 'other provider'
+          - name: 'no name'
+      EOT
+               )
+    end
 
-    it "should return pools serviced by this provider" do
-      expect(subject.provided_pools).to eq(['pool1','pool2'])
+    it 'should return pools serviced by this provider' do
+      expect(subject.provided_pools).to eq(['pool1', 'pool2'])
     end
   end
 
   describe '#vms_in_pool' do
     it 'should raise error' do
-      expect{subject.vms_in_pool('pool')}.to raise_error(/does not implement vms_in_pool/)
+      expect { subject.vms_in_pool('pool') }.to raise_error(/does not implement vms_in_pool/)
     end
   end
 
   describe '#get_vm_host' do
     it 'should raise error' do
-      expect{subject.get_vm_host('pool', 'vm')}.to raise_error(/does not implement get_vm_host/)
+      expect { subject.get_vm_host('pool', 'vm') }.to raise_error(/does not implement get_vm_host/)
     end
   end
 
   describe '#find_least_used_compatible_host' do
     it 'should raise error' do
-      expect{subject.find_least_used_compatible_host('pool', 'vm')}.to raise_error(/does not implement find_least_used_compatible_host/)
+      expect { subject.find_least_used_compatible_host('pool', 'vm') }.to raise_error(/does not implement find_least_used_compatible_host/)
     end
   end
 
   describe '#migrate_vm_to_host' do
     it 'should raise error' do
-      expect{subject.migrate_vm_to_host('pool', 'vm','host')}.to raise_error(/does not implement migrate_vm_to_host/)
+      expect { subject.migrate_vm_to_host('pool', 'vm', 'host') }.to raise_error(/does not implement migrate_vm_to_host/)
     end
   end
 
   describe '#get_vm' do
     it 'should raise error' do
-      expect{subject.get_vm('pool', 'vm')}.to raise_error(/does not implement get_vm/)
+      expect { subject.get_vm('pool', 'vm') }.to raise_error(/does not implement get_vm/)
     end
   end
 
   describe '#create_vm' do
     it 'should raise error' do
-      expect{subject.create_vm('pool','newname')}.to raise_error(/does not implement create_vm/)
+      expect { subject.create_vm('pool', 'newname') }.to raise_error(/does not implement create_vm/)
     end
   end
 
   describe '#create_disk' do
     it 'should raise error' do
-      expect{subject.create_disk('pool', 'vm', 10)}.to raise_error(/does not implement create_disk/)
+      expect { subject.create_disk('pool', 'vm', 10) }.to raise_error(/does not implement create_disk/)
     end
   end
 
   describe '#create_snapshot' do
     it 'should raise error' do
-      expect{subject.create_snapshot('pool', 'vm', 'snapshot')}.to raise_error(/does not implement create_snapshot/)
+      expect { subject.create_snapshot('pool', 'vm', 'snapshot') }.to raise_error(/does not implement create_snapshot/)
     end
   end
 
   describe '#revert_snapshot' do
     it 'should raise error' do
-      expect{subject.revert_snapshot('pool', 'vm', 'snapshot')}.to raise_error(/does not implement revert_snapshot/)
+      expect { subject.revert_snapshot('pool', 'vm', 'snapshot') }.to raise_error(/does not implement revert_snapshot/)
     end
   end
 
   describe '#destroy_vm' do
     it 'should raise error' do
-      expect{subject.destroy_vm('pool', 'vm')}.to raise_error(/does not implement destroy_vm/)
+      expect { subject.destroy_vm('pool', 'vm') }.to raise_error(/does not implement destroy_vm/)
     end
   end
 
   describe '#vm_ready?' do
     it 'should raise error' do
-      expect{subject.vm_ready?('pool', 'vm')}.to raise_error(/does not implement vm_ready?/)
+      expect { subject.vm_ready?('pool', 'vm') }.to raise_error(/does not implement vm_ready?/)
     end
   end
 
   describe '#vm_exists?' do
     it 'should raise error' do
-      expect{subject.vm_exists?('pool', 'vm')}.to raise_error(/does not implement/)
+      expect { subject.vm_exists?('pool', 'vm') }.to raise_error(/does not implement/)
     end
 
     it 'should return true when get_vm returns an object' do

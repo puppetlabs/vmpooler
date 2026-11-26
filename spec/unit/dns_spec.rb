@@ -4,17 +4,19 @@ describe 'Vmpooler::Dns' do
   let(:dns_class) { 'mock-dnsservice' }
   let(:dns_config_name) { 'mock' }
   let(:pool) { 'pool1' }
-  let(:config) { YAML.load(<<~EOT
-  ---
-  :dns_configs:
-    :mock:
-      dns_class: 'mock'
-      domain: 'example.com'
-  :pools:
-    - name: 'pool1'
-      dns_plugin: 'mock'
-EOT
-  )}
+  let(:config) do
+    YAML.load(<<~EOT
+      ---
+      :dns_configs:
+        :mock:
+          dns_class: 'mock'
+          domain: 'example.com'
+      :pools:
+        - name: 'pool1'
+          dns_plugin: 'mock'
+    EOT
+             )
+  end
   subject { Vmpooler::Dns.new }
 
   describe '.get_dns_plugin_class_by_name' do

@@ -4,7 +4,7 @@ require 'rack/test'
 describe Vmpooler::API::Healthcheck do
   include Rack::Test::Methods
 
-  def app()
+  def app
     Vmpooler::API
   end
 
@@ -15,25 +15,25 @@ describe Vmpooler::API::Healthcheck do
     app.reset!
   end
 
-  let(:config) {
+  let(:config) do
     {
-        config: {
-            'site_name' => 'test pooler',
-            'vm_lifetime_auth' => 2,
-        },
-        pools: [
-                    {'name' => 'pool1', 'size' => 5, 'alias' => ['poolone', 'poolun']},
-                    {'name' => 'pool2', 'size' => 10},
-                    {'name' => 'pool3', 'size' => 10, 'alias' => 'NotArray'}
-                ]
+      config: {
+        'site_name' => 'test pooler',
+        'vm_lifetime_auth' => 2
+      },
+      pools: [
+        { 'name' => 'pool1', 'size' => 5, 'alias' => ['poolone', 'poolun'] },
+        { 'name' => 'pool2', 'size' => 10 },
+        { 'name' => 'pool3', 'size' => 10, 'alias' => 'NotArray' }
+      ]
     }
-  }
+  end
 
   let(:current_time) { Time.now }
 
-  let(:metrics) {
-    double("metrics")
-  }
+  let(:metrics) do
+    double('metrics')
+  end
 
   before(:each) do
     expect(app).to receive(:run!).once
@@ -46,11 +46,11 @@ describe Vmpooler::API::Healthcheck do
 
   describe '/healthcheck' do
     it 'returns OK' do
-      get "/healthcheck"
+      get '/healthcheck'
       expect(last_response.header['Content-Type']).to eq('application/json')
       expect(last_response.status).to eq(200)
       result = JSON.parse(last_response.body)
-      expect(result).to eq({'ok' => true})
+      expect(result).to eq({ 'ok' => true })
     end
   end
 end

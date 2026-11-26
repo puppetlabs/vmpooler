@@ -4,12 +4,12 @@ require 'rack/test'
 describe Vmpooler::API::V3 do
   include Rack::Test::Methods
 
-  def app()
+  def app
     Vmpooler::API
   end
   # Added to ensure no leakage in rack state from previous tests.
   # Removes all routes, filters, middleware and extension hooks from the current class
-  # https://rubydoc.info/gems/sinatra/Sinatra/Base#reset!-class_method 
+  # https://rubydoc.info/gems/sinatra/Sinatra/Base#reset!-class_method
   before(:each) do
     app.reset!
   end
@@ -17,7 +17,7 @@ describe Vmpooler::API::V3 do
   describe '/ondemandvm' do
     let(:prefix) { '/api/v3' }
     let(:metrics) { Vmpooler::Metrics::DummyStatsd.new }
-    let(:config) {
+    let(:config) do
       {
         config: {
           'site_name' => 'test pooler',
@@ -29,26 +29,26 @@ describe Vmpooler::API::V3 do
           }
         },
         dns_configs: {
-          :mock => {
+          mock: {
             'dns_class' => 'mock',
             'domain' => 'example.com'
           }
         },
         pools: [
-          {'name' => 'pool1', 'size' => 0, 'clone_target' => 'compute1', 'dns_plugin' => 'mock'},
-          {'name' => 'pool2', 'size' => 0, 'clone_target' => 'compute2', 'dns_plugin' => 'mock'},
-          {'name' => 'pool3', 'size' => 0, 'clone_target' => 'compute1', 'dns_plugin' => 'mock'}
+          { 'name' => 'pool1', 'size' => 0, 'clone_target' => 'compute1', 'dns_plugin' => 'mock' },
+          { 'name' => 'pool2', 'size' => 0, 'clone_target' => 'compute2', 'dns_plugin' => 'mock' },
+          { 'name' => 'pool3', 'size' => 0, 'clone_target' => 'compute1', 'dns_plugin' => 'mock' }
         ],
         alias: {
           'poolone' => ['pool1'],
           'pool2' => ['pool1']
         },
-        pool_names: [ 'pool1', 'pool2', 'pool3', 'poolone' ],
+        pool_names: ['pool1', 'pool2', 'pool3', 'poolone'],
         providers: {
-          :dummy => {},
+          dummy: {}
         }
       }
-    }
+    end
     let(:current_time) { Time.now }
     let(:vmname) { 'abcdefghijkl' }
     let(:checkoutlock) { Mutex.new }
@@ -66,9 +66,7 @@ describe Vmpooler::API::V3 do
     end
 
     describe 'POST /ondemandvm' do
-
       context 'with a configured pool' do
-
         context 'with no request_id provided in payload' do
           before(:each) do
             expect(SecureRandom).to receive(:uuid).and_return(uuid)
@@ -146,7 +144,7 @@ describe Vmpooler::API::V3 do
 
             expected = {
               "ok": true,
-              "request_id": "1234"
+              "request_id": '1234'
             }
             expect(last_response.body).to eq(JSON.pretty_generate(expected))
           end
@@ -158,7 +156,7 @@ describe Vmpooler::API::V3 do
 
             expected = {
               "ok": false,
-              "request_id": "1234",
+              "request_id": '1234',
               "message": "request_id '1234' has already been created"
             }
             expect(last_response.body).to eq(JSON.pretty_generate(expected))
@@ -166,7 +164,6 @@ describe Vmpooler::API::V3 do
         end
 
         context 'with auth configured' do
-
           it 'sets the token and user' do
             app.settings.set :config, auth: true
             expect(SecureRandom).to receive(:uuid).and_return(uuid)
@@ -188,7 +185,7 @@ describe Vmpooler::API::V3 do
 
           expected = {
             "ok": false,
-            "bad_templates": [ badpool ]
+            "bad_templates": [badpool]
           }
           expect(last_response.body).to eq(JSON.pretty_generate(expected))
         end
@@ -199,7 +196,7 @@ describe Vmpooler::API::V3 do
         expect_json(false, 400)
         expected = {
           "ok": false,
-          "message": "JSON payload could not be parsed"
+          "message": 'JSON payload could not be parsed'
         }
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
       end
@@ -231,8 +228,8 @@ describe Vmpooler::API::V3 do
             "request_id": uuid,
             "ready": false,
             "pool1": {
-              "ready": "0",
-              "pending": "1"
+              "ready": '0',
+              "pending": '1'
             }
           }
           expect(last_response.body).to eq(JSON.pretty_generate(expected))
@@ -273,7 +270,7 @@ describe Vmpooler::API::V3 do
               "ok": true,
               "request_id": uuid,
               "ready": false,
-              "message": "The request has been deleted"
+              "message": 'The request has been deleted'
             }
             expect(last_response.body).to eq(JSON.pretty_generate(expected))
           end

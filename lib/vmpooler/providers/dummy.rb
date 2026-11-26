@@ -16,7 +16,11 @@ module Vmpooler
           # This initial_state option is only intended to be used by spec tests
           @dummylist = provider_options['initial_state'].nil? ? {} : provider_options['initial_state']
 
-          @dummylist = YAML.load_file(dummyfilename) if !dummyfilename.nil? && File.exist?(dummyfilename)
+          if !dummyfilename.nil? && File.exist?(dummyfilename)
+            # The file is written by this provider and holds Time values, which the
+            # safe load of Psych 4 rejects, so a restart with an existing file failed.
+            @dummylist = YAML.respond_to?(:unsafe_load_file) ? YAML.unsafe_load_file(dummyfilename) : YAML.load_file(dummyfilename)
+          end
 
           # Even though this code is using Mutexes, it's still no 100% atomic i.e. it's still possible for
           # duplicate actions to put the @dummylist hashtable into a bad state, for example;
@@ -318,7 +322,16 @@ module Vmpooler
           true
         end
 
-        def vm_ready?(pool_name, vm_name)
+        # A made-up but stable address per VM name, in 10.0.0.0/16. Without this the
+        # pool manager's clone step fails on the base class, so no VM is ever created.
+        def get_vm_ip_address(vm_name, pool_name)
+          return nil if get_dummy_vm(pool_name, vm_name).nil?
+
+          sum = vm_name.each_byte.sum
+          "10.0.#{sum % 250 + 1}.#{(sum * 7) % 250 + 1}"
+        end
+
+        def vm_ready?(pool_name, vm_name, _redis = nil)
           @connection_pool.with_metrics do |_conn|
             vm_object = get_dummy_vm(pool_name, vm_name)
             return false if vm_object.nil?

@@ -4,18 +4,18 @@ require 'rack/test'
 describe Vmpooler::API::V3 do
   include Rack::Test::Methods
 
-  def app()
+  def app
     Vmpooler::API
   end
 
   # Added to ensure no leakage in rack state from previous tests.
   # Removes all routes, filters, middleware and extension hooks from the current class
-  # https://rubydoc.info/gems/sinatra/Sinatra/Base#reset!-class_method 
+  # https://rubydoc.info/gems/sinatra/Sinatra/Base#reset!-class_method
   before(:each) do
     app.reset!
   end
 
-  let(:config) {
+  let(:config) do
     {
       config: {
         'site_name' => 'test pooler',
@@ -23,18 +23,18 @@ describe Vmpooler::API::V3 do
         'experimental_features' => true
       },
       pools: [
-        {'name' => 'pool1', 'size' => 5, 'template' => 'templates/pool1', 'clone_target' => 'default_cluster'},
-        {'name' => 'pool2', 'size' => 10}
+        { 'name' => 'pool1', 'size' => 5, 'template' => 'templates/pool1', 'clone_target' => 'default_cluster' },
+        { 'name' => 'pool2', 'size' => 10 }
       ],
       pools_at_startup: [
-        {'name' => 'pool1', 'size' => 5, 'template' => 'templates/pool1', 'clone_target' => 'default_cluster'},
-        {'name' => 'pool2', 'size' => 10}
+        { 'name' => 'pool1', 'size' => 5, 'template' => 'templates/pool1', 'clone_target' => 'default_cluster' },
+        { 'name' => 'pool2', 'size' => 10 }
       ],
-      statsd: { 'prefix' => 'stats_prefix'},
+      statsd: { 'prefix' => 'stats_prefix' },
       alias: { 'poolone' => 'pool1' },
-      pool_names: [ 'pool1', 'pool2', 'poolone' ]
+      pool_names: ['pool1', 'pool2', 'poolone']
     }
-  }
+  end
 
   describe '/config/pooltemplate' do
     let(:prefix) { '/api/v3' }
@@ -87,7 +87,6 @@ describe Vmpooler::API::V3 do
           expect(last_response.body).to eq(JSON.pretty_generate(expected))
         end
       end
-
     end
 
     describe 'POST /config/pooltemplate' do
@@ -184,7 +183,6 @@ describe Vmpooler::API::V3 do
           expect(last_response.body).to eq(JSON.pretty_generate(expected))
         end
       end
-
     end
 
     describe 'DELETE /config/poolsize' do
