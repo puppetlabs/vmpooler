@@ -36,8 +36,13 @@ end
 
 if torun.include?(:api)
   api = Thread.new do
-    redis = Vmpooler.new_redis(redis_host, redis_port, redis_password)
+    redis = ConnectionPool::Wrapper.new(size: redis_connection_pool_size, timeout: redis_connection_pool_timeout) do
+      Vmpooler.new_redis(redis_host, redis_port, redis_password, redis_reconnect_attempts)
+    end
     Vmpooler::API.execute(torun, config, redis, metrics, logger)
+  rescue StandardError => e
+    logger.log('s', "[!] [api] thread crashed: #{e.message}\n#{e.backtrace.join("\n")}")
+    raise
   end
   torun_threads << api
 elsif metrics.respond_to?(:setup_prometheus_metrics)
