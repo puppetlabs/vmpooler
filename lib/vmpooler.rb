@@ -282,6 +282,11 @@ module Vmpooler
     end
 
     OpenTelemetry::SDK.configure do |c|
+      # The Rack events handler of instrumentation-rack 0.26 and later detaches the context when Puma closes the
+      # response body, which is not where it was attached, and OpenTelemetry logs "calls to detach should match
+      # corresponding calls to attach" at ERROR, about three times a request. The middleware does the same job
+      # without it. Found while updating the dependencies (P4DEVOPS-16617).
+      c.use 'OpenTelemetry::Instrumentation::Rack', use_rack_events: false
       c.use 'OpenTelemetry::Instrumentation::Sinatra'
       c.use 'OpenTelemetry::Instrumentation::ConcurrentRuby'
       c.use 'OpenTelemetry::Instrumentation::HttpClient'
