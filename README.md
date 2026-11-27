@@ -2,29 +2,6 @@
 
 # VMPooler
 
-- [VMPooler](#vmpooler)
-  - [Usage](#usage)
-    - [Migrating to v3](#migrating-to-v3)
-    - [v2.0.0 note](#v200-note)
-  - [Installation](#installation)
-    - [Dependencies](#dependencies)
-      - [Redis](#redis)
-      - [Other gems](#other-gems)
-  - [Configuration](#configuration)
-  - [Components](#components)
-    - [API](#api)
-    - [Dashboard](#dashboard)
-  - [Related tools and resources](#related-tools-and-resources)
-    - [Command-line Utility](#command-line-utility)
-    - [Vagrant plugin](#vagrant-plugin)
-  - [Development](#development)
-    - [docker-compose](#docker-compose)
-    - [Running docker-compose inside Vagrant](#running-docker-compose-inside-vagrant)
-    - [URLs when using docker-compose](#urls-when-using-docker-compose)
-  - [Update the Gemfile Lock](#update-the-gemfile-lock)
-  - [Releasing](#releasing)
-  - [License](#license)
-
 VMPooler provides configurable 'pools' of instantly-available (pre-provisioned) and/or on-demand (provisioned on request) virtual machines.
 
 ## Usage
